@@ -74,6 +74,20 @@ export async function clockIn(req: AuthRequest, res: Response) {
   });
   if (existing) return res.status(400).json({ error: 'Already clocked in' });
 
+  // Carers can only clock in to today's calls — not future or past ones.
+  if (shiftId) {
+    const shift = await prisma.shift.findUnique({ where: { id: shiftId } });
+    if (!shift) return res.status(404).json({ error: 'Shift not found' });
+    const now = new Date();
+    const isToday =
+      shift.date.getFullYear() === now.getFullYear() &&
+      shift.date.getMonth() === now.getMonth() &&
+      shift.date.getDate() === now.getDate();
+    if (!isToday) {
+      return res.status(400).json({ error: 'You can only clock in to today\'s calls' });
+    }
+  }
+
   const record = await prisma.clockRecord.create({
     data: {
       userId: req.user!.id,
@@ -100,6 +114,16 @@ export async function clockOut(req: AuthRequest, res: Response) {
       error: 'Record medication before clocking out',
       pendingMeds: pending.map((d) => `${d.name} (${d.time})`),
     });
+  }
+
+  // Compulsory call log: must write a note for this visit before clocking out.
+  if (record.shiftId) {
+    const log = await prisma.callLog.findFirst({
+      where: { shiftId: record.shiftId, userId: req.user!.id, createdAt: { gte: record.clockIn } },
+    });
+    if (!log) {
+      return res.status(400).json({ error: 'Write a call log entry before clocking out' });
+    }
   }
 
   const updated = await prisma.clockRecord.update({

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { isToday } from 'date-fns';
 import Layout from '../components/Layout';
 import { shiftDetailApi } from '../api/shiftDetail';
 import { clockApi } from '../api/clock';
@@ -46,6 +47,17 @@ export default function CallDetail() {
     refetchInterval: 15000,
   });
 
+  const clockedIn = !!clockStatus?.clockedIn && clockStatus.record?.shiftId === shift?.id;
+
+  const { data: callLogs = [] } = useQuery({
+    queryKey: ['call-logs', shift?.serviceUserId],
+    queryFn: () => callLogsApi.list(shift!.serviceUserId!),
+    enabled: clockedIn && !!shift?.serviceUserId,
+  });
+
+  const hasLoggedThisVisit = clockedIn && !!clockStatus?.record &&
+    callLogs.some((l) => l.shiftId === shift?.id && new Date(l.createdAt) >= new Date(clockStatus.record!.clockIn));
+
   const clockInMut = useMutation({
     mutationFn: () => clockApi.clockIn(id),
     onSuccess: () => {
@@ -90,6 +102,8 @@ export default function CallDetail() {
     onSuccess: () => {
       setNote('');
       setLogSent(true);
+      setClockOutError(null);
+      qc.invalidateQueries({ queryKey: ['call-logs', shift?.serviceUserId] });
       setTimeout(() => setLogSent(false), 2000);
     },
   });
@@ -104,9 +118,9 @@ export default function CallDetail() {
 
   const su = shift.serviceUser;
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
-  const clockedIn = !!clockStatus?.clockedIn && clockStatus.record?.shiftId === shift.id;
   const clockedInElsewhere = !!clockStatus?.clockedIn && clockStatus.record?.shiftId !== shift.id;
   const done = isCallDone(shift, user?.id);
+  const shiftIsToday = isToday(new Date(shift.date));
 
   return (
     <Layout title={name}>
@@ -131,13 +145,24 @@ export default function CallDetail() {
             {clockedInElsewhere ? (
               <p className="text-sm text-orange-600 font-medium">You're clocked in on another call. Clock out there first.</p>
             ) : clockedIn ? (
-              <button
-                onClick={() => clockOutMut.mutate()}
-                disabled={clockOutMut.isPending}
-                className="w-full bg-red-600 text-white rounded-xl py-3.5 font-bold text-base disabled:opacity-50"
-              >
-                {clockOutMut.isPending ? 'Clocking out…' : '⏹ Clock Out'}
-              </button>
+              <>
+                <button
+                  onClick={() => clockOutMut.mutate()}
+                  disabled={clockOutMut.isPending || !hasLoggedThisVisit}
+                  className="w-full bg-red-600 text-white rounded-xl py-3.5 font-bold text-base disabled:opacity-50"
+                >
+                  {clockOutMut.isPending ? 'Clocking out…' : '⏹ Clock Out'}
+                </button>
+                {!hasLoggedThisVisit && (
+                  <p className="text-xs text-orange-600 font-medium mt-2 text-center">
+                    Write a call log entry below before you can clock out.
+                  </p>
+                )}
+              </>
+            ) : !shiftIsToday ? (
+              <p className="text-sm text-gray-500 font-medium text-center py-1">
+                You can only clock in to today's calls.
+              </p>
             ) : (
               <button
                 onClick={() => clockInMut.mutate()}
@@ -199,7 +224,9 @@ export default function CallDetail() {
 
         {/* Call log */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-          <h2 className="font-semibold text-gray-800 mb-2">Call Log</h2>
+          <h2 className="font-semibold text-gray-800 mb-2">
+            Call Log {clockedIn && !hasLoggedThisVisit && <span className="text-orange-600 text-xs font-bold">· Required before clocking out</span>}
+          </h2>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
