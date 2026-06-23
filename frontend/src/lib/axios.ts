@@ -11,12 +11,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let redirectingToLogin = false;
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Several requests can fail with 401 at once (e.g. on page load); only
+      // redirect once, and skip it entirely if already on the login page —
+      // otherwise repeated location.href assignments can leave the page in a
+      // half-navigated, blank state.
+      if (!redirectingToLogin && window.location.pathname !== '/login') {
+        redirectingToLogin = true;
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(err);
   }
