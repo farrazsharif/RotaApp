@@ -49,7 +49,8 @@ export default function CallLogs() {
     });
   }, [logs, serviceUserId, from, to, term]);
 
-  // Group by service user, sorted alphabetically; logs within a group newest-first.
+  // Group by service user; logs within a group newest-first, and groups themselves
+  // ordered by their most recent log so the latest activity appears at the top.
   const groups = useMemo<Group[]>(() => {
     const map = new Map<string, Group>();
     for (const l of filtered) {
@@ -60,7 +61,7 @@ export default function CallLogs() {
     }
     const arr = Array.from(map.values());
     arr.forEach((g) => g.logs.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)));
-    arr.sort((a, b) => a.name.localeCompare(b.name));
+    arr.sort((a, b) => +new Date(b.logs[0].createdAt) - +new Date(a.logs[0].createdAt));
     return arr;
   }, [filtered]);
 
