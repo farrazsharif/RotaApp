@@ -49,21 +49,25 @@ export default function CallLogs() {
     });
   }, [logs, serviceUserId, from, to, term]);
 
-  // Group by service user; logs within a group newest-first, and groups themselves
-  // ordered by their most recent log so the latest activity appears at the top.
+  // Single flat list, strictly newest-first by date and time — no client grouping.
+  const sorted = useMemo(
+    () => [...filtered].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
+    [filtered],
+  );
+
+  // Grouped by service user — used only for the PDF export, which reads better organised by client.
   const groups = useMemo<Group[]>(() => {
     const map = new Map<string, Group>();
-    for (const l of filtered) {
+    for (const l of sorted) {
       const id = l.serviceUser?.id || 'unknown';
       const name = l.serviceUser ? `${l.serviceUser.firstName} ${l.serviceUser.lastName}` : 'Unknown client';
       if (!map.has(id)) map.set(id, { id, name, logs: [] });
       map.get(id)!.logs.push(l);
     }
     const arr = Array.from(map.values());
-    arr.forEach((g) => g.logs.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)));
     arr.sort((a, b) => +new Date(b.logs[0].createdAt) - +new Date(a.logs[0].createdAt));
     return arr;
-  }, [filtered]);
+  }, [sorted]);
 
   const clearFilters = () => { setSearch(''); setServiceUserId(''); setFrom(''); setTo(''); };
   const hasFilters = !!(search || serviceUserId || from || to);
@@ -157,34 +161,27 @@ export default function CallLogs() {
         {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'} across {groups.length} service user{groups.length === 1 ? '' : 's'}
       </p>
 
-      {groups.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">No call logs found</div>
       ) : (
-        <div className="space-y-6">
-          {groups.map((g) => (
-            <div key={g.id}>
-              <div className="flex items-center gap-2 mb-2 border-b border-gray-200 pb-1">
-                <h2 className="font-semibold text-gray-900">{g.name}</h2>
-                <span className="text-xs text-gray-400">{g.logs.length} log{g.logs.length === 1 ? '' : 's'}</span>
+        <div className="space-y-3">
+          {sorted.map((log) => (
+            <div key={log.id} className="card">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-semibold text-gray-900">
+                  {log.serviceUser ? `${log.serviceUser.firstName} ${log.serviceUser.lastName}` : 'Unknown client'}
+                </p>
+                <span className="text-xs text-gray-500">{format(new Date(log.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
               </div>
-              <div className="space-y-3">
-                {g.logs.map((log) => (
-                  <div key={log.id} className="card">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-gray-700">
-                        Carer: {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown'}
-                      </p>
-                      <span className="text-xs text-gray-500">{format(new Date(log.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
-                    </div>
-                    {log.shift && (
-                      <p className="text-xs text-gray-500 mb-2">
-                        Visit {log.shift.startTime}–{log.shift.endTime}{log.shift.visitName ? ` · ${log.shift.visitName}` : ''}
-                      </p>
-                    )}
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm font-medium text-gray-700 mb-1">
+                Carer: {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown'}
+              </p>
+              {log.shift && (
+                <p className="text-xs text-gray-500 mb-2">
+                  Visit {log.shift.startTime}–{log.shift.endTime}{log.shift.visitName ? ` · ${log.shift.visitName}` : ''}
+                </p>
+              )}
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
             </div>
           ))}
         </div>
