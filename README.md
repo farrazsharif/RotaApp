@@ -242,3 +242,4 @@ RotaApp/
         ├── pages/              # Route-level page components
         └── types/              # Shared TypeScript types
 ```
+
