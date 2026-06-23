@@ -43,7 +43,14 @@ function cellDate(dateStr: string, time: string): Date {
   return new Date(y, m - 1, d, h, mi, 0);
 }
 
-const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '', times: '' };
+const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '' };
+
+const VISIT_TIME_OPTS: { key: string; label: string; defaultTime: string }[] = [
+  { key: 'Morning', label: 'Morning', defaultTime: '08:00' },
+  { key: 'Lunch', label: 'Lunch', defaultTime: '12:00' },
+  { key: 'Tea', label: 'Tea', defaultTime: '16:30' },
+  { key: 'Bed', label: 'Bed', defaultTime: '21:00' },
+];
 
 export default function EmarModal({ serviceUser, onClose }: Props) {
   const { isManager } = useAuth();
@@ -51,6 +58,16 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [showAdd, setShowAdd] = useState(false);
   const [medForm, setMedForm] = useState(emptyMed);
+  const [visitTimes, setVisitTimes] = useState<Record<string, string>>({});
+
+  function toggleVisit(key: string, defaultTime: string) {
+    setVisitTimes((prev) => {
+      const next = { ...prev };
+      if (key in next) delete next[key];
+      else next[key] = defaultTime;
+      return next;
+    });
+  }
 
   const { data: meds = [] } = useQuery({
     queryKey: ['medications', serviceUser.id],
@@ -75,9 +92,14 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
       dose: medForm.dose || undefined,
       route: medForm.route || undefined,
       instructions: medForm.instructions || undefined,
-      times: medForm.times.split(',').map((t) => t.trim()).filter(Boolean),
+      times: Object.values(visitTimes).sort(),
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['medications', serviceUser.id] }); setMedForm(emptyMed); setShowAdd(false); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['medications', serviceUser.id] });
+      setMedForm(emptyMed);
+      setVisitTimes({});
+      setShowAdd(false);
+    },
   });
 
   const discontinueMut = useMutation({
@@ -127,10 +149,41 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
                   <label className="label">Route</label>
                   <input value={medForm.route} onChange={(e) => setMedForm({ ...medForm, route: e.target.value })} className="input" placeholder="Oral" />
                 </div>
-                <div>
-                  <label className="label">Times (comma-separated)</label>
-                  <input value={medForm.times} onChange={(e) => setMedForm({ ...medForm, times: e.target.value })} className="input" placeholder="08:00, 20:00" />
+              </div>
+              <div>
+                <label className="label">Dose Times — select visits</label>
+                <div className="flex flex-wrap gap-2">
+                  {VISIT_TIME_OPTS.map((opt) => {
+                    const selected = opt.key in visitTimes;
+                    return (
+                      <div
+                        key={opt.key}
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${
+                          selected ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleVisit(opt.key, opt.defaultTime)}
+                          className={`text-sm font-medium ${selected ? 'text-blue-700' : 'text-gray-600'}`}
+                        >
+                          {selected ? '✓ ' : ''}{opt.label}
+                        </button>
+                        {selected && (
+                          <input
+                            type="time"
+                            value={visitTimes[opt.key]}
+                            onChange={(e) => setVisitTimes((prev) => ({ ...prev, [opt.key]: e.target.value }))}
+                            className="text-sm border border-gray-300 rounded px-1.5 py-0.5"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+                {Object.keys(visitTimes).length === 0 && (
+                  <p className="text-xs text-gray-400 mt-1">No visit selected — leave empty for PRN / as-required medication.</p>
+                )}
               </div>
               <div>
                 <label className="label">Instructions</label>

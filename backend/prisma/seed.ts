@@ -17,14 +17,17 @@ function dateTimeAt(base: Date, hhmm: string): Date {
 }
 
 async function main() {
-  console.log('Seeding domiciliary care data...');
+  // Only seed demo data into a genuinely empty database. If any service user
+  // already exists, this is a real (or previously-seeded) database with real
+  // data in it — never wipe it. Staff account upserts below are always safe
+  // to re-run since they're idempotent (upsert, not delete+recreate).
+  const existingServiceUsers = await prisma.serviceUser.count();
+  if (existingServiceUsers > 0) {
+    console.log(`Database already has ${existingServiceUsers} service user(s) — skipping demo data seed.`);
+    return;
+  }
 
-  // ---- Reset care data (keep nothing stale) ----
-  await prisma.callLog.deleteMany({});
-  await prisma.clockRecord.deleteMany({});
-  await prisma.shiftTrade.deleteMany({});
-  await prisma.shift.deleteMany({});
-  await prisma.serviceUser.deleteMany({});
+  console.log('Seeding domiciliary care data (empty database detected)...');
 
   const adminPassword = await bcrypt.hash('admin123', 10);
   const managerPassword = await bcrypt.hash('manager123', 10);
