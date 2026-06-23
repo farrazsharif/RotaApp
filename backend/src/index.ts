@@ -19,6 +19,7 @@ import callLogRoutes from './routes/callLogs';
 import medicationRoutes from './routes/medications';
 import carePlanRoutes from './routes/carePlans';
 import servicePlanRoutes from './routes/servicePlans';
+import adminRoutes from './routes/admin';
 
 const app = express();
 const server = http.createServer(app);
@@ -47,6 +48,7 @@ app.use('/api/call-logs', callLogRoutes);
 app.use('/api/medications', medicationRoutes);
 app.use('/api/care-plans', carePlanRoutes);
 app.use('/api/service-plans', servicePlanRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use(errorHandler);
 
