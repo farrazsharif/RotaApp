@@ -147,14 +147,14 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const error = (createMut.error || updateMut.error) as { response?: { data?: { error?: string } } } | null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-6 border-b">
+    <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md my-6 sm:my-0 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b shrink-0">
           <h2 className="text-lg font-semibold">{readOnly ? 'Visit Details' : shift ? 'Edit Shift' : 'New Shift'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 overflow-y-auto">
           {error && (
             <div className="bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">
               {error.response?.data?.error || 'An error occurred'}
