@@ -100,23 +100,44 @@ export async function createShift(req: AuthRequest, res: Response) {
   const useRepeat = repeat && Array.isArray(repeat.daysOfWeek) && repeat.daysOfWeek.length > 0;
   const dates = useRepeat ? buildRecurringDates(date, repeat as Repeat) : [new Date(date)];
   const seriesId = useRepeat ? randomUUID() : null;
+  const hasCoverCarers = Array.isArray(coverCarerIds) && coverCarerIds.filter(Boolean).length > 0;
 
-  const created = await prisma.$transaction(
-    dates.map((d) => prisma.shift.create({ data: { ...baseData, ...coverConnect, seriesId, date: d }, include: shiftInclude }))
-  );
-  const shift = created[0];
+  let shift;
+  let createdCount: number;
+
+  if (dates.length > 1 && !hasCoverCarers) {
+    // Recurring visits with no specific cover carers to connect: one bulk
+    // INSERT instead of one round-trip per date. This matters a lot once the
+    // database is remote — hundreds of individual creates (e.g. a permanent
+    // weekly repeat) can otherwise take tens of seconds.
+    const result = await prisma.shift.createMany({
+      data: dates.map((d) => ({ ...baseData, seriesId, date: d })),
+    });
+    createdCount = result.count;
+    shift = await prisma.shift.findFirst({
+      where: { seriesId },
+      orderBy: { date: 'asc' },
+      include: shiftInclude,
+    });
+  } else {
+    const created = await prisma.$transaction(
+      dates.map((d) => prisma.shift.create({ data: { ...baseData, ...coverConnect, seriesId, date: d }, include: shiftInclude }))
+    );
+    createdCount = created.length;
+    shift = created[0];
+  }
 
   // Notify the assigned carer, if one was set (a single summary notification for recurring visits)
-  if (userId) {
+  if (userId && shift) {
     const message =
-      created.length > 1
-        ? `You have ${created.length} new shifts scheduled, starting ${new Date(date).toDateString()} (${startTime}–${endTime})`
+      createdCount > 1
+        ? `You have ${createdCount} new shifts scheduled, starting ${new Date(date).toDateString()} (${startTime}–${endTime})`
         : `You have a new shift on ${new Date(date).toDateString()} from ${startTime} to ${endTime}`;
     const notification = await prisma.notification.create({
       data: {
         userId,
         type: 'SHIFT_ASSIGNED',
-        title: created.length > 1 ? 'New Shifts Assigned' : 'New Shift Assigned',
+        title: createdCount > 1 ? 'New Shifts Assigned' : 'New Shift Assigned',
         message,
         data: JSON.stringify({ shiftId: shift.id }),
       },
@@ -131,7 +152,7 @@ export async function createShift(req: AuthRequest, res: Response) {
     }
   }
 
-  res.status(201).json({ ...shift, createdCount: created.length });
+  res.status(201).json({ ...shift, createdCount });
 }
 
 export async function updateShift(req: AuthRequest, res: Response) {
