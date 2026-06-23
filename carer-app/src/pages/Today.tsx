@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import Layout from '../components/Layout';
 import { clockApi } from '../api/clock';
+import { useAuth } from '../contexts/AuthContext';
+import { isCallDone } from '../lib/shiftStatus';
 import type { Shift } from '../types';
 
 function nowMinutes() {
@@ -17,6 +19,7 @@ function toMinutes(t: string) {
 
 export default function Today() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: calls = [], isLoading } = useQuery({
     queryKey: ['my-calls'],
     queryFn: () => clockApi.myCalls(),
@@ -25,7 +28,8 @@ export default function Today() {
 
   const sorted = [...calls].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
   const now = nowMinutes();
-  const nextCall = sorted.find((s) => s.status !== 'COMPLETED' && toMinutes(s.endTime) >= now) || sorted.find((s) => s.status !== 'COMPLETED');
+  const pending = sorted.filter((s) => s.status !== 'CANCELLED' && !isCallDone(s, user?.id));
+  const nextCall = pending.find((s) => toMinutes(s.endTime) >= now) || pending[0];
 
   return (
     <Layout title={`Today · ${format(new Date(), 'EEE d MMM')}`}>
@@ -43,7 +47,7 @@ export default function Today() {
           {sorted.map((s) => {
             const isNext = s.id === nextCall?.id;
             return (
-              <CallCard key={s.id} shift={s} highlighted={isNext} onClick={() => navigate(`/call/${s.id}`)} />
+              <CallCard key={s.id} shift={s} highlighted={isNext} done={isCallDone(s, user?.id)} onClick={() => navigate(`/call/${s.id}`)} />
             );
           })}
         </div>
@@ -52,21 +56,20 @@ export default function Today() {
   );
 }
 
-function CallCard({ shift, highlighted, onClick }: { shift: Shift; highlighted: boolean; onClick: () => void }) {
+function CallCard({ shift, highlighted, done, onClick }: { shift: Shift; highlighted: boolean; done: boolean; onClick: () => void }) {
   const su = shift.serviceUser;
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
   const isCancelled = shift.status === 'CANCELLED';
-  const isCompleted = shift.status === 'COMPLETED';
 
   return (
     <button
       onClick={onClick}
       disabled={isCancelled}
       className={`w-full text-left rounded-2xl p-4 shadow-sm border transition-colors ${
-        highlighted
+        done
+          ? 'bg-green-50 border-green-300 text-gray-500'
+          : highlighted
           ? 'bg-blue-600 border-blue-600 text-white'
-          : isCompleted
-          ? 'bg-green-50 border-green-200 text-gray-500'
           : isCancelled
           ? 'bg-gray-100 border-gray-200 text-gray-400 opacity-70'
           : 'bg-white border-gray-200 text-gray-800'
@@ -74,16 +77,16 @@ function CallCard({ shift, highlighted, onClick }: { shift: Shift; highlighted: 
     >
       <div className="flex items-center justify-between">
         <span className="font-bold text-base">{shift.startTime}–{shift.endTime}</span>
-        {highlighted && <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">NEXT</span>}
-        {isCompleted && <span className="text-xs font-bold text-green-600">✓ Done</span>}
+        {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Done</span>}
+        {!done && highlighted && <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">NEXT</span>}
         {isCancelled && <span className="text-xs font-bold">Cancelled</span>}
       </div>
       <p className="text-lg font-semibold mt-1">{name}</p>
       {shift.visitName && (
-        <p className={`text-sm ${highlighted ? 'text-blue-100' : 'text-gray-500'}`}>{shift.visitName}</p>
+        <p className={`text-sm ${highlighted && !done ? 'text-blue-100' : 'text-gray-500'}`}>{shift.visitName}</p>
       )}
       {su?.address && (
-        <p className={`text-sm mt-1 ${highlighted ? 'text-blue-100' : 'text-gray-400'}`}>
+        <p className={`text-sm mt-1 ${highlighted && !done ? 'text-blue-100' : 'text-gray-400'}`}>
           📍 {su.address}{su.postcode ? `, ${su.postcode}` : ''}
         </p>
       )}

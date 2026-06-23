@@ -33,6 +33,7 @@ export interface Shift {
   user?: User | null;
   coverCarers?: User[];
   serviceUser?: ServiceUserBrief | null;
+  clockRecords?: { id: string; userId: string; clockIn: string; clockOut: string | null }[];
 }
 
 export interface ClockRecord {

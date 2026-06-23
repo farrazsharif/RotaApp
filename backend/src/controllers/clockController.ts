@@ -19,6 +19,7 @@ export async function myCalls(req: AuthRequest, res: Response) {
     },
     include: {
       serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true } },
+      clockRecords: { where: { userId: req.user!.id }, select: { id: true, userId: true, clockIn: true, clockOut: true } },
     },
     orderBy: [{ startTime: 'asc' }],
   });

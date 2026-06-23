@@ -10,6 +10,7 @@ const shiftInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
   coverCarers: { select: { id: true, firstName: true, lastName: true } },
   serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true, site: { select: { id: true, name: true, color: true } } } },
+  clockRecords: { select: { id: true, userId: true, clockIn: true, clockOut: true } },
 };
 
 export async function listShifts(req: AuthRequest, res: Response) {

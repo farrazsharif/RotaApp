@@ -6,6 +6,8 @@ import { shiftDetailApi } from '../api/shiftDetail';
 import { clockApi } from '../api/clock';
 import { callLogsApi } from '../api/callLogs';
 import { medicationsApi } from '../api/medications';
+import { useAuth } from '../contexts/AuthContext';
+import { isCallDone } from '../lib/shiftStatus';
 import type { MedAdminStatus } from '../types';
 
 const STATUS_OPTIONS: { value: MedAdminStatus; label: string; color: string }[] = [
@@ -20,6 +22,7 @@ export default function CallDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [note, setNote] = useState('');
   const [clockOutError, setClockOutError] = useState<{ message: string; pendingMeds: string[] } | null>(null);
   const [logSent, setLogSent] = useState(false);
@@ -57,6 +60,7 @@ export default function CallDetail() {
       setClockOutError(null);
       qc.invalidateQueries({ queryKey: ['clock-status'] });
       qc.invalidateQueries({ queryKey: ['my-calls'] });
+      qc.invalidateQueries({ queryKey: ['shift', id] });
       navigate('/');
     },
     onError: (err: any) => {
@@ -102,52 +106,62 @@ export default function CallDetail() {
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
   const clockedIn = !!clockStatus?.clockedIn && clockStatus.record?.shiftId === shift.id;
   const clockedInElsewhere = !!clockStatus?.clockedIn && clockStatus.record?.shiftId !== shift.id;
+  const done = isCallDone(shift, user?.id);
 
   return (
     <Layout title={name}>
       <div className="space-y-4">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-          <p className="text-sm text-gray-500">{shift.startTime}–{shift.endTime}</p>
+        <div className={`rounded-2xl p-4 shadow-sm border ${done ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">{shift.startTime}–{shift.endTime}</p>
+            {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Visit Completed</span>}
+          </div>
           {shift.visitName && <p className="font-semibold text-gray-800">{shift.visitName}</p>}
           {su?.address && <p className="text-sm text-gray-500 mt-1">📍 {su.address}{su.postcode ? `, ${su.postcode}` : ''}</p>}
           {su?.phone && <p className="text-sm text-gray-500">📞 {su.phone}</p>}
         </div>
 
         {/* Clock in/out */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-          {clockedInElsewhere ? (
-            <p className="text-sm text-orange-600 font-medium">You're clocked in on another call. Clock out there first.</p>
-          ) : clockedIn ? (
-            <button
-              onClick={() => clockOutMut.mutate()}
-              disabled={clockOutMut.isPending}
-              className="w-full bg-red-600 text-white rounded-xl py-3.5 font-bold text-base disabled:opacity-50"
-            >
-              {clockOutMut.isPending ? 'Clocking out…' : '⏹ Clock Out'}
-            </button>
-          ) : (
-            <button
-              onClick={() => clockInMut.mutate()}
-              disabled={clockInMut.isPending}
-              className="w-full bg-green-600 text-white rounded-xl py-3.5 font-bold text-base disabled:opacity-50"
-            >
-              {clockInMut.isPending ? 'Clocking in…' : '▶ Clock In'}
-            </button>
-          )}
-          {clockOutError && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-700 font-medium">{clockOutError.message}</p>
-              {clockOutError.pendingMeds.length > 0 && (
-                <ul className="text-sm text-red-600 mt-1 list-disc list-inside">
-                  {clockOutError.pendingMeds.map((m) => <li key={m}>{m}</li>)}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
+        {done ? (
+          <div className="bg-green-50 border border-green-300 rounded-2xl p-4 text-center">
+            <p className="text-sm font-semibold text-green-700">✓ This call is complete. No further changes can be made.</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+            {clockedInElsewhere ? (
+              <p className="text-sm text-orange-600 font-medium">You're clocked in on another call. Clock out there first.</p>
+            ) : clockedIn ? (
+              <button
+                onClick={() => clockOutMut.mutate()}
+                disabled={clockOutMut.isPending}
+                className="w-full bg-red-600 text-white rounded-xl py-3.5 font-bold text-base disabled:opacity-50"
+              >
+                {clockOutMut.isPending ? 'Clocking out…' : '⏹ Clock Out'}
+              </button>
+            ) : (
+              <button
+                onClick={() => clockInMut.mutate()}
+                disabled={clockInMut.isPending}
+                className="w-full bg-green-600 text-white rounded-xl py-3.5 font-bold text-base disabled:opacity-50"
+              >
+                {clockInMut.isPending ? 'Clocking in…' : '▶ Clock In'}
+              </button>
+            )}
+            {clockOutError && (
+              <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-700 font-medium">{clockOutError.message}</p>
+                {clockOutError.pendingMeds.length > 0 && (
+                  <ul className="text-sm text-red-600 mt-1 list-disc list-inside">
+                    {clockOutError.pendingMeds.map((m) => <li key={m}>{m}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Medication */}
-        {clockedIn && (
+        {!done && clockedIn && (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
             <h2 className="font-semibold text-gray-800 mb-2">Medication Due</h2>
             {dueMeds.length === 0 ? (
@@ -189,13 +203,14 @@ export default function CallDetail() {
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Write a note about this visit…"
+            placeholder={done ? 'This call is locked — no further notes can be added.' : 'Write a note about this visit…'}
             rows={3}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            disabled={done}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400"
           />
           <button
             onClick={() => logMut.mutate()}
-            disabled={!note.trim() || logMut.isPending}
+            disabled={done || !note.trim() || logMut.isPending}
             className="mt-2 w-full bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40"
           >
             {logMut.isPending ? 'Saving…' : logSent ? 'Saved ✓' : 'Save Note'}

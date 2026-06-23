@@ -4,10 +4,12 @@ import { format, startOfWeek, addDays, isSameDay, isToday } from 'date-fns';
 import Layout from '../components/Layout';
 import { shiftsApi } from '../api/shifts';
 import { useAuth } from '../contexts/AuthContext';
+import { isCallDone } from '../lib/shiftStatus';
 import type { Shift } from '../types';
 
 export default function Rota() {
   const { user } = useAuth();
+  const userId = user?.id;
   const navigate = useNavigate();
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const weekEnd = addDays(weekStart, 13); // current + next week
@@ -47,7 +49,7 @@ export default function Rota() {
                   {isToday(day) ? 'Today · ' : ''}{format(day, 'EEEE d MMM')}
                 </p>
                 <div className="space-y-2">
-                  {dayShifts.map((s) => <RotaRow key={s.id} shift={s} onClick={() => navigate(`/call/${s.id}`)} />)}
+                  {dayShifts.map((s) => <RotaRow key={s.id} shift={s} done={isCallDone(s, userId)} onClick={() => navigate(`/call/${s.id}`)} />)}
                 </div>
               </div>
             );
@@ -64,15 +66,14 @@ export default function Rota() {
   );
 }
 
-function RotaRow({ shift, onClick }: { shift: Shift; onClick: () => void }) {
+function RotaRow({ shift, done, onClick }: { shift: Shift; done: boolean; onClick: () => void }) {
   const su = shift.serviceUser;
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
-  const isCompleted = shift.status === 'COMPLETED';
   return (
     <button
       onClick={onClick}
       className={`w-full text-left rounded-xl px-3.5 py-3 border flex items-center justify-between ${
-        isCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
+        done ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'
       }`}
     >
       <div>
@@ -81,7 +82,7 @@ function RotaRow({ shift, onClick }: { shift: Shift; onClick: () => void }) {
       </div>
       <div className="text-right">
         <p className="text-sm font-bold text-gray-700">{shift.startTime}–{shift.endTime}</p>
-        {isCompleted && <p className="text-xs text-green-600 font-semibold">✓ Done</p>}
+        {done && <p className="text-xs text-green-600 font-semibold">✓ Done</p>}
       </div>
     </button>
   );
