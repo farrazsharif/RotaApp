@@ -15,8 +15,12 @@ export default function Login() {
     try {
       await login(email, password);
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } } };
-      setError(e.response?.data?.error || 'Login failed. Please try again.');
+      const e = err as { code?: string; response?: { data?: { error?: string } } };
+      if (e.code === 'ECONNABORTED') {
+        setError('The server is taking a while to respond (it may be waking up after being idle). Please try again in a moment.');
+      } else {
+        setError(e.response?.data?.error || 'Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

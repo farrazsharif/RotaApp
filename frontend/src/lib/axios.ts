@@ -3,6 +3,13 @@ import axios from 'axios';
 const api = axios.create({
   baseURL: '/api',
   headers: { 'Content-Type': 'application/json' },
+  // Render's free tier can take 30-60s to wake from sleep on the first
+  // request after idle. Without a timeout, a slow/cold backend (or a
+  // platform proxy that hangs waiting on it) leaves requests pending
+  // forever with no error ever firing — buttons stuck on "Signing in…"
+  // with no way to recover. 45s comfortably covers a cold start while
+  // still eventually surfacing a retryable error.
+  timeout: 45000,
 });
 
 api.interceptors.request.use((config) => {
