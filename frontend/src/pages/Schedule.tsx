@@ -111,7 +111,7 @@ export default function Schedule() {
         // Keep the location colour as the box background; only flag unassigned with a red border.
         backgroundColor: baseColor,
         borderColor: unassigned ? '#dc2626' : baseColor,
-        textColor: '#fff',
+        textColor: '#000',
         classNames: unassigned ? ['unassigned-shift'] : [],
       };
     });
