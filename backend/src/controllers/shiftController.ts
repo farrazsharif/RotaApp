@@ -311,29 +311,55 @@ export async function cancelBulkShifts(req: AuthRequest, res: Response) {
   res.json({ message: 'Cancelled', count: result.count });
 }
 
+// A shift is fully assigned once it has as many carers (primary + cover) as
+// its cover level requires — same rule the Schedule page uses to flag
+// "needs staff". Only fully assigned shifts may be published to carers.
+function isFullyAssigned(shift: { userId: string | null; cover: number; coverCarers: unknown[] }): boolean {
+  const assigned = (shift.userId ? 1 : 0) + shift.coverCarers.length;
+  const needed = shift.cover || 1;
+  return assigned >= needed;
+}
+
 // Publish a single draft shift, making it visible to its assigned carer.
 export async function publishShift(req: AuthRequest, res: Response) {
-  const shift = await prisma.shift.update({
+  const shift = await prisma.shift.findUnique({
+    where: { id: req.params.id },
+    include: { coverCarers: { select: { id: true } } },
+  });
+  if (!shift) return res.status(404).json({ error: 'Shift not found' });
+  if (!isFullyAssigned(shift)) {
+    return res.status(400).json({ error: 'Assign a carer to every cover slot before publishing this call' });
+  }
+
+  const updated = await prisma.shift.update({
     where: { id: req.params.id },
     data: { published: true },
     include: shiftInclude,
   });
-  res.json(shift);
+  res.json(updated);
 }
 
 // Publish many shifts at once (e.g. everything currently shown on the schedule).
+// Shifts that aren't fully assigned are silently skipped rather than erroring,
+// since this is meant for "publish everything ready" bulk actions.
 export async function publishBulkShifts(req: AuthRequest, res: Response) {
   const { ids } = req.body as { ids?: string[] };
   if (!Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ error: 'ids array required' });
   }
 
-  const result = await prisma.shift.updateMany({
+  const candidates = await prisma.shift.findMany({
     where: { id: { in: ids }, published: false },
-    data: { published: true },
+    include: { coverCarers: { select: { id: true } } },
   });
+  const publishableIds = candidates.filter(isFullyAssigned).map((s) => s.id);
+  const skipped = candidates.length - publishableIds.length;
 
-  res.json({ message: 'Published', count: result.count });
+  const result = publishableIds.length
+    ? await prisma.shift.updateMany({ where: { id: { in: publishableIds } }, data: { published: true } })
+    : { count: 0 };
+
+  res.json({ message: 'Published', count: result.count, skipped });
 }
 
 export async function bulkCreateShifts(req: AuthRequest, res: Response) {

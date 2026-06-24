@@ -459,16 +459,26 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 Cancel Shift
               </button>
             )}
-            {!readOnly && shift && !shift.published && (
-              <button
-                type="button"
-                onClick={() => publishMut.mutate()}
-                disabled={publishMut.isPending}
-                className="btn-primary btn-sm btn"
-              >
-                {publishMut.isPending ? 'Publishing…' : '📣 Publish to Carer App'}
-              </button>
-            )}
+            {!readOnly && shift && !shift.published && (() => {
+              const assigned = (shift.userId ? 1 : 0) + (shift.coverCarers?.length ?? 0);
+              const fullyAssigned = assigned >= (shift.cover || 1);
+              return (
+                <div className="flex flex-col items-start gap-1">
+                  <button
+                    type="button"
+                    onClick={() => publishMut.mutate()}
+                    disabled={publishMut.isPending || !fullyAssigned}
+                    title={fullyAssigned ? undefined : 'Assign a carer to every cover slot before publishing'}
+                    className="btn-primary btn-sm btn"
+                  >
+                    {publishMut.isPending ? 'Publishing…' : '📣 Publish to Carer App'}
+                  </button>
+                  {!fullyAssigned && (
+                    <span className="text-xs text-amber-600 font-medium">Assign all carers before publishing</span>
+                  )}
+                </div>
+              );
+            })()}
             <div className="flex-1" />
             <button type="button" onClick={onClose} className="btn-secondary btn">Close</button>
             {!readOnly && (

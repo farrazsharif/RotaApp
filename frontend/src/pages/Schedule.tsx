@@ -103,7 +103,10 @@ export default function Schedule() {
       return names.some((n) => n.toLowerCase().includes(term));
     });
 
-  const draftShown = activeShifts.filter((s) => !s.published);
+  // Only fully-assigned drafts are eligible for publishing — understaffed
+  // shifts must get a carer assigned first.
+  const draftShown = activeShifts.filter((s) => !s.published && !needsStaff(s));
+  const draftUnassignedShown = activeShifts.filter((s) => !s.published && needsStaff(s)).length;
 
   const events = activeShifts
     .map((s) => {
@@ -239,6 +242,11 @@ export default function Schedule() {
               >
                 Publish All Shown ({draftShown.length})
               </button>
+            )}
+            {!confirmPublishAll && draftUnassignedShown > 0 && (
+              <span className="text-xs text-amber-600 font-medium">
+                {draftUnassignedShown} draft{draftUnassignedShown > 1 ? 's' : ''} need{draftUnassignedShown > 1 ? '' : 's'} a carer assigned before publishing
+              </span>
             )}
             {confirmCancelAll ? (
               <span className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-2 py-1">
