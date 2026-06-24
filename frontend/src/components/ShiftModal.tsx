@@ -107,6 +107,11 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); onClose(); },
   });
 
+  const publishMut = useMutation({
+    mutationFn: () => shiftsApi.publish(shift!.id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); onClose(); },
+  });
+
   const deleteMut = useMutation({
     mutationFn: (opts?: { scope?: 'one' | 'future' | 'days'; days?: number[] }) => shiftsApi.delete(shift!.id, opts),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); onClose(); },
@@ -150,7 +155,12 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
     <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md my-6 sm:my-0 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b shrink-0">
-          <h2 className="text-lg font-semibold">{readOnly ? 'Visit Details' : shift ? 'Edit Shift' : 'New Shift'}</h2>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            {readOnly ? 'Visit Details' : shift ? 'Edit Shift' : 'New Shift'}
+            {shift && !shift.published && (
+              <span className="text-xs font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Draft</span>
+            )}
+          </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
 
@@ -447,6 +457,16 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 className="btn-danger btn-sm btn"
               >
                 Cancel Shift
+              </button>
+            )}
+            {!readOnly && shift && !shift.published && (
+              <button
+                type="button"
+                onClick={() => publishMut.mutate()}
+                disabled={publishMut.isPending}
+                className="btn-primary btn-sm btn"
+              >
+                {publishMut.isPending ? 'Publishing…' : '📣 Publish to Carer App'}
               </button>
             )}
             <div className="flex-1" />

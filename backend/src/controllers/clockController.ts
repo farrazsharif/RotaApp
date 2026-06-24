@@ -15,6 +15,7 @@ export async function myCalls(req: AuthRequest, res: Response) {
     where: {
       date: { gte: dayStart, lte: dayEnd },
       status: { not: 'CANCELLED' },
+      published: true,
       OR: [{ userId: req.user!.id }, { coverCarers: { some: { id: req.user!.id } } }],
     },
     include: {
@@ -85,6 +86,9 @@ export async function clockIn(req: AuthRequest, res: Response) {
       shift.date.getDate() === now.getDate();
     if (!isToday) {
       return res.status(400).json({ error: 'You can only clock in to today\'s calls' });
+    }
+    if (!shift.published) {
+      return res.status(400).json({ error: 'This call has not been published yet' });
     }
   }
 

@@ -36,6 +36,7 @@ export interface Shift {
   role?: string;
   notes?: string;
   status: ShiftStatus;
+  published: boolean;
   createdAt: string;
 }
 

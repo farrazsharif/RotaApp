@@ -19,6 +19,8 @@ export async function listShifts(req: AuthRequest, res: Response) {
 
   if (req.user!.role === Role.EMPLOYEE) {
     where.userId = req.user!.id;
+    // Carers only ever see published shifts — drafts stay manager-only until published.
+    where.published = true;
   } else if (userId) {
     where.userId = userId;
   }
@@ -91,6 +93,9 @@ export async function createShift(req: AuthRequest, res: Response) {
     cover: Number(cover) || 1,
     role: role || null,
     notes: notes || null,
+    // New shifts start as drafts — carers won't see them until a manager
+    // explicitly publishes (see publishShift / publishBulkShifts below).
+    published: false,
   };
 
   const coverConnect = Array.isArray(coverCarerIds) && coverCarerIds.length
@@ -306,6 +311,31 @@ export async function cancelBulkShifts(req: AuthRequest, res: Response) {
   res.json({ message: 'Cancelled', count: result.count });
 }
 
+// Publish a single draft shift, making it visible to its assigned carer.
+export async function publishShift(req: AuthRequest, res: Response) {
+  const shift = await prisma.shift.update({
+    where: { id: req.params.id },
+    data: { published: true },
+    include: shiftInclude,
+  });
+  res.json(shift);
+}
+
+// Publish many shifts at once (e.g. everything currently shown on the schedule).
+export async function publishBulkShifts(req: AuthRequest, res: Response) {
+  const { ids } = req.body as { ids?: string[] };
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids array required' });
+  }
+
+  const result = await prisma.shift.updateMany({
+    where: { id: { in: ids }, published: false },
+    data: { published: true },
+  });
+
+  res.json({ message: 'Published', count: result.count });
+}
+
 export async function bulkCreateShifts(req: AuthRequest, res: Response) {
   const { shifts } = req.body as { shifts: Array<{ userId: string; date: string; startTime: string; endTime: string; role?: string; notes?: string }> };
   if (!Array.isArray(shifts) || shifts.length === 0) {
@@ -322,6 +352,7 @@ export async function bulkCreateShifts(req: AuthRequest, res: Response) {
           endTime: s.endTime,
           role: s.role || null,
           notes: s.notes || null,
+          published: false,
         },
         include: shiftInclude,
       })

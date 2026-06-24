@@ -48,6 +48,7 @@ export default function Schedule() {
   const [search, setSearch] = useState('');
   const [assignFilter, setAssignFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
+  const [confirmPublishAll, setConfirmPublishAll] = useState(false);
 
   const { data: shifts = [] } = useQuery({
     queryKey: ['shifts'],
@@ -69,6 +70,11 @@ export default function Schedule() {
 
   const cancelAllMut = useMutation({
     mutationFn: (ids: string[]) => shiftsApi.cancelBulk(ids),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
+  });
+
+  const publishAllMut = useMutation({
+    mutationFn: (ids: string[]) => shiftsApi.publishBulk(ids),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
   });
 
@@ -97,6 +103,8 @@ export default function Schedule() {
       return names.some((n) => n.toLowerCase().includes(term));
     });
 
+  const draftShown = activeShifts.filter((s) => !s.published);
+
   const events = activeShifts
     .map((s) => {
       const unassigned = needsStaff(s);
@@ -112,7 +120,10 @@ export default function Schedule() {
         backgroundColor: baseColor,
         borderColor: unassigned ? '#dc2626' : baseColor,
         textColor: '#000',
-        classNames: unassigned ? ['unassigned-shift'] : [],
+        classNames: [
+          ...(unassigned ? ['unassigned-shift'] : []),
+          ...(!s.published ? ['draft-shift'] : []),
+        ],
       };
     });
 
@@ -146,6 +157,9 @@ export default function Schedule() {
         <p className="text-xs font-bold truncate">
           {unassigned && <span title="Unassigned call">⚠ </span>}
           {patient}
+          {isManager && !s.published && (
+            <span className="ml-1 text-[9px] font-bold uppercase tracking-wide bg-black/15 px-1 py-0.5 rounded">Draft</span>
+          )}
         </p>
         <p className="text-[11px]">
           <span className="font-bold">{s.startTime}–{s.endTime}</span>
@@ -203,6 +217,29 @@ export default function Schedule() {
                 </button>
               ))}
             </div>
+            {confirmPublishAll ? (
+              <span className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-2 py-1">
+                <span className="text-sm text-green-800">Publish {draftShown.length} to carer app?</span>
+                <button
+                  className="btn-primary btn btn-sm"
+                  disabled={publishAllMut.isPending}
+                  onClick={() => {
+                    publishAllMut.mutate(draftShown.map((s) => s.id), { onSettled: () => setConfirmPublishAll(false) });
+                  }}
+                >
+                  {publishAllMut.isPending ? 'Publishing…' : 'Yes, publish all'}
+                </button>
+                <button className="btn-secondary btn btn-sm" onClick={() => setConfirmPublishAll(false)}>No</button>
+              </span>
+            ) : (
+              <button
+                className="btn-primary btn"
+                onClick={() => setConfirmPublishAll(true)}
+                disabled={draftShown.length === 0}
+              >
+                Publish All Shown ({draftShown.length})
+              </button>
+            )}
             {confirmCancelAll ? (
               <span className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-2 py-1">
                 <span className="text-sm text-red-800">Cancel {activeShifts.length}?</span>
