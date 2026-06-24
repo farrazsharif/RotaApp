@@ -4,6 +4,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
 import { EventClickArg, EventContentArg, EventDropArg } from '@fullcalendar/core';
+import enGbLocale from '@fullcalendar/core/locales/en-gb';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { shiftsApi } from '../api/shifts';
 import { usersApi } from '../api/users';
@@ -239,6 +240,8 @@ export default function Schedule() {
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
+          locale={enGbLocale}
+          firstDay={1}
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',
