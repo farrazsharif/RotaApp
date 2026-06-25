@@ -202,18 +202,20 @@ export default function CallDetail() {
                     {dose.status ? (
                       <p className="text-sm font-semibold text-green-600 mt-2">✓ {dose.status.replace('_', ' ')}</p>
                     ) : (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
+                      <select
+                        defaultValue=""
+                        disabled={medMut.isPending}
+                        onChange={(e) => {
+                          const status = e.target.value as MedAdminStatus;
+                          if (status) medMut.mutate({ medicationId: dose.medicationId, scheduledFor: dose.scheduledFor, status });
+                        }}
+                        className="mt-2 w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm font-semibold text-gray-700 disabled:opacity-50"
+                      >
+                        <option value="" disabled>Mark as…</option>
                         {STATUS_OPTIONS.map((opt) => (
-                          <button
-                            key={opt.value}
-                            onClick={() => medMut.mutate({ medicationId: dose.medicationId, scheduledFor: dose.scheduledFor, status: opt.value })}
-                            disabled={medMut.isPending}
-                            className={`${opt.color} text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg disabled:opacity-50`}
-                          >
-                            {opt.label}
-                          </button>
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
-                      </div>
+                      </select>
                     )}
                   </div>
                 ))}
