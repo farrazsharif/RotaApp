@@ -11,6 +11,17 @@ interface Group {
   logs: CallLog[];
 }
 
+// Find the clock-in/out session the carer was in when they wrote this log —
+// the session that was open (or most recently closed) at the time of writing.
+function clockTimesFor(log: CallLog): { clockIn: string; clockOut?: string } | null {
+  const records = log.shift?.clockRecords?.filter((r) => r.userId === log.user?.id) ?? [];
+  if (records.length === 0) return null;
+  const createdTs = +new Date(log.createdAt);
+  const matching = records.find((r) => +new Date(r.clockIn) <= createdTs && (!r.clockOut || +new Date(r.clockOut) >= createdTs));
+  const record = matching || [...records].sort((a, b) => +new Date(b.clockIn) - +new Date(a.clockIn))[0];
+  return { clockIn: record.clockIn, clockOut: record.clockOut };
+}
+
 export default function CallLogs() {
   const [search, setSearch] = useState('');
   const [serviceUserId, setServiceUserId] = useState('');
@@ -89,7 +100,12 @@ export default function CallLogs() {
             <span>${esc(l.user ? `${l.user.firstName} ${l.user.lastName}` : 'Unknown carer')}</span>
             <span>${format(new Date(l.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
           </div>
-          ${l.shift ? `<div class="visit">Visit ${esc(l.shift.startTime)}–${esc(l.shift.endTime)}${l.shift.visitName ? ` · ${esc(l.shift.visitName)}` : ''}</div>` : ''}
+          ${(() => {
+            const ct = clockTimesFor(l);
+            if (!ct) return '';
+            const txt = `Clocked in ${format(new Date(ct.clockIn), 'HH:mm')}${ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'HH:mm')}` : ' (still clocked in)'}`;
+            return `<div class="visit">${esc(txt)}${l.shift?.visitName ? ` · ${esc(l.shift.visitName)}` : ''}</div>`;
+          })()}
           <div class="note">${esc(l.note)}</div>
         </div>
       `).join('')}
@@ -176,11 +192,17 @@ export default function CallLogs() {
               <p className="text-sm font-medium text-gray-700 mb-1">
                 Carer: {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown'}
               </p>
-              {log.shift && (
-                <p className="text-xs text-gray-500 mb-2">
-                  Visit {log.shift.startTime}–{log.shift.endTime}{log.shift.visitName ? ` · ${log.shift.visitName}` : ''}
-                </p>
-              )}
+              {(() => {
+                const ct = clockTimesFor(log);
+                if (!ct) return null;
+                return (
+                  <p className="text-xs text-gray-500 mb-2">
+                    Clocked in {format(new Date(ct.clockIn), 'HH:mm')}
+                    {ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'HH:mm')}` : ' (still clocked in)'}
+                    {log.shift?.visitName ? ` · ${log.shift.visitName}` : ''}
+                  </p>
+                );
+              })()}
               <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
             </div>
           ))}

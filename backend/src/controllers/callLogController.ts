@@ -5,7 +5,14 @@ import { AuthRequest } from '../middleware/auth';
 const include = {
   user: { select: { id: true, firstName: true, lastName: true } },
   serviceUser: { select: { id: true, firstName: true, lastName: true } },
-  shift: { select: { id: true, date: true, startTime: true, endTime: true, visitName: true } },
+  shift: {
+    select: {
+      id: true, date: true, startTime: true, endTime: true, visitName: true,
+      // Needed so the UI can show the carer's actual clock in/out times
+      // for the visit rather than the scheduled visit window.
+      clockRecords: { select: { userId: true, clockIn: true, clockOut: true } },
+    },
+  },
 };
 
 export async function createCallLog(req: AuthRequest, res: Response) {

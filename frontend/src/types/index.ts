@@ -84,7 +84,14 @@ export interface CallLog {
   createdAt: string;
   user?: Pick<User, 'id' | 'firstName' | 'lastName'>;
   serviceUser?: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
-  shift?: { id: string; date: string; startTime: string; endTime: string; visitName?: string };
+  shift?: {
+    id: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    visitName?: string;
+    clockRecords?: { userId: string; clockIn: string; clockOut?: string }[];
+  };
 }
 
 export type MedStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN';
