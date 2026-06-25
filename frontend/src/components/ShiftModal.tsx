@@ -112,7 +112,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
         notes: shift.notes || '',
       });
     } else {
-      reset({ date: defaultDate || format(new Date(), 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00', serviceUserId: '', cover: 1 });
+      reset({ date: defaultDate || format(new Date(), 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00', serviceUserId: '', visitName: '' });
     }
   }, [shift, defaultDate, reset]);
 
@@ -231,16 +231,17 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
           </div>
 
           <div>
-            <label className="label">Visit Name</label>
+            <label className="label">Visit Name *</label>
             <input
               list="visit-presets"
-              {...register('visitName')}
+              {...register('visitName', { required: true })}
               placeholder="e.g. Morning Call, Lunch Call…"
               className="input"
             />
             <datalist id="visit-presets">
               {VISIT_PRESETS.map((v) => <option key={v} value={v} />)}
             </datalist>
+            {errors.visitName && <p className="text-xs text-red-500 mt-1">Required</p>}
           </div>
 
           <div>
@@ -261,12 +262,14 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
           </div>
 
           <div>
-            <label className="label">Cover</label>
-            <select {...register('cover', { valueAsNumber: true })} className="input">
+            <label className="label">Cover *</label>
+            <select {...register('cover', { required: true, valueAsNumber: true })} className="input">
+              <option value="">Select cover…</option>
               <option value={1}>Single cover (1 carer)</option>
               <option value={2}>Double cover (2 carers)</option>
               <option value={3}>Triple cover (3 carers)</option>
             </select>
+            {errors.cover && <p className="text-xs text-red-500 mt-1">Required</p>}
           </div>
 
           <div>
