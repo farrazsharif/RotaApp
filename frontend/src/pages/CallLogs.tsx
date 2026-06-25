@@ -22,6 +22,15 @@ function clockTimesFor(log: CallLog): { clockIn: string; clockOut?: string } | n
   return { clockIn: record.clockIn, clockOut: record.clockOut };
 }
 
+function durationLabel(clockIn: string, clockOut?: string): string | null {
+  if (!clockOut) return null;
+  const mins = Math.round((+new Date(clockOut) - +new Date(clockIn)) / 60000);
+  if (mins < 60) return `${mins} mins`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h} ${h === 1 ? 'hour' : 'hours'}` : `${h}h ${m}m`;
+}
+
 export default function CallLogs() {
   const [search, setSearch] = useState('');
   const [serviceUserId, setServiceUserId] = useState('');
@@ -100,11 +109,13 @@ export default function CallLogs() {
             <span>${esc(l.user ? `${l.user.firstName} ${l.user.lastName}` : 'Unknown carer')}</span>
             <span>${format(new Date(l.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
           </div>
+          ${l.shift ? `<div class="visit">Visit time ${esc(l.shift.startTime)}–${esc(l.shift.endTime)}${l.shift.visitName ? ` · ${esc(l.shift.visitName)}` : ''}</div>` : ''}
           ${(() => {
             const ct = clockTimesFor(l);
             if (!ct) return '';
-            const txt = `Clocked in ${format(new Date(ct.clockIn), 'HH:mm')}${ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'HH:mm')}` : ' (still clocked in)'}`;
-            return `<div class="visit">${esc(txt)}${l.shift?.visitName ? ` · ${esc(l.shift.visitName)}` : ''}</div>`;
+            const dur = ct.clockOut ? durationLabel(ct.clockIn, ct.clockOut) : null;
+            const txt = `Actual: clocked in ${format(new Date(ct.clockIn), 'HH:mm')}${ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'HH:mm')}` : ' (still clocked in)'}${dur ? ` · ${dur} on call` : ''}`;
+            return `<div class="visit">${esc(txt)}</div>`;
           })()}
           <div class="note">${esc(l.note)}</div>
         </div>
@@ -192,14 +203,20 @@ export default function CallLogs() {
               <p className="text-sm font-medium text-gray-700 mb-1">
                 Carer: {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown'}
               </p>
+              {log.shift && (
+                <p className="text-xs text-gray-500">
+                  Visit time {log.shift.startTime}–{log.shift.endTime}{log.shift.visitName ? ` · ${log.shift.visitName}` : ''}
+                </p>
+              )}
               {(() => {
                 const ct = clockTimesFor(log);
                 if (!ct) return null;
+                const dur = ct.clockOut ? durationLabel(ct.clockIn, ct.clockOut) : null;
                 return (
                   <p className="text-xs text-gray-500 mb-2">
-                    Clocked in {format(new Date(ct.clockIn), 'HH:mm')}
+                    Actual: clocked in {format(new Date(ct.clockIn), 'HH:mm')}
                     {ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'HH:mm')}` : ' (still clocked in)'}
-                    {log.shift?.visitName ? ` · ${log.shift.visitName}` : ''}
+                    {dur ? ` · ${dur} on call` : ''}
                   </p>
                 );
               })()}
