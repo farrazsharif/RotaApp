@@ -112,12 +112,17 @@ export default function Schedule() {
     .map((s) => {
       const unassigned = needsStaff(s);
       const baseColor = s.serviceUser?.site?.color || userColor(s.userId, users);
+      const dateStr = format(new Date(s.date), 'yyyy-MM-dd');
       return {
         id: s.id,
         title: isManager
           ? `${s.user ? `${s.user.firstName} ${s.user.lastName}` : 'Unassigned'}${s.visitName ? ` · ${s.visitName}` : s.role ? ` · ${s.role}` : ''}`
           : s.visitName || s.role || 'Shift',
-        date: format(new Date(s.date), 'yyyy-MM-dd'),
+        // Give events a real start/end (not just a bare date) so FullCalendar
+        // orders each day's calls chronologically by visit time instead of
+        // falling back to alphabetical title sorting.
+        start: `${dateStr}T${s.startTime}:00`,
+        end: `${dateStr}T${s.endTime}:00`,
         extendedProps: { shift: s },
         // Keep the location colour as the box background; only flag unassigned with a red border.
         backgroundColor: baseColor,
@@ -296,6 +301,7 @@ export default function Schedule() {
             right: 'dayGridMonth,timeGridWeek,timeGridDay',
           }}
           events={events}
+          eventOrder="start"
           dateClick={handleDateClick}
           eventClick={handleEventClick}
           eventDrop={handleEventDrop}
