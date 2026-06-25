@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { callLogsApi } from '../api/callLogs';
 import { serviceUsersApi } from '../api/serviceUsers';
+import { useAuth } from '../contexts/AuthContext';
 import { CallLog } from '../types';
 import { format } from 'date-fns';
 
@@ -32,14 +33,35 @@ function durationLabel(clockIn: string, clockOut?: string): string | null {
 }
 
 export default function CallLogs() {
+  const { isAdmin } = useAuth();
+  const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [serviceUserId, setServiceUserId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNote, setEditNote] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['call-logs', 'all'],
     queryFn: () => callLogsApi.list(),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string }) => callLogsApi.update(id, note),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['call-logs'] });
+      setEditingId(null);
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => callLogsApi.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['call-logs'] });
+      setConfirmDeleteId(null);
+    },
   });
 
   const { data: serviceUsers = [] } = useQuery({
@@ -198,7 +220,36 @@ export default function CallLogs() {
                 <p className="text-sm font-semibold text-gray-900">
                   {log.serviceUser ? `${log.serviceUser.firstName} ${log.serviceUser.lastName}` : 'Unknown client'}
                 </p>
-                <span className="text-xs text-gray-500">{format(new Date(log.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">{format(new Date(log.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
+                  {isAdmin && editingId !== log.id && (
+                    <>
+                      <button
+                        className="text-xs text-blue-600 hover:underline"
+                        onClick={() => { setEditingId(log.id); setEditNote(log.note); }}
+                      >
+                        Edit
+                      </button>
+                      {confirmDeleteId === log.id ? (
+                        <span className="flex items-center gap-1">
+                          <span className="text-xs text-red-700">Delete?</span>
+                          <button
+                            className="text-xs font-semibold text-red-600 hover:underline"
+                            disabled={deleteMut.isPending}
+                            onClick={() => deleteMut.mutate(log.id)}
+                          >
+                            Yes
+                          </button>
+                          <button className="text-xs text-gray-500 hover:underline" onClick={() => setConfirmDeleteId(null)}>No</button>
+                        </span>
+                      ) : (
+                        <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDeleteId(log.id)}>
+                          Delete
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
               <p className="text-sm font-medium text-gray-700 mb-1">
                 Carer: {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown'}
@@ -220,7 +271,28 @@ export default function CallLogs() {
                   </p>
                 );
               })()}
-              <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
+              {editingId === log.id ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={editNote}
+                    onChange={(e) => setEditNote(e.target.value)}
+                    rows={3}
+                    className="input w-full"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      className="btn-primary btn btn-sm"
+                      disabled={!editNote.trim() || updateMut.isPending}
+                      onClick={() => updateMut.mutate({ id: log.id, note: editNote.trim() })}
+                    >
+                      {updateMut.isPending ? 'Saving…' : 'Save'}
+                    </button>
+                    <button className="btn-secondary btn btn-sm" onClick={() => setEditingId(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
+              )}
             </div>
           ))}
         </div>

@@ -44,3 +44,27 @@ export async function listCallLogs(req: AuthRequest, res: Response) {
   });
   res.json(logs);
 }
+
+export async function updateCallLog(req: AuthRequest, res: Response) {
+  const { note } = req.body;
+  if (!note || !String(note).trim()) {
+    return res.status(400).json({ error: 'note is required' });
+  }
+  const existing = await prisma.callLog.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'Call log not found' });
+
+  const log = await prisma.callLog.update({
+    where: { id: req.params.id },
+    data: { note: String(note).trim() },
+    include,
+  });
+  res.json(log);
+}
+
+export async function deleteCallLog(req: AuthRequest, res: Response) {
+  const existing = await prisma.callLog.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: 'Call log not found' });
+
+  await prisma.callLog.delete({ where: { id: req.params.id } });
+  res.json({ message: 'Deleted' });
+}
