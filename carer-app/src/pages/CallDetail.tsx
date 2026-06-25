@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { isToday } from 'date-fns';
+import { isToday, format } from 'date-fns';
 import Layout from '../components/Layout';
 import { shiftDetailApi } from '../api/shiftDetail';
 import { clockApi } from '../api/clock';
@@ -200,7 +200,10 @@ export default function CallDetail() {
                       <span className="text-xs text-gray-400">{dose.time}</span>
                     </div>
                     {dose.status ? (
-                      <p className="text-sm font-semibold text-green-600 mt-2">✓ {dose.status.replace('_', ' ')}</p>
+                      <p className="text-sm font-semibold text-green-600 mt-2">
+                        ✓ {dose.status.replace('_', ' ')}
+                        {dose.recordedAt && <span className="text-gray-400 font-normal"> at {format(new Date(dose.recordedAt), 'HH:mm')}</span>}
+                      </p>
                     ) : (
                       <select
                         defaultValue=""

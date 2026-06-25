@@ -63,4 +63,5 @@ export interface DueDose {
   time: string;
   scheduledFor: string;
   status: MedAdminStatus | null;
+  recordedAt: string | null;
 }
