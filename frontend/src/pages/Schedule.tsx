@@ -24,6 +24,13 @@ function userColor(userId: string | undefined, users: { id: string }[]): string 
   return COLORS[idx % COLORS.length] || '#3b82f6';
 }
 
+function formatTime12h(time: string): string {
+  const [h, m] = time.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+  return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
 function formatDuration(start: string, end: string): string {
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);
@@ -170,7 +177,7 @@ export default function Schedule() {
           )}
         </p>
         <p className="text-[11px]">
-          <span className="font-bold">{s.startTime}–{s.endTime}</span>
+          <span className="font-bold">{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}</span>
           <span className="opacity-90"> · {formatDuration(s.startTime, s.endTime)}</span>
         </p>
         {isManager && (
