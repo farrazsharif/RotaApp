@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import { shiftsApi } from '../api/shifts';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
+import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
 
 export default function Rota() {
@@ -81,7 +82,7 @@ function RotaRow({ shift, done, onClick }: { shift: Shift; done: boolean; onClic
         {shift.visitName && <p className="text-xs text-gray-400">{shift.visitName}</p>}
       </div>
       <div className="text-right">
-        <p className="text-sm font-bold text-gray-700">{shift.startTime}–{shift.endTime}</p>
+        <p className="text-sm font-bold text-gray-700">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</p>
         {done && <p className="text-xs text-green-600 font-semibold">✓ Done</p>}
       </div>
     </button>

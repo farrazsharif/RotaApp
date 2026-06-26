@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import { clockApi } from '../api/clock';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
+import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
 
 function nowMinutes() {
@@ -76,7 +77,7 @@ function CallCard({ shift, highlighted, done, onClick }: { shift: Shift; highlig
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className="font-bold text-base">{shift.startTime}–{shift.endTime}</span>
+        <span className="font-bold text-base">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</span>
         {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Done</span>}
         {!done && highlighted && <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">NEXT</span>}
         {isCancelled && <span className="text-xs font-bold">Cancelled</span>}

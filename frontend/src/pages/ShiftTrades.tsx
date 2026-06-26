@@ -5,6 +5,7 @@ import { shiftsApi } from '../api/shifts';
 import { useAuth } from '../contexts/AuthContext';
 import { ShiftTrade } from '../types';
 import { format } from 'date-fns';
+import { formatTime12h } from '../lib/time';
 
 const statusBadge: Record<string, string> = {
   PENDING: 'badge-yellow',
@@ -71,7 +72,7 @@ export default function ShiftTrades() {
                 .filter((s) => s.status === 'SCHEDULED' && new Date(s.date) >= new Date())
                 .map((s) => (
                   <option key={s.id} value={s.id}>
-                    {format(new Date(s.date), 'EEE dd MMM')} · {s.startTime}–{s.endTime} {s.role ? `(${s.role})` : ''}
+                    {format(new Date(s.date), 'EEE dd MMM')} · {formatTime12h(s.startTime)}–{formatTime12h(s.endTime)} {s.role ? `(${s.role})` : ''}
                   </option>
                 ))}
             </select>
@@ -110,14 +111,14 @@ export default function ShiftTrades() {
                     </p>
                     <span className="text-gray-400 text-sm">→</span>
                     <p className="text-gray-600 text-sm">
-                      {format(new Date(t.shift.date), 'EEE dd MMM')} · {t.shift.startTime}–{t.shift.endTime}
+                      {format(new Date(t.shift.date), 'EEE dd MMM')} · {formatTime12h(t.shift.startTime)}–{formatTime12h(t.shift.endTime)}
                       {t.shift.role ? ` · ${t.shift.role}` : ''}
                     </p>
                     <span className={statusBadge[t.status]}>{t.status}</span>
                   </div>
                   {t.message && <p className="text-sm text-gray-500 mt-1 italic">"{t.message}"</p>}
                   <p className="text-xs text-gray-400 mt-1">
-                    {format(new Date(t.createdAt), 'dd MMM yyyy HH:mm')}
+                    {format(new Date(t.createdAt), 'dd MMM yyyy h:mm a')}
                   </p>
                 </div>
 

@@ -302,7 +302,7 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
           <div>
             <h2 className="text-lg font-semibold">Personal Service Plan — {serviceUser.firstName} {serviceUser.lastName}</h2>
             <p className="text-xs text-gray-500">
-              {plan ? `Last updated ${format(new Date(plan.updatedAt), 'dd MMM yyyy, HH:mm')}` : 'Not started'}
+              {plan ? `Last updated ${format(new Date(plan.updatedAt), 'dd MMM yyyy, h:mm a')}` : 'Not started'}
               {` · ${completed}/${PSP_SECTIONS.length} sections started`}
               {ro && ' · read-only'}
             </p>

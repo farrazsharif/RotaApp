@@ -5,6 +5,7 @@ import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
 import { CallLog } from '../types';
 import { format } from 'date-fns';
+import { formatTime12h } from '../lib/time';
 
 interface Group {
   id: string;
@@ -129,14 +130,14 @@ export default function CallLogs() {
         <div class="log">
           <div class="meta">
             <span>${esc(l.user ? `${l.user.firstName} ${l.user.lastName}` : 'Unknown carer')}</span>
-            <span>${format(new Date(l.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
+            <span>${format(new Date(l.createdAt), 'EEE dd MMM yyyy, h:mm a')}</span>
           </div>
-          ${l.shift ? `<div class="visit">Visit time ${esc(l.shift.startTime)}–${esc(l.shift.endTime)}${l.shift.visitName ? ` · ${esc(l.shift.visitName)}` : ''}</div>` : ''}
+          ${l.shift ? `<div class="visit">Visit time ${esc(formatTime12h(l.shift.startTime))}–${esc(formatTime12h(l.shift.endTime))}${l.shift.visitName ? ` · ${esc(l.shift.visitName)}` : ''}</div>` : ''}
           ${(() => {
             const ct = clockTimesFor(l);
             if (!ct) return '';
             const dur = ct.clockOut ? durationLabel(ct.clockIn, ct.clockOut) : null;
-            const txt = `Actual: clocked in ${format(new Date(ct.clockIn), 'HH:mm')}${ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'HH:mm')}` : ' (still clocked in)'}${dur ? ` · ${dur} on call` : ''}`;
+            const txt = `Actual: clocked in ${format(new Date(ct.clockIn), 'h:mm a')}${ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'h:mm a')}` : ' (still clocked in)'}${dur ? ` · ${dur} on call` : ''}`;
             return `<div class="visit">${esc(txt)}</div>`;
           })()}
           <div class="note">${esc(l.note)}</div>
@@ -159,7 +160,7 @@ export default function CallLogs() {
         @media print { body { margin: 12mm; } }
       </style></head><body>
       <h1>Call Logs</h1>
-      <div class="sub">${esc(rangeLabel)} · ${filtered.length} entr${filtered.length === 1 ? 'y' : 'ies'} · Generated ${format(new Date(), 'dd MMM yyyy, HH:mm')}</div>
+      <div class="sub">${esc(rangeLabel)} · ${filtered.length} entr${filtered.length === 1 ? 'y' : 'ies'} · Generated ${format(new Date(), 'dd MMM yyyy, h:mm a')}</div>
       ${body || '<p>No call logs match the current filters.</p>'}
       </body></html>`;
 
@@ -221,7 +222,7 @@ export default function CallLogs() {
                   {log.serviceUser ? `${log.serviceUser.firstName} ${log.serviceUser.lastName}` : 'Unknown client'}
                 </p>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">{format(new Date(log.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
+                  <span className="text-xs text-gray-500">{format(new Date(log.createdAt), 'EEE dd MMM yyyy, h:mm a')}</span>
                   {isAdmin && editingId !== log.id && (
                     <>
                       <button
@@ -256,7 +257,7 @@ export default function CallLogs() {
               </p>
               {log.shift && (
                 <p className="text-xs text-gray-500">
-                  Visit time {log.shift.startTime}–{log.shift.endTime}{log.shift.visitName ? ` · ${log.shift.visitName}` : ''}
+                  Visit time {formatTime12h(log.shift.startTime)}–{formatTime12h(log.shift.endTime)}{log.shift.visitName ? ` · ${log.shift.visitName}` : ''}
                 </p>
               )}
               {(() => {
@@ -265,8 +266,8 @@ export default function CallLogs() {
                 const dur = ct.clockOut ? durationLabel(ct.clockIn, ct.clockOut) : null;
                 return (
                   <p className="text-xs text-gray-500 mb-2">
-                    Actual: clocked in {format(new Date(ct.clockIn), 'HH:mm')}
-                    {ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'HH:mm')}` : ' (still clocked in)'}
+                    Actual: clocked in {format(new Date(ct.clockIn), 'h:mm a')}
+                    {ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'h:mm a')}` : ' (still clocked in)'}
                     {dur ? ` · ${dur} on call` : ''}
                   </p>
                 );

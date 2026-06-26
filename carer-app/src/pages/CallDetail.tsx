@@ -9,6 +9,7 @@ import { callLogsApi } from '../api/callLogs';
 import { medicationsApi } from '../api/medications';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
+import { formatTime12h } from '../lib/time';
 import type { MedAdminStatus } from '../types';
 
 const STATUS_OPTIONS: { value: MedAdminStatus; label: string; color: string }[] = [
@@ -127,7 +128,7 @@ export default function CallDetail() {
       <div className="space-y-4">
         <div className={`rounded-2xl p-4 shadow-sm border ${done ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">{shift.startTime}–{shift.endTime}</p>
+            <p className="text-sm text-gray-500">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</p>
             {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Visit Completed</span>}
           </div>
           {shift.visitName && <p className="font-semibold text-gray-800">{shift.visitName}</p>}
@@ -197,12 +198,12 @@ export default function CallDetail() {
                   <div key={`${dose.medicationId}-${dose.scheduledFor}`} className="border border-gray-100 rounded-xl p-3">
                     <div className="flex items-center justify-between">
                       <p className="font-medium text-gray-800">{dose.name}{dose.dose ? ` · ${dose.dose}` : ''}</p>
-                      <span className="text-xs text-gray-400">{dose.time}</span>
+                      <span className="text-xs text-gray-400">{formatTime12h(dose.time)}</span>
                     </div>
                     {dose.status ? (
                       <p className="text-sm font-semibold text-green-600 mt-2">
                         ✓ {dose.status.replace('_', ' ')}
-                        {dose.recordedAt && <span className="text-gray-400 font-normal"> at {format(new Date(dose.recordedAt), 'HH:mm')}</span>}
+                        {dose.recordedAt && <span className="text-gray-400 font-normal"> at {format(new Date(dose.recordedAt), 'h:mm a')}</span>}
                       </p>
                     ) : (
                       <select

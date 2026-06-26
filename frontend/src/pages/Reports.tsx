@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi, CribSheetRow } from '../api/reports';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { formatTime12h } from '../lib/time';
 
 type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage';
 
@@ -211,10 +212,10 @@ export default function Reports() {
                       <td className="px-4 py-2.5 text-gray-600">{row.position}</td>
                       <td className="px-4 py-2.5 text-gray-800">{row.serviceUser}</td>
                       <td className="px-4 py-2.5 text-gray-600">{format(parseISO(row.date), 'dd-MM-yyyy')}</td>
-                      <td className="px-3 py-2.5 text-center text-gray-600">{row.startTime}</td>
-                      <td className="px-3 py-2.5 text-center text-gray-500">{row.clockIn ? format(parseISO(row.clockIn), 'HH:mm') : '—'}</td>
-                      <td className="px-3 py-2.5 text-center text-gray-600">{row.endTime}</td>
-                      <td className="px-3 py-2.5 text-center text-gray-500">{row.clockOut ? format(parseISO(row.clockOut), 'HH:mm') : '—'}</td>
+                      <td className="px-3 py-2.5 text-center text-gray-600">{formatTime12h(row.startTime)}</td>
+                      <td className="px-3 py-2.5 text-center text-gray-500">{row.clockIn ? format(parseISO(row.clockIn), 'h:mm a') : '—'}</td>
+                      <td className="px-3 py-2.5 text-center text-gray-600">{formatTime12h(row.endTime)}</td>
+                      <td className="px-3 py-2.5 text-center text-gray-500">{row.clockOut ? format(parseISO(row.clockOut), 'h:mm a') : '—'}</td>
                       <td className="px-4 py-2.5 text-right font-semibold text-blue-600">{row.totalHours}h</td>
                     </tr>
                   ))}

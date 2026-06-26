@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { callLogsApi } from '../api/callLogs';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
+import { formatTime12h } from '../lib/time';
 
 interface Props {
   serviceUser: ServiceUser;
@@ -68,11 +69,11 @@ export default function CallLogsModal({ serviceUser, onClose }: Props) {
                       <span className="font-medium text-gray-700">
                         {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown carer'}
                       </span>
-                      <span>{format(new Date(log.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
+                      <span>{format(new Date(log.createdAt), 'EEE dd MMM yyyy, h:mm a')}</span>
                     </div>
                     {log.shift && (
                       <p className="text-[11px] text-gray-400 mb-1">
-                        Visit: {log.shift.startTime}–{log.shift.endTime}{log.shift.visitName ? ` · ${log.shift.visitName}` : ''}
+                        Visit: {formatTime12h(log.shift.startTime)}–{formatTime12h(log.shift.endTime)}{log.shift.visitName ? ` · ${log.shift.visitName}` : ''}
                       </p>
                     )}
                     <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>

@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
 import { Shift } from '../types';
 import { format } from 'date-fns';
+import { formatTime12h } from '../lib/time';
 
 const COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -22,13 +23,6 @@ function userColor(userId: string | undefined, users: { id: string }[]): string 
   if (!userId) return '#9ca3af'; // gray for unassigned
   const idx = users.findIndex((u) => u.id === userId);
   return COLORS[idx % COLORS.length] || '#3b82f6';
-}
-
-function formatTime12h(time: string): string {
-  const [h, m] = time.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const hour12 = h % 12 || 12;
-  return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
 function formatDuration(start: string, end: string): string {

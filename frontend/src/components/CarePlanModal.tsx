@@ -96,7 +96,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
           <div>
             <h2 className="text-lg font-semibold">Care Plan — {serviceUser.firstName} {serviceUser.lastName}</h2>
             <p className="text-xs text-gray-500">
-              {plan ? `Last updated ${format(new Date(plan.updatedAt), 'dd MMM yyyy, HH:mm')}` : (ro ? 'No care plan recorded yet' : 'No care plan yet — fill it in below')}
+              {plan ? `Last updated ${format(new Date(plan.updatedAt), 'dd MMM yyyy, h:mm a')}` : (ro ? 'No care plan recorded yet' : 'No care plan yet — fill it in below')}
               {ro && ' · read-only'}
             </p>
           </div>

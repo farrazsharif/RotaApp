@@ -270,7 +270,7 @@ export default function ServiceUserDetail() {
       >
         <p className="text-sm text-gray-600">
           {servicePlan
-            ? `Full assessment — last updated ${format(new Date(servicePlan.updatedAt), 'dd MMM yyyy, HH:mm')}.`
+            ? `Full assessment — last updated ${format(new Date(servicePlan.updatedAt), 'dd MMM yyyy, h:mm a')}.`
             : 'Comprehensive assessment (health, communication, personal care, medication, manual handling, safeguarding, consent and more). Not started yet.'}
         </p>
       </Section>
@@ -313,7 +313,7 @@ export default function ServiceUserDetail() {
               <div key={log.id} className="rounded-lg border border-gray-200 p-3">
                 <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                   <span className="font-medium text-gray-700">{log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown carer'}</span>
-                  <span>{format(new Date(log.createdAt), 'EEE dd MMM yyyy, HH:mm')}</span>
+                  <span>{format(new Date(log.createdAt), 'EEE dd MMM yyyy, h:mm a')}</span>
                 </div>
                 <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
               </div>

@@ -5,6 +5,7 @@ import { clockApi } from '../api/clock';
 import { useAuth } from '../contexts/AuthContext';
 import { format, startOfWeek, endOfWeek, formatDistanceToNow } from 'date-fns';
 import { Shift } from '../types';
+import { formatTime12h } from '../lib/time';
 
 function StatCard({ label, value, icon, color }: { label: string; value: number | string; icon: string; color: string }) {
   return (
@@ -95,7 +96,7 @@ export default function Dashboard() {
                   <div className="text-right">
                     <span className="badge badge-green">On call</span>
                     <p className="text-xs text-gray-500 mt-1">
-                      since {format(new Date(r.clockIn), 'HH:mm')} · {formatDistanceToNow(new Date(r.clockIn))}
+                      since {format(new Date(r.clockIn), 'h:mm a')} · {formatDistanceToNow(new Date(r.clockIn))}
                     </p>
                   </div>
                 </div>
@@ -119,7 +120,7 @@ export default function Dashboard() {
                     <p className="font-medium text-gray-800">
                       {isManager ? (s.user ? `${s.user.firstName} ${s.user.lastName}` : 'Unassigned') : s.role || 'Shift'}
                     </p>
-                    <p className="text-sm text-gray-500">{s.startTime} – {s.endTime} · {shiftDuration(s)}</p>
+                    <p className="text-sm text-gray-500">{formatTime12h(s.startTime)} – {formatTime12h(s.endTime)} · {shiftDuration(s)}</p>
                   </div>
                   <span className={`badge ${s.status === 'SCHEDULED' ? 'badge-blue' : s.status === 'COMPLETED' ? 'badge-green' : 'badge-gray'}`}>
                     {s.status}
@@ -148,7 +149,7 @@ export default function Dashboard() {
                       <p className="text-sm font-medium text-gray-800">
                         {isManager ? (s.user ? `${s.user.firstName} ${s.user.lastName}` : 'Unassigned') : s.role || 'Shift'}
                       </p>
-                      <p className="text-xs text-gray-500">{s.startTime} – {s.endTime}</p>
+                      <p className="text-xs text-gray-500">{formatTime12h(s.startTime)} – {formatTime12h(s.endTime)}</p>
                     </div>
                   </div>
                   <span className={`badge ${s.status === 'SCHEDULED' ? 'badge-blue' : 'badge-gray'}`}>

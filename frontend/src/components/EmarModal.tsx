@@ -4,6 +4,7 @@ import { medicationsApi } from '../api/medications';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser, Medication, MedStatus } from '../types';
 import { format } from 'date-fns';
+import { formatTime12h } from '../lib/time';
 
 interface Props {
   serviceUser: ServiceUser;
@@ -231,7 +232,7 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
                           const status = rec?.status || '';
                           return (
                             <div key={t} className="flex flex-col gap-1">
-                              <span className="text-xs font-semibold text-gray-700">{t}</span>
+                              <span className="text-xs font-semibold text-gray-700">{formatTime12h(t)}</span>
                               <select
                                 value={status}
                                 onChange={(e) => recordMut.mutate({ medicationId: med.id, scheduledFor: when.toISOString(), status: e.target.value as MedStatus })}
@@ -240,7 +241,10 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
                                 {STATUS_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                               </select>
                               {rec?.user && (
-                                <span className="text-[10px] text-gray-400">{rec.user.firstName} {rec.user.lastName[0]}</span>
+                                <span className="text-[10px] text-gray-400">
+                                  {rec.user.firstName} {rec.user.lastName[0]}
+                                  {rec.recordedAt && ` · ${format(new Date(rec.recordedAt), 'h:mm a')}`}
+                                </span>
                               )}
                             </div>
                           );

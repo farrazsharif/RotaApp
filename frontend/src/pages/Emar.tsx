@@ -54,7 +54,8 @@ export default function Emar() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Date / Time</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Scheduled</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Recorded At</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Client</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Medication</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
@@ -64,7 +65,8 @@ export default function Emar() {
             <tbody className="divide-y">
               {filtered.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-600">{format(new Date(r.scheduledFor), 'dd MMM, HH:mm')}</td>
+                  <td className="px-4 py-3 text-gray-600">{format(new Date(r.scheduledFor), 'dd MMM, h:mm a')}</td>
+                  <td className="px-4 py-3 text-gray-600">{format(new Date(r.recordedAt), 'dd MMM, h:mm a')}</td>
                   <td className="px-4 py-3 font-medium">
                     {r.serviceUser ? `${r.serviceUser.firstName} ${r.serviceUser.lastName}` : '—'}
                   </td>

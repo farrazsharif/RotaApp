@@ -5,6 +5,7 @@ import { callLogsApi } from '../api/callLogs';
 import { medicationsApi } from '../api/medications';
 import { MedStatus } from '../types';
 import { formatDistanceToNow } from 'date-fns';
+import { formatTime12h } from '../lib/time';
 
 const MED_OPTS: { value: MedStatus | ''; label: string }[] = [
   { value: '', label: '— mark dose' },
@@ -113,7 +114,7 @@ export default function ClockWidget() {
                   {c.serviceUser ? `${c.serviceUser.firstName} ${c.serviceUser.lastName}` : 'No patient'}
                 </p>
                 <p className="text-xs text-gray-500">
-                  <span className="font-semibold">{c.startTime}–{c.endTime}</span>
+                  <span className="font-semibold">{formatTime12h(c.startTime)}–{formatTime12h(c.endTime)}</span>
                   {c.visitName ? ` · ${c.visitName}` : ''}
                   {c.serviceUser?.postcode ? ` · ${c.serviceUser.postcode}` : ''}
                 </p>

@@ -4,6 +4,7 @@ import { clockApi } from '../api/clock';
 import { useAuth } from '../contexts/AuthContext';
 import { ClockRecord } from '../types';
 import { format, differenceInMinutes, startOfWeek, endOfWeek } from 'date-fns';
+import { formatTime12h } from '../lib/time';
 
 function duration(record: ClockRecord) {
   if (!record.clockOut) return 'In progress';
@@ -73,16 +74,16 @@ export default function Attendance() {
                     <td className="px-4 py-3 font-medium">{r.user.firstName} {r.user.lastName}</td>
                   )}
                   <td className="px-4 py-3 text-gray-600">{format(new Date(r.clockIn), 'EEE dd MMM')}</td>
-                  <td className="px-4 py-3">{format(new Date(r.clockIn), 'HH:mm')}</td>
+                  <td className="px-4 py-3">{format(new Date(r.clockIn), 'h:mm a')}</td>
                   <td className="px-4 py-3">
-                    {r.clockOut ? format(new Date(r.clockOut), 'HH:mm') : (
+                    {r.clockOut ? format(new Date(r.clockOut), 'h:mm a') : (
                       <span className="badge-green badge">Active</span>
                     )}
                   </td>
                   <td className="px-4 py-3 font-medium text-blue-600">{duration(r)}</td>
                   <td className="px-4 py-3 text-gray-500">
                     {r.shift
-                      ? `${r.shift.serviceUser ? `${r.shift.serviceUser.firstName} ${r.shift.serviceUser.lastName} · ` : ''}${r.shift.startTime}–${r.shift.endTime}`
+                      ? `${r.shift.serviceUser ? `${r.shift.serviceUser.firstName} ${r.shift.serviceUser.lastName} · ` : ''}${formatTime12h(r.shift.startTime)}–${formatTime12h(r.shift.endTime)}`
                       : '—'}
                   </td>
                 </tr>
