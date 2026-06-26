@@ -42,7 +42,9 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
 
   const monthDate = parse(month, 'yyyy-MM', new Date());
   const daysInMonth = getDaysInMonth(monthDate);
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  // Always show all 31 columns, like the paper chart — short months just
+  // have trailing columns greyed out since those dates don't exist.
+  const days = Array.from({ length: 31 }, (_, i) => i + 1);
   const startDate = format(monthDate, 'yyyy-MM-01');
   const endDate = format(new Date(monthDate.getFullYear(), monthDate.getMonth(), daysInMonth), 'yyyy-MM-dd');
 
@@ -60,6 +62,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
   // were UTC (the server runs in UTC) — must build the comparison the same
   // way, or this silently shifts by the browser's UTC offset (e.g. during BST).
   const recordFor = (medicationId: string, day: number, time: string) => {
+    if (day > daysInMonth) return undefined;
     const [h, m] = time.split(':').map(Number);
     const target = Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), day, h, m, 0);
     return admins.find((a) => a.medicationId === medicationId && new Date(a.scheduledFor).getTime() === target);
@@ -79,15 +82,16 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
       ${med.instructions ? `<p class="instructions">${esc(med.instructions)}</p>` : ''}
       <table>
         <thead>
-          <tr><th class="time-col">TIME</th>${days.map((d) => `<th>${d}</th>`).join('')}</tr>
+          <tr><th class="time-col">TIME</th>${days.map((d) => `<th${d > daysInMonth ? ' class="invalid-day"' : ''}>${d}</th>`).join('')}</tr>
         </thead>
         <tbody>
           ${times.length === 0
-            ? `<tr><td class="time-col">PRN</td>${days.map(() => '<td></td>').join('')}</tr>`
+            ? `<tr><td class="time-col">PRN</td>${days.map((d) => `<td${d > daysInMonth ? ' class="invalid-day"' : ''}></td>`).join('')}</tr>`
             : times.map((t) => `
               <tr>
                 <td class="time-col">${esc(formatTime12h(t))}</td>
                 ${days.map((d) => {
+                  if (d > daysInMonth) return '<td class="invalid-day"></td>';
                   const rec = recordFor(med.id, d, t);
                   if (!rec) return '<td></td>';
                   const code = esc(initialsFor(rec));
@@ -116,6 +120,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         table { width: 100%; border-collapse: collapse; font-size: 11px; }
         th, td { border: 1px solid #333; text-align: center; padding: 4px 2px; }
         .time-col { text-align: left; font-weight: bold; white-space: nowrap; padding-left: 6px; min-width: 70px; }
+        .invalid-day { background: #eee; }
         .dates-row { display: flex; justify-content: space-between; font-size: 11px; border: 1px solid #333; padding: 6px; margin-top: -1px; }
         .legend { display: flex; gap: 16px; font-size: 11px; margin-top: 16px; flex-wrap: wrap; }
         .legend span { font-weight: bold; }
@@ -172,7 +177,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                     <tr>
                       <th className="border border-gray-300 px-2 py-1.5 bg-gray-50 text-left whitespace-nowrap">TIME</th>
                       {days.map((d) => (
-                        <th key={d} className="border border-gray-300 px-1.5 py-1.5 bg-gray-50 w-8">{d}</th>
+                        <th key={d} className={`border border-gray-300 px-1.5 py-1.5 w-8 ${d > daysInMonth ? 'bg-gray-200' : 'bg-gray-50'}`}>{d}</th>
                       ))}
                     </tr>
                   </thead>
@@ -180,13 +185,14 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                     {times.length === 0 ? (
                       <tr>
                         <td className="border border-gray-300 px-2 py-1.5 font-medium">PRN</td>
-                        {days.map((d) => <td key={d} className="border border-gray-300" />)}
+                        {days.map((d) => <td key={d} className={`border border-gray-300 ${d > daysInMonth ? 'bg-gray-200' : ''}`} />)}
                       </tr>
                     ) : (
                       times.map((t) => (
                         <tr key={t}>
                           <td className="border border-gray-300 px-2 py-1.5 font-medium whitespace-nowrap">{formatTime12h(t)}</td>
                           {days.map((d) => {
+                            if (d > daysInMonth) return <td key={d} className="border border-gray-300 bg-gray-200" />;
                             const rec = recordFor(med.id, d, t);
                             return (
                               <td
