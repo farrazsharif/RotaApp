@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { medicationsApi } from '../api/medications';
 import { useAuth } from '../contexts/AuthContext';
-import { ServiceUser, Medication, MedStatus } from '../types';
+import { ServiceUser, Medication, MedStatus, BodyMapPoint } from '../types';
 import { format } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import BodyMapPicker from './BodyMapPicker';
 
 interface Props {
   serviceUser: ServiceUser;
@@ -38,6 +39,22 @@ function parseTimes(times: string): string[] {
   }
 }
 
+function parseSites(applicationSites: string): BodyMapPoint[] {
+  try {
+    const a = JSON.parse(applicationSites);
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
+  }
+}
+
+// Creams/lotions/ointments are applied to a specific body site, so those
+// routes prompt the body map for marking where — anything else (oral,
+// injection, etc.) doesn't need one.
+function isTopical(route: string): boolean {
+  return /cream|lotion|topical|ointment/i.test(route);
+}
+
 // Dose times are stored as the server's wall-clock time, encoded as if it
 // were UTC (the server runs in UTC). Building this in the browser's local
 // timezone instead would silently shift the match by the browser's UTC
@@ -64,6 +81,8 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [medForm, setMedForm] = useState(emptyMed);
   const [visitTimes, setVisitTimes] = useState<Record<string, string>>({});
+  const [sites, setSites] = useState<BodyMapPoint[]>([]);
+  const [viewingSitesFor, setViewingSitesFor] = useState<Medication | null>(null);
 
   function toggleVisit(key: string, defaultTime: string) {
     setVisitTimes((prev) => {
@@ -98,11 +117,13 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
       route: medForm.route || undefined,
       instructions: medForm.instructions || undefined,
       times: Object.values(visitTimes).sort(),
+      applicationSites: isTopical(medForm.route) ? sites : undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['medications', serviceUser.id] });
       setMedForm(emptyMed);
       setVisitTimes({});
+      setSites([]);
       setShowAdd(false);
     },
   });
@@ -152,9 +173,25 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
                 </div>
                 <div>
                   <label className="label">Route</label>
-                  <input value={medForm.route} onChange={(e) => setMedForm({ ...medForm, route: e.target.value })} className="input" placeholder="Oral" />
+                  <input
+                    value={medForm.route}
+                    onChange={(e) => setMedForm({ ...medForm, route: e.target.value })}
+                    className="input"
+                    placeholder="Oral, Cream, Topical…"
+                  />
                 </div>
               </div>
+
+              {isTopical(medForm.route) && (
+                <div>
+                  <label className="label">Where should it be applied?</label>
+                  <BodyMapPicker value={sites} onChange={setSites} />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Click on the diagrams to mark application site(s). Click a marker to remove it.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="label">Dose Times — select visits</label>
                 <div className="flex flex-wrap gap-2">
@@ -208,6 +245,7 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
             <div className="space-y-4">
               {meds.map((med: Medication) => {
                 const times = parseTimes(med.times);
+                const medSites = parseSites(med.applicationSites);
                 return (
                   <div key={med.id} className="rounded-lg border border-gray-200 p-3">
                     <div className="flex items-start justify-between">
@@ -219,11 +257,18 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
                           {med.route || 'Oral'}{med.instructions ? ` · ${med.instructions}` : ''}
                         </p>
                       </div>
-                      {isManager && (
-                        <button className="text-xs text-red-600 hover:underline" onClick={() => discontinueMut.mutate(med.id)}>
-                          Discontinue
-                        </button>
-                      )}
+                      <div className="flex items-center gap-3">
+                        {medSites.length > 0 && (
+                          <button className="text-xs text-blue-600 hover:underline" onClick={() => setViewingSitesFor(med)}>
+                            🗺 Body Map ({medSites.length})
+                          </button>
+                        )}
+                        {isManager && (
+                          <button className="text-xs text-red-600 hover:underline" onClick={() => discontinueMut.mutate(med.id)}>
+                            Discontinue
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {times.length === 0 ? (
@@ -262,6 +307,18 @@ export default function EmarModal({ serviceUser, onClose }: Props) {
           )}
         </div>
       </div>
+
+      {viewingSitesFor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => setViewingSitesFor(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">Application Sites — {viewingSitesFor.name}</h3>
+              <button onClick={() => setViewingSitesFor(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
+            <BodyMapPicker value={parseSites(viewingSitesFor.applicationSites)} onChange={() => {}} readOnly />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

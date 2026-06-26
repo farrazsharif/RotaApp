@@ -95,6 +95,13 @@ export interface CallLog {
 }
 
 export type MedStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN';
+export type BodyMapView = 'front' | 'back' | 'faceFront' | 'faceSide';
+export interface BodyMapPoint {
+  view: BodyMapView;
+  x: number; // % of diagram width
+  y: number; // % of diagram height
+  label?: string;
+}
 
 export interface Medication {
   id: string;
@@ -104,6 +111,7 @@ export interface Medication {
   route?: string;
   instructions?: string;
   times: string; // JSON array of "HH:MM"
+  applicationSites: string; // JSON array of BodyMapPoint
   startDate?: string;
   endDate?: string;
   active: boolean;

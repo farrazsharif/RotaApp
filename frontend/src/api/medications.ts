@@ -1,5 +1,5 @@
 import api from '../lib/axios';
-import { Medication, MedAdministration, MedStatus } from '../types';
+import { Medication, MedAdministration, MedStatus, BodyMapPoint } from '../types';
 
 export interface MedicationData {
   serviceUserId: string;
@@ -8,6 +8,7 @@ export interface MedicationData {
   route?: string;
   instructions?: string;
   times?: string[];
+  applicationSites?: BodyMapPoint[];
   startDate?: string;
   endDate?: string;
 }

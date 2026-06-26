@@ -13,6 +13,18 @@ function parseTimes(input: unknown): string {
   return '[]';
 }
 
+const VALID_VIEWS = ['front', 'back', 'faceFront', 'faceSide'];
+
+function parseApplicationSites(input: unknown): string {
+  if (!Array.isArray(input)) return '[]';
+  const sites = input
+    .filter((p): p is { view: string; x: number; y: number } =>
+      !!p && VALID_VIEWS.includes(p.view) && typeof p.x === 'number' && typeof p.y === 'number'
+    )
+    .map((p) => ({ view: p.view, x: p.x, y: p.y, label: typeof (p as { label?: unknown }).label === 'string' ? (p as { label?: string }).label : undefined }));
+  return JSON.stringify(sites);
+}
+
 export async function listMedications(req: AuthRequest, res: Response) {
   const { serviceUserId } = req.query;
   if (!serviceUserId) return res.status(400).json({ error: 'serviceUserId required' });
@@ -24,7 +36,7 @@ export async function listMedications(req: AuthRequest, res: Response) {
 }
 
 export async function createMedication(req: AuthRequest, res: Response) {
-  const { serviceUserId, name, dose, route, instructions, times, startDate, endDate } = req.body;
+  const { serviceUserId, name, dose, route, instructions, times, startDate, endDate, applicationSites } = req.body;
   if (!serviceUserId || !name) return res.status(400).json({ error: 'serviceUserId and name required' });
   const med = await prisma.medication.create({
     data: {
@@ -34,6 +46,7 @@ export async function createMedication(req: AuthRequest, res: Response) {
       route: route || null,
       instructions: instructions || null,
       times: parseTimes(times),
+      applicationSites: parseApplicationSites(applicationSites),
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
     },
@@ -42,13 +55,14 @@ export async function createMedication(req: AuthRequest, res: Response) {
 }
 
 export async function updateMedication(req: AuthRequest, res: Response) {
-  const { name, dose, route, instructions, times, startDate, endDate, active } = req.body;
+  const { name, dose, route, instructions, times, startDate, endDate, active, applicationSites } = req.body;
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
   if (dose !== undefined) data.dose = dose || null;
   if (route !== undefined) data.route = route || null;
   if (instructions !== undefined) data.instructions = instructions || null;
   if (times !== undefined) data.times = parseTimes(times);
+  if (applicationSites !== undefined) data.applicationSites = parseApplicationSites(applicationSites);
   if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
   if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
   if (active !== undefined) data.active = !!active;

@@ -136,6 +136,9 @@ model Medication {
   route         String?
   instructions  String?
   times         String    @default("[]") // JSON array of "HH:MM" dose times
+  // JSON array of { view: 'front'|'back'|'faceFront'|'faceSide', x, y } body-map
+  // points (x/y as % of the diagram) — where a cream/lotion should be applied.
+  applicationSites String  @default("[]")
   startDate     DateTime?
   endDate       DateTime?
   active        Boolean   @default(true)
