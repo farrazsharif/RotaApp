@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { medicationsApi } from '../api/medications';
 import { MedStatus } from '../types';
 import { format } from 'date-fns';
+import MarChartModal from '../components/MarChartModal';
 
 const STATUS_LABEL: Record<MedStatus, string> = {
   GIVEN: 'Given', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not needed', SELF_ADMIN: 'Self-admin',
@@ -13,6 +14,7 @@ const STATUS_BADGE: Record<MedStatus, string> = {
 
 export default function Emar() {
   const [search, setSearch] = useState('');
+  const [marChartFor, setMarChartFor] = useState<{ id: string; firstName: string; lastName: string } | null>(null);
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ['med-admin', 'recent'],
@@ -68,7 +70,11 @@ export default function Emar() {
                   <td className="px-4 py-3 text-gray-600">{format(new Date(r.scheduledFor), 'dd MMM, h:mm a')}</td>
                   <td className="px-4 py-3 text-gray-600">{format(new Date(r.recordedAt), 'dd MMM, h:mm a')}</td>
                   <td className="px-4 py-3 font-medium">
-                    {r.serviceUser ? `${r.serviceUser.firstName} ${r.serviceUser.lastName}` : '—'}
+                    {r.serviceUser ? (
+                      <button className="hover:underline text-left" onClick={() => setMarChartFor(r.serviceUser!)}>
+                        {r.serviceUser.firstName} {r.serviceUser.lastName}
+                      </button>
+                    ) : '—'}
                   </td>
                   <td className="px-4 py-3 text-gray-700">
                     {r.medication?.name}{r.medication?.dose ? ` · ${r.medication.dose}` : ''}
@@ -81,6 +87,8 @@ export default function Emar() {
           </table>
         </div>
       )}
+
+      {marChartFor && <MarChartModal serviceUser={marChartFor} onClose={() => setMarChartFor(null)} />}
     </div>
   );
 }

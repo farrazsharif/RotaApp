@@ -38,10 +38,14 @@ function parseTimes(times: string): string[] {
   }
 }
 
+// Dose times are stored as the server's wall-clock time, encoded as if it
+// were UTC (the server runs in UTC). Building this in the browser's local
+// timezone instead would silently shift the match by the browser's UTC
+// offset (e.g. an hour off during BST), so we must build it as UTC too.
 function cellDate(dateStr: string, time: string): Date {
   const [y, m, d] = dateStr.split('-').map(Number);
   const [h, mi] = time.split(':').map(Number);
-  return new Date(y, m - 1, d, h, mi, 0);
+  return new Date(Date.UTC(y, m - 1, d, h, mi, 0));
 }
 
 const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '' };

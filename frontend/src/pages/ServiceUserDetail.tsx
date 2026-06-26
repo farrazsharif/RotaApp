@@ -13,6 +13,7 @@ import ServiceUserFormModal from '../components/ServiceUserFormModal';
 import CarePlanModal from '../components/CarePlanModal';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
 import EmarModal from '../components/EmarModal';
+import MarChartModal from '../components/MarChartModal';
 import CallLogsModal from '../components/CallLogsModal';
 
 const durationLabel = (m: number) =>
@@ -56,6 +57,7 @@ export default function ServiceUserDetail() {
   const [carePlanOpen, setCarePlanOpen] = useState(false);
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
   const [emarOpen, setEmarOpen] = useState(false);
+  const [marChartOpen, setMarChartOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
 
   const { data: su, isLoading, isError } = useQuery({
@@ -278,7 +280,12 @@ export default function ServiceUserDetail() {
       {/* Medications */}
       <Section
         title="Medications"
-        action={<button className="btn-secondary btn btn-sm" onClick={() => setEmarOpen(true)}>Open eMAR</button>}
+        action={
+          <div className="flex gap-2">
+            <button className="btn-secondary btn btn-sm" onClick={() => setMarChartOpen(true)}>MAR Chart</button>
+            <button className="btn-secondary btn btn-sm" onClick={() => setEmarOpen(true)}>Open eMAR</button>
+          </div>
+        }
       >
         {meds.length === 0 ? (
           <p className="text-sm text-gray-400">No active medications.</p>
@@ -327,6 +334,7 @@ export default function ServiceUserDetail() {
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
       {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}
       {emarOpen && <EmarModal serviceUser={su} onClose={() => setEmarOpen(false)} />}
+      {marChartOpen && <MarChartModal serviceUser={su} onClose={() => setMarChartOpen(false)} />}
       {logsOpen && <CallLogsModal serviceUser={su} onClose={() => setLogsOpen(false)} />}
     </div>
   );

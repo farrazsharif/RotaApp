@@ -68,12 +68,23 @@ const adminInclude = {
 };
 
 export async function listAdministrations(req: AuthRequest, res: Response) {
-  const { serviceUserId, date, recent } = req.query;
+  const { serviceUserId, date, startDate, endDate, recent } = req.query;
   const where: Record<string, unknown> = {};
   if (serviceUserId) where.serviceUserId = String(serviceUserId);
   if (date) {
     const [y, m, d] = String(date).split('-').map(Number);
     where.scheduledFor = { gte: new Date(y, m - 1, d, 0, 0, 0), lte: new Date(y, m - 1, d, 23, 59, 59) };
+  } else if (startDate || endDate) {
+    const range: Record<string, Date> = {};
+    if (startDate) {
+      const [y, m, d] = String(startDate).split('-').map(Number);
+      range.gte = new Date(y, m - 1, d, 0, 0, 0);
+    }
+    if (endDate) {
+      const [y, m, d] = String(endDate).split('-').map(Number);
+      range.lte = new Date(y, m - 1, d, 23, 59, 59);
+    }
+    where.scheduledFor = range;
   }
   const records = await prisma.medAdministration.findMany({
     where,
