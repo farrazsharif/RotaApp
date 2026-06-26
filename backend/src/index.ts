@@ -20,6 +20,8 @@ import medicationRoutes from './routes/medications';
 import carePlanRoutes from './routes/carePlans';
 import servicePlanRoutes from './routes/servicePlans';
 import adminRoutes from './routes/admin';
+import pushRoutes from './routes/push';
+import { startShiftReminders } from './lib/shiftReminders';
 
 const app = express();
 const server = http.createServer(app);
@@ -49,12 +51,14 @@ app.use('/api/medications', medicationRoutes);
 app.use('/api/care-plans', carePlanRoutes);
 app.use('/api/service-plans', servicePlanRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/push', pushRoutes);
 
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`RotaApp API running on http://localhost:${PORT}`);
+  startShiftReminders();
 });
 
 // Safety net: keep the server alive if a controller's promise rejects without

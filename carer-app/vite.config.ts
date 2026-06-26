@@ -8,6 +8,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectRegister: 'auto',
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
@@ -25,8 +29,10 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
-        navigateFallbackDenylist: [/^\/api/],
+      injectManifest: {
+        // We rely on the browser's normal network requests for navigation and
+        // API calls; precaching just covers the built app shell assets.
+        injectionPoint: 'self.__WB_MANIFEST',
       },
     }),
   ],

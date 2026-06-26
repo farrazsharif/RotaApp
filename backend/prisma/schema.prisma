@@ -30,6 +30,7 @@ model User {
   preferredBy        ServiceUser[]    @relation("PreferredCaregivers")
   callLogs           CallLog[]
   medAdministrations MedAdministration[]
+  pushSubscriptions  PushSubscription[]
 }
 
 model Site {
@@ -244,6 +245,29 @@ model ClockRecord {
 
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   shift Shift? @relation(fields: [shiftId], references: [id])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Tracks which shift-reminder pushes have already been sent so the
+// reminder poller (which runs every minute) never double-sends.
+model ShiftReminder {
+  id      String   @id @default(cuid())
+  shiftId String
+  userId  String
+  type    String // "BEFORE" (30 mins before) | "START" (at call start)
+  sentAt  DateTime @default(now())
+
+  @@unique([shiftId, userId, type])
 }
 
 model Notification {
