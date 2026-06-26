@@ -39,7 +39,7 @@ export default function Emar() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">eMAR</h1>
-          <p className="text-sm text-gray-500">Medication administered by carers</p>
+          <p className="text-sm text-gray-500">Medication administered by carers · click a client's name to view their MAR Chart</p>
         </div>
         <input
           value={search}
@@ -71,7 +71,11 @@ export default function Emar() {
                   <td className="px-4 py-3 text-gray-600">{format(new Date(r.recordedAt), 'dd MMM, h:mm a')}</td>
                   <td className="px-4 py-3 font-medium">
                     {r.serviceUser ? (
-                      <button className="hover:underline text-left" onClick={() => setMarChartFor(r.serviceUser!)}>
+                      <button
+                        className="text-blue-600 hover:underline text-left"
+                        title="View MAR Chart"
+                        onClick={() => setMarChartFor(r.serviceUser!)}
+                      >
                         {r.serviceUser.firstName} {r.serviceUser.lastName}
                       </button>
                     ) : '—'}
