@@ -148,6 +148,19 @@ export async function getClockStatus(req: AuthRequest, res: Response) {
   res.json({ clockedIn: !!active, record: active || null });
 }
 
+// Everyone currently clocked in right now (manager-wide), for the dashboard.
+export async function listActiveClockRecords(_req: AuthRequest, res: Response) {
+  const records = await prisma.clockRecord.findMany({
+    where: { clockOut: null },
+    include: {
+      user: { select: { id: true, firstName: true, lastName: true } },
+      shift: { include: { serviceUser: { select: { id: true, firstName: true, lastName: true } } } },
+    },
+    orderBy: { clockIn: 'asc' },
+  });
+  res.json(records);
+}
+
 export async function listClockRecords(req: AuthRequest, res: Response) {
   const { userId, startDate, endDate } = req.query;
   const where: Record<string, unknown> = {};

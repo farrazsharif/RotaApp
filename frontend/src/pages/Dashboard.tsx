@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi } from '../api/reports';
 import { shiftsApi } from '../api/shifts';
+import { clockApi } from '../api/clock';
 import { useAuth } from '../contexts/AuthContext';
-import { format, startOfWeek, endOfWeek } from 'date-fns';
+import { format, startOfWeek, endOfWeek, formatDistanceToNow } from 'date-fns';
 import { Shift } from '../types';
 
 function StatCard({ label, value, icon, color }: { label: string; value: number | string; icon: string; color: string }) {
@@ -42,6 +43,13 @@ export default function Dashboard() {
     queryFn: () => shiftsApi.list({ startDate: weekStart, endDate: weekEnd, userId: user?.id }),
   });
 
+  const { data: activeClockRecords = [] } = useQuery({
+    queryKey: ['clock-active'],
+    queryFn: clockApi.active,
+    enabled: isManager,
+    refetchInterval: 30_000,
+  });
+
   const todayShifts = myShifts.filter(
     (s) => format(new Date(s.date), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
   );
@@ -61,6 +69,39 @@ export default function Dashboard() {
           <StatCard label="Shifts This Week" value={stats.shiftsThisWeek} icon="📅" color="bg-green-100" />
           <StatCard label="Pending Time Off" value={stats.pendingTimeOff} icon="🏖️" color="bg-yellow-100" />
           <StatCard label="Pending Trades" value={stats.pendingTrades} icon="🔄" color="bg-purple-100" />
+        </div>
+      )}
+
+      {isManager && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">Currently On Calls</h2>
+            <span className="badge badge-green">{activeClockRecords.length} clocked in</span>
+          </div>
+          {activeClockRecords.length === 0 ? (
+            <p className="text-gray-400 text-sm py-4 text-center">No carers are currently clocked in</p>
+          ) : (
+            <div className="space-y-3">
+              {activeClockRecords.map((r) => (
+                <div key={r.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-800">{r.user.firstName} {r.user.lastName}</p>
+                    <p className="text-sm text-gray-500">
+                      {r.shift?.serviceUser
+                        ? `${r.shift.serviceUser.firstName} ${r.shift.serviceUser.lastName}${r.shift.visitName ? ` · ${r.shift.visitName}` : ''}`
+                        : 'No call linked'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="badge badge-green">On call</span>
+                    <p className="text-xs text-gray-500 mt-1">
+                      since {format(new Date(r.clockIn), 'HH:mm')} · {formatDistanceToNow(new Date(r.clockIn))}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
