@@ -138,14 +138,19 @@ export async function coverageReport(req: AuthRequest, res: Response) {
 
 // Hours Scheduled Crib Sheet — per-carer rostered hours by weekday (Mon–Sun) for the period.
 export async function scheduledHoursReport(req: AuthRequest, res: Response) {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate, siteId, role, userId } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
   const start = new Date(startDate as string);
   const end = new Date(endDate as string);
 
+  const where: Record<string, unknown> = { date: { gte: start, lte: end }, status: { not: 'CANCELLED' } };
+  if (siteId) where.serviceUser = { siteId: siteId as string };
+  if (role) where.role = role as string;
+  if (userId) where.OR = [{ userId: userId as string }, { coverCarers: { some: { id: userId as string } } }];
+
   const shifts = await prisma.shift.findMany({
-    where: { date: { gte: start, lte: end }, status: { not: 'CANCELLED' } },
+    where,
     include: {
       user: { select: { id: true, firstName: true, lastName: true, hourlyRate: true } },
       coverCarers: { select: { id: true, firstName: true, lastName: true, hourlyRate: true } },
@@ -163,10 +168,14 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
   for (const s of shifts) {
     const hours = shiftHours(s.startTime, s.endTime);
     const dow = (new Date(s.date).getDay() + 6) % 7; // 0 = Monday … 6 = Sunday
-    const carers = [
+    let carers = [
       ...(s.user ? [{ id: s.user.id, name: `${s.user.firstName} ${s.user.lastName}`, rate: s.user.hourlyRate }] : []),
       ...s.coverCarers.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, rate: c.hourlyRate })),
     ];
+    // The shift may have matched because *some* carer on it is the filtered
+    // employee, but it can also have other carers — only attribute hours to
+    // the one actually being filtered for.
+    if (userId) carers = carers.filter((c) => c.id === userId);
     const targets = carers.length > 0 ? carers : [{ id: 'unassigned', name: 'Unassigned', rate: 0 }];
     for (const t of targets) {
       const row = ensure(t.id, t.name, t.rate);
@@ -251,6 +260,16 @@ export async function cribSheetReport(req: AuthRequest, res: Response) {
   }
 
   res.json(rows);
+}
+
+// Distinct shift roles in use, for the Hours Scheduled report's Position filter.
+export async function shiftRoles(req: AuthRequest, res: Response) {
+  const rows = await prisma.shift.findMany({
+    where: { role: { not: null } },
+    select: { role: true },
+    distinct: ['role'],
+  });
+  res.json(rows.map((r) => r.role).filter(Boolean).sort());
 }
 
 export async function dashboardStats(req: AuthRequest, res: Response) {

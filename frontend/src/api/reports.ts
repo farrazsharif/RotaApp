@@ -26,8 +26,9 @@ export const reportsApi = {
     api.get<OvertimeRow[]>('/reports/overtime', { params }).then((r) => r.data),
   coverage: (params: { startDate: string; endDate: string }) =>
     api.get<CoverageDay[]>('/reports/coverage', { params }).then((r) => r.data),
-  scheduledHours: (params: { startDate: string; endDate: string }) =>
+  scheduledHours: (params: { startDate: string; endDate: string; siteId?: string; role?: string; userId?: string }) =>
     api.get<ScheduledHoursRow[]>('/reports/scheduled-hours', { params }).then((r) => r.data),
   cribSheet: (params: { startDate: string; endDate: string }) =>
     api.get<CribSheetRow[]>('/reports/crib-sheet', { params }).then((r) => r.data),
+  shiftRoles: () => api.get<string[]>('/reports/shift-roles').then((r) => r.data),
 };
