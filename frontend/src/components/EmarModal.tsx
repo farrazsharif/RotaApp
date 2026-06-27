@@ -237,28 +237,16 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                   {visitTimeOpts.map((opt) => {
                     const selected = opt.key in visitTimes;
                     return (
-                      <div
+                      <button
                         key={opt.key}
-                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${
-                          selected ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white'
+                        type="button"
+                        onClick={() => toggleVisit(opt.key, opt.defaultTime)}
+                        className={`rounded-lg border px-2.5 py-1.5 text-sm font-medium ${
+                          selected ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'
                         }`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => toggleVisit(opt.key, opt.defaultTime)}
-                          className={`text-sm font-medium ${selected ? 'text-blue-700' : 'text-gray-600'}`}
-                        >
-                          {selected ? '✓ ' : ''}{opt.label}
-                        </button>
-                        {selected && (
-                          <input
-                            type="time"
-                            value={visitTimes[opt.key]}
-                            onChange={(e) => setVisitTimes((prev) => ({ ...prev, [opt.key]: e.target.value }))}
-                            className="text-sm border border-gray-300 rounded px-1.5 py-0.5"
-                          />
-                        )}
-                      </div>
+                        {selected ? '✓ ' : ''}{opt.label}
+                      </button>
                     );
                   })}
                 </div>
