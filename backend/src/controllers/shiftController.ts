@@ -206,7 +206,7 @@ export async function updateShift(req: AuthRequest, res: Response) {
     const beforeIds = [before.userId, ...before.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
     const afterIds = [shift.userId, ...shift.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
     const removedIds = beforeIds.filter((id) => !afterIds.includes(id));
-    await notifyCarersRemoved(removedIds, shift);
+    await notifyCarersRemoved(removedIds.map((carerId) => ({ carerId, shift })));
   }
 
   res.json(shift);
@@ -301,18 +301,16 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
     await prisma.shift.updateMany({ where: { id: { in: ids } }, data: { userId: userId || null } });
   }
 
-  await Promise.all(
-    beforeShifts.map((s) => {
-      const beforeIds = [s.userId, ...s.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
-      // Cover carers only change when coverCarerIds was actually supplied —
-      // otherwise they're untouched by the update above and shouldn't be
-      // treated as removed.
-      const afterCoverIds = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean) : s.coverCarers.map((c) => c.id);
-      const afterIds = [userId, ...afterCoverIds].filter(Boolean) as string[];
-      const removedIds = beforeIds.filter((id) => !afterIds.includes(id));
-      return notifyCarersRemoved(removedIds, s);
-    })
-  );
+  const removals = beforeShifts.flatMap((s) => {
+    const beforeIds = [s.userId, ...s.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
+    // Cover carers only change when coverCarerIds was actually supplied —
+    // otherwise they're untouched by the update above and shouldn't be
+    // treated as removed.
+    const afterCoverIds = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean) : s.coverCarers.map((c) => c.id);
+    const afterIds = [userId, ...afterCoverIds].filter(Boolean) as string[];
+    return beforeIds.filter((id) => !afterIds.includes(id)).map((carerId) => ({ carerId, shift: s }));
+  });
+  await notifyCarersRemoved(removals);
 
   if (userId) {
     const count = ids.length;
@@ -358,58 +356,82 @@ function isFullyAssigned(shift: { userId: string | null; cover: number; coverCar
   return assigned >= needed;
 }
 
-// Tell a carer they've been taken off a shift they were previously assigned
+type NotifiableShift = { id: string; date: Date; startTime: string; endTime: string; visitName: string | null };
+
+function singleShiftLine(shift: NotifiableShift): string {
+  return `${shift.visitName || 'A call'} on ${new Date(shift.date).toDateString()}, ${shift.startTime}–${shift.endTime}`;
+}
+
+// Tell carers they've been taken off shifts they were previously assigned
 // to — same in-app + push pairing as the other shift notifications, so it
-// disappearing from their rota doesn't happen silently.
-async function notifyCarersRemoved(carerIds: string[], shift: { id: string; date: Date; startTime: string; endTime: string; visitName: string | null }) {
-  if (carerIds.length === 0) return;
-  const dateStr = new Date(shift.date).toDateString();
-  const message = `You've been removed from ${shift.visitName || 'a call'} on ${dateStr}, ${shift.startTime}–${shift.endTime}`;
+// disappearing from their rota doesn't happen silently. Takes a flat list
+// of (carer, shift) pairs and collapses everything for the same carer into
+// one notification, so e.g. reassigning a whole recurring series doesn't
+// fire a separate notification per shift.
+async function notifyCarersRemoved(removals: { carerId: string; shift: NotifiableShift }[]) {
+  const byCarer = new Map<string, NotifiableShift[]>();
+  for (const { carerId, shift } of removals) {
+    if (!byCarer.has(carerId)) byCarer.set(carerId, []);
+    byCarer.get(carerId)!.push(shift);
+  }
 
   await Promise.all(
-    carerIds.map(async (carerId) => {
+    [...byCarer.entries()].map(async ([carerId, shifts]) => {
+      const message =
+        shifts.length > 1
+          ? `You've been removed from ${shifts.length} shifts on your rota`
+          : `You've been removed from ${singleShiftLine(shifts[0])}`;
       const notification = await prisma.notification.create({
         data: {
           userId: carerId,
           type: 'SHIFT_REMOVED',
           title: 'Removed from Shift',
           message,
-          data: JSON.stringify({ shiftId: shift.id }),
+          data: JSON.stringify({ shiftIds: shifts.map((s) => s.id) }),
         },
       });
       emitToUser(carerId, 'notification', notification);
-      await sendPushToUser(carerId, {
-        title: 'Removed from Shift',
-        body: message,
-      });
+      await sendPushToUser(carerId, { title: 'Removed from Shift', body: message });
     })
   );
 }
 
-// Tell a shift's assigned carer (and any cover carers) it's now live on
-// their rota — an in-app notification plus a push so they see it even with
-// the app closed, mirroring the reminder pushes sent later by shiftReminders.
-async function notifyShiftPublished(shift: { id: string; date: Date; startTime: string; endTime: string; visitName: string | null; userId: string | null; coverCarers: { id: string }[] }) {
-  const carerIds = [shift.userId, ...shift.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
-  const dateStr = new Date(shift.date).toDateString();
-  const message = `${shift.visitName || 'A call'} on ${dateStr}, ${shift.startTime}–${shift.endTime} has been added to your rota`;
+// Tell carers their newly-published shifts are now live on their rota — an
+// in-app notification plus a push so they see it even with the app closed.
+// Takes every shift published in one action and collapses everything for
+// the same carer into a single notification, so publishing a whole batch
+// of calls (e.g. "Publish All Shown") doesn't fire one notification per
+// shift per carer.
+async function notifyShiftsPublished(shifts: (NotifiableShift & { userId: string | null; coverCarers: { id: string }[] })[]) {
+  const byCarer = new Map<string, NotifiableShift[]>();
+  for (const shift of shifts) {
+    const carerIds = [shift.userId, ...shift.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
+    for (const carerId of carerIds) {
+      if (!byCarer.has(carerId)) byCarer.set(carerId, []);
+      byCarer.get(carerId)!.push(shift);
+    }
+  }
 
   await Promise.all(
-    carerIds.map(async (carerId) => {
+    [...byCarer.entries()].map(async ([carerId, carerShifts]) => {
+      const message =
+        carerShifts.length > 1
+          ? `${carerShifts.length} new shifts have been added to your rota`
+          : `${singleShiftLine(carerShifts[0])} has been added to your rota`;
       const notification = await prisma.notification.create({
         data: {
           userId: carerId,
           type: 'SHIFT_PUBLISHED',
-          title: 'New Shift on Your Rota',
+          title: carerShifts.length > 1 ? 'New Shifts on Your Rota' : 'New Shift on Your Rota',
           message,
-          data: JSON.stringify({ shiftId: shift.id }),
+          data: JSON.stringify({ shiftIds: carerShifts.map((s) => s.id) }),
         },
       });
       emitToUser(carerId, 'notification', notification);
       await sendPushToUser(carerId, {
-        title: 'New Shift on Your Rota',
+        title: carerShifts.length > 1 ? 'New Shifts on Your Rota' : 'New Shift on Your Rota',
         body: message,
-        url: `/call/${shift.id}`,
+        url: carerShifts.length === 1 ? `/call/${carerShifts[0].id}` : '/rota',
       });
     })
   );
@@ -431,7 +453,7 @@ export async function publishShift(req: AuthRequest, res: Response) {
     data: { published: true },
     include: shiftInclude,
   });
-  await notifyShiftPublished(updated);
+  await notifyShiftsPublished([updated]);
   res.json(updated);
 }
 
@@ -456,7 +478,7 @@ export async function publishBulkShifts(req: AuthRequest, res: Response) {
     ? await prisma.shift.updateMany({ where: { id: { in: publishableIds } }, data: { published: true } })
     : { count: 0 };
 
-  await Promise.all(publishable.map((shift) => notifyShiftPublished(shift)));
+  await notifyShiftsPublished(publishable);
 
   res.json({ message: 'Published', count: result.count, skipped });
 }
