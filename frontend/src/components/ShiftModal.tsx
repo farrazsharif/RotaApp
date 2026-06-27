@@ -142,7 +142,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   });
 
   const publishMut = useMutation({
-    mutationFn: () => shiftsApi.publish(shift!.id),
+    mutationFn: (id: string) => shiftsApi.publish(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); onClose(); },
   });
 
@@ -180,9 +180,9 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
       };
     }
     if (shift) {
-      updateMut.mutate(data, publishAfter ? { onSuccess: () => publishMut.mutate() } : undefined);
+      updateMut.mutate(data, publishAfter ? { onSuccess: () => publishMut.mutate(shift.id) } : undefined);
     } else {
-      createMut.mutate(data);
+      createMut.mutate(data, publishAfter ? { onSuccess: (created) => publishMut.mutate(created.id) } : undefined);
     }
   }
 
@@ -514,7 +514,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 <div className="flex flex-col items-start gap-1">
                   <button
                     type="button"
-                    onClick={() => publishMut.mutate()}
+                    onClick={() => publishMut.mutate(shift.id)}
                     disabled={publishMut.isPending || !fullyAssigned}
                     title={fullyAssigned ? undefined : 'Assign a carer to every cover slot before publishing'}
                     className="btn-primary btn-sm btn"
@@ -529,6 +529,24 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
             })()}
             <div className="flex-1" />
             <button type="button" onClick={onClose} className="btn-secondary btn">Close</button>
+            {!readOnly && !shift && (() => {
+              const fullyAssigned = assignedIds.length >= cover;
+              // A recurring repeat creates several draft shifts at once, but
+              // publish only ever targets one shift id — so this shortcut is
+              // only offered for a single, non-recurring visit.
+              const isRecurring = repeatEnabled && repeatDays.length > 0;
+              return (
+                <button
+                  type="button"
+                  onClick={onSaveAndPublish}
+                  disabled={isPending || isRecurring || !fullyAssigned}
+                  title={isRecurring ? 'Publish each visit individually after creating' : fullyAssigned ? undefined : 'Assign a carer to every cover slot before publishing'}
+                  className="btn-secondary btn"
+                >
+                  {isPending ? 'Saving…' : '📣 Create & Publish'}
+                </button>
+              );
+            })()}
             {!readOnly && (
               <button
                 type="submit"
