@@ -68,12 +68,38 @@ function cellDate(dateStr: string, time: string): Date {
 
 const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '' };
 
-const VISIT_TIME_OPTS: { key: string; label: string; defaultTime: string }[] = [
-  { key: 'Morning', label: 'Morning', defaultTime: '08:00' },
-  { key: 'Lunch', label: 'Lunch', defaultTime: '12:00' },
-  { key: 'Tea', label: 'Tea', defaultTime: '16:30' },
-  { key: 'Bed', label: 'Bed', defaultTime: '21:00' },
-];
+// Default clock times offered for each visit type a service user can be
+// scheduled for (see ServiceUserFormModal's VISIT_TYPES). Anything without
+// a known default (e.g. a custom visit type) falls back to a blank time
+// the manager fills in themselves.
+const VISIT_DEFAULT_TIMES: Record<string, string> = {
+  Morning: '08:00',
+  Lunch: '12:00',
+  Tea: '16:30',
+  Bed: '21:00',
+  'Sitting Call': '14:00',
+  'Cleaning Call': '10:00',
+};
+
+function parseScheduledVisitTypes(visitsJson?: string): string[] {
+  if (!visitsJson) return [];
+  try {
+    const arr = JSON.parse(visitsJson);
+    if (!Array.isArray(arr)) return [];
+    // De-dupe while preserving order — a service user can have more than
+    // one visit of the same type (e.g. two "Sitting Call"s), but they only
+    // need one dose-time slot for it.
+    const seen = new Set<string>();
+    const types: string[] = [];
+    for (const v of arr) {
+      const type = v && typeof v.type === 'string' ? v.type : null;
+      if (type && !seen.has(type)) { seen.add(type); types.push(type); }
+    }
+    return types;
+  } catch {
+    return [];
+  }
+}
 
 export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Props) {
   const { isManager } = useAuth();
@@ -84,6 +110,13 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
   const [visitTimes, setVisitTimes] = useState<Record<string, string>>({});
   const [sites, setSites] = useState<BodyMapPoint[]>([]);
   const [viewingSitesFor, setViewingSitesFor] = useState<Medication | null>(null);
+
+  // Only offer dose times for visits this client is actually scheduled for;
+  // fall back to the standard Morning/Lunch/Tea/Bed slots if their care
+  // plan has no visits configured yet.
+  const scheduledVisitTypes = parseScheduledVisitTypes(serviceUser.visits);
+  const visitTimeOpts = (scheduledVisitTypes.length > 0 ? scheduledVisitTypes : ['Morning', 'Lunch', 'Tea', 'Bed'])
+    .map((type) => ({ key: type, label: type, defaultTime: VISIT_DEFAULT_TIMES[type] || '09:00' }));
 
   function toggleVisit(key: string, defaultTime: string) {
     setVisitTimes((prev) => {
@@ -195,8 +228,13 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
 
               <div>
                 <label className="label">Dose Times — select visits</label>
+                <p className="text-xs text-gray-400 mb-1.5">
+                  {scheduledVisitTypes.length > 0
+                    ? `Synced to ${serviceUser.firstName.trim()}'s ${scheduledVisitTypes.length} scheduled visit${scheduledVisitTypes.length > 1 ? 's' : ''}.`
+                    : 'No visits configured on this client’s care plan yet — showing standard visit times.'}
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {VISIT_TIME_OPTS.map((opt) => {
+                  {visitTimeOpts.map((opt) => {
                     const selected = opt.key in visitTimes;
                     return (
                       <div
