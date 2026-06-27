@@ -163,6 +163,15 @@ export async function createShift(req: AuthRequest, res: Response) {
 
 export async function updateShift(req: AuthRequest, res: Response) {
   const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId } = req.body;
+
+  // Capture who's assigned before the update so we can tell, after it,
+  // which of them got taken off (this endpoint sets the full assignment
+  // each save, so a removal is just "was there before, isn't there now").
+  const touchesAssignment = userId !== undefined || Array.isArray(coverCarerIds);
+  const before = touchesAssignment
+    ? await prisma.shift.findUnique({ where: { id: req.params.id }, include: { coverCarers: { select: { id: true } } } })
+    : null;
+
   const data: Record<string, unknown> = {};
   if (date !== undefined) data.date = new Date(date);
   if (userId !== undefined) data.userId = userId || null;
@@ -191,6 +200,13 @@ export async function updateShift(req: AuthRequest, res: Response) {
       },
     });
     emitToUser(shift.userId, 'notification', notification);
+  }
+
+  if (before) {
+    const beforeIds = [before.userId, ...before.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
+    const afterIds = [shift.userId, ...shift.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
+    const removedIds = beforeIds.filter((id) => !afterIds.includes(id));
+    await notifyCarersRemoved(removedIds, shift);
   }
 
   res.json(shift);
@@ -265,6 +281,14 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
     }
   }
 
+  // Capture who's assigned on each touched shift before reassigning, so we
+  // can tell afterwards who got dropped and notify them individually —
+  // different shifts in the series can have had different carers.
+  const beforeShifts = await prisma.shift.findMany({
+    where: { id: { in: ids } },
+    include: { coverCarers: { select: { id: true } } },
+  });
+
   if (Array.isArray(coverCarerIds)) {
     // Cover carers are a relation, so set them per-shift (updateMany can't touch relations)
     const connectSet = coverCarerIds.filter(Boolean).map((id) => ({ id }));
@@ -276,6 +300,19 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
   } else {
     await prisma.shift.updateMany({ where: { id: { in: ids } }, data: { userId: userId || null } });
   }
+
+  await Promise.all(
+    beforeShifts.map((s) => {
+      const beforeIds = [s.userId, ...s.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
+      // Cover carers only change when coverCarerIds was actually supplied —
+      // otherwise they're untouched by the update above and shouldn't be
+      // treated as removed.
+      const afterCoverIds = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean) : s.coverCarers.map((c) => c.id);
+      const afterIds = [userId, ...afterCoverIds].filter(Boolean) as string[];
+      const removedIds = beforeIds.filter((id) => !afterIds.includes(id));
+      return notifyCarersRemoved(removedIds, s);
+    })
+  );
 
   if (userId) {
     const count = ids.length;
@@ -319,6 +356,34 @@ function isFullyAssigned(shift: { userId: string | null; cover: number; coverCar
   const assigned = (shift.userId ? 1 : 0) + shift.coverCarers.length;
   const needed = shift.cover || 1;
   return assigned >= needed;
+}
+
+// Tell a carer they've been taken off a shift they were previously assigned
+// to — same in-app + push pairing as the other shift notifications, so it
+// disappearing from their rota doesn't happen silently.
+async function notifyCarersRemoved(carerIds: string[], shift: { id: string; date: Date; startTime: string; endTime: string; visitName: string | null }) {
+  if (carerIds.length === 0) return;
+  const dateStr = new Date(shift.date).toDateString();
+  const message = `You've been removed from ${shift.visitName || 'a call'} on ${dateStr}, ${shift.startTime}–${shift.endTime}`;
+
+  await Promise.all(
+    carerIds.map(async (carerId) => {
+      const notification = await prisma.notification.create({
+        data: {
+          userId: carerId,
+          type: 'SHIFT_REMOVED',
+          title: 'Removed from Shift',
+          message,
+          data: JSON.stringify({ shiftId: shift.id }),
+        },
+      });
+      emitToUser(carerId, 'notification', notification);
+      await sendPushToUser(carerId, {
+        title: 'Removed from Shift',
+        body: message,
+      });
+    })
+  );
 }
 
 // Tell a shift's assigned carer (and any cover carers) it's now live on
