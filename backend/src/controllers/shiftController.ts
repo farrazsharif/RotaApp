@@ -5,6 +5,7 @@ import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { emitToUser } from '../lib/socket';
 import { sendEmail, shiftAssignedEmail } from '../lib/email';
+import { sendPushToUser } from '../lib/push';
 
 const shiftInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
@@ -320,6 +321,35 @@ function isFullyAssigned(shift: { userId: string | null; cover: number; coverCar
   return assigned >= needed;
 }
 
+// Tell a shift's assigned carer (and any cover carers) it's now live on
+// their rota — an in-app notification plus a push so they see it even with
+// the app closed, mirroring the reminder pushes sent later by shiftReminders.
+async function notifyShiftPublished(shift: { id: string; date: Date; startTime: string; endTime: string; visitName: string | null; userId: string | null; coverCarers: { id: string }[] }) {
+  const carerIds = [shift.userId, ...shift.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
+  const dateStr = new Date(shift.date).toDateString();
+  const message = `${shift.visitName || 'A call'} on ${dateStr}, ${shift.startTime}–${shift.endTime} has been added to your rota`;
+
+  await Promise.all(
+    carerIds.map(async (carerId) => {
+      const notification = await prisma.notification.create({
+        data: {
+          userId: carerId,
+          type: 'SHIFT_PUBLISHED',
+          title: 'New Shift on Your Rota',
+          message,
+          data: JSON.stringify({ shiftId: shift.id }),
+        },
+      });
+      emitToUser(carerId, 'notification', notification);
+      await sendPushToUser(carerId, {
+        title: 'New Shift on Your Rota',
+        body: message,
+        url: `/call/${shift.id}`,
+      });
+    })
+  );
+}
+
 // Publish a single draft shift, making it visible to its assigned carer.
 export async function publishShift(req: AuthRequest, res: Response) {
   const shift = await prisma.shift.findUnique({
@@ -336,6 +366,7 @@ export async function publishShift(req: AuthRequest, res: Response) {
     data: { published: true },
     include: shiftInclude,
   });
+  await notifyShiftPublished(updated);
   res.json(updated);
 }
 
@@ -352,12 +383,15 @@ export async function publishBulkShifts(req: AuthRequest, res: Response) {
     where: { id: { in: ids }, published: false },
     include: { coverCarers: { select: { id: true } } },
   });
-  const publishableIds = candidates.filter(isFullyAssigned).map((s) => s.id);
+  const publishable = candidates.filter(isFullyAssigned);
+  const publishableIds = publishable.map((s) => s.id);
   const skipped = candidates.length - publishableIds.length;
 
   const result = publishableIds.length
     ? await prisma.shift.updateMany({ where: { id: { in: publishableIds } }, data: { published: true } })
     : { count: 0 };
+
+  await Promise.all(publishable.map((shift) => notifyShiftPublished(shift)));
 
   res.json({ message: 'Published', count: result.count, skipped });
 }
