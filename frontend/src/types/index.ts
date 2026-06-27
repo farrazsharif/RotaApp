@@ -95,7 +95,7 @@ export interface CallLog {
 }
 
 export type MedStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN';
-export type BodyMapView = 'front' | 'back' | 'faceFront' | 'faceSide';
+export type BodyMapView = 'front' | 'back';
 export interface BodyMapPoint {
   view: BodyMapView;
   x: number; // % of diagram width

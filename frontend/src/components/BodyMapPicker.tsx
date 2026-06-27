@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { BodyMapPoint, BodyMapView } from '../types';
-import { FrontBodySvg, BackBodySvg, FaceFrontSvg, FaceSideSvg } from './BodyMapDiagrams';
+import { FrontBodySvg, BackBodySvg } from './BodyMapDiagrams';
 
 interface Props {
   value: BodyMapPoint[];
@@ -9,10 +9,8 @@ interface Props {
 }
 
 const VIEWS: { key: BodyMapView; label: string; Diagram: () => JSX.Element; aspect: string }[] = [
-  { key: 'front', label: 'Front', Diagram: FrontBodySvg, aspect: 'aspect-[100/220]' },
-  { key: 'back', label: 'Back', Diagram: BackBodySvg, aspect: 'aspect-[100/220]' },
-  { key: 'faceFront', label: 'Face — Front', Diagram: FaceFrontSvg, aspect: 'aspect-[100/110]' },
-  { key: 'faceSide', label: 'Face — Side', Diagram: FaceSideSvg, aspect: 'aspect-[100/110]' },
+  { key: 'front', label: 'Front', Diagram: FrontBodySvg, aspect: 'aspect-[417/1006]' },
+  { key: 'back', label: 'Back', Diagram: BackBodySvg, aspect: 'aspect-[444/1046]' },
 ];
 
 export default function BodyMapPicker({ value, onChange, readOnly }: Props) {
@@ -35,7 +33,7 @@ export default function BodyMapPicker({ value, onChange, readOnly }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 gap-4">
       {VIEWS.map(({ key, label, Diagram, aspect }) => (
         <div key={key}>
           <p className="text-xs font-medium text-gray-600 mb-1 text-center">{label}</p>

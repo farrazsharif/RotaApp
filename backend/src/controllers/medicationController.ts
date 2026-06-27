@@ -13,7 +13,7 @@ function parseTimes(input: unknown): string {
   return '[]';
 }
 
-const VALID_VIEWS = ['front', 'back', 'faceFront', 'faceSide'];
+const VALID_VIEWS = ['front', 'back'];
 
 function parseApplicationSites(input: unknown): string {
   if (!Array.isArray(input)) return '[]';
