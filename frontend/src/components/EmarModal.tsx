@@ -10,6 +10,7 @@ import BodyMapPicker from './BodyMapPicker';
 interface Props {
   serviceUser: ServiceUser;
   onClose: () => void;
+  defaultShowAdd?: boolean;
 }
 
 const STATUS_OPTS: { value: MedStatus | ''; label: string }[] = [
@@ -74,11 +75,11 @@ const VISIT_TIME_OPTS: { key: string; label: string; defaultTime: string }[] = [
   { key: 'Bed', label: 'Bed', defaultTime: '21:00' },
 ];
 
-export default function EmarModal({ serviceUser, onClose }: Props) {
+export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Props) {
   const { isManager } = useAuth();
   const qc = useQueryClient();
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [showAdd, setShowAdd] = useState(false);
+  const [showAdd, setShowAdd] = useState(!!defaultShowAdd);
   const [medForm, setMedForm] = useState(emptyMed);
   const [visitTimes, setVisitTimes] = useState<Record<string, string>>({});
   const [sites, setSites] = useState<BodyMapPoint[]>([]);
