@@ -25,12 +25,14 @@ function userColor(userId: string | undefined, users: { id: string }[]): string 
   return COLORS[idx % COLORS.length] || '#3b82f6';
 }
 
-function isPastDay(date: string | Date): boolean {
+// A shift counts as "past" once it has actually finished, not just once its
+// calendar day has — so earlier calls today dull as the day goes on, while
+// a call later today (or any day after) stays full brightness.
+function isPastShift(date: string | Date, endTime: string): boolean {
   const d = new Date(date);
-  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const today = new Date();
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  return day < todayStart;
+  const [eh, em] = endTime.split(':').map(Number);
+  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em, 0);
+  return end.getTime() <= Date.now();
 }
 
 function formatDuration(start: string, end: string): string {
@@ -140,7 +142,7 @@ export default function Schedule() {
         classNames: [
           ...(unassigned ? ['unassigned-shift'] : []),
           ...(!s.published ? ['draft-shift'] : []),
-          ...(isPastDay(s.date) ? ['past-shift'] : []),
+          ...(isPastShift(s.date, s.endTime) ? ['past-shift'] : []),
         ],
       };
     });
