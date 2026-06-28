@@ -23,7 +23,7 @@
 
 /* Past calls: same colour as always, just dulled so today/upcoming calls stand out at a glance */
 .fc .past-shift {
-  opacity: 0.65;
+  opacity: 0.6;
 }
 
 @layer components {
