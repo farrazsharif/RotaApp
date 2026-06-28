@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { isToday, format } from 'date-fns';
@@ -11,6 +11,33 @@ import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
 import type { MedAdminStatus } from '../types';
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+// Ticks every second while clocked in, so the carer can see time-on-shift
+// accumulate live rather than only finding out the total after clocking out.
+function LiveShiftTimer({ since }: { since: string }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const elapsed = now - new Date(since).getTime();
+  return (
+    <div className="text-center py-1">
+      <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Time on Shift</p>
+      <p className="text-3xl font-bold text-green-700 tabular-nums">{formatElapsed(elapsed)}</p>
+    </div>
+  );
+}
 
 const STATUS_OPTIONS: { value: MedAdminStatus; label: string; color: string }[] = [
   { value: 'GIVEN', label: 'Given', color: 'bg-green-600' },
@@ -122,6 +149,10 @@ export default function CallDetail() {
   const clockedInElsewhere = !!clockStatus?.clockedIn && clockStatus.record?.shiftId !== shift.id;
   const done = isCallDone(shift, user?.id);
   const shiftIsToday = isToday(new Date(shift.date));
+  const myCompletedRecord = shift.clockRecords?.find((r) => r.userId === user?.id && r.clockOut);
+  const totalTimeSpent = myCompletedRecord
+    ? formatElapsed(new Date(myCompletedRecord.clockOut!).getTime() - new Date(myCompletedRecord.clockIn).getTime())
+    : null;
 
   return (
     <Layout title={name}>
@@ -140,9 +171,16 @@ export default function CallDetail() {
         {done ? (
           <div className="bg-green-50 border border-green-300 rounded-2xl p-4 text-center">
             <p className="text-sm font-semibold text-green-700">✓ This call is complete. No further changes can be made.</p>
+            {totalTimeSpent && (
+              <div className="mt-2">
+                <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Time Spent</p>
+                <p className="text-2xl font-bold text-green-700 tabular-nums">{totalTimeSpent}</p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+            {clockedIn && clockStatus?.record && <LiveShiftTimer since={clockStatus.record.clockIn} />}
             {clockedInElsewhere ? (
               <p className="text-sm text-orange-600 font-medium">You're clocked in on another call. Clock out there first.</p>
             ) : clockedIn ? (
