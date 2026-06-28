@@ -21,6 +21,11 @@
   opacity: 0.65;
 }
 
+/* Past calls: same colour as always, just dulled so today/upcoming calls stand out at a glance */
+.fc .past-shift {
+  opacity: 0.45;
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;

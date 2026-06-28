@@ -25,6 +25,14 @@ function userColor(userId: string | undefined, users: { id: string }[]): string 
   return COLORS[idx % COLORS.length] || '#3b82f6';
 }
 
+function isPastDay(date: string | Date): boolean {
+  const d = new Date(date);
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return day < todayStart;
+}
+
 function formatDuration(start: string, end: string): string {
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);
@@ -132,6 +140,7 @@ export default function Schedule() {
         classNames: [
           ...(unassigned ? ['unassigned-shift'] : []),
           ...(!s.published ? ['draft-shift'] : []),
+          ...(isPastDay(s.date) ? ['past-shift'] : []),
         ],
       };
     });
