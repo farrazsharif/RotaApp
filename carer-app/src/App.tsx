@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Today from './pages/Today';
 import Rota from './pages/Rota';
 import CallDetail from './pages/CallDetail';
+import ServiceUserDetail from './pages/ServiceUserDetail';
 import Profile from './pages/Profile';
 
 function PushRegistration() {
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/" element={<ProtectedRoute><Today /></ProtectedRoute>} />
           <Route path="/rota" element={<ProtectedRoute><Rota /></ProtectedRoute>} />
           <Route path="/call/:id" element={<ProtectedRoute><CallDetail /></ProtectedRoute>} />
+          <Route path="/client/:id" element={<ProtectedRoute><ServiceUserDetail /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>

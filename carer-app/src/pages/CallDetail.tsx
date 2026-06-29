@@ -165,6 +165,14 @@ export default function CallDetail() {
           {shift.visitName && <p className="font-semibold text-gray-800">{shift.visitName}</p>}
           {su?.address && <p className="text-sm text-gray-500 mt-1">📍 {su.address}{su.postcode ? `, ${su.postcode}` : ''}</p>}
           {su?.phone && <p className="text-sm text-gray-500">📞 {su.phone}</p>}
+          {su && (
+            <button
+              onClick={() => navigate(`/client/${su.id}`)}
+              className="mt-2 text-sm font-medium text-blue-600"
+            >
+              📋 View Client Details
+            </button>
+          )}
         </div>
 
         {/* Clock in/out */}
