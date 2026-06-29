@@ -285,3 +285,13 @@ model Notification {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// One-time link sent to a newly-created staff member so they can set
+// their own password instead of a manager choosing one for them.
+model PasswordSetupToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}

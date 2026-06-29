@@ -47,6 +47,16 @@ export function shiftAssignedEmail(name: string, date: string, start: string, en
   `;
 }
 
+export function setPasswordEmail(name: string, link: string) {
+  return `
+    <h2>Welcome to RotaApp</h2>
+    <p>Hi ${name},</p>
+    <p>An account has been created for you on RotaApp. Click the link below to set your own password and get started:</p>
+    <p><a href="${link}">Set my password</a></p>
+    <p>This link expires in 7 days. If you weren't expecting this, you can ignore this email.</p>
+  `;
+}
+
 export function tradeRequestEmail(requesterName: string, date: string, start: string, end: string) {
   return `
     <h2>Shift Trade Request</h2>

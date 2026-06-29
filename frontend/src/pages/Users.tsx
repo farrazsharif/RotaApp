@@ -19,11 +19,12 @@ interface UserFormData {
   role: Role;
   hourlyRate: string;
   phone: string;
+  sendInvite: boolean;
 }
 
 const emptyForm: UserFormData = {
   email: '', password: '', firstName: '', lastName: '',
-  role: 'EMPLOYEE', hourlyRate: '', phone: '',
+  role: 'EMPLOYEE', hourlyRate: '', phone: '', sendInvite: true,
 };
 
 export default function Users() {
@@ -41,7 +42,12 @@ export default function Users() {
   });
 
   const createMut = useMutation({
-    mutationFn: () => usersApi.create({ ...form, hourlyRate: Number(form.hourlyRate) || 0, phone: form.phone || undefined, password: form.password }),
+    mutationFn: () => usersApi.create({
+      ...form,
+      hourlyRate: Number(form.hourlyRate) || 0,
+      phone: form.phone || undefined,
+      password: form.sendInvite ? undefined : form.password,
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); closeModal(); },
   });
 
@@ -63,7 +69,7 @@ export default function Users() {
   function openNew() { setEditUser(null); setForm(emptyForm); setShowModal(true); }
   function openEdit(u: User) {
     setEditUser(u);
-    setForm({ email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, hourlyRate: String(u.hourlyRate), phone: u.phone || '' });
+    setForm({ email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, hourlyRate: String(u.hourlyRate), phone: u.phone || '', sendInvite: false });
     setShowModal(true);
   }
   function closeModal() { setShowModal(false); setEditUser(null); setForm(emptyForm); }
@@ -174,9 +180,25 @@ export default function Users() {
                 <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" disabled={!!editUser} />
               </div>
               {!editUser && (
-                <div>
-                  <label className="label">Password *</label>
-                  <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="input" />
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={form.sendInvite}
+                      onChange={(e) => setForm({ ...form, sendInvite: e.target.checked })}
+                    />
+                    Email them a link to set their own password
+                  </label>
+                  {form.sendInvite ? (
+                    <p className="text-xs text-gray-500">
+                      We'll send {form.email || 'their email address'} a welcome email with a link to choose a password. The link expires in 7 days.
+                    </p>
+                  ) : (
+                    <div>
+                      <label className="label">Password *</label>
+                      <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="input" />
+                    </div>
+                  )}
                 </div>
               )}
               <div>
@@ -202,7 +224,10 @@ export default function Users() {
                 <button className="btn-secondary btn" onClick={closeModal}>Cancel</button>
                 <button
                   className="btn-primary btn"
-                  disabled={createMut.isPending || updateMut.isPending}
+                  disabled={
+                    createMut.isPending || updateMut.isPending ||
+                    (!editUser && !form.sendInvite && !form.password)
+                  }
                   onClick={() => editUser ? updateMut.mutate() : createMut.mutate()}
                 >
                   {editUser ? 'Save Changes' : 'Add Employee'}

@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import SetPassword from './pages/SetPassword';
 import Dashboard from './pages/Dashboard';
 import Schedule from './pages/Schedule';
 import ShiftTrades from './pages/ShiftTrades';
@@ -41,6 +42,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/set-password" element={<SetPassword />} />
       <Route
         path="/"
         element={
