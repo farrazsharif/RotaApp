@@ -14,6 +14,8 @@ import ServiceUsers from './pages/ServiceUsers';
 import ServiceUserDetail from './pages/ServiceUserDetail';
 import CallLogs from './pages/CallLogs';
 import Emar from './pages/Emar';
+import CarePlans from './pages/CarePlans';
+import ServicePlans from './pages/ServicePlans';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -55,6 +57,8 @@ function AppRoutes() {
         <Route path="service-users/:id" element={<ServiceUserDetail />} />
         <Route path="call-logs" element={<CallLogs />} />
         <Route path="emar" element={<Emar />} />
+        <Route path="care-plans" element={<CarePlans />} />
+        <Route path="service-plans" element={<ServicePlans />} />
         <Route path="trades" element={<ManagerRoute><ShiftTrades /></ManagerRoute>} />
         <Route path="time-off" element={<ManagerRoute><TimeOff /></ManagerRoute>} />
         <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />
