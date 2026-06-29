@@ -89,6 +89,10 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
 
   const reviewOverdue = plan?.reviewDate ? new Date(plan.reviewDate) < new Date() : false;
 
+  let visits: { type: string; duration: number }[] = [];
+  try { visits = serviceUser.visits ? JSON.parse(serviceUser.visits) : []; } catch { visits = []; }
+  const durationLabel = (m: number) => (m >= 60 ? `${m / 60} hr${m > 60 ? 's' : ''}${m % 60 ? ` ${m % 60}m` : ''}` : `${m} mins`);
+
   function printPlan() {
     const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
     const scheduleRows = DAYS.map((day) => `
@@ -103,6 +107,10 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
       .filter((t) => t.value)
       .map((t) => `<div class="field"><div class="field-label">${esc(t.label)} — tasks</div><div class="field-value">${esc(t.value)}</div></div>`)
       .join('');
+
+    const visitRows = visits.map((v) => `
+      <tr><td>${esc(v.type)}</td><td>${esc(durationLabel(v.duration))}</td></tr>
+    `).join('');
 
     const html = `<!DOCTYPE html><html><head><title>Care Plan — ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}</title>
       <style>
@@ -124,11 +132,15 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
         @media print { body { margin: 0; } }
       </style></head><body>
       <h1>Care Plan</h1>
-      <div class="sub">
-        ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}
-        ${serviceUser.dateOfBirth ? ` · DOB ${esc(format(new Date(serviceUser.dateOfBirth), 'dd MMM yyyy'))}` : ''}
-        ${serviceUser.nhsNumber ? ` · NHS ${esc(serviceUser.nhsNumber)}` : ''}
-        · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}
+      <div class="sub">Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
+
+      <h2>Service User Basic Information</h2>
+      <div class="fields-grid">
+        <div class="field"><div class="field-label">Name</div><div class="field-value">${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}</div></div>
+        <div class="field"><div class="field-label">Date of Birth</div><div class="field-value">${serviceUser.dateOfBirth ? esc(format(new Date(serviceUser.dateOfBirth), 'dd MMM yyyy')) : '—'}</div></div>
+        <div class="field"><div class="field-label">NHS Number</div><div class="field-value">${esc(serviceUser.nhsNumber || '—')}</div></div>
+        <div class="field"><div class="field-label">Phone</div><div class="field-value">${esc(serviceUser.phone || '—')}</div></div>
+        <div class="field"><div class="field-label">Address</div><div class="field-value">${esc([serviceUser.address, serviceUser.postcode].filter(Boolean).join(', ') || '—')}</div></div>
       </div>
 
       <h2>Weekly Visit Profile</h2>
@@ -137,14 +149,19 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
         <tbody>${scheduleRows}</tbody>
       </table>
 
-      <h2>Tasks Required (Any Preferences)</h2>
-      ${taskRows || '<p style="font-size:12px;color:#777;">None recorded.</p>'}
-
       <h2>Care Package Details</h2>
       <div class="fields-grid">
         <div class="field"><div class="field-label">Number of Carers</div><div class="field-value">${esc(form.numberOfCarers || '—')}</div></div>
         <div class="field"><div class="field-label">Review Date</div><div class="field-value">${form.reviewDate ? esc(format(new Date(form.reviewDate), 'dd MMM yyyy')) : '—'}</div></div>
       </div>
+
+      <h2>Visits</h2>
+      ${visits.length ? `<table><thead><tr><th>Visit Type</th><th>Duration</th></tr></thead><tbody>${visitRows}</tbody></table>` : '<p style="font-size:12px;color:#777;">No visits configured.</p>'}
+
+      <h2>Tasks Required (Any Preferences)</h2>
+      ${taskRows || '<p style="font-size:12px;color:#777;">None recorded.</p>'}
+
+      <h2>Other</h2>
       <div class="field"><div class="field-label">Care Package Information</div><div class="field-value">${esc(form.carePackageInfo || '—')}</div></div>
       <div class="field"><div class="field-label">Other Notes</div><div class="field-value">${esc(form.otherNotes || '—')}</div></div>
 
@@ -181,6 +198,18 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
             <div className="flex justify-center p-6"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>
           ) : (
             <>
+              {/* Service user basic information */}
+              <section>
+                <h3 className="font-semibold text-gray-900 mb-2">Service User Basic Information</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div><p className="text-xs text-gray-400">Name</p><p className="text-sm text-gray-800">{serviceUser.firstName} {serviceUser.lastName}</p></div>
+                  <div><p className="text-xs text-gray-400">Date of Birth</p><p className="text-sm text-gray-800">{serviceUser.dateOfBirth ? format(new Date(serviceUser.dateOfBirth), 'dd MMM yyyy') : '—'}</p></div>
+                  <div><p className="text-xs text-gray-400">NHS Number</p><p className="text-sm text-gray-800">{serviceUser.nhsNumber || '—'}</p></div>
+                  <div><p className="text-xs text-gray-400">Phone</p><p className="text-sm text-gray-800">{serviceUser.phone || '—'}</p></div>
+                  <div className="sm:col-span-2"><p className="text-xs text-gray-400">Address</p><p className="text-sm text-gray-800">{[serviceUser.address, serviceUser.postcode].filter(Boolean).join(', ') || '—'}</p></div>
+                </div>
+              </section>
+
               {/* Weekly visit profile */}
               <section>
                 <h3 className="font-semibold text-gray-900 mb-2">Weekly Visit Profile</h3>
@@ -215,23 +244,6 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
                 </div>
               </section>
 
-              {/* Tasks required per visit */}
-              <section>
-                <h3 className="font-semibold text-gray-900 mb-2">Tasks Required (Any Preferences)</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {TASK_FIELDS.map(({ key, label }) => (
-                    <div key={key}>
-                      <label className="label">{label}</label>
-                      {ro ? (
-                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{(form[key] as string) || <span className="text-gray-400">—</span>}</p>
-                      ) : (
-                        <textarea value={form[key] as string} rows={3} onChange={(e) => setForm({ ...form, [key]: e.target.value })} placeholder={`Tasks for the ${label.toLowerCase()} visit…`} className="input resize-none text-sm" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-
               {/* Care package details */}
               <section className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -247,6 +259,40 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
                     <input type="date" value={form.reviewDate} onChange={(e) => setForm({ ...form, reviewDate: e.target.value })} className="input w-48 text-sm" />
                   )}
                   {reviewOverdue && <p className="text-xs text-red-600 mt-1">⚠ Review overdue</p>}
+                </div>
+              </section>
+
+              {/* Visits */}
+              <section>
+                <h3 className="font-semibold text-gray-900 mb-2">Visits</h3>
+                {visits.length === 0 ? (
+                  <p className="text-sm text-gray-400">No visits configured</p>
+                ) : (
+                  <div className="space-y-1">
+                    {visits.map((v, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm border-b last:border-0 py-1">
+                        <span className="text-gray-800">{v.type}</span>
+                        <span className="text-gray-500">{durationLabel(v.duration)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Tasks required per visit */}
+              <section>
+                <h3 className="font-semibold text-gray-900 mb-2">Tasks Required (Any Preferences)</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {TASK_FIELDS.map(({ key, label }) => (
+                    <div key={key}>
+                      <label className="label">{label}</label>
+                      {ro ? (
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{(form[key] as string) || <span className="text-gray-400">—</span>}</p>
+                      ) : (
+                        <textarea value={form[key] as string} rows={3} onChange={(e) => setForm({ ...form, [key]: e.target.value })} placeholder={`Tasks for the ${label.toLowerCase()} visit…`} className="input resize-none text-sm" />
+                      )}
+                    </div>
+                  ))}
                 </div>
               </section>
 
