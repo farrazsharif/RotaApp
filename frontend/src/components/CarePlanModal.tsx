@@ -89,6 +89,79 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
 
   const reviewOverdue = plan?.reviewDate ? new Date(plan.reviewDate) < new Date() : false;
 
+  function printPlan() {
+    const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
+    const scheduleRows = DAYS.map((day) => `
+      <tr>
+        <td class="day-col">${esc(day)}</td>
+        ${SLOTS.map((s) => `<td>${esc(form.schedule[day]?.[s.key] || '')}</td>`).join('')}
+      </tr>
+    `).join('');
+
+    const taskRows = TASK_FIELDS
+      .map(({ key, label }) => ({ label, value: (form[key] as string) || '' }))
+      .filter((t) => t.value)
+      .map((t) => `<div class="field"><div class="field-label">${esc(t.label)} — tasks</div><div class="field-value">${esc(t.value)}</div></div>`)
+      .join('');
+
+    const html = `<!DOCTYPE html><html><head><title>Care Plan — ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}</title>
+      <style>
+        @page { size: portrait; margin: 15mm; }
+        body { font-family: Arial, sans-serif; color: #111; margin: 0; }
+        h1 { font-size: 20px; margin: 0 0 2px; }
+        .sub { color: #555; font-size: 12px; margin-bottom: 16px; }
+        h2 { font-size: 14px; margin: 18px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 8px; }
+        th, td { border: 1px solid #999; padding: 5px 6px; text-align: left; }
+        th { background: #f3f3f3; }
+        .day-col { font-weight: bold; white-space: nowrap; }
+        .field { margin-bottom: 10px; }
+        .field-label { font-size: 10px; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: 0.02em; }
+        .field-value { font-size: 12px; white-space: pre-wrap; margin-top: 2px; }
+        .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .sign-row { display: flex; justify-content: space-between; margin-top: 40px; font-size: 11px; }
+        .sign-row .line { border-top: 1px solid #333; width: 45%; padding-top: 4px; }
+        @media print { body { margin: 0; } }
+      </style></head><body>
+      <h1>Care Plan</h1>
+      <div class="sub">
+        ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}
+        ${serviceUser.dateOfBirth ? ` · DOB ${esc(format(new Date(serviceUser.dateOfBirth), 'dd MMM yyyy'))}` : ''}
+        ${serviceUser.nhsNumber ? ` · NHS ${esc(serviceUser.nhsNumber)}` : ''}
+        · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}
+      </div>
+
+      <h2>Weekly Visit Profile</h2>
+      <table>
+        <thead><tr><th>Day</th>${SLOTS.map((s) => `<th>${esc(s.label)}</th>`).join('')}</tr></thead>
+        <tbody>${scheduleRows}</tbody>
+      </table>
+
+      <h2>Tasks Required (Any Preferences)</h2>
+      ${taskRows || '<p style="font-size:12px;color:#777;">None recorded.</p>'}
+
+      <h2>Care Package Details</h2>
+      <div class="fields-grid">
+        <div class="field"><div class="field-label">Number of Carers</div><div class="field-value">${esc(form.numberOfCarers || '—')}</div></div>
+        <div class="field"><div class="field-label">Review Date</div><div class="field-value">${form.reviewDate ? esc(format(new Date(form.reviewDate), 'dd MMM yyyy')) : '—'}</div></div>
+      </div>
+      <div class="field"><div class="field-label">Care Package Information</div><div class="field-value">${esc(form.carePackageInfo || '—')}</div></div>
+      <div class="field"><div class="field-label">Other Notes</div><div class="field-value">${esc(form.otherNotes || '—')}</div></div>
+
+      <div class="sign-row">
+        <div class="line">Carer signature / date</div>
+        <div class="line">Service User / Representative signature / date</div>
+      </div>
+      </body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { alert('Please allow pop-ups to print.'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
@@ -195,6 +268,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
         <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
           {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
           <div className="flex-1" />
+          <button onClick={printPlan} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
           {isManager && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>

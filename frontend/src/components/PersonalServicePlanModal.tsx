@@ -74,6 +74,109 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
     ).length;
   }, [values]);
 
+  function printPlan() {
+    const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
+
+    function itemHtml(section: PspSection, item: PspItem, idx: number): string {
+      const key = itemKey(section.id, idx);
+      const type = item.type || 'yn';
+
+      if (type === 'yn') {
+        const v = yn(key);
+        return `<div class="item">
+          <div class="item-row"><span>${esc(item.label)}</span><b class="${v.v === 'YES' ? 'yes' : v.v === 'NO' ? 'no' : 'blank'}">${v.v || '—'}</b></div>
+          ${v.comment ? `<div class="note">Comment: ${esc(v.comment)}</div>` : ''}
+          ${section.action && v.action ? `<div class="note">Action: ${esc(v.action)}</div>` : ''}
+        </div>`;
+      }
+      if (type === 'check') {
+        const v = chk(key);
+        return `<div class="item">
+          <div class="item-row"><span>${v.checked ? '☑' : '☐'} ${esc(item.label)}</span></div>
+          ${v.comment ? `<div class="note">Comment: ${esc(v.comment)}</div>` : ''}
+        </div>`;
+      }
+      if (type === 'choice') {
+        const v = str(key);
+        return `<div class="item"><div class="item-row"><span>${esc(item.label)}</span><b>${esc(v || '—')}</b></div></div>`;
+      }
+      if (type === 'capability') {
+        const v = cap(key);
+        const parts = [v.independent && 'Independent', v.supervise && 'Supervise', v.staff && `Staff: ${v.staff}`, v.aid && `Aid: ${v.aid}`].filter(Boolean);
+        return `<div class="item"><div class="item-row"><span>${esc(item.label)}</span><span>${esc(parts.join(' · ') || '—')}</span></div></div>`;
+      }
+      if (type === 'signature') {
+        const v = sig(key);
+        return `<div class="item">
+          <div class="note">${esc(item.label)}</div>
+          ${v.dataUrl ? `<img class="sig" src="${v.dataUrl}" />` : '<div class="note">Not signed</div>'}
+          <div class="note">${[v.name, v.date].filter(Boolean).map(esc).join(' · ')}</div>
+        </div>`;
+      }
+      if (type === 'mhEquipment') {
+        const v = mhe(key);
+        const checked = ([['turnplate', 'Turnplate'], ['slideSheet', 'Slide Sheet'], ['handlingBelt', 'Handling Belt'], ['rotunder', 'Rotunder'], ['other', 'Other']] as const)
+          .filter(([k]) => v[k]).map(([, label]) => label);
+        const texts = ([['hoistModel', 'Hoist'], ['bathHoistModel', 'Bath Hoist'], ['standAidModel', 'Stand Aid'], ['otherDetail', 'Other']] as const)
+          .filter(([k]) => v[k]).map(([k, label]) => `${label}: ${v[k]}`);
+        return `<div class="item"><div class="item-row"><span>${esc([...checked, ...texts].join(' · ') || '—')}</span></div></div>`;
+      }
+      if (type === 'equipment') {
+        const v = eqp(key);
+        const parts = [v.suppliedBy && `Supplied: ${v.suppliedBy}`, v.servicingBy && `Servicing: ${v.servicingBy}`, v.make && `Make: ${v.make}`, v.model && `Model: ${v.model}`, v.serviceNo && `Service no: ${v.serviceNo}`, v.lastService && `Last service: ${v.lastService}`, v.nextDue && `Next due: ${v.nextDue}`, v.contractorNumber && `Contractor: ${v.contractorNumber}`].filter(Boolean);
+        return `<div class="item"><div class="note">${esc(item.label)}</div><div class="item-row"><span>${esc(parts.join(' · ') || '—')}</span></div></div>`;
+      }
+      // text / longtext
+      const v = str(key);
+      return `<div class="item"><div class="note">${esc(item.label)}</div><div class="item-row"><span>${esc(v || '—')}</span></div></div>`;
+    }
+
+    const sectionsHtml = PSP_SECTIONS.map((s) => `
+      <div class="section">
+        <h2>${esc(s.title)}</h2>
+        ${s.intro ? `<p class="intro">${esc(s.intro)}</p>` : ''}
+        ${s.note ? `<p class="note-box">${esc(s.note)}</p>` : ''}
+        ${s.items.map((item, i) => itemHtml(s, item, i)).join('')}
+      </div>
+    `).join('');
+
+    const html = `<!DOCTYPE html><html><head><title>Personal Service Plan — ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}</title>
+      <style>
+        @page { size: portrait; margin: 15mm; }
+        body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 12px; }
+        h1 { font-size: 20px; margin: 0 0 2px; }
+        .sub { color: #555; font-size: 12px; margin-bottom: 16px; }
+        .section { page-break-inside: avoid; margin-bottom: 14px; }
+        h2 { font-size: 14px; margin: 0 0 6px; background: #f3f3f3; padding: 5px 8px; }
+        .intro { font-size: 11px; color: #555; margin: 0 0 6px; }
+        .note-box { font-size: 10px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; padding: 6px; margin: 0 0 6px; }
+        .item { border-bottom: 1px solid #eee; padding: 4px 0; }
+        .item-row { display: flex; justify-content: space-between; gap: 10px; }
+        .item-row b.yes { color: #15803d; }
+        .item-row b.no { color: #b91c1c; }
+        .item-row b.blank { color: #999; }
+        .note { font-size: 10px; color: #666; margin-top: 2px; }
+        .sig { max-height: 50px; border: 1px solid #ccc; margin: 4px 0; }
+        @media print { body { margin: 0; } .section { page-break-inside: auto; } }
+      </style></head><body>
+      <h1>Personal Service Plan</h1>
+      <div class="sub">
+        ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}
+        ${serviceUser.dateOfBirth ? ` · DOB ${esc(format(new Date(serviceUser.dateOfBirth), 'dd MMM yyyy'))}` : ''}
+        ${serviceUser.nhsNumber ? ` · NHS ${esc(serviceUser.nhsNumber)}` : ''}
+        · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}
+      </div>
+      ${sectionsHtml}
+      </body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { alert('Please allow pop-ups to print.'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  }
+
   function renderItem(section: PspSection, item: PspItem, idx: number) {
     const key = itemKey(section.id, idx);
     const type = item.type || 'yn';
@@ -351,6 +454,7 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
           {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
           <div className="flex-1" />
+          <button onClick={printPlan} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
           {isManager && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
