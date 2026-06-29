@@ -21,6 +21,8 @@ import carePlanRoutes from './routes/carePlans';
 import servicePlanRoutes from './routes/servicePlans';
 import adminRoutes from './routes/admin';
 import pushRoutes from './routes/push';
+import familyRoutes from './routes/family';
+import familyLinkRoutes from './routes/familyLinks';
 import { startShiftReminders } from './lib/shiftReminders';
 
 const app = express();
@@ -28,8 +30,14 @@ const server = http.createServer(app);
 
 initSocket(server);
 
+const allowedOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:5173',
+  process.env.CARER_APP_URL || 'http://localhost:5174',
+  process.env.FAMILY_PORTAL_URL || 'http://localhost:5175',
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: allowedOrigins,
   credentials: true,
 }));
 app.use(express.json());
@@ -52,6 +60,8 @@ app.use('/api/care-plans', carePlanRoutes);
 app.use('/api/service-plans', servicePlanRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/family', familyRoutes);
+app.use('/api/family-links', familyLinkRoutes);
 
 app.use(errorHandler);
 

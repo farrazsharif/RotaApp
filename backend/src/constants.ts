@@ -1,6 +1,6 @@
 // SQLite does not support native enums, so we model them as string unions here.
 
-export const Role = { ADMIN: 'ADMIN', MANAGER: 'MANAGER', EMPLOYEE: 'EMPLOYEE' } as const;
+export const Role = { ADMIN: 'ADMIN', MANAGER: 'MANAGER', EMPLOYEE: 'EMPLOYEE', FAMILY_MEMBER: 'FAMILY_MEMBER' } as const;
 export type Role = (typeof Role)[keyof typeof Role];
 
 export const ShiftStatus = {

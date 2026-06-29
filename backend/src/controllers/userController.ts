@@ -15,7 +15,10 @@ const userSelect = {
 export async function listUsers(req: AuthRequest, res: Response) {
   const { role, active } = req.query;
   const where: Record<string, unknown> = {};
+  // Family-member accounts are managed via the dedicated family-access UI,
+  // not the staff list, so they're hidden unless explicitly requested.
   if (role) where.role = role;
+  else where.role = { not: Role.FAMILY_MEMBER };
   if (active !== undefined) where.active = active === 'true';
   const users = await prisma.user.findMany({ where, select: userSelect, orderBy: [{ firstName: 'asc' }] });
   res.json(users);

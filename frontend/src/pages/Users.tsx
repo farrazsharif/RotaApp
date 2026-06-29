@@ -9,6 +9,7 @@ const roleBadge: Record<Role, string> = {
   ADMIN: 'badge-purple',
   MANAGER: 'badge-blue',
   EMPLOYEE: 'badge-gray',
+  FAMILY_MEMBER: 'badge-green',
 };
 
 interface UserFormData {

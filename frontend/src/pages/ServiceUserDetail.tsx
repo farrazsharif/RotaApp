@@ -15,6 +15,7 @@ import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
 import EmarModal from '../components/EmarModal';
 import MarChartModal from '../components/MarChartModal';
 import CallLogsModal from '../components/CallLogsModal';
+import FamilyAccessModal from '../components/FamilyAccessModal';
 
 const durationLabel = (m: number) =>
   m >= 60 ? `${m / 60} hr${m > 60 ? 's' : ''}${m % 60 ? ` ${m % 60}m` : ''}` : `${m} mins`;
@@ -59,6 +60,7 @@ export default function ServiceUserDetail() {
   const [emarOpen, setEmarOpen] = useState(false);
   const [marChartOpen, setMarChartOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [familyAccessOpen, setFamilyAccessOpen] = useState(false);
 
   const { data: su, isLoading, isError } = useQuery({
     queryKey: ['service-user', id],
@@ -116,7 +118,12 @@ export default function ServiceUserDetail() {
               {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
             </div>
           </div>
-          {isManager && <button className="btn-primary btn" onClick={() => setEditOpen(true)}>Edit Details</button>}
+          {isManager && (
+            <div className="flex gap-2">
+              <button className="btn-secondary btn" onClick={() => setFamilyAccessOpen(true)}>Family Access</button>
+              <button className="btn-primary btn" onClick={() => setEditOpen(true)}>Edit Details</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -336,6 +343,7 @@ export default function ServiceUserDetail() {
       {emarOpen && <EmarModal serviceUser={su} onClose={() => setEmarOpen(false)} />}
       {marChartOpen && <MarChartModal serviceUser={su} onClose={() => setMarChartOpen(false)} />}
       {logsOpen && <CallLogsModal serviceUser={su} onClose={() => setLogsOpen(false)} />}
+      {familyAccessOpen && <FamilyAccessModal serviceUser={su} onClose={() => setFamilyAccessOpen(false)} />}
     </div>
   );
 }

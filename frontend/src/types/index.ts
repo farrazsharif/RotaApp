@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'MANAGER' | 'EMPLOYEE';
+export type Role = 'ADMIN' | 'MANAGER' | 'EMPLOYEE' | 'FAMILY_MEMBER';
 export type ShiftStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'SWAPPED';
 export type TradeStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'APPROVED' | 'CANCELLED';
 export type TimeOffType = 'VACATION' | 'SICK' | 'PERSONAL' | 'OTHER';
@@ -208,6 +208,16 @@ export interface CarePlan {
   updatedById?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FamilyLink {
+  id: string;
+  userId: string;
+  serviceUserId: string;
+  relation?: string;
+  createdAt: string;
+  user: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'active'>;
+  serviceUser: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
 }
 
 export interface DashboardStats {

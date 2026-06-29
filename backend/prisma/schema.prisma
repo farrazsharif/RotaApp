@@ -31,6 +31,7 @@ model User {
   callLogs           CallLog[]
   medAdministrations MedAdministration[]
   pushSubscriptions  PushSubscription[]
+  familyLinks        FamilyLink[]
 }
 
 model Site {
@@ -81,6 +82,22 @@ model ServiceUser {
   medAdministrations  MedAdministration[]
   carePlan            CarePlan?
   servicePlan         PersonalServicePlan?
+  familyLinks         FamilyLink[]
+}
+
+// Links a family-member User account to the service user(s) they're allowed
+// to view read-only details for, via the separate family-portal app.
+model FamilyLink {
+  id            String   @id @default(cuid())
+  userId        String
+  serviceUserId String
+  relation      String?
+  createdAt     DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, serviceUserId])
 }
 
 model PersonalServicePlan {
