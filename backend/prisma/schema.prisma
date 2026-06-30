@@ -32,6 +32,7 @@ model User {
   medAdministrations MedAdministration[]
   pushSubscriptions  PushSubscription[]
   familyLinks        FamilyLink[]
+  trainings          Training[]
 }
 
 model Site {
@@ -164,6 +165,22 @@ model LikesDislikes {
   updatedAt       DateTime @updatedAt
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+}
+
+// Training course attended by a staff member, e.g. "First Aid", with an
+// optional expiry so managers can see at a glance who needs renewal.
+model Training {
+  id          String    @id @default(cuid())
+  userId      String
+  course      String
+  date        DateTime
+  expiresAt   DateTime?
+  accredited  Boolean   @default(false)
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Medication {

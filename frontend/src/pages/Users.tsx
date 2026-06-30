@@ -4,6 +4,7 @@ import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Role } from '../types';
 import { format } from 'date-fns';
+import TrainingModal from '../components/TrainingModal';
 
 const roleBadge: Record<Role, string> = {
   ADMIN: 'badge-purple',
@@ -33,6 +34,7 @@ export default function Users() {
   const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
+  const [trainingUser, setTrainingUser] = useState<User | null>(null);
   const [form, setForm] = useState<UserFormData>(emptyForm);
   const [search, setSearch] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -135,6 +137,7 @@ export default function Users() {
                     </div>
                   ) : (
                     <div className="flex gap-2 justify-end">
+                      <button className="btn-secondary btn btn-sm" onClick={() => setTrainingUser(u)}>Training</button>
                       <button className="btn-secondary btn btn-sm" onClick={() => openEdit(u)}>Edit</button>
                       {isAdmin && u.active && (
                         <button className="btn-secondary btn btn-sm" onClick={() => deactivateMut.mutate(u.id)}>
@@ -238,6 +241,8 @@ export default function Users() {
           </div>
         </div>
       )}
+
+      {trainingUser && <TrainingModal user={trainingUser} onClose={() => setTrainingUser(null)} />}
     </div>
   );
 }

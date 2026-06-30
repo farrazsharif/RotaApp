@@ -240,6 +240,18 @@ export interface FamilyLink {
   serviceUser: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
 }
 
+export interface Training {
+  id: string;
+  userId: string;
+  course: string;
+  date: string;
+  expiresAt?: string;
+  accredited: boolean;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DashboardStats {
   totalEmployees: number;
   shiftsThisWeek: number;
