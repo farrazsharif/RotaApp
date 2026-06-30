@@ -189,9 +189,12 @@ export interface ServiceUser {
   visitDuration: number;
   visits?: string; // JSON array of { type, duration }
   active: boolean;
+  status: ServiceUserStatus;
   preferredCaregivers: Pick<User, 'id' | 'firstName' | 'lastName'>[];
   createdAt: string;
 }
+
+export type ServiceUserStatus = 'ACTIVE' | 'ON_HOLD' | 'HOSPITALISED' | 'DISCHARGED' | 'DECEASED';
 
 export interface CarePlan {
   id: string;

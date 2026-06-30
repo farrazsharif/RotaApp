@@ -1,5 +1,5 @@
 import api from '../lib/axios';
-import { ServiceUser } from '../types';
+import { ServiceUser, ServiceUserStatus } from '../types';
 
 export interface ServiceUserData {
   firstName: string;
@@ -28,10 +28,11 @@ export interface ServiceUserData {
   visitDuration?: number;
   visits?: string; // JSON array of { type, duration }
   preferredCaregiverIds?: string[];
+  status?: ServiceUserStatus;
 }
 
 export const serviceUsersApi = {
-  list: (params?: { search?: string; active?: boolean; siteId?: string }) =>
+  list: (params?: { search?: string; active?: boolean; siteId?: string; status?: ServiceUserStatus }) =>
     api.get<ServiceUser[]>('/service-users', { params }).then((r) => r.data),
   get: (id: string) => api.get<ServiceUser>(`/service-users/${id}`).then((r) => r.data),
   create: (data: ServiceUserData) =>

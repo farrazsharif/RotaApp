@@ -4,9 +4,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { sitesApi } from '../api/sites';
 import { useAuth } from '../contexts/AuthContext';
-import { ServiceUser } from '../types';
+import { ServiceUser, ServiceUserStatus } from '../types';
 import { differenceInYears } from 'date-fns';
 import ServiceUserFormModal from '../components/ServiceUserFormModal';
+
+const STATUS_META: Record<ServiceUserStatus, { label: string; className: string }> = {
+  ACTIVE: { label: 'Active', className: 'bg-green-100 text-green-700' },
+  ON_HOLD: { label: 'On Hold', className: 'bg-gray-200 text-gray-700' },
+  HOSPITALISED: { label: 'Hospitalised', className: 'bg-amber-100 text-amber-700' },
+  DISCHARGED: { label: 'Discharged', className: 'bg-blue-100 text-blue-700' },
+  DECEASED: { label: 'Passed Away', className: 'bg-slate-300 text-slate-800' },
+};
 
 const SITE_COLORS = [
   '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
@@ -25,6 +33,7 @@ export default function ServiceUsers() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterSite, setFilterSite] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showSites, setShowSites] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -33,8 +42,12 @@ export default function ServiceUsers() {
   const [editSiteId, setEditSiteId] = useState<string | null>(null);
 
   const { data: serviceUsers = [], isLoading } = useQuery({
-    queryKey: ['service-users', search, filterSite],
-    queryFn: () => serviceUsersApi.list({ search: search || undefined, siteId: filterSite || undefined }),
+    queryKey: ['service-users', search, filterSite, filterStatus],
+    queryFn: () => serviceUsersApi.list({
+      search: search || undefined,
+      siteId: filterSite || undefined,
+      status: (filterStatus || undefined) as ServiceUserStatus | undefined,
+    }),
   });
 
   const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
@@ -82,6 +95,12 @@ export default function ServiceUsers() {
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input">
+            <option value="">All statuses</option>
+            {Object.entries(STATUS_META).map(([value, meta]) => (
+              <option key={value} value={value}>{meta.label}</option>
+            ))}
+          </select>
           {isManager && <button className="btn-secondary btn" onClick={() => setShowSites(true)}>Manage Sites</button>}
           {isManager && <button className="btn-primary btn" onClick={() => setShowForm(true)}>+ Add Service User</button>}
         </div>
@@ -110,6 +129,10 @@ export default function ServiceUsers() {
                 </div>
                 <span className="badge-blue badge">{durationLabel(su.visitDuration)}</span>
               </div>
+
+              <span className={`inline-block text-xs font-medium px-2 py-1 rounded-full w-fit ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
+                {STATUS_META[su.status]?.label || su.status}
+              </span>
 
               {su.site && (
                 <span

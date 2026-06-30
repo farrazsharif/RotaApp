@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { ServiceUserStatus } from '../constants';
 
 const include = {
   preferredCaregivers: { select: { id: true, firstName: true, lastName: true } },
@@ -8,10 +9,11 @@ const include = {
 };
 
 export async function listServiceUsers(req: AuthRequest, res: Response) {
-  const { search, active, siteId } = req.query;
+  const { search, active, siteId, status } = req.query;
   const where: Record<string, unknown> = {};
   if (active !== undefined) where.active = active === 'true';
   if (siteId) where.siteId = siteId;
+  if (status) where.status = String(status);
 
   if (search) {
     const term = String(search);
@@ -58,6 +60,9 @@ function buildData(body: Record<string, unknown>) {
   }
   if (body.active !== undefined) data.active = !!body.active;
   if (body.siteId !== undefined) data.siteId = body.siteId || null;
+  if (body.status !== undefined && Object.values(ServiceUserStatus).includes(body.status as ServiceUserStatus)) {
+    data.status = body.status;
+  }
   return data;
 }
 

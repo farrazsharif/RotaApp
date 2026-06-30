@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serviceUsersApi } from '../api/serviceUsers';
+import { ServiceUserStatus } from '../types';
 import { carePlansApi } from '../api/carePlans';
 import { servicePlansApi } from '../api/servicePlans';
 import { medicationsApi } from '../api/medications';
@@ -41,6 +42,14 @@ function Section({ title, action, children }: { title: string; action?: React.Re
   );
 }
 
+const STATUS_META: Record<ServiceUserStatus, { label: string; className: string }> = {
+  ACTIVE: { label: 'Active', className: 'bg-green-100 text-green-700' },
+  ON_HOLD: { label: 'On Hold', className: 'bg-gray-200 text-gray-700' },
+  HOSPITALISED: { label: 'Hospitalised', className: 'bg-amber-100 text-amber-700' },
+  DISCHARGED: { label: 'Discharged', className: 'bg-blue-100 text-blue-700' },
+  DECEASED: { label: 'Passed Away', className: 'bg-slate-300 text-slate-800' },
+};
+
 function Field({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
@@ -53,6 +62,7 @@ function Field({ label, value }: { label: string; value?: string | null }) {
 export default function ServiceUserDetail() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { isManager } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [carePlanOpen, setCarePlanOpen] = useState(false);
@@ -72,6 +82,11 @@ export default function ServiceUserDetail() {
   const { data: servicePlan } = useQuery({ queryKey: ['service-plan', id], queryFn: () => servicePlansApi.get(id), enabled: !!id });
   const { data: meds = [] } = useQuery({ queryKey: ['medications', id], queryFn: () => medicationsApi.list(id), enabled: !!id });
   const { data: logs = [] } = useQuery({ queryKey: ['call-logs', id], queryFn: () => callLogsApi.list(id), enabled: !!id });
+
+  const statusMut = useMutation({
+    mutationFn: (status: ServiceUserStatus) => serviceUsersApi.update(id, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['service-user', id] }),
+  });
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
   if (isError || !su) {
@@ -116,10 +131,23 @@ export default function ServiceUserDetail() {
               {su.needsMedication && <span className="badge-red badge">Medication</span>}
               {su.needsMobility && <span className="badge-yellow badge">Mobility</span>}
               {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
+                {STATUS_META[su.status]?.label || su.status}
+              </span>
             </div>
           </div>
           {isManager && (
-            <div className="flex gap-2">
+            <div className="flex items-start gap-2">
+              <select
+                value={su.status}
+                onChange={(e) => statusMut.mutate(e.target.value as ServiceUserStatus)}
+                disabled={statusMut.isPending}
+                className="input"
+              >
+                {Object.entries(STATUS_META).map(([value, meta]) => (
+                  <option key={value} value={value}>{meta.label}</option>
+                ))}
+              </select>
               <button className="btn-secondary btn" onClick={() => setFamilyAccessOpen(true)}>Family Access</button>
               <button className="btn-primary btn" onClick={() => setEditOpen(true)}>Edit Details</button>
             </div>

@@ -71,6 +71,7 @@ model ServiceUser {
   visitDuration            Int      @default(30)
   visits                   String   @default("[]") // JSON array of { type, duration }
   active                   Boolean  @default(true)
+  status                   String   @default("ACTIVE") // ACTIVE, ON_HOLD, HOSPITALISED, DISCHARGED, DECEASED
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
