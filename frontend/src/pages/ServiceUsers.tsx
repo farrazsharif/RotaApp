@@ -7,11 +7,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser, ServiceUserStatus } from '../types';
 import { differenceInYears } from 'date-fns';
 import ServiceUserFormModal from '../components/ServiceUserFormModal';
+import HospitalIcon from '../components/HospitalIcon';
 
 const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; className: string }> = {
   ACTIVE: { label: 'Active', icon: '🟢', className: 'bg-green-100 text-green-700' },
   ON_HOLD: { label: 'On Hold', icon: '⏸️', className: 'bg-gray-200 text-gray-700' },
-  HOSPITALISED: { label: 'Hospitalised', icon: '🏥', className: 'bg-amber-100 text-amber-700' },
+  HOSPITALISED: { label: 'Hospitalised', icon: '', className: 'bg-amber-100 text-amber-700' },
   DISCHARGED: { label: 'Discharged', icon: '↩️', className: 'bg-blue-100 text-blue-700' },
   DECEASED: { label: 'Passed Away', icon: '⚪', className: 'bg-slate-300 text-slate-800' },
 };
@@ -98,7 +99,7 @@ export default function ServiceUsers() {
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input">
             <option value="">All statuses</option>
             {Object.entries(STATUS_META).map(([value, meta]) => (
-              <option key={value} value={value}>{meta.icon} {meta.label}</option>
+              <option key={value} value={value}>{value === 'HOSPITALISED' ? '🔴 H' : meta.icon} {meta.label}</option>
             ))}
           </select>
           {isManager && <button className="btn-secondary btn" onClick={() => setShowSites(true)}>Manage Sites</button>}
@@ -131,7 +132,7 @@ export default function ServiceUsers() {
               </div>
 
               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full w-fit ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
-                {STATUS_META[su.status]?.icon} {STATUS_META[su.status]?.label || su.status}
+                {su.status === 'HOSPITALISED' ? <HospitalIcon /> : STATUS_META[su.status]?.icon} {STATUS_META[su.status]?.label || su.status}
               </span>
 
               {su.site && (

@@ -10,6 +10,7 @@ import { shiftsApi } from '../api/shifts';
 import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
+import HospitalIcon from '../components/HospitalIcon';
 import { Shift, ServiceUserStatus } from '../types';
 import { format } from 'date-fns';
 import { formatTime12h } from '../lib/time';
@@ -17,7 +18,7 @@ import { formatTime12h } from '../lib/time';
 const STATUS_ICON: Record<ServiceUserStatus, string> = {
   ACTIVE: '',
   ON_HOLD: '⏸️',
-  HOSPITALISED: '🏥',
+  HOSPITALISED: '',
   DISCHARGED: '↩️',
   DECEASED: '⚪',
 };
@@ -193,6 +194,7 @@ export default function Schedule() {
       <div className="p-0.5 overflow-hidden leading-tight">
         <p className="text-xs font-bold truncate">
           {unassigned && <span title="Unassigned call">⚠ </span>}
+          {patientStatus === 'HOSPITALISED' && <HospitalIcon className="mr-1 align-middle" />}
           {statusIcon && <span title={STATUS_LABEL[patientStatus!]}>{statusIcon} </span>}
           {patient}
           {isManager && !s.published && (
