@@ -11,6 +11,7 @@ import TimeOff from './pages/TimeOff';
 import Attendance from './pages/Attendance';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
+import StaffDetail from './pages/StaffDetail';
 import ServiceUsers from './pages/ServiceUsers';
 import ServiceUserDetail from './pages/ServiceUserDetail';
 import CallLogs from './pages/CallLogs';
@@ -66,6 +67,7 @@ function AppRoutes() {
         <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />
         <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
         <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
+        <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

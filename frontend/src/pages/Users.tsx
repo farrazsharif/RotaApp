@@ -1,12 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Role } from '../types';
-import { format } from 'date-fns';
-import TrainingModal from '../components/TrainingModal';
-import ImportantDatesModal from '../components/ImportantDatesModal';
-import EmergencyContactModal from '../components/EmergencyContactModal';
+import StaffFormModal from '../components/StaffFormModal';
 
 const roleBadge: Record<Role, string> = {
   ADMIN: 'badge-purple',
@@ -15,53 +13,17 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-interface UserFormData {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  role: Role;
-  hourlyRate: string;
-  phone: string;
-  sendInvite: boolean;
-}
-
-const emptyForm: UserFormData = {
-  email: '', password: '', firstName: '', lastName: '',
-  role: 'EMPLOYEE', hourlyRate: '', phone: '', sendInvite: true,
-};
-
 export default function Users() {
+  const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
-  const [editUser, setEditUser] = useState<User | null>(null);
-  const [trainingUser, setTrainingUser] = useState<User | null>(null);
-  const [datesUser, setDatesUser] = useState<User | null>(null);
-  const [contactUser, setContactUser] = useState<User | null>(null);
-  const [moreUserId, setMoreUserId] = useState<string | null>(null);
-  const [form, setForm] = useState<UserFormData>(emptyForm);
   const [search, setSearch] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users', 'all'],
     queryFn: () => usersApi.list(),
-  });
-
-  const createMut = useMutation({
-    mutationFn: () => usersApi.create({
-      ...form,
-      hourlyRate: Number(form.hourlyRate) || 0,
-      phone: form.phone || undefined,
-      password: form.sendInvite ? undefined : form.password,
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); closeModal(); },
-  });
-
-  const updateMut = useMutation({
-    mutationFn: () => usersApi.update(editUser!.id, { ...form, hourlyRate: Number(form.hourlyRate) || 0, phone: form.phone || undefined }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); closeModal(); },
   });
 
   const deactivateMut = useMutation({
@@ -73,14 +35,6 @@ export default function Users() {
     mutationFn: (id: string) => usersApi.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setConfirmDelete(null); },
   });
-
-  function openNew() { setEditUser(null); setForm(emptyForm); setShowModal(true); }
-  function openEdit(u: User) {
-    setEditUser(u);
-    setForm({ email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, hourlyRate: String(u.hourlyRate), phone: u.phone || '', sendInvite: false });
-    setShowModal(true);
-  }
-  function closeModal() { setShowModal(false); setEditUser(null); setForm(emptyForm); }
 
   const filtered = users.filter((u) =>
     `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase())
@@ -94,7 +48,7 @@ export default function Users() {
         <h1 className="text-2xl font-bold text-gray-900">Staff</h1>
         <div className="flex gap-3">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="input w-48" />
-          <button className="btn-primary btn" onClick={openNew}>+ Add Employee</button>
+          <button className="btn-primary btn" onClick={() => setShowModal(true)}>+ Add Employee</button>
         </div>
       </div>
 
@@ -112,7 +66,7 @@ export default function Users() {
           </thead>
           <tbody className="divide-y">
             {filtered.map((u: User) => (
-              <tr key={u.id} className="hover:bg-gray-50">
+              <tr key={u.id} onClick={() => navigate(`/users/${u.id}`)} className="hover:bg-gray-50 cursor-pointer">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
@@ -127,7 +81,7 @@ export default function Users() {
                 <td className="px-4 py-3">
                   <span className={u.active ? 'badge-green' : 'badge-red'}>{u.active ? 'Active' : 'Inactive'}</span>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                   {confirmDelete === u.id ? (
                     <div className="flex gap-2 justify-end items-center">
                       <span className="text-xs text-red-700">Delete permanently?</span>
@@ -141,21 +95,8 @@ export default function Users() {
                       <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
                     </div>
                   ) : (
-                    <div className="flex gap-2 justify-end relative">
-                      <button className="btn-secondary btn btn-sm" onClick={() => setMoreUserId(moreUserId === u.id ? null : u.id)}>
-                        More ▾
-                      </button>
-                      {moreUserId === u.id && (
-                        <>
-                          <div className="fixed inset-0 z-10" onClick={() => setMoreUserId(null)} />
-                          <div className="absolute right-0 top-full mt-1 z-20 w-44 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
-                            <button className="block w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" onClick={() => { setTrainingUser(u); setMoreUserId(null); }}>Training</button>
-                            <button className="block w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" onClick={() => { setDatesUser(u); setMoreUserId(null); }}>Important Dates</button>
-                            <button className="block w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" onClick={() => { setContactUser(u); setMoreUserId(null); }}>Emergency Contact</button>
-                          </div>
-                        </>
-                      )}
-                      <button className="btn-secondary btn btn-sm" onClick={() => openEdit(u)}>Edit</button>
+                    <div className="flex gap-2 justify-end">
+                      <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate(`/users/${u.id}`)}>View →</button>
                       {isAdmin && u.active && (
                         <button className="btn-secondary btn btn-sm" onClick={() => deactivateMut.mutate(u.id)}>
                           Deactivate
@@ -178,90 +119,7 @@ export default function Users() {
         )}
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-semibold">{editUser ? 'Edit Employee' : 'Add Employee'}</h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">First Name *</label>
-                  <input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="input" />
-                </div>
-                <div>
-                  <label className="label">Last Name *</label>
-                  <input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className="input" />
-                </div>
-              </div>
-              <div>
-                <label className="label">Email *</label>
-                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" disabled={!!editUser} />
-              </div>
-              {!editUser && (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={form.sendInvite}
-                      onChange={(e) => setForm({ ...form, sendInvite: e.target.checked })}
-                    />
-                    Email them a link to set their own password
-                  </label>
-                  {form.sendInvite ? (
-                    <p className="text-xs text-gray-500">
-                      We'll send {form.email || 'their email address'} a welcome email with a link to choose a password. The link expires in 7 days.
-                    </p>
-                  ) : (
-                    <div>
-                      <label className="label">Password *</label>
-                      <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="input" />
-                    </div>
-                  )}
-                </div>
-              )}
-              <div>
-                <label className="label">Role</label>
-                <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })} className="input">
-                  <option value="EMPLOYEE">Employee</option>
-                  <option value="MANAGER">Manager</option>
-                  {isAdmin && <option value="ADMIN">Admin</option>}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Hourly Rate (£)</label>
-                  <input type="number" step="0.01" value={form.hourlyRate} onChange={(e) => setForm({ ...form, hourlyRate: e.target.value })} className="input" />
-                </div>
-                <div>
-                  <label className="label">Phone</label>
-                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input" />
-                </div>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <div className="flex-1" />
-                <button className="btn-secondary btn" onClick={closeModal}>Cancel</button>
-                <button
-                  className="btn-primary btn"
-                  disabled={
-                    createMut.isPending || updateMut.isPending ||
-                    (!editUser && !form.sendInvite && !form.password)
-                  }
-                  onClick={() => editUser ? updateMut.mutate() : createMut.mutate()}
-                >
-                  {editUser ? 'Save Changes' : 'Add Employee'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {trainingUser && <TrainingModal user={trainingUser} onClose={() => setTrainingUser(null)} />}
-      {datesUser && <ImportantDatesModal user={datesUser} onClose={() => setDatesUser(null)} />}
-      {contactUser && <EmergencyContactModal user={contactUser} onClose={() => setContactUser(null)} />}
+      {showModal && <StaffFormModal editUser={null} onClose={() => setShowModal(false)} />}
     </div>
   );
 }
