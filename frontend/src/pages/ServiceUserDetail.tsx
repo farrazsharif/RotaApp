@@ -99,6 +99,9 @@ export default function ServiceUserDetail() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['service-user', id] });
       qc.invalidateQueries({ queryKey: ['service-users'] });
+      // The Schedule calendar embeds each shift's serviceUser.status, so its
+      // cached shifts list also needs to refetch to pick up the new status.
+      qc.invalidateQueries({ queryKey: ['shifts'] });
     },
   });
 
