@@ -214,6 +214,22 @@ export interface CarePlan {
   updatedAt: string;
 }
 
+export interface LikesDislikes {
+  id: string;
+  serviceUserId: string;
+  likes?: string;
+  dislikes?: string;
+  lifeHistory?: string;
+  health?: string;
+  whatPeopleLike?: string;
+  relationships?: string;
+  goodDay?: string;
+  badDay?: string;
+  updatedById?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FamilyLink {
   id: string;
   userId: string;

@@ -12,6 +12,8 @@ import { format, differenceInYears } from 'date-fns';
 import ServiceUserFormModal from '../components/ServiceUserFormModal';
 import HospitalIcon from '../components/HospitalIcon';
 import CarePlanModal from '../components/CarePlanModal';
+import LikesDislikesModal from '../components/LikesDislikesModal';
+import { likesDislikesApi } from '../api/likesDislikes';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
 import EmarModal from '../components/EmarModal';
 import MarChartModal from '../components/MarChartModal';
@@ -66,6 +68,7 @@ export default function ServiceUserDetail() {
   const { isManager } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [carePlanOpen, setCarePlanOpen] = useState(false);
+  const [likesDislikesOpen, setLikesDislikesOpen] = useState(false);
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
   const [emarOpen, setEmarOpen] = useState(false);
   const [marChartOpen, setMarChartOpen] = useState(false);
@@ -79,6 +82,7 @@ export default function ServiceUserDetail() {
   });
 
   const { data: carePlan } = useQuery({ queryKey: ['care-plan', id], queryFn: () => carePlansApi.get(id), enabled: !!id });
+  const { data: likesDislikes } = useQuery({ queryKey: ['likes-dislikes', id], queryFn: () => likesDislikesApi.get(id), enabled: !!id });
   const { data: servicePlan } = useQuery({ queryKey: ['service-plan', id], queryFn: () => servicePlansApi.get(id), enabled: !!id });
   const { data: meds = [] } = useQuery({ queryKey: ['medications', id], queryFn: () => medicationsApi.list(id), enabled: !!id });
   const { data: logs = [] } = useQuery({ queryKey: ['call-logs', id], queryFn: () => callLogsApi.list(id), enabled: !!id });
@@ -313,6 +317,25 @@ export default function ServiceUserDetail() {
         )}
       </Section>
 
+      {/* Likes & Dislikes */}
+      <Section
+        title="Likes & Dislikes"
+        action={
+          <button className="btn-secondary btn btn-sm" onClick={() => setLikesDislikesOpen(true)}>
+            {isManager ? (likesDislikes ? 'Edit' : 'Add') : 'Open'}
+          </button>
+        }
+      >
+        {!likesDislikes || (!likesDislikes.likes && !likesDislikes.dislikes) ? (
+          <p className="text-sm text-gray-400">Nothing recorded yet.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {likesDislikes.likes && <div><p className="text-xs font-semibold text-gray-500">Likes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.likes}</p></div>}
+            {likesDislikes.dislikes && <div><p className="text-xs font-semibold text-gray-500">Dislikes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.dislikes}</p></div>}
+          </div>
+        )}
+      </Section>
+
       {/* Personal Service Plan */}
       <Section
         title="Personal Service Plan"
@@ -384,6 +407,7 @@ export default function ServiceUserDetail() {
 
       {editOpen && <ServiceUserFormModal editUser={su} onClose={() => setEditOpen(false)} />}
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
+      {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}
       {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}
       {emarOpen && <EmarModal serviceUser={su} onClose={() => setEmarOpen(false)} />}
       {marChartOpen && <MarChartModal serviceUser={su} onClose={() => setMarChartOpen(false)} />}

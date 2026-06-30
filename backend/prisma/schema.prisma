@@ -85,6 +85,7 @@ model ServiceUser {
   carePlan            CarePlan?
   servicePlan         PersonalServicePlan?
   familyLinks         FamilyLink[]
+  likesDislikes       LikesDislikes?
 }
 
 // Links a family-member User account to the service user(s) they're allowed
@@ -143,6 +144,24 @@ model CarePlan {
   updatedById   String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+}
+
+model LikesDislikes {
+  id              String   @id @default(cuid())
+  serviceUserId   String   @unique
+  likes           String?
+  dislikes        String?
+  lifeHistory     String? // "A little of my life history"
+  health          String? // "My health"
+  whatPeopleLike  String? // "What might people like about me?"
+  relationships   String?
+  goodDay         String? // "What makes a good day for me"
+  badDay          String? // "What makes a bad day for me"
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
 }
