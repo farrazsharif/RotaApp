@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
 import HospitalIcon from '../components/HospitalIcon';
 import { Shift, ServiceUserStatus } from '../types';
-import { format } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
 const STATUS_ICON: Record<ServiceUserStatus, string> = {
@@ -49,6 +49,14 @@ function isPastShift(date: string | Date, endTime: string): boolean {
   const [eh, em] = endTime.split(':').map(Number);
   const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em, 0);
   return end.getTime() <= Date.now();
+}
+
+// A patient's status badge should only mark shifts from the day the status
+// actually changed onward — not retroactively flag calls that already
+// happened before, e.g., they were hospitalised.
+function shiftOnOrAfterStatusChange(shiftDate: string | Date, statusUpdatedAt?: string): boolean {
+  if (!statusUpdatedAt) return true;
+  return startOfDay(new Date(shiftDate)).getTime() >= startOfDay(new Date(statusUpdatedAt)).getTime();
 }
 
 function formatDuration(start: string, end: string): string {
@@ -189,12 +197,14 @@ export default function Schedule() {
     const unassigned = needsStaff(s);
     const missing = missingCarers(s);
     const patientStatus = s.serviceUser?.status;
-    const statusIcon = patientStatus ? STATUS_ICON[patientStatus] : '';
+    const showStatus = !!patientStatus && patientStatus !== 'ACTIVE'
+      && shiftOnOrAfterStatusChange(s.date, s.serviceUser?.statusUpdatedAt);
+    const statusIcon = showStatus ? STATUS_ICON[patientStatus!] : '';
     return (
       <div className="p-0.5 overflow-hidden leading-tight">
         <p className="text-xs font-bold truncate">
           {unassigned && <span title="Unassigned call">⚠ </span>}
-          {patientStatus === 'HOSPITALISED' && <HospitalIcon className="mr-1 align-middle" />}
+          {showStatus && patientStatus === 'HOSPITALISED' && <HospitalIcon className="mr-1 align-middle" />}
           {statusIcon && <span title={STATUS_LABEL[patientStatus!]}>{statusIcon} </span>}
           {patient}
           {isManager && !s.published && (

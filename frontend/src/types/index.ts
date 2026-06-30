@@ -26,7 +26,7 @@ export interface Shift {
   user?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>;
   seriesId?: string;
   serviceUserId?: string;
-  serviceUser?: { id: string; firstName: string; lastName: string; address?: string; postcode?: string; status?: ServiceUserStatus; site?: Site };
+  serviceUser?: { id: string; firstName: string; lastName: string; address?: string; postcode?: string; status?: ServiceUserStatus; statusUpdatedAt?: string; site?: Site };
   date: string;
   startTime: string;
   endTime: string;
@@ -190,6 +190,7 @@ export interface ServiceUser {
   visits?: string; // JSON array of { type, duration }
   active: boolean;
   status: ServiceUserStatus;
+  statusUpdatedAt?: string;
   preferredCaregivers: Pick<User, 'id' | 'firstName' | 'lastName'>[];
   createdAt: string;
 }

@@ -72,6 +72,7 @@ model ServiceUser {
   visits                   String   @default("[]") // JSON array of { type, duration }
   active                   Boolean  @default(true)
   status                   String   @default("ACTIVE") // ACTIVE, ON_HOLD, HOSPITALISED, DISCHARGED, DECEASED
+  statusUpdatedAt          DateTime @default(now()) // when status last changed — so calendar badges only apply from this date onwards
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 

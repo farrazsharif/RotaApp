@@ -94,6 +94,14 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
     data.preferredCaregivers = { set: preferredCaregiverIds.map((id: string) => ({ id })) };
   }
 
+  // Only bump statusUpdatedAt when the status is actually changing, so the
+  // Schedule calendar can show status badges starting from this date onward
+  // without retroactively flagging past shifts on every unrelated edit.
+  if (data.status !== undefined) {
+    const existing = await prisma.serviceUser.findUnique({ where: { id: req.params.id }, select: { status: true } });
+    if (existing && existing.status !== data.status) data.statusUpdatedAt = new Date();
+  }
+
   const user = await prisma.serviceUser.update({ where: { id: req.params.id }, data: data as never, include });
   res.json(user);
 }
