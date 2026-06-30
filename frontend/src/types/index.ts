@@ -17,6 +17,9 @@ export interface User {
   hourlyRate: number;
   phone?: string;
   active: boolean;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
   createdAt: string;
 }
 
@@ -248,6 +251,16 @@ export interface Training {
   expiresAt?: string;
   accredited: boolean;
   description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ImportantDate {
+  id: string;
+  userId: string;
+  label: string;
+  date: string;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }

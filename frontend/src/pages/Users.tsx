@@ -5,6 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { User, Role } from '../types';
 import { format } from 'date-fns';
 import TrainingModal from '../components/TrainingModal';
+import ImportantDatesModal from '../components/ImportantDatesModal';
+import EmergencyContactModal from '../components/EmergencyContactModal';
 
 const roleBadge: Record<Role, string> = {
   ADMIN: 'badge-purple',
@@ -35,6 +37,9 @@ export default function Users() {
   const [showModal, setShowModal] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [trainingUser, setTrainingUser] = useState<User | null>(null);
+  const [datesUser, setDatesUser] = useState<User | null>(null);
+  const [contactUser, setContactUser] = useState<User | null>(null);
+  const [moreUserId, setMoreUserId] = useState<string | null>(null);
   const [form, setForm] = useState<UserFormData>(emptyForm);
   const [search, setSearch] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -136,8 +141,20 @@ export default function Users() {
                       <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
                     </div>
                   ) : (
-                    <div className="flex gap-2 justify-end">
-                      <button className="btn-secondary btn btn-sm" onClick={() => setTrainingUser(u)}>Training</button>
+                    <div className="flex gap-2 justify-end relative">
+                      <button className="btn-secondary btn btn-sm" onClick={() => setMoreUserId(moreUserId === u.id ? null : u.id)}>
+                        More ▾
+                      </button>
+                      {moreUserId === u.id && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setMoreUserId(null)} />
+                          <div className="absolute right-0 top-full mt-1 z-20 w-44 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-left">
+                            <button className="block w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" onClick={() => { setTrainingUser(u); setMoreUserId(null); }}>Training</button>
+                            <button className="block w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" onClick={() => { setDatesUser(u); setMoreUserId(null); }}>Important Dates</button>
+                            <button className="block w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50" onClick={() => { setContactUser(u); setMoreUserId(null); }}>Emergency Contact</button>
+                          </div>
+                        </>
+                      )}
                       <button className="btn-secondary btn btn-sm" onClick={() => openEdit(u)}>Edit</button>
                       {isAdmin && u.active && (
                         <button className="btn-secondary btn btn-sm" onClick={() => deactivateMut.mutate(u.id)}>
@@ -243,6 +260,8 @@ export default function Users() {
       )}
 
       {trainingUser && <TrainingModal user={trainingUser} onClose={() => setTrainingUser(null)} />}
+      {datesUser && <ImportantDatesModal user={datesUser} onClose={() => setDatesUser(null)} />}
+      {contactUser && <EmergencyContactModal user={contactUser} onClose={() => setContactUser(null)} />}
     </div>
   );
 }

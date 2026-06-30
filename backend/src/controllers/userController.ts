@@ -10,6 +10,7 @@ import { sendEmail, setPasswordEmail } from '../lib/email';
 const userSelect = {
   id: true, email: true, firstName: true, lastName: true, role: true,
   hourlyRate: true, phone: true, active: true, createdAt: true,
+  emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true,
 };
 
 export async function listUsers(req: AuthRequest, res: Response) {
@@ -68,7 +69,7 @@ export async function createUser(req: AuthRequest, res: Response) {
 }
 
 export async function updateUser(req: AuthRequest, res: Response) {
-  const { firstName, lastName, role, hourlyRate, phone, active } = req.body;
+  const { firstName, lastName, role, hourlyRate, phone, active, emergencyContactName, emergencyContactPhone, emergencyContactRelation } = req.body;
   const data: Record<string, unknown> = {};
   if (firstName !== undefined) data.firstName = firstName;
   if (lastName !== undefined) data.lastName = lastName;
@@ -76,6 +77,9 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (hourlyRate !== undefined) data.hourlyRate = Number(hourlyRate);
   if (phone !== undefined) data.phone = phone || null;
   if (active !== undefined && req.user!.role === Role.ADMIN) data.active = active;
+  if (emergencyContactName !== undefined) data.emergencyContactName = emergencyContactName || null;
+  if (emergencyContactPhone !== undefined) data.emergencyContactPhone = emergencyContactPhone || null;
+  if (emergencyContactRelation !== undefined) data.emergencyContactRelation = emergencyContactRelation || null;
 
   const user = await prisma.user.update({ where: { id: req.params.id }, data, select: userSelect });
   res.json(user);

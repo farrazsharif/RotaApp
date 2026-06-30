@@ -17,6 +17,9 @@ model User {
   hourlyRate   Float       @default(0)
   phone        String?
   active       Boolean     @default(true)
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  emergencyContactRelation String?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -33,6 +36,7 @@ model User {
   pushSubscriptions  PushSubscription[]
   familyLinks        FamilyLink[]
   trainings          Training[]
+  importantDates     ImportantDate[]
 }
 
 model Site {
@@ -179,6 +183,20 @@ model Training {
   description String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Generic recurring/one-off important date for a staff member — DBS renewal,
+// supervision, appraisal, contract review, etc.
+model ImportantDate {
+  id     String   @id @default(cuid())
+  userId String
+  label  String
+  date   DateTime
+  notes  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

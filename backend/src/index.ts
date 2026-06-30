@@ -25,6 +25,7 @@ import pushRoutes from './routes/push';
 import familyRoutes from './routes/family';
 import familyLinkRoutes from './routes/familyLinks';
 import trainingRoutes from './routes/training';
+import importantDateRoutes from './routes/importantDates';
 import { startShiftReminders } from './lib/shiftReminders';
 
 const app = express();
@@ -66,6 +67,7 @@ app.use('/api/push', pushRoutes);
 app.use('/api/family', familyRoutes);
 app.use('/api/family-links', familyLinkRoutes);
 app.use('/api/training', trainingRoutes);
+app.use('/api/important-dates', importantDateRoutes);
 
 app.use(errorHandler);
 
