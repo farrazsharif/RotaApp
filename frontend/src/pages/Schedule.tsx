@@ -10,9 +10,24 @@ import { shiftsApi } from '../api/shifts';
 import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
-import { Shift } from '../types';
+import { Shift, ServiceUserStatus } from '../types';
 import { format } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+
+const STATUS_ICON: Record<ServiceUserStatus, string> = {
+  ACTIVE: '',
+  ON_HOLD: '⏸️',
+  HOSPITALISED: '🏥',
+  DISCHARGED: '↩️',
+  DECEASED: '⚪',
+};
+const STATUS_LABEL: Record<ServiceUserStatus, string> = {
+  ACTIVE: 'Active',
+  ON_HOLD: 'On Hold',
+  HOSPITALISED: 'Hospitalised',
+  DISCHARGED: 'Discharged',
+  DECEASED: 'Passed Away',
+};
 
 const COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -172,10 +187,13 @@ export default function Schedule() {
     const patient = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
     const unassigned = needsStaff(s);
     const missing = missingCarers(s);
+    const patientStatus = s.serviceUser?.status;
+    const statusIcon = patientStatus ? STATUS_ICON[patientStatus] : '';
     return (
       <div className="p-0.5 overflow-hidden leading-tight">
         <p className="text-xs font-bold truncate">
           {unassigned && <span title="Unassigned call">⚠ </span>}
+          {statusIcon && <span title={STATUS_LABEL[patientStatus!]}>{statusIcon} </span>}
           {patient}
           {isManager && !s.published && (
             <span className="ml-1 text-[9px] font-bold uppercase tracking-wide bg-black/15 px-1 py-0.5 rounded">Draft</span>

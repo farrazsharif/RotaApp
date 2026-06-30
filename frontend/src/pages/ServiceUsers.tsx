@@ -8,12 +8,12 @@ import { ServiceUser, ServiceUserStatus } from '../types';
 import { differenceInYears } from 'date-fns';
 import ServiceUserFormModal from '../components/ServiceUserFormModal';
 
-const STATUS_META: Record<ServiceUserStatus, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-green-100 text-green-700' },
-  ON_HOLD: { label: 'On Hold', className: 'bg-gray-200 text-gray-700' },
-  HOSPITALISED: { label: 'Hospitalised', className: 'bg-amber-100 text-amber-700' },
-  DISCHARGED: { label: 'Discharged', className: 'bg-blue-100 text-blue-700' },
-  DECEASED: { label: 'Passed Away', className: 'bg-slate-300 text-slate-800' },
+const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; className: string }> = {
+  ACTIVE: { label: 'Active', icon: '🟢', className: 'bg-green-100 text-green-700' },
+  ON_HOLD: { label: 'On Hold', icon: '⏸️', className: 'bg-gray-200 text-gray-700' },
+  HOSPITALISED: { label: 'Hospitalised', icon: '🏥', className: 'bg-amber-100 text-amber-700' },
+  DISCHARGED: { label: 'Discharged', icon: '↩️', className: 'bg-blue-100 text-blue-700' },
+  DECEASED: { label: 'Passed Away', icon: '⚪', className: 'bg-slate-300 text-slate-800' },
 };
 
 const SITE_COLORS = [
@@ -98,7 +98,7 @@ export default function ServiceUsers() {
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input">
             <option value="">All statuses</option>
             {Object.entries(STATUS_META).map(([value, meta]) => (
-              <option key={value} value={value}>{meta.label}</option>
+              <option key={value} value={value}>{meta.icon} {meta.label}</option>
             ))}
           </select>
           {isManager && <button className="btn-secondary btn" onClick={() => setShowSites(true)}>Manage Sites</button>}
@@ -130,8 +130,8 @@ export default function ServiceUsers() {
                 <span className="badge-blue badge">{durationLabel(su.visitDuration)}</span>
               </div>
 
-              <span className={`inline-block text-xs font-medium px-2 py-1 rounded-full w-fit ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
-                {STATUS_META[su.status]?.label || su.status}
+              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full w-fit ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
+                {STATUS_META[su.status]?.icon} {STATUS_META[su.status]?.label || su.status}
               </span>
 
               {su.site && (

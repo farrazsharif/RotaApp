@@ -42,12 +42,12 @@ function Section({ title, action, children }: { title: string; action?: React.Re
   );
 }
 
-const STATUS_META: Record<ServiceUserStatus, { label: string; className: string }> = {
-  ACTIVE: { label: 'Active', className: 'bg-green-100 text-green-700' },
-  ON_HOLD: { label: 'On Hold', className: 'bg-gray-200 text-gray-700' },
-  HOSPITALISED: { label: 'Hospitalised', className: 'bg-amber-100 text-amber-700' },
-  DISCHARGED: { label: 'Discharged', className: 'bg-blue-100 text-blue-700' },
-  DECEASED: { label: 'Passed Away', className: 'bg-slate-300 text-slate-800' },
+const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; className: string }> = {
+  ACTIVE: { label: 'Active', icon: '🟢', className: 'bg-green-100 text-green-700' },
+  ON_HOLD: { label: 'On Hold', icon: '⏸️', className: 'bg-gray-200 text-gray-700' },
+  HOSPITALISED: { label: 'Hospitalised', icon: '🏥', className: 'bg-amber-100 text-amber-700' },
+  DISCHARGED: { label: 'Discharged', icon: '↩️', className: 'bg-blue-100 text-blue-700' },
+  DECEASED: { label: 'Passed Away', icon: '⚪', className: 'bg-slate-300 text-slate-800' },
 };
 
 function Field({ label, value }: { label: string; value?: string | null }) {
@@ -131,8 +131,8 @@ export default function ServiceUserDetail() {
               {su.needsMedication && <span className="badge-red badge">Medication</span>}
               {su.needsMobility && <span className="badge-yellow badge">Mobility</span>}
               {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
-              <span className={`text-xs font-medium px-2 py-1 rounded-full ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
-                {STATUS_META[su.status]?.label || su.status}
+              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
+                {STATUS_META[su.status]?.icon} {STATUS_META[su.status]?.label || su.status}
               </span>
             </div>
           </div>
@@ -145,7 +145,7 @@ export default function ServiceUserDetail() {
                 className="input"
               >
                 {Object.entries(STATUS_META).map(([value, meta]) => (
-                  <option key={value} value={value}>{meta.label}</option>
+                  <option key={value} value={value}>{meta.icon} {meta.label}</option>
                 ))}
               </select>
               <button className="btn-secondary btn" onClick={() => setFamilyAccessOpen(true)}>Family Access</button>

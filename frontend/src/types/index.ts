@@ -26,7 +26,7 @@ export interface Shift {
   user?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>;
   seriesId?: string;
   serviceUserId?: string;
-  serviceUser?: { id: string; firstName: string; lastName: string; address?: string; postcode?: string; site?: Site };
+  serviceUser?: { id: string; firstName: string; lastName: string; address?: string; postcode?: string; status?: ServiceUserStatus; site?: Site };
   date: string;
   startTime: string;
   endTime: string;
