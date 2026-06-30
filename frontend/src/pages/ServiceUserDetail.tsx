@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serviceUsersApi } from '../api/serviceUsers';
-import { ServiceUserStatus } from '../types';
+import { ServiceUserStatus, ServiceUser, Medication } from '../types';
 import { carePlansApi } from '../api/carePlans';
 import { servicePlansApi } from '../api/servicePlans';
 import { medicationsApi } from '../api/medications';
 import { callLogsApi } from '../api/callLogs';
 import { useAuth } from '../contexts/AuthContext';
-import { Medication } from '../types';
 import { format, differenceInYears } from 'date-fns';
 import ServiceUserFormModal from '../components/ServiceUserFormModal';
 import HospitalIcon from '../components/HospitalIcon';
@@ -86,7 +85,21 @@ export default function ServiceUserDetail() {
 
   const statusMut = useMutation({
     mutationFn: (status: ServiceUserStatus) => serviceUsersApi.update(id, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['service-user', id] }),
+    // Apply the new status to the cache immediately so the badge/dropdown update
+    // without waiting on the refetch — then reconcile with the server response.
+    onMutate: async (status) => {
+      await qc.cancelQueries({ queryKey: ['service-user', id] });
+      const previous = qc.getQueryData<ServiceUser>(['service-user', id]);
+      if (previous) qc.setQueryData(['service-user', id], { ...previous, status });
+      return { previous };
+    },
+    onError: (_err, _status, context) => {
+      if (context?.previous) qc.setQueryData(['service-user', id], context.previous);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['service-user', id] });
+      qc.invalidateQueries({ queryKey: ['service-users'] });
+    },
   });
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
