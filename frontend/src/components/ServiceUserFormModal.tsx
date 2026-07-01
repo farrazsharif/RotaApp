@@ -243,20 +243,7 @@ export default function ServiceUserFormModal({ editUser, onClose }: Props) {
                 Personal Care
               </label>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Visit Duration</label>
-                <select value={form.visitDuration} onChange={(e) => setForm({ ...form, visitDuration: Number(e.target.value) })} className="input">
-                  <option value={15}>15 mins</option>
-                  <option value={30}>30 mins</option>
-                  <option value={45}>45 mins</option>
-                  <option value={60}>1 hour</option>
-                  <option value={90}>1.5 hours</option>
-                  <option value={120}>2 hours</option>
-                </select>
-              </div>
-            </div>
-            <div className="mt-4">
+            <div>
               <label className="label">Care Notes</label>
               <textarea value={form.careNotes} onChange={(e) => setForm({ ...form, careNotes: e.target.value })} rows={2} className="input resize-none" />
             </div>
