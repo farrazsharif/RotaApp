@@ -15,12 +15,14 @@ export async function lookupAddresses(req: Request, res: Response) {
   const url = `https://api.getaddress.io/find/${encodeURIComponent(cleaned)}?api-key=${apiKey}&expand=true`;
   const upstream = await fetch(url);
 
-  if (upstream.status === 404) {
-    return res.json({ addresses: [] });
-  }
   if (!upstream.ok) {
     const body = await upstream.text();
-    console.error(`getaddress.io lookup failed: ${upstream.status} ${body}`);
+    console.error(`getaddress.io lookup failed: ${upstream.status} ${body} (key length: ${apiKey.length})`);
+    if (upstream.status === 404) {
+      // getaddress.io returns 404 for a postcode with no matches, but also for a malformed
+      // request path — surface the body so we can tell those two cases apart while debugging.
+      return res.json({ addresses: [], debug: { status: 404, body: body.slice(0, 300) } });
+    }
     return res.status(502).json({ error: `Address lookup failed (upstream ${upstream.status}): ${body.slice(0, 300)}` });
   }
 
