@@ -14,6 +14,7 @@ import Users from './pages/Users';
 import StaffDetail from './pages/StaffDetail';
 import ServiceUsers from './pages/ServiceUsers';
 import ServiceUserDetail from './pages/ServiceUserDetail';
+import ServiceUserForm from './pages/ServiceUserForm';
 import CallLogs from './pages/CallLogs';
 import Emar from './pages/Emar';
 import CarePlans from './pages/CarePlans';
@@ -57,7 +58,9 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="schedule" element={<Schedule />} />
         <Route path="service-users" element={<ServiceUsers />} />
+        <Route path="service-users/new" element={<ManagerRoute><ServiceUserForm /></ManagerRoute>} />
         <Route path="service-users/:id" element={<ServiceUserDetail />} />
+        <Route path="service-users/:id/edit" element={<ManagerRoute><ServiceUserForm /></ManagerRoute>} />
         <Route path="call-logs" element={<CallLogs />} />
         <Route path="emar" element={<Emar />} />
         <Route path="care-plans" element={<CarePlans />} />

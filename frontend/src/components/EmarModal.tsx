@@ -69,7 +69,7 @@ function cellDate(dateStr: string, time: string): Date {
 const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '' };
 
 // Default clock times offered for each visit type a service user can be
-// scheduled for (see ServiceUserFormModal's VISIT_TYPES). Anything without
+// scheduled for (see ServiceUserForm's VISIT_TYPES). Anything without
 // a known default (e.g. a custom visit type) falls back to a blank time
 // the manager fills in themselves.
 const VISIT_DEFAULT_TIMES: Record<string, string> = {

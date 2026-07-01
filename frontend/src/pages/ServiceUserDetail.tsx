@@ -9,7 +9,6 @@ import { medicationsApi } from '../api/medications';
 import { callLogsApi } from '../api/callLogs';
 import { useAuth } from '../contexts/AuthContext';
 import { format, differenceInYears } from 'date-fns';
-import ServiceUserFormModal from '../components/ServiceUserFormModal';
 import HospitalIcon from '../components/HospitalIcon';
 import CarePlanModal from '../components/CarePlanModal';
 import LikesDislikesModal from '../components/LikesDislikesModal';
@@ -66,7 +65,6 @@ export default function ServiceUserDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { isManager } = useAuth();
-  const [editOpen, setEditOpen] = useState(false);
   const [carePlanOpen, setCarePlanOpen] = useState(false);
   const [likesDislikesOpen, setLikesDislikesOpen] = useState(false);
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
@@ -185,7 +183,7 @@ export default function ServiceUserDetail() {
                 ))}
               </select>
               <button className="btn-secondary btn" onClick={() => setFamilyAccessOpen(true)}>Family Access</button>
-              <button className="btn-primary btn" onClick={() => setEditOpen(true)}>Edit Details</button>
+              <button className="btn-primary btn" onClick={() => navigate(`/service-users/${id}/edit`)}>Edit Details</button>
             </div>
           )}
         </div>
@@ -444,7 +442,6 @@ export default function ServiceUserDetail() {
         )}
       </Section>
 
-      {editOpen && <ServiceUserFormModal editUser={su} onClose={() => setEditOpen(false)} />}
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
       {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}
       {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}

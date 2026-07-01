@@ -6,7 +6,6 @@ import { sitesApi } from '../api/sites';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser, ServiceUserStatus } from '../types';
 import { differenceInYears } from 'date-fns';
-import ServiceUserFormModal from '../components/ServiceUserFormModal';
 import HospitalIcon from '../components/HospitalIcon';
 
 const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; className: string }> = {
@@ -35,7 +34,6 @@ export default function ServiceUsers() {
   const [search, setSearch] = useState('');
   const [filterSite, setFilterSite] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [showForm, setShowForm] = useState(false);
   const [showSites, setShowSites] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [siteName, setSiteName] = useState('');
@@ -103,7 +101,7 @@ export default function ServiceUsers() {
             ))}
           </select>
           {isManager && <button className="btn-secondary btn" onClick={() => setShowSites(true)}>Manage Sites</button>}
-          {isManager && <button className="btn-primary btn" onClick={() => setShowForm(true)}>+ Add Service User</button>}
+          {isManager && <button className="btn-primary btn" onClick={() => navigate('/service-users/new')}>+ Add Service User</button>}
         </div>
       </div>
 
@@ -178,8 +176,6 @@ export default function ServiceUsers() {
           ))}
         </div>
       )}
-
-      {showForm && <ServiceUserFormModal editUser={null} onClose={() => setShowForm(false)} />}
 
       {showSites && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
