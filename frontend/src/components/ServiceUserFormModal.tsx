@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serviceUsersApi, ServiceUserData } from '../api/serviceUsers';
 import { usersApi } from '../api/users';
 import { sitesApi } from '../api/sites';
+import { addressApi, AddressResult } from '../api/address';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 
@@ -62,6 +63,12 @@ export default function ServiceUserFormModal({ editUser, onClose }: Props) {
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState>(() => initialForm(editUser));
   const [visits, setVisits] = useState<VisitRow[]>(() => parseVisits(editUser?.visits));
+  const [addressResults, setAddressResults] = useState<AddressResult[] | null>(null);
+
+  const addressLookupMut = useMutation({
+    mutationFn: () => addressApi.lookup(form.postcode),
+    onSuccess: (addresses) => setAddressResults(addresses),
+  });
 
   const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
   const { data: caregivers = [] } = useQuery({
@@ -144,22 +151,61 @@ export default function ServiceUserFormModal({ editUser, onClose }: Props) {
             <h3 className="text-sm font-semibold text-gray-700 mb-3">Contact & Address</h3>
             <div className="space-y-4">
               <div>
+                <label className="label">Postcode</label>
+                <div className="flex gap-2">
+                  <input
+                    value={form.postcode}
+                    onChange={(e) => { setForm({ ...form, postcode: e.target.value }); setAddressResults(null); }}
+                    className="input"
+                    placeholder="e.g. M23 1PS"
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary btn whitespace-nowrap"
+                    disabled={!form.postcode.trim() || addressLookupMut.isPending}
+                    onClick={() => addressLookupMut.mutate()}
+                  >
+                    {addressLookupMut.isPending ? 'Searching…' : 'Find address'}
+                  </button>
+                </div>
+                {addressLookupMut.isError && (
+                  <p className="text-xs text-red-600 mt-1">
+                    {(addressLookupMut.error as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Address lookup failed.'}
+                  </p>
+                )}
+                {addressResults && (
+                  addressResults.length > 0 ? (
+                    <select
+                      className="input mt-2"
+                      defaultValue=""
+                      onChange={(e) => {
+                        const picked = addressResults[Number(e.target.value)];
+                        if (picked) setForm((f) => ({ ...f, address: picked.formatted }));
+                      }}
+                    >
+                      <option value="" disabled>Select an address ({addressResults.length} found)…</option>
+                      {addressResults.map((a, i) => (
+                        <option key={i} value={i}>{a.formatted}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">No addresses found for that postcode.</p>
+                  )
+                )}
+              </div>
+              <div>
                 <label className="label">Address</label>
                 <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="input" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Postcode</label>
-                  <input value={form.postcode} onChange={(e) => setForm({ ...form, postcode: e.target.value })} className="input" />
-                </div>
-                <div>
                   <label className="label">Phone</label>
                   <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input" />
                 </div>
-              </div>
-              <div>
-                <label className="label">Email</label>
-                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" />
+                <div>
+                  <label className="label">Email</label>
+                  <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" />
+                </div>
               </div>
             </div>
           </section>
