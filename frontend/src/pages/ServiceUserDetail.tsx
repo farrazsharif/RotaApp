@@ -81,6 +81,21 @@ export default function ServiceUserDetail() {
     enabled: !!id,
   });
 
+  // postcodes.io is a free, CORS-enabled UK postcode lookup — used instead of
+  // Google's unauthenticated maps embed, which frequently returns a blank
+  // iframe without an API key.
+  const { data: geo } = useQuery({
+    queryKey: ['postcode-geo', su?.postcode],
+    queryFn: async () => {
+      const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(su!.postcode!.replace(/\s+/g, ''))}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.result ? { lat: json.result.latitude as number, lon: json.result.longitude as number } : null;
+    },
+    enabled: !!su?.postcode,
+    staleTime: Infinity,
+  });
+
   const { data: carePlan } = useQuery({ queryKey: ['care-plan', id], queryFn: () => carePlansApi.get(id), enabled: !!id });
   const { data: likesDislikes } = useQuery({ queryKey: ['likes-dislikes', id], queryFn: () => likesDislikesApi.get(id), enabled: !!id });
   const { data: servicePlan } = useQuery({ queryKey: ['service-plan', id], queryFn: () => servicePlansApi.get(id), enabled: !!id });
@@ -185,6 +200,30 @@ export default function ServiceUserDetail() {
             <Field label="Phone" value={su.phone} />
             <Field label="Email" value={su.email} />
           </div>
+          {su.postcode && (
+            <div className="mt-4">
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${su.address || ''} ${su.postcode}`.trim())}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Open in Google Maps →
+              </a>
+              {geo ? (
+                <iframe
+                  title="Service user location"
+                  className="w-full h-56 rounded-lg border mt-2"
+                  loading="lazy"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${geo.lon - 0.01}%2C${geo.lat - 0.01}%2C${geo.lon + 0.01}%2C${geo.lat + 0.01}&layer=mapnik&marker=${geo.lat}%2C${geo.lon}`}
+                />
+              ) : (
+                <div className="w-full h-56 rounded-lg border mt-2 flex items-center justify-center text-sm text-gray-400">
+                  Loading map…
+                </div>
+              )}
+            </div>
+          )}
         </Section>
 
         {/* Emergency contact */}
