@@ -151,13 +151,14 @@ export default function ServiceUserFormModal({ editUser, onClose }: Props) {
             <h3 className="text-sm font-semibold text-gray-700 mb-3">Contact & Address</h3>
             <div className="space-y-4">
               <div>
-                <label className="label">Postcode</label>
+                <label className="label">Postcode *</label>
                 <div className="flex gap-2">
                   <input
                     value={form.postcode}
-                    onChange={(e) => { setForm({ ...form, postcode: e.target.value }); setAddressResults(null); }}
+                    onChange={(e) => { setForm({ ...form, postcode: e.target.value, address: '' }); setAddressResults(null); }}
                     className="input"
                     placeholder="e.g. M23 1PS"
+                    required
                   />
                   <button
                     type="button"
@@ -177,7 +178,7 @@ export default function ServiceUserFormModal({ editUser, onClose }: Props) {
                   addressResults.length > 0 ? (
                     <select
                       className="input mt-2"
-                      defaultValue=""
+                      value=""
                       onChange={(e) => {
                         const picked = addressResults[Number(e.target.value)];
                         if (picked) setForm((f) => ({ ...f, address: picked.formatted }));
@@ -194,8 +195,16 @@ export default function ServiceUserFormModal({ editUser, onClose }: Props) {
                 )}
               </div>
               <div>
-                <label className="label">Address</label>
-                <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="input" />
+                <label className="label">Address *</label>
+                <input
+                  value={form.address}
+                  readOnly
+                  className="input bg-gray-50 cursor-not-allowed"
+                  placeholder="Search a postcode above and select an address"
+                />
+                {!form.address && (
+                  <p className="text-xs text-gray-500 mt-1">Required — use "Find address" above to select one.</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -355,7 +364,7 @@ export default function ServiceUserFormModal({ editUser, onClose }: Props) {
             <button className="btn-secondary btn" onClick={onClose}>Cancel</button>
             <button
               className="btn-primary btn"
-              disabled={!form.firstName || !form.lastName || !form.dateOfBirth || createMut.isPending || updateMut.isPending}
+              disabled={!form.firstName || !form.lastName || !form.dateOfBirth || !form.postcode.trim() || !form.address.trim() || createMut.isPending || updateMut.isPending}
               onClick={() => editUser ? updateMut.mutate() : createMut.mutate()}
             >
               {createMut.isPending || updateMut.isPending ? 'Saving…' : editUser ? 'Save Changes' : 'Add Service User'}
