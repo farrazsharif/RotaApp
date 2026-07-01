@@ -10,6 +10,7 @@ import { callLogsApi } from '../api/callLogs';
 import { useAuth } from '../contexts/AuthContext';
 import { format, differenceInYears } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
+import CarePlanModal from '../components/CarePlanModal';
 import LikesDislikesModal from '../components/LikesDislikesModal';
 import { likesDislikesApi } from '../api/likesDislikes';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
@@ -64,6 +65,7 @@ export default function ServiceUserDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { isManager } = useAuth();
+  const [carePlanOpen, setCarePlanOpen] = useState(false);
   const [likesDislikesOpen, setLikesDislikesOpen] = useState(false);
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
   const [emarOpen, setEmarOpen] = useState(false);
@@ -304,7 +306,7 @@ export default function ServiceUserDetail() {
                 Review {format(new Date(carePlan.reviewDate), 'dd MMM yyyy')}{reviewOverdue ? ' · overdue' : ''}
               </span>
             )}
-            <button className="btn-secondary btn btn-sm" onClick={() => navigate(`/service-users/${id}/care-plan`)}>
+            <button className="btn-secondary btn btn-sm" onClick={() => setCarePlanOpen(true)}>
               {isManager ? (carePlan ? 'Edit Care Plan' : 'Create Care Plan') : 'Open'}
             </button>
           </div>
@@ -440,6 +442,7 @@ export default function ServiceUserDetail() {
         )}
       </Section>
 
+      {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
       {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}
       {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}
       {emarOpen && <EmarModal serviceUser={su} onClose={() => setEmarOpen(false)} />}
