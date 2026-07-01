@@ -1,48 +1,48 @@
 import { Request, Response } from 'express';
 
-// Proxies getAddress.io so the API key stays server-side. Free tier: 20 lookups/day.
-// Sign up at https://getaddress.io and set GETADDRESS_API_KEY in the backend env.
+// Proxies the OS Places API (Ordnance Survey, via OS Data Hub) so the API key stays
+// server-side. Its free "OS Data Hub Public Sector / Freemium" plan doesn't require a
+// card, unlike getAddress.io's free tier. Sign up at https://osdatahub.os.uk and set
+// OS_PLACES_API_KEY in the backend env.
 export async function lookupAddresses(req: Request, res: Response) {
   const postcode = String(req.query.postcode || '').trim();
   if (!postcode) return res.status(400).json({ error: 'postcode is required' });
 
-  const apiKey = process.env.GETADDRESS_API_KEY;
+  const apiKey = process.env.OS_PLACES_API_KEY;
   if (!apiKey) {
-    return res.status(503).json({ error: 'Address lookup is not configured. Set GETADDRESS_API_KEY on the backend.' });
+    return res.status(503).json({ error: 'Address lookup is not configured. Set OS_PLACES_API_KEY on the backend.' });
   }
 
-  const cleaned = postcode.replace(/\s+/g, '');
-  const url = `https://api.getaddress.io/find/${encodeURIComponent(cleaned)}?api-key=${apiKey}&expand=true`;
+  const url = `https://api.os.uk/search/places/v1/postcode?postcode=${encodeURIComponent(postcode)}&key=${apiKey}`;
   const upstream = await fetch(url);
-
-  if (!upstream.ok) {
-    const body = await upstream.text();
-    console.error(`getaddress.io lookup failed: ${upstream.status} ${body} (key length: ${apiKey.length})`);
-    if (upstream.status === 404) {
-      // getaddress.io returns 404 for a postcode with no matches, but also for a malformed
-      // request path — surface the body so we can tell those two cases apart while debugging.
-      return res.json({ addresses: [], debug: { status: 404, body: body.slice(0, 300) } });
-    }
-    return res.status(502).json({ error: `Address lookup failed (upstream ${upstream.status}): ${body.slice(0, 300)}` });
-  }
-
   const data = await upstream.json() as {
-    latitude: number; longitude: number;
-    addresses: { line_1: string; line_2: string; line_3: string; town_or_city: string; county: string }[] | undefined;
+    results?: { DPA: {
+      ADDRESS: string; BUILDING_NUMBER?: string; BUILDING_NAME?: string; SUB_BUILDING_NAME?: string;
+      THOROUGHFARE_NAME?: string; DEPENDENT_LOCALITY?: string; POST_TOWN: string; POSTCODE: string;
+    } }[];
+    error?: { statuscode: string; message: string };
   };
 
-  if (!data.addresses) {
-    console.error('getaddress.io response missing addresses field', JSON.stringify(data).slice(0, 300));
-    return res.json({ addresses: [] });
+  if (!upstream.ok) {
+    console.error(`OS Places API lookup failed: ${upstream.status}`, JSON.stringify(data).slice(0, 300));
+    // OS Places returns 400 with error.message "Invalid postcode variable" for anything
+    // it can't parse as a postcode shape (not necessarily a real failure worth surfacing).
+    if (data.error?.message?.toLowerCase().includes('postcode')) {
+      return res.json({ addresses: [] });
+    }
+    return res.status(502).json({ error: `Address lookup failed (upstream ${upstream.status}): ${data.error?.message || 'unknown error'}` });
   }
 
-  const addresses = data.addresses.map((a) => ({
-    line1: a.line_1,
-    line2: [a.line_2, a.line_3].filter(Boolean).join(', '),
-    townOrCity: a.town_or_city,
-    county: a.county,
-    formatted: [a.line_1, a.line_2, a.line_3, a.town_or_city, a.county].filter(Boolean).join(', '),
-  }));
+  const addresses = (data.results || []).map(({ DPA }) => {
+    const line1 = [DPA.SUB_BUILDING_NAME, DPA.BUILDING_NAME, DPA.BUILDING_NUMBER, DPA.THOROUGHFARE_NAME].filter(Boolean).join(', ');
+    return {
+      line1,
+      line2: DPA.DEPENDENT_LOCALITY || '',
+      townOrCity: DPA.POST_TOWN,
+      county: '',
+      formatted: DPA.ADDRESS,
+    };
+  });
 
   res.json({ addresses });
 }
