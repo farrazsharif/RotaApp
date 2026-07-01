@@ -1,12 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { serviceUsersApi } from '../api/serviceUsers';
-import { ServiceUser } from '../types';
-import CarePlanModal from '../components/CarePlanModal';
 
 export default function CarePlans() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [openFor, setOpenFor] = useState<ServiceUser | null>(null);
 
   const { data: serviceUsers = [], isLoading } = useQuery({
     queryKey: ['service-users', 'active'],
@@ -51,7 +50,7 @@ export default function CarePlans() {
                   <td className="px-4 py-3 font-medium text-gray-900">{su.firstName} {su.lastName}</td>
                   <td className="px-4 py-3 text-gray-500">{su.site?.name || '—'}</td>
                   <td className="px-4 py-3 text-right">
-                    <button className="btn-secondary btn btn-sm" onClick={() => setOpenFor(su)}>Open Care Plan</button>
+                    <button className="btn-secondary btn btn-sm" onClick={() => navigate(`/service-users/${su.id}/care-plan`)}>Open Care Plan</button>
                   </td>
                 </tr>
               ))}
@@ -59,8 +58,6 @@ export default function CarePlans() {
           </table>
         </div>
       )}
-
-      {openFor && <CarePlanModal serviceUser={openFor} onClose={() => setOpenFor(null)} />}
     </div>
   );
 }
