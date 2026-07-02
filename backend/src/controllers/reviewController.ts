@@ -25,7 +25,7 @@ export async function getReview(req: AuthRequest, res: Response) {
 }
 
 export async function createReview(req: AuthRequest, res: Response) {
-  const { serviceUserId, reviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent } = req.body;
+  const { serviceUserId, type, reviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent } = req.body;
   if (!serviceUserId || !reviewDate) {
     return res.status(400).json({ error: 'serviceUserId and reviewDate are required' });
   }
@@ -33,6 +33,7 @@ export async function createReview(req: AuthRequest, res: Response) {
   const review = await prisma.review.create({
     data: {
       serviceUserId,
+      type: type === 'QUARTERLY' ? 'QUARTERLY' : 'SIX_WEEK',
       reviewDate: new Date(reviewDate),
       assessorName: assessorName || null,
       answers: answers ? JSON.stringify(answers) : '{}',

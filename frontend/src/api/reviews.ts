@@ -1,8 +1,9 @@
 import api from '../lib/axios';
-import { Review, ReviewOutcome } from '../types';
+import { Review, ReviewOutcome, ReviewType } from '../types';
 
 export interface ReviewData {
   serviceUserId: string;
+  type?: ReviewType;
   reviewDate: string;
   assessorName?: string;
   answers?: Record<string, { answer: string; comment: string }>;

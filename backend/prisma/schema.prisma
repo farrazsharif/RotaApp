@@ -176,6 +176,8 @@ model LikesDislikes {
 model Review {
   id                 String   @id @default(cuid())
   serviceUserId      String
+  // "SIX_WEEK" (once, ~6 weeks after service start) or "QUARTERLY" (recurring)
+  type               String   @default("SIX_WEEK")
   reviewDate         DateTime
   assessorName       String?
   answers            String   @default("{}")

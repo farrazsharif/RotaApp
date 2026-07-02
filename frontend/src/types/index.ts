@@ -42,6 +42,7 @@ export interface Shift {
 }
 
 export type ReviewAnswer = 'YES' | 'NO' | 'NA' | '';
+export type ReviewType = 'SIX_WEEK' | 'QUARTERLY';
 
 export interface ReviewOutcome {
   action: string;
@@ -55,6 +56,7 @@ export interface Review {
   id: string;
   serviceUserId: string;
   serviceUser?: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
+  type: ReviewType;
   reviewDate: string;
   assessorName?: string;
   answers: string; // JSON: { [questionId]: { answer, comment } }

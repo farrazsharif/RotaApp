@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { reviewsApi } from '../api/reviews';
 import { useAuth } from '../contexts/AuthContext';
-import { Review, ReviewOutcome } from '../types';
+import { Review, ReviewOutcome, ReviewType } from '../types';
 import { format } from 'date-fns';
 
 interface Props {
   serviceUserId: string;
   serviceUserName: string;
+  reviewType: ReviewType;
   editReview: Review | null;
   onClose: () => void;
 }
@@ -15,7 +16,9 @@ interface Props {
 interface QA { answer: string; comment: string }
 type Answers = Record<string, QA>;
 
-const SECTIONS: { title: string; questions: { id: string; text: string; textOnly?: boolean }[] }[] = [
+interface Section { title: string; questions: { id: string; text: string; textOnly?: boolean }[] }
+
+const SIX_WEEK_SECTIONS: Section[] = [
   {
     title: 'Service Assessment',
     questions: [
@@ -76,6 +79,63 @@ const SECTIONS: { title: string; questions: { id: string; text: string; textOnly
   },
 ];
 
+const QUARTERLY_SECTIONS: Section[] = [
+  {
+    title: 'Service Assessment',
+    questions: [
+      { id: 'qa1', text: 'Are you supported with personal care? Have there been any changes?' },
+      { id: 'qa2', text: 'Are you supported with shopping and laundry?' },
+      { id: 'qa3', text: 'Are you as active as you would like to be?' },
+      { id: 'qa4', text: 'Have you experienced any falls recently?' },
+      { id: 'qa5', text: 'Have there been any changes to your vision, hearing and speech?' },
+      { id: 'qa6', text: 'Have there been any changes in your mobility?' },
+      { id: 'qa7', text: 'Do you receive any support from your family members/friends?' },
+      { id: 'qa8', text: 'Do you have any concerns about your home?' },
+      { id: 'qa9', text: 'Have there been any changes to your diet and weight?' },
+      { id: 'qa10', text: 'Are you supported with food preparation? Have there been any changes?' },
+      { id: 'qa11', text: 'Do you have any concerns about your skin? Do you have any pressure sores?' },
+      { id: 'qa12', text: 'Do you face any breathing difficulties?' },
+      { id: 'qa13', text: 'Are you supported with handling finances? Have there been any changes?' },
+      { id: 'qa14', text: 'Have there been any changes to your health? Are you satisfied with the level of your health?' },
+      { id: 'qa15', text: 'Have there been any changes to your sleeping pattern?' },
+      { id: 'qa16', text: 'Have there been any changes to your memory?' },
+      { id: 'qa17', text: 'Are you supported with medication? If so, what level of support do you require? (prompt, assist or administer)' },
+    ],
+  },
+  {
+    title: 'Service Review',
+    questions: [
+      { id: 'qr1', text: 'Do you feel the service you receive is safe?' },
+      { id: 'qr2', text: 'Do you feel that you are protected from abuse and avoidable harm? Do you have any examples of this?' },
+      { id: 'qr3', text: 'Do you feel the service is effective?' },
+      { id: 'qr4', text: 'Is your care, treatment, and support achieving good outcomes and promoting a good quality of life? Do you have any examples of this?' },
+      { id: 'qr5', text: 'Do you feel the culture of the organisation is caring?' },
+      { id: 'qr6', text: 'Are you involved in decisions about your care and treated with compassion, kindness, dignity and respect? Do you have any examples of this?' },
+      { id: 'qr7', text: 'Do you feel the service is responsive?' },
+      { id: 'qr8', text: 'Do you feel the service is flexible, person-centered, and adapts to your needs and preferences? Do you have any examples of this?' },
+      { id: 'qr9', text: 'Do you feel the service is well led?' },
+      { id: 'qr10', text: 'Do you feel the leadership, management and governance of the organisation assure high quality, person centered care?' },
+    ],
+  },
+  {
+    title: 'Carer Feedback',
+    questions: [
+      { id: 'qcf1', text: 'Do you feel that there have been any changes to the service users care needs e.g. mobility, appetite, breathing?' },
+      { id: 'qcf2', text: 'Do you feel the Care Plan has the correct tasks for carers to complete?' },
+      { id: 'qcf3', text: 'Do you feel the duration of the call is sufficient to complete the care required?' },
+      { id: 'qcf4', text: 'Do you engage in conversation with the service user?' },
+      { id: 'qcf5', text: 'Do you know if the service user receives any additional care besides the carers?' },
+      { id: 'qcf6', text: 'Do you feel that the environment in which you work in is safe?' },
+      { id: 'qcf7', text: 'Give an example of your service users likes/preferences (e.g. how they like their tea? how they like their hair done? how they like their bed made?)', textOnly: true },
+    ],
+  },
+];
+
+export const REVIEW_TYPE_LABELS: Record<ReviewType, string> = {
+  SIX_WEEK: '6-Week Review',
+  QUARTERLY: 'Quarterly Review',
+};
+
 const emptyOutcome = (): ReviewOutcome => ({ action: '', outcome: '', timescale: '', actionBy: '', completion: '' });
 
 function parseAnswers(json?: string): Answers {
@@ -91,10 +151,11 @@ function parseOutcomes(json?: string): ReviewOutcome[] {
   } catch { return []; }
 }
 
-export default function ReviewFormModal({ serviceUserId, serviceUserName, editReview, onClose }: Props) {
+export default function ReviewFormModal({ serviceUserId, serviceUserName, reviewType, editReview, onClose }: Props) {
   const { isManager } = useAuth();
   const ro = !isManager;
   const qc = useQueryClient();
+  const sections = reviewType === 'QUARTERLY' ? QUARTERLY_SECTIONS : SIX_WEEK_SECTIONS;
 
   const [reviewDate, setReviewDate] = useState(editReview ? format(new Date(editReview.reviewDate), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
   const [assessorName, setAssessorName] = useState(editReview?.assessorName || '');
@@ -111,6 +172,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, editRe
     mutationFn: () => {
       const payload = {
         serviceUserId,
+        type: reviewType,
         reviewDate,
         assessorName,
         answers,
@@ -143,7 +205,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, editRe
       <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10">
           <div>
-            <h2 className="text-lg font-semibold">6-Week Review — {serviceUserName}</h2>
+            <h2 className="text-lg font-semibold">{REVIEW_TYPE_LABELS[reviewType]} — {serviceUserName}</h2>
             {ro && <p className="text-xs text-gray-500">read-only</p>}
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
@@ -169,7 +231,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, editRe
             </div>
           </div>
 
-          {SECTIONS.map((section) => (
+          {sections.map((section) => (
             <section key={section.title}>
               <h3 className="font-semibold text-gray-900 mb-2">{section.title}</h3>
               <div className="space-y-3">
@@ -222,7 +284,9 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, editRe
 
           <section>
             <h3 className="font-semibold text-gray-900 mb-2">Other Information</h3>
-            <p className="text-xs text-gray-500 mb-2">Please record any discussions held with the Service User</p>
+            <p className="text-xs text-gray-500 mb-2">
+              Please record any discussions held with the Service User{reviewType === 'QUARTERLY' ? ' and Care Worker' : ''}
+            </p>
             {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{otherInfo || '—'}</p> :
               <textarea value={otherInfo} rows={4} onChange={(e) => setOtherInfo(e.target.value)} className="input resize-none text-sm" />}
           </section>
@@ -270,6 +334,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, editRe
             </div>
           </section>
 
+          {reviewType === 'SIX_WEEK' && (
           <section>
             <h3 className="font-semibold text-gray-900 mb-2">Consent to the Phone Consultation</h3>
             <label className="flex items-start gap-2 text-sm text-gray-700">
@@ -282,6 +347,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, editRe
                 <input value={representativeName} onChange={(e) => setRepresentativeName(e.target.value)} className="input" />}
             </div>
           </section>
+          )}
         </div>
 
         <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
