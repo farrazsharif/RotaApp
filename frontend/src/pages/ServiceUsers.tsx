@@ -77,103 +77,149 @@ export default function ServiceUsers() {
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
+  const hasFilters = !!(search || filterSite || filterStatus);
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Service Users</h1>
-        <div className="flex flex-wrap gap-3">
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Service Users</h1>
+          <p className="text-sm text-gray-500">
+            {serviceUsers.length} {serviceUsers.length === 1 ? 'person' : 'people'}{hasFilters ? ' matching filters' : ' in your care'}
+          </p>
+        </div>
+        {isManager && (
+          <div className="flex gap-2">
+            <button className="btn-secondary btn" onClick={() => setShowSites(true)}>Manage Sites</button>
+            <button className="btn-primary btn" onClick={() => navigate('/service-users/new')}>+ Add Service User</button>
+          </div>
+        )}
+      </div>
+
+      {/* Toolbar */}
+      <div className="card p-3 flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-56">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">🔍</span>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or postcode…"
-            className="input w-64"
+            className="input pl-9 w-full"
           />
-          <select value={filterSite} onChange={(e) => setFilterSite(e.target.value)} className="input">
-            <option value="">All sites</option>
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input">
-            <option value="">All statuses</option>
-            {Object.entries(STATUS_META).map(([value, meta]) => (
-              <option key={value} value={value}>{value === 'HOSPITALISED' ? '🔴 H' : meta.icon} {meta.label}</option>
-            ))}
-          </select>
-          {isManager && <button className="btn-secondary btn" onClick={() => setShowSites(true)}>Manage Sites</button>}
-          {isManager && <button className="btn-primary btn" onClick={() => navigate('/service-users/new')}>+ Add Service User</button>}
         </div>
+        <select value={filterSite} onChange={(e) => setFilterSite(e.target.value)} className="input w-auto">
+          <option value="">All sites</option>
+          {sites.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input w-auto">
+          <option value="">All statuses</option>
+          {Object.entries(STATUS_META).map(([value, meta]) => (
+            <option key={value} value={value}>{value === 'HOSPITALISED' ? '🔴 H' : meta.icon} {meta.label}</option>
+          ))}
+        </select>
+        {hasFilters && (
+          <button
+            className="text-sm text-gray-500 hover:text-gray-800 px-2"
+            onClick={() => { setSearch(''); setFilterSite(''); setFilterStatus(''); }}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {serviceUsers.length === 0 ? (
-        <div className="card text-center py-12 text-gray-400">
-          <p className="text-4xl mb-3">🧑‍🦽</p>
-          <p>{search ? 'No service users match your search' : 'No service users yet'}</p>
+        <div className="card text-center py-16 text-gray-400">
+          <p className="text-5xl mb-3">🧑‍🦽</p>
+          <p className="text-gray-600 font-medium">{hasFilters ? 'No service users match your search' : 'No service users yet'}</p>
+          {isManager && !hasFilters && (
+            <button className="btn-primary btn mt-4" onClick={() => navigate('/service-users/new')}>+ Add your first service user</button>
+          )}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {serviceUsers.map((su) => (
-            <div
-              key={su.id}
-              onClick={() => navigate(`/service-users/${su.id}`)}
-              className="card space-y-3 cursor-pointer hover:shadow-md hover:border-blue-300 transition-shadow"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold text-gray-900">{su.firstName} {su.lastName}</h3>
-                  <p className="text-sm text-gray-500">
-                    {su.dateOfBirth && `${differenceInYears(new Date(), new Date(su.dateOfBirth))} yrs`}
-                    {su.nhsNumber && ` · NHS ${su.nhsNumber}`}
-                  </p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {serviceUsers.map((su) => {
+            const meta = STATUS_META[su.status] || STATUS_META.ACTIVE;
+            return (
+              <div
+                key={su.id}
+                onClick={() => navigate(`/service-users/${su.id}`)}
+                className="card p-0 overflow-hidden cursor-pointer hover:shadow-lg hover:border-blue-300 hover:-translate-y-0.5 transition-all flex flex-col"
+              >
+                {/* Card header */}
+                <div className="flex items-start gap-3 p-4 pb-3">
+                  <div className="h-11 w-11 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                    {su.firstName[0]}{su.lastName[0]}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-gray-900 truncate">{su.firstName} {su.lastName}</h3>
+                    <p className="text-xs text-gray-500 truncate">
+                      {su.dateOfBirth && `${differenceInYears(new Date(), new Date(su.dateOfBirth))} yrs`}
+                      {su.nhsNumber && ` · NHS ${su.nhsNumber}`}
+                    </p>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full flex-shrink-0 ${meta.className}`}>
+                    {su.status === 'HOSPITALISED' ? <HospitalIcon /> : meta.icon} {meta.label}
+                  </span>
                 </div>
-                <span className="badge-blue badge">{durationLabel(su.visitDuration)}</span>
+
+                {/* Body */}
+                <div className="px-4 pb-3 space-y-2 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {su.site && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: su.site.color }}>
+                        📍 {su.site.name}
+                      </span>
+                    )}
+                    <span className="badge-blue badge">{durationLabel(su.visitDuration)} visit</span>
+                  </div>
+
+                  {(su.address || su.postcode) && (
+                    <p className="text-sm text-gray-600 flex items-start gap-1.5">
+                      <span className="text-gray-400">📍</span>
+                      <span className="min-w-0">{[su.address, su.postcode].filter(Boolean).join(', ')}</span>
+                    </p>
+                  )}
+                  {su.phone && (
+                    <p className="text-sm text-gray-600 flex items-center gap-1.5">
+                      <span className="text-gray-400">📞</span> {su.phone}
+                    </p>
+                  )}
+
+                  {(su.needsMedication || su.needsMobility || su.needsPersonalCare) && (
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      {su.needsMedication && <span className="badge-red badge">Medication</span>}
+                      {su.needsMobility && <span className="badge-yellow badge">Mobility</span>}
+                      {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between px-4 py-2.5 border-t bg-gray-50">
+                  <span className="text-xs font-medium text-blue-600">View full record →</span>
+                  {isManager && (
+                    confirmDelete === su.id ? (
+                      <span className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-xs text-red-700">Delete?</span>
+                        <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(su.id)}>Yes</button>
+                        <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
+                      </span>
+                    ) : (
+                      <button
+                        className="text-xs text-red-600 hover:underline"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(su.id); }}
+                      >
+                        Delete
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
-
-              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full w-fit ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
-                {su.status === 'HOSPITALISED' ? <HospitalIcon /> : STATUS_META[su.status]?.icon} {STATUS_META[su.status]?.label || su.status}
-              </span>
-
-              {su.site && (
-                <span
-                  className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full text-white"
-                  style={{ backgroundColor: su.site.color }}
-                >
-                  📍 {su.site.name}
-                </span>
-              )}
-
-              {(su.address || su.postcode) && (
-                <p className="text-sm text-gray-600">📍 {[su.address, su.postcode].filter(Boolean).join(', ')}</p>
-              )}
-              {su.phone && <p className="text-sm text-gray-600">📞 {su.phone}</p>}
-
-              <div className="flex flex-wrap gap-1">
-                {su.needsMedication && <span className="badge-red badge">Medication</span>}
-                {su.needsMobility && <span className="badge-yellow badge">Mobility</span>}
-                {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
-              </div>
-
-              <div className="flex items-center justify-between pt-1 border-t">
-                <span className="text-xs font-medium text-blue-600">View full record →</span>
-                {isManager && (
-                  confirmDelete === su.id ? (
-                    <span className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <span className="text-xs text-red-700">Delete?</span>
-                      <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(su.id)}>Yes</button>
-                      <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
-                    </span>
-                  ) : (
-                    <button
-                      className="text-xs text-red-600 hover:underline"
-                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(su.id); }}
-                    >
-                      Delete
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
