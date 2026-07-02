@@ -12,7 +12,6 @@ const navItems = [
   { to: '/service-plans', label: 'Service Plans', icon: '🗂️' },
   { to: '/call-logs', label: 'Call Logs', icon: '📝' },
   { to: '/emar', label: 'eMAR', icon: '💊' },
-  { to: '/trades', label: 'Shift Trades', icon: '🔄', managerOnly: true },
   { to: '/time-off', label: 'Time Off', icon: '🏖️', managerOnly: true },
   { to: '/attendance', label: 'Attendance', icon: '⏱️', managerOnly: true },
   { to: '/reports', label: 'Reports', icon: '📊', managerOnly: true },

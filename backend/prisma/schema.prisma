@@ -25,8 +25,6 @@ model User {
 
   shifts             Shift[]
   coverShifts        Shift[]          @relation("ShiftCoverCarers")
-  requestedTrades    ShiftTrade[]     @relation("TradeRequester")
-  targetedTrades     ShiftTrade[]     @relation("TradeTarget")
   timeOffRequests    TimeOffRequest[]
   clockRecords       ClockRecord[]
   notifications      Notification[]
@@ -261,8 +259,6 @@ model Shift {
   user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   coverCarers  User[]       @relation("ShiftCoverCarers")
   serviceUser  ServiceUser? @relation(fields: [serviceUserId], references: [id])
-  tradeOffers  ShiftTrade[] @relation("OriginalShift")
-  tradeTargets ShiftTrade[] @relation("TargetShift")
   clockRecords ClockRecord[]
   callLogs     CallLog[]
 }
@@ -278,23 +274,6 @@ model CallLog {
   shift       Shift?      @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-}
-
-model ShiftTrade {
-  id            String   @id @default(cuid())
-  requesterId   String
-  targetUserId  String?
-  shiftId       String
-  targetShiftId String?
-  message       String?
-  status        String   @default("PENDING")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  requester   User   @relation("TradeRequester", fields: [requesterId], references: [id])
-  targetUser  User?  @relation("TradeTarget", fields: [targetUserId], references: [id])
-  shift       Shift  @relation("OriginalShift", fields: [shiftId], references: [id])
-  targetShift Shift? @relation("TargetShift", fields: [targetShiftId], references: [id])
 }
 
 model TimeOffRequest {

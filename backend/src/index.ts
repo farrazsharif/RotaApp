@@ -8,7 +8,6 @@ import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import shiftRoutes from './routes/shifts';
-import shiftTradeRoutes from './routes/shiftTrades';
 import timeOffRoutes from './routes/timeOff';
 import clockRoutes from './routes/clock';
 import reportRoutes from './routes/reports';
@@ -50,7 +49,6 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date()
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/shifts', shiftRoutes);
-app.use('/api/shift-trades', shiftTradeRoutes);
 app.use('/api/time-off', timeOffRoutes);
 app.use('/api/clock', clockRoutes);
 app.use('/api/reports', reportRoutes);

@@ -278,12 +278,11 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
   const weekEnd = new Date(today);
   weekEnd.setDate(weekEnd.getDate() + 7);
 
-  const [totalEmployees, shiftsThisWeek, pendingTimeOff, pendingTrades] = await Promise.all([
+  const [totalEmployees, shiftsThisWeek, pendingTimeOff] = await Promise.all([
     prisma.user.count({ where: { active: true, role: 'EMPLOYEE' } }),
     prisma.shift.count({ where: { date: { gte: today, lte: weekEnd }, status: { not: 'CANCELLED' } } }),
     prisma.timeOffRequest.count({ where: { status: 'PENDING' } }),
-    prisma.shiftTrade.count({ where: { status: 'PENDING' } }),
   ]);
 
-  res.json({ totalEmployees, shiftsThisWeek, pendingTimeOff, pendingTrades });
+  res.json({ totalEmployees, shiftsThisWeek, pendingTimeOff });
 }

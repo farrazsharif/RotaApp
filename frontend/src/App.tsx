@@ -6,7 +6,6 @@ import Login from './pages/Login';
 import SetPassword from './pages/SetPassword';
 import Dashboard from './pages/Dashboard';
 import Schedule from './pages/Schedule';
-import ShiftTrades from './pages/ShiftTrades';
 import TimeOff from './pages/TimeOff';
 import Attendance from './pages/Attendance';
 import Reports from './pages/Reports';
@@ -65,7 +64,6 @@ function AppRoutes() {
         <Route path="emar" element={<Emar />} />
         <Route path="care-plans" element={<CarePlans />} />
         <Route path="service-plans" element={<ServicePlans />} />
-        <Route path="trades" element={<ManagerRoute><ShiftTrades /></ManagerRoute>} />
         <Route path="time-off" element={<ManagerRoute><TimeOff /></ManagerRoute>} />
         <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />
         <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />

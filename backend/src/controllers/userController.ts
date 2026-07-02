@@ -95,8 +95,6 @@ export async function permanentDeleteUser(req: AuthRequest, res: Response) {
   if (id === req.user!.id) {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
-  // Remove records that would block deletion (shift trades have no cascade)
-  await prisma.shiftTrade.deleteMany({ where: { OR: [{ requesterId: id }, { targetUserId: id }] } });
   // Shifts, time-off, clock records and notifications cascade on user delete
   await prisma.user.delete({ where: { id } });
   res.json({ message: 'User deleted' });

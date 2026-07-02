@@ -65,11 +65,10 @@ export default function Dashboard() {
       </div>
 
       {isManager && stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <StatCard label="Active Employees" value={stats.totalEmployees} icon="👥" color="bg-blue-100" />
           <StatCard label="Shifts This Week" value={stats.shiftsThisWeek} icon="📅" color="bg-green-100" />
           <StatCard label="Pending Time Off" value={stats.pendingTimeOff} icon="🏖️" color="bg-yellow-100" />
-          <StatCard label="Pending Trades" value={stats.pendingTrades} icon="🔄" color="bg-purple-100" />
         </div>
       )}
 

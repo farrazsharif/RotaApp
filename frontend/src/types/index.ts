@@ -1,11 +1,9 @@
 export type Role = 'ADMIN' | 'MANAGER' | 'EMPLOYEE' | 'FAMILY_MEMBER';
 export type ShiftStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'SWAPPED';
-export type TradeStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'APPROVED' | 'CANCELLED';
 export type TimeOffType = 'VACATION' | 'SICK' | 'PERSONAL' | 'OTHER';
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type NotificationType =
   | 'SHIFT_ASSIGNED' | 'SHIFT_UPDATED' | 'SHIFT_CANCELLED' | 'SHIFT_PUBLISHED' | 'SHIFT_REMOVED'
-  | 'TRADE_REQUEST' | 'TRADE_ACCEPTED' | 'TRADE_REJECTED' | 'TRADE_APPROVED'
   | 'TIME_OFF_APPROVED' | 'TIME_OFF_REJECTED' | 'CLOCK_REMINDER';
 
 export interface User {
@@ -40,21 +38,6 @@ export interface Shift {
   notes?: string;
   status: ShiftStatus;
   published: boolean;
-  createdAt: string;
-}
-
-export interface ShiftTrade {
-  id: string;
-  requesterId: string;
-  requester: Pick<User, 'id' | 'firstName' | 'lastName' | 'email'>;
-  targetUserId?: string;
-  targetUser?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email'>;
-  shiftId: string;
-  shift: Shift;
-  targetShiftId?: string;
-  targetShift?: Shift;
-  message?: string;
-  status: TradeStatus;
   createdAt: string;
 }
 
@@ -269,5 +252,4 @@ export interface DashboardStats {
   totalEmployees: number;
   shiftsThisWeek: number;
   pendingTimeOff: number;
-  pendingTrades: number;
 }

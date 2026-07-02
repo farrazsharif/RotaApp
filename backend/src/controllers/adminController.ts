@@ -3,13 +3,12 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 
 // Wipes call logs, medications, service users (and everything that depends on
-// them — care plans, medication administrations, shifts, clock records, shift
-// trades) so an admin can start testing with a clean slate. Staff/user
-// accounts are left untouched. Deletion order respects FK constraints since
-// not every relation cascades automatically.
+// them — care plans, medication administrations, shifts, clock records) so an
+// admin can start testing with a clean slate. Staff/user accounts are left
+// untouched. Deletion order respects FK constraints since not every relation
+// cascades automatically.
 export async function resetTestData(req: AuthRequest, res: Response) {
   const result = await prisma.$transaction(async (tx) => {
-    const shiftTrades = await tx.shiftTrade.deleteMany({});
     const clockRecords = await tx.clockRecord.deleteMany({});
     const callLogs = await tx.callLog.deleteMany({});
     const medAdministrations = await tx.medAdministration.deleteMany({});
@@ -19,7 +18,6 @@ export async function resetTestData(req: AuthRequest, res: Response) {
     const shifts = await tx.shift.deleteMany({});
     const serviceUsers = await tx.serviceUser.deleteMany({});
     return {
-      shiftTrades: shiftTrades.count,
       clockRecords: clockRecords.count,
       callLogs: callLogs.count,
       medAdministrations: medAdministrations.count,

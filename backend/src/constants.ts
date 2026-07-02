@@ -8,11 +8,6 @@ export const ShiftStatus = {
 } as const;
 export type ShiftStatus = (typeof ShiftStatus)[keyof typeof ShiftStatus];
 
-export const TradeStatus = {
-  PENDING: 'PENDING', ACCEPTED: 'ACCEPTED', REJECTED: 'REJECTED', APPROVED: 'APPROVED', CANCELLED: 'CANCELLED',
-} as const;
-export type TradeStatus = (typeof TradeStatus)[keyof typeof TradeStatus];
-
 export const TimeOffType = {
   VACATION: 'VACATION', SICK: 'SICK', PERSONAL: 'PERSONAL', OTHER: 'OTHER',
 } as const;
