@@ -5,6 +5,7 @@ import { serviceUsersApi, ServiceUserData } from '../api/serviceUsers';
 import { usersApi } from '../api/users';
 import { sitesApi } from '../api/sites';
 import { format } from 'date-fns';
+import PhotoUpload from '../components/PhotoUpload';
 
 type FormState = ServiceUserData & { preferredCaregiverIds: string[] };
 
@@ -27,7 +28,7 @@ function parseVisits(json?: string): VisitRow[] {
 }
 
 const emptyForm: FormState = {
-  firstName: '', lastName: '', dateOfBirth: '', siteId: '', nhsNumber: '', address: '', postcode: '',
+  firstName: '', lastName: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '',
   phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelation: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
   pharmacyName: '', pharmacyPhone: '', pharmacyAddress: '',
@@ -64,6 +65,7 @@ export default function ServiceUserForm() {
     setForm({
       firstName: su.firstName, lastName: su.lastName,
       dateOfBirth: su.dateOfBirth ? format(new Date(su.dateOfBirth), 'yyyy-MM-dd') : '',
+      photo: su.photo || '',
       siteId: su.siteId || '',
       nhsNumber: su.nhsNumber || '', address: su.address || '', postcode: su.postcode || '',
       phone: su.phone || '', email: su.email || '',
@@ -127,6 +129,15 @@ export default function ServiceUserForm() {
       )}
 
       <Section title="Personal Details">
+        <div className="mb-4">
+          <label className="label">Photo</label>
+          <PhotoUpload
+            photo={form.photo}
+            firstName={form.firstName}
+            lastName={form.lastName}
+            onChange={(photo) => setForm({ ...form, photo: photo || '' })}
+          />
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">First Name *</label>

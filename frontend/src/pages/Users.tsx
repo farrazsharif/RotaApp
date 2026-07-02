@@ -5,6 +5,7 @@ import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Role } from '../types';
 import StaffFormModal from '../components/StaffFormModal';
+import Avatar from '../components/Avatar';
 
 const roleBadge: Record<Role, string> = {
   ADMIN: 'badge-purple',
@@ -69,9 +70,7 @@ export default function Users() {
               <tr key={u.id} onClick={() => navigate(`/users/${u.id}`)} className="hover:bg-gray-50 cursor-pointer">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                      {u.firstName[0]}{u.lastName[0]}
-                    </div>
+                    <Avatar photo={u.photo} firstName={u.firstName} lastName={u.lastName} size="sm" />
                     <span className="font-medium">{u.firstName} {u.lastName}</span>
                   </div>
                 </td>

@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Role, Training, ImportantDate } from '../types';
 import { format } from 'date-fns';
 import StaffFormModal from '../components/StaffFormModal';
+import Avatar from '../components/Avatar';
 
 const roleBadge: Record<Role, string> = {
   ADMIN: 'badge-purple',
@@ -69,13 +70,16 @@ export default function StaffDetail() {
       <div>
         <button onClick={() => navigate('/users')} className="text-sm text-blue-600 hover:underline mb-2">← Staff</button>
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{user.firstName} {user.lastName}</h1>
-            <p className="text-sm text-gray-500">{user.email}{user.phone && ` · ${user.phone}`}</p>
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              <span className={roleBadge[user.role]}>{user.role}</span>
-              <span className={user.active ? 'badge-green' : 'badge-red'}>{user.active ? 'Active' : 'Inactive'}</span>
-              <span className="badge-blue badge">£{user.hourlyRate.toFixed(2)}/hr</span>
+          <div className="flex items-start gap-4">
+            <Avatar photo={user.photo} firstName={user.firstName} lastName={user.lastName} size="lg" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{user.firstName} {user.lastName}</h1>
+              <p className="text-sm text-gray-500">{user.email}{user.phone && ` · ${user.phone}`}</p>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span className={roleBadge[user.role]}>{user.role}</span>
+                <span className={user.active ? 'badge-green' : 'badge-red'}>{user.active ? 'Active' : 'Inactive'}</span>
+                <span className="badge-blue badge">£{user.hourlyRate.toFixed(2)}/hr</span>
+              </div>
             </div>
           </div>
           {isManager && <button className="btn-primary btn" onClick={() => setEditOpen(true)}>Edit Details</button>}

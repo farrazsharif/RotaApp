@@ -5,6 +5,7 @@ export interface ServiceUserData {
   firstName: string;
   lastName: string;
   dateOfBirth: string;
+  photo?: string;
   siteId?: string;
   nhsNumber?: string;
   address?: string;

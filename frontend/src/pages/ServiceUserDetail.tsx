@@ -10,6 +10,7 @@ import { callLogsApi } from '../api/callLogs';
 import { useAuth } from '../contexts/AuthContext';
 import { format, differenceInYears } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
+import Avatar from '../components/Avatar';
 import CarePlanModal from '../components/CarePlanModal';
 import LikesDislikesModal from '../components/LikesDislikesModal';
 import { likesDislikesApi } from '../api/likesDislikes';
@@ -149,7 +150,9 @@ export default function ServiceUserDetail() {
       <div>
         <button onClick={() => navigate('/service-users')} className="text-sm text-blue-600 hover:underline mb-2">← Service Users</button>
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="flex items-start gap-4">
+            <Avatar photo={su.photo} firstName={su.firstName} lastName={su.lastName} size="lg" />
+            <div>
             <h1 className="text-2xl font-bold text-gray-900">{su.firstName} {su.lastName}</h1>
             <p className="text-sm text-gray-500">
               {su.dateOfBirth && `${differenceInYears(new Date(), new Date(su.dateOfBirth))} yrs · DOB ${format(new Date(su.dateOfBirth), 'dd MMM yyyy')}`}
@@ -168,6 +171,7 @@ export default function ServiceUserDetail() {
               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
                 {su.status === 'HOSPITALISED' ? <HospitalIcon /> : STATUS_META[su.status]?.icon} {STATUS_META[su.status]?.label || su.status}
               </span>
+            </div>
             </div>
           </div>
           {isManager && (

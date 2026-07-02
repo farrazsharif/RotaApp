@@ -14,6 +14,7 @@ export interface User {
   role: Role;
   hourlyRate: number;
   phone?: string;
+  photo?: string;
   active: boolean;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
@@ -179,6 +180,7 @@ export interface ServiceUser {
   firstName: string;
   lastName: string;
   dateOfBirth: string;
+  photo?: string;
   siteId?: string;
   site?: Site;
   nhsNumber?: string;

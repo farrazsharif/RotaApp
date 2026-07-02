@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser, ServiceUserStatus } from '../types';
 import { differenceInYears } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
+import Avatar from '../components/Avatar';
 
 const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; className: string }> = {
   ACTIVE: { label: 'Active', icon: '🟢', className: 'bg-green-100 text-green-700' },
@@ -150,9 +151,7 @@ export default function ServiceUsers() {
               >
                 {/* Card header */}
                 <div className="flex items-start gap-3 p-4 pb-3">
-                  <div className="h-11 w-11 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    {su.firstName[0]}{su.lastName[0]}
-                  </div>
+                  <Avatar photo={su.photo} firstName={su.firstName} lastName={su.lastName} size="md" />
                   <div className="min-w-0 flex-1">
                     <h3 className="font-semibold text-gray-900 truncate">{su.firstName} {su.lastName}</h3>
                     <p className="text-xs text-gray-500 truncate">

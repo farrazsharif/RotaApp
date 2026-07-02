@@ -41,7 +41,7 @@ export async function getServiceUser(req: AuthRequest, res: Response) {
 function buildData(body: Record<string, unknown>) {
   const data: Record<string, unknown> = {};
   const stringFields = [
-    'firstName', 'lastName', 'nhsNumber', 'address', 'postcode', 'phone', 'email',
+    'firstName', 'lastName', 'nhsNumber', 'address', 'postcode', 'phone', 'email', 'photo',
     'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation', 'careNotes',
     'gpName', 'gpPractice', 'gpPhone', 'gpAddress',
     'pharmacyName', 'pharmacyPhone', 'pharmacyAddress',

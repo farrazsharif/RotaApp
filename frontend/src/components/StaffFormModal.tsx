@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Role } from '../types';
+import PhotoUpload from './PhotoUpload';
 
 interface Props {
   editUser: User | null;
@@ -18,17 +19,18 @@ interface FormState {
   role: Role;
   hourlyRate: string;
   phone: string;
+  photo: string;
   sendInvite: boolean;
 }
 
 const emptyForm: FormState = {
   email: '', password: '', firstName: '', lastName: '',
-  role: 'EMPLOYEE', hourlyRate: '', phone: '', sendInvite: true,
+  role: 'EMPLOYEE', hourlyRate: '', phone: '', photo: '', sendInvite: true,
 };
 
 function initialForm(u: User | null): FormState {
   if (!u) return emptyForm;
-  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, hourlyRate: String(u.hourlyRate), phone: u.phone || '', sendInvite: false };
+  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', sendInvite: false };
 }
 
 export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
@@ -65,6 +67,15 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
         <div className="p-6 space-y-4">
+          <div>
+            <label className="label">Photo</label>
+            <PhotoUpload
+              photo={form.photo}
+              firstName={form.firstName}
+              lastName={form.lastName}
+              onChange={(photo) => setForm({ ...form, photo: photo || '' })}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">First Name *</label>

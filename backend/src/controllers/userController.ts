@@ -9,7 +9,7 @@ import { sendEmail, setPasswordEmail } from '../lib/email';
 
 const userSelect = {
   id: true, email: true, firstName: true, lastName: true, role: true,
-  hourlyRate: true, phone: true, active: true, createdAt: true,
+  hourlyRate: true, phone: true, photo: true, active: true, createdAt: true,
   emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true,
 };
 
@@ -32,7 +32,7 @@ export async function getUser(req: AuthRequest, res: Response) {
 }
 
 export async function createUser(req: AuthRequest, res: Response) {
-  const { email, password, firstName, lastName, role, hourlyRate, phone, sendInvite } = req.body;
+  const { email, password, firstName, lastName, role, hourlyRate, phone, photo, sendInvite } = req.body;
   if (!email || !firstName || !lastName) {
     return res.status(400).json({ error: 'email, firstName, lastName required' });
   }
@@ -55,6 +55,7 @@ export async function createUser(req: AuthRequest, res: Response) {
       role: role || Role.EMPLOYEE,
       hourlyRate: hourlyRate ? Number(hourlyRate) : 0,
       phone: phone || null,
+      photo: photo || null,
     },
     select: userSelect,
   });
@@ -69,13 +70,14 @@ export async function createUser(req: AuthRequest, res: Response) {
 }
 
 export async function updateUser(req: AuthRequest, res: Response) {
-  const { firstName, lastName, role, hourlyRate, phone, active, emergencyContactName, emergencyContactPhone, emergencyContactRelation } = req.body;
+  const { firstName, lastName, role, hourlyRate, phone, photo, active, emergencyContactName, emergencyContactPhone, emergencyContactRelation } = req.body;
   const data: Record<string, unknown> = {};
   if (firstName !== undefined) data.firstName = firstName;
   if (lastName !== undefined) data.lastName = lastName;
   if (role !== undefined && req.user!.role === Role.ADMIN) data.role = role;
   if (hourlyRate !== undefined) data.hourlyRate = Number(hourlyRate);
   if (phone !== undefined) data.phone = phone || null;
+  if (photo !== undefined) data.photo = photo || null;
   if (active !== undefined && req.user!.role === Role.ADMIN) data.active = active;
   if (emergencyContactName !== undefined) data.emergencyContactName = emergencyContactName || null;
   if (emergencyContactPhone !== undefined) data.emergencyContactPhone = emergencyContactPhone || null;

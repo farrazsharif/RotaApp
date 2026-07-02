@@ -16,6 +16,7 @@ model User {
   role         String      @default("EMPLOYEE")
   hourlyRate   Float       @default(0)
   phone        String?
+  photo        String?     // profile picture as a base64 data URL
   active       Boolean     @default(true)
   emergencyContactName     String?
   emergencyContactPhone    String?
@@ -51,6 +52,7 @@ model ServiceUser {
   firstName                String
   lastName                 String
   dateOfBirth              DateTime
+  photo                    String?  // profile picture as a base64 data URL
   siteId                   String?
   nhsNumber                String?
   address                  String?
