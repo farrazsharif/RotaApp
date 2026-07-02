@@ -9,6 +9,7 @@ const navItems = [
   { to: '/schedule', label: 'Schedule', icon: '📅' },
   { to: '/service-users', label: 'Service Users', icon: '🧑‍🦽' },
   { to: '/care-plans', label: 'Care Plans', icon: '📋' },
+  { to: '/reviews', label: 'Reviews', icon: '🔍' },
   { to: '/service-plans', label: 'Service Plans', icon: '🗂️' },
   { to: '/call-logs', label: 'Call Logs', icon: '📝' },
   { to: '/emar', label: 'eMAR', icon: '💊' },

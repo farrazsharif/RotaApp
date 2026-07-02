@@ -17,6 +17,7 @@ import ServiceUserForm from './pages/ServiceUserForm';
 import CallLogs from './pages/CallLogs';
 import Emar from './pages/Emar';
 import CarePlans from './pages/CarePlans';
+import Reviews from './pages/Reviews';
 import ServicePlans from './pages/ServicePlans';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -63,6 +64,7 @@ function AppRoutes() {
         <Route path="call-logs" element={<CallLogs />} />
         <Route path="emar" element={<Emar />} />
         <Route path="care-plans" element={<CarePlans />} />
+        <Route path="reviews" element={<Reviews />} />
         <Route path="service-plans" element={<ServicePlans />} />
         <Route path="time-off" element={<ManagerRoute><TimeOff /></ManagerRoute>} />
         <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />

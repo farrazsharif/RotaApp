@@ -41,6 +41,31 @@ export interface Shift {
   createdAt: string;
 }
 
+export type ReviewAnswer = 'YES' | 'NO' | 'NA' | '';
+
+export interface ReviewOutcome {
+  action: string;
+  outcome: string;
+  timescale: string;
+  actionBy: string;
+  completion: string;
+}
+
+export interface Review {
+  id: string;
+  serviceUserId: string;
+  serviceUser?: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
+  reviewDate: string;
+  assessorName?: string;
+  answers: string; // JSON: { [questionId]: { answer, comment } }
+  otherInfo?: string;
+  outcomes: string; // JSON: ReviewOutcome[]
+  representativeName?: string;
+  phoneConsent: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TimeOffRequest {
   id: string;
   userId: string;

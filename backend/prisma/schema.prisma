@@ -89,6 +89,7 @@ model ServiceUser {
   servicePlan         PersonalServicePlan?
   familyLinks         FamilyLink[]
   likesDislikes       LikesDislikes?
+  reviews             Review[]
 }
 
 // Links a family-member User account to the service user(s) they're allowed
@@ -165,6 +166,25 @@ model LikesDislikes {
   updatedById     String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+}
+
+// 6-week (and subsequent) service review. Question answers are stored as
+// JSON keyed by question id: { q1: { answer: "YES"|"NO"|"NA", comment: "" } }.
+// Agreed outcomes is a JSON array: [{ action, outcome, timescale, actionBy, completion }].
+model Review {
+  id                 String   @id @default(cuid())
+  serviceUserId      String
+  reviewDate         DateTime
+  assessorName       String?
+  answers            String   @default("{}")
+  otherInfo          String?
+  outcomes           String   @default("[]")
+  representativeName String?
+  phoneConsent       Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
 }
