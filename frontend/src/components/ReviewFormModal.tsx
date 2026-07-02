@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { reviewsApi } from '../api/reviews';
 import { useAuth } from '../contexts/AuthContext';
 import { Review, ReviewOutcome, ReviewType } from '../types';
-import { format } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 
 interface Props {
   serviceUserId: string;
@@ -158,6 +158,11 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
   const sections = reviewType === 'QUARTERLY' ? QUARTERLY_SECTIONS : SIX_WEEK_SECTIONS;
 
   const [reviewDate, setReviewDate] = useState(editReview ? format(new Date(editReview.reviewDate), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+  // Quarterly reviews default the next one to 3 months out; editable below.
+  const [nextReviewDate, setNextReviewDate] = useState(() => {
+    if (editReview) return editReview.nextReviewDate ? format(new Date(editReview.nextReviewDate), 'yyyy-MM-dd') : '';
+    return reviewType === 'QUARTERLY' ? format(addMonths(new Date(), 3), 'yyyy-MM-dd') : '';
+  });
   const [assessorName, setAssessorName] = useState(editReview?.assessorName || '');
   const [answers, setAnswers] = useState<Answers>(() => parseAnswers(editReview?.answers));
   const [otherInfo, setOtherInfo] = useState(editReview?.otherInfo || '');
@@ -174,6 +179,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
         serviceUserId,
         type: reviewType,
         reviewDate,
+        nextReviewDate: nextReviewDate || null,
         assessorName,
         answers,
         otherInfo,
@@ -229,6 +235,14 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
               {ro ? <p className="text-sm text-gray-800">{assessorName || '—'}</p> :
                 <input value={assessorName} onChange={(e) => setAssessorName(e.target.value)} className="input" />}
             </div>
+            {reviewType === 'QUARTERLY' && (
+              <div>
+                <label className="label">Next Review Due</label>
+                {ro ? <p className="text-sm text-gray-800">{nextReviewDate ? format(new Date(nextReviewDate), 'dd MMM yyyy') : '—'}</p> :
+                  <input type="date" value={nextReviewDate} onChange={(e) => setNextReviewDate(e.target.value)} className="input" />}
+                {!ro && <p className="text-xs text-gray-500 mt-1">Defaults to 3 months after today — adjust if needed.</p>}
+              </div>
+            )}
           </div>
 
           {sections.map((section) => (

@@ -5,6 +5,7 @@ export interface ReviewData {
   serviceUserId: string;
   type?: ReviewType;
   reviewDate: string;
+  nextReviewDate?: string | null;
   assessorName?: string;
   answers?: Record<string, { answer: string; comment: string }>;
   otherInfo?: string;

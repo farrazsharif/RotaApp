@@ -32,6 +32,20 @@ export default function Reviews() {
     !term || `${r.serviceUser?.firstName} ${r.serviceUser?.lastName} ${r.assessorName || ''}`.toLowerCase().includes(term)
   );
 
+  const isOverdue = (r: Review) => !!r.nextReviewDate && new Date(r.nextReviewDate) < new Date();
+  // Only the most recent review per service user determines whether their
+  // next review is overdue — older reviews' due dates have been superseded.
+  const latestPerUser = new Map<string, Review>();
+  for (const r of reviews) {
+    const existing = latestPerUser.get(r.serviceUserId);
+    const later = !existing
+      || new Date(r.reviewDate) > new Date(existing.reviewDate)
+      // Same-day reviews: fall back to creation order
+      || (r.reviewDate === existing.reviewDate && new Date(r.createdAt) > new Date(existing.createdAt));
+    if (later) latestPerUser.set(r.serviceUserId, r);
+  }
+  const overdueReviews = [...latestPerUser.values()].filter(isOverdue);
+
   const startNewReview = () => {
     const su = serviceUsers.find((s) => s.id === newForUserId);
     if (!su) return;
@@ -74,6 +88,19 @@ export default function Reviews() {
         </div>
       </div>
 
+      {overdueReviews.length > 0 && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
+          <p className="font-semibold mb-1">⚠ {overdueReviews.length} review{overdueReviews.length > 1 ? 's' : ''} overdue</p>
+          <ul className="list-disc list-inside space-y-0.5">
+            {overdueReviews.map((r) => (
+              <li key={r.id}>
+                {r.serviceUser ? `${r.serviceUser.firstName} ${r.serviceUser.lastName}` : 'Unknown'} — next review was due {format(new Date(r.nextReviewDate!), 'dd MMM yyyy')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
           <p className="text-4xl mb-3">📋</p>
@@ -88,6 +115,7 @@ export default function Reviews() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Service User</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Review Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Next Review</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Assessor</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Last Updated</th>
                 <th className="px-4 py-3" />
@@ -105,6 +133,17 @@ export default function Reviews() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">{format(new Date(r.reviewDate), 'dd MMM yyyy')}</td>
+                  <td className="px-4 py-3">
+                    {r.nextReviewDate ? (
+                      isOverdue(r) ? (
+                        <span className="badge-red badge">⚠ {format(new Date(r.nextReviewDate), 'dd MMM yyyy')}</span>
+                      ) : (
+                        <span className="text-gray-600">{format(new Date(r.nextReviewDate), 'dd MMM yyyy')}</span>
+                      )
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{r.assessorName || '—'}</td>
                   <td className="px-4 py-3 text-gray-500">{format(new Date(r.updatedAt), 'dd MMM yyyy')}</td>
                   <td className="px-4 py-3 text-right">

@@ -25,7 +25,7 @@ export async function getReview(req: AuthRequest, res: Response) {
 }
 
 export async function createReview(req: AuthRequest, res: Response) {
-  const { serviceUserId, type, reviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent } = req.body;
+  const { serviceUserId, type, reviewDate, nextReviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent } = req.body;
   if (!serviceUserId || !reviewDate) {
     return res.status(400).json({ error: 'serviceUserId and reviewDate are required' });
   }
@@ -35,6 +35,7 @@ export async function createReview(req: AuthRequest, res: Response) {
       serviceUserId,
       type: type === 'QUARTERLY' ? 'QUARTERLY' : 'SIX_WEEK',
       reviewDate: new Date(reviewDate),
+      nextReviewDate: nextReviewDate ? new Date(nextReviewDate) : null,
       assessorName: assessorName || null,
       answers: answers ? JSON.stringify(answers) : '{}',
       otherInfo: otherInfo || null,
@@ -51,9 +52,10 @@ export async function updateReview(req: AuthRequest, res: Response) {
   const existing = await prisma.review.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: 'Review not found' });
 
-  const { reviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent } = req.body;
+  const { reviewDate, nextReviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent } = req.body;
   const data: Record<string, unknown> = {};
   if (reviewDate !== undefined) data.reviewDate = new Date(reviewDate);
+  if (nextReviewDate !== undefined) data.nextReviewDate = nextReviewDate ? new Date(nextReviewDate) : null;
   if (assessorName !== undefined) data.assessorName = assessorName || null;
   if (answers !== undefined) data.answers = JSON.stringify(answers);
   if (otherInfo !== undefined) data.otherInfo = otherInfo || null;

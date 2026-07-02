@@ -179,6 +179,8 @@ model Review {
   // "SIX_WEEK" (once, ~6 weeks after service start) or "QUARTERLY" (recurring)
   type               String   @default("SIX_WEEK")
   reviewDate         DateTime
+  // When the next (quarterly) review is due — drives the overdue alert.
+  nextReviewDate     DateTime?
   assessorName       String?
   answers            String   @default("{}")
   otherInfo          String?

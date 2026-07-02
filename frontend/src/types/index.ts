@@ -58,6 +58,7 @@ export interface Review {
   serviceUser?: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
   type: ReviewType;
   reviewDate: string;
+  nextReviewDate?: string;
   assessorName?: string;
   answers: string; // JSON: { [questionId]: { answer, comment } }
   otherInfo?: string;
