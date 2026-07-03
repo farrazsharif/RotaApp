@@ -57,6 +57,16 @@ export function setPasswordEmail(name: string, link: string) {
   `;
 }
 
+export function resetPasswordEmail(name: string, link: string) {
+  return `
+    <h2>Reset your RotaApp password</h2>
+    <p>Hi ${name},</p>
+    <p>An administrator has requested a password reset for your account. Click the link below to choose a new password:</p>
+    <p><a href="${link}">Reset my password</a></p>
+    <p>This link expires in 7 days. If you didn't expect this, contact your manager — your current password still works until you use this link.</p>
+  `;
+}
+
 export function tradeRequestEmail(requesterName: string, date: string, start: string, end: string) {
   return `
     <h2>Shift Trade Request</h2>

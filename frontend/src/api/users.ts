@@ -9,6 +9,8 @@ export const usersApi = {
     api.post<User>('/users', data).then((r) => r.data),
   update: (id: string, data: Partial<User>) =>
     api.put<User>(`/users/${id}`, data).then((r) => r.data),
+  resetPassword: (id: string, body: { mode: 'email' } | { mode: 'set'; password: string }) =>
+    api.post<{ message: string; email?: string }>(`/users/${id}/reset-password`, body).then((r) => r.data),
   delete: (id: string) => api.delete(`/users/${id}`).then((r) => r.data),
   remove: (id: string) => api.delete(`/users/${id}/permanent`).then((r) => r.data),
 };

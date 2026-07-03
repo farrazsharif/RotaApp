@@ -4,6 +4,8 @@ import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { Role } from '../constants';
+import { sendEmail, resetPasswordEmail } from '../lib/email';
 
 export async function login(req: Request, res: Response) {
   const { email, password } = req.body;
@@ -74,6 +76,38 @@ export async function checkSetPasswordToken(req: Request, res: Response) {
     return res.status(400).json({ error: 'This link is invalid or has expired' });
   }
   res.json({ valid: true });
+}
+
+// Admin-initiated password reset. Two modes:
+//   mode 'email'  → generate a set-password token and email the user a link
+//                   (works for staff and family; picks the right portal URL).
+//   mode 'set'    → set a new password directly (admin types it, then shares
+//                   it with the person). Also clears any outstanding tokens.
+export async function adminResetPassword(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const { mode, password } = req.body as { mode?: string; password?: string };
+
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  if (mode === 'set') {
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    await prisma.user.update({ where: { id }, data: { password: hashed } });
+    await prisma.passwordSetupToken.deleteMany({ where: { userId: id } });
+    return res.json({ message: 'Password updated' });
+  }
+
+  // Default: email a reset link.
+  const token = await createPasswordSetupToken(id);
+  const base = user.role === Role.FAMILY_MEMBER
+    ? (process.env.FAMILY_PORTAL_URL || 'http://localhost:5175')
+    : (process.env.CLIENT_URL || 'http://localhost:5173');
+  const link = `${base}/set-password?token=${token}`;
+  sendEmail(user.email, 'Reset your RotaApp password', resetPasswordEmail(user.firstName, link));
+  res.json({ message: 'Reset email sent', email: user.email });
 }
 
 export async function setPassword(req: Request, res: Response) {

@@ -45,7 +45,7 @@ export default function StaffDetail() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { isManager } = useAuth();
+  const { isManager, isAdmin } = useAuth();
   const [tab, setTab] = useState<Tab>('Details');
   const [editOpen, setEditOpen] = useState(false);
 
@@ -120,6 +120,7 @@ export default function StaffDetail() {
               <div><p className="text-xs text-gray-400">Joined</p><p className="text-sm text-gray-800">{format(new Date(user.createdAt), 'dd MMM yyyy')}</p></div>
             </div>
           </div>
+          {isAdmin && <PasswordCard userId={user.id} email={user.email} />}
         </div>
       )}
 
@@ -128,6 +129,57 @@ export default function StaffDetail() {
       {tab === 'Emergency Contact' && <EmergencyContactTab userId={user.id} isManager={isManager} initial={user} />}
 
       {editOpen && <StaffFormModal editUser={user} onClose={() => setEditOpen(false)} />}
+    </div>
+  );
+}
+
+function PasswordCard({ userId, email }: { userId: string; email: string }) {
+  const [mode, setMode] = useState<'idle' | 'set'>('idle');
+  const [pw, setPw] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const emailMut = useMutation({
+    mutationFn: () => usersApi.resetPassword(userId, { mode: 'email' }),
+    onSuccess: (r) => { setMsg(`Reset link sent to ${r.email || email}.`); },
+    onError: () => setMsg('Could not send reset email. Check the mail settings.'),
+  });
+
+  const setMut = useMutation({
+    mutationFn: () => usersApi.resetPassword(userId, { mode: 'set', password: pw }),
+    onSuccess: () => { setMsg('Password updated. Share it with the user securely.'); setPw(''); setMode('idle'); },
+    onError: () => setMsg('Could not update password.'),
+  });
+
+  return (
+    <div className="card space-y-3 sm:col-span-2">
+      <h2 className="font-semibold text-gray-900">Password</h2>
+      <p className="text-xs text-gray-500">
+        Email a link so the user chooses their own password, or set one manually and share it with them.
+      </p>
+
+      {mode === 'idle' ? (
+        <div className="flex flex-wrap gap-3">
+          <button className="btn-primary btn" disabled={emailMut.isPending} onClick={() => { setMsg(null); emailMut.mutate(); }}>
+            {emailMut.isPending ? 'Sending…' : 'Send reset email'}
+          </button>
+          <button className="btn-secondary btn" onClick={() => { setMsg(null); setMode('set'); }}>
+            Set password manually
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="label">New password (min 6 chars)</label>
+            <input type="text" value={pw} onChange={(e) => setPw(e.target.value)} className="input w-64" placeholder="Type a new password" />
+          </div>
+          <button className="btn-primary btn" disabled={pw.length < 6 || setMut.isPending} onClick={() => { setMsg(null); setMut.mutate(); }}>
+            {setMut.isPending ? 'Saving…' : 'Save password'}
+          </button>
+          <button className="btn-secondary btn" onClick={() => { setMode('idle'); setPw(''); }}>Cancel</button>
+        </div>
+      )}
+
+      {msg && <p className="text-sm text-green-700">{msg}</p>}
     </div>
   );
 }

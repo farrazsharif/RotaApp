@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { familyLinksApi } from '../api/familyLinks';
+import { usersApi } from '../api/users';
 import { ServiceUser } from '../types';
 
 export default function FamilyAccessModal({ serviceUser, onClose }: { serviceUser: ServiceUser; onClose: () => void }) {
@@ -33,6 +34,13 @@ export default function FamilyAccessModal({ serviceUser, onClose }: { serviceUse
     onSuccess: () => qc.invalidateQueries({ queryKey: ['family-links', serviceUser.id] }),
   });
 
+  const [resetMsg, setResetMsg] = useState('');
+  const resetMut = useMutation({
+    mutationFn: (userId: string) => usersApi.resetPassword(userId, { mode: 'email' }),
+    onSuccess: (r) => setResetMsg(`Reset link sent to ${r.email || 'their email'}.`),
+    onError: () => setResetMsg('Could not send reset email.'),
+  });
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
@@ -55,13 +63,19 @@ export default function FamilyAccessModal({ serviceUser, onClose }: { serviceUse
                       <p className="font-medium text-gray-800">{l.user.firstName} {l.user.lastName}{l.relation ? ` · ${l.relation}` : ''}</p>
                       <p className="text-xs text-gray-500">{l.user.email}</p>
                     </div>
-                    <button className="btn-danger btn btn-sm" disabled={removeMut.isPending} onClick={() => removeMut.mutate(l.id)}>
-                      Remove
-                    </button>
+                    <div className="flex gap-2">
+                      <button className="btn-secondary btn btn-sm" disabled={resetMut.isPending} onClick={() => { setResetMsg(''); resetMut.mutate(l.user.id); }}>
+                        Reset password
+                      </button>
+                      <button className="btn-danger btn btn-sm" disabled={removeMut.isPending} onClick={() => removeMut.mutate(l.id)}>
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
+            {resetMsg && <p className="text-sm text-green-700 mt-2">{resetMsg}</p>}
           </div>
 
           <div className="border-t pt-4 space-y-3">
