@@ -4,10 +4,12 @@ let transporter: nodemailer.Transporter;
 
 function getTransporter() {
   if (!transporter) {
+    const port = Number(process.env.SMTP_PORT) || 587;
     transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: false,
+      port,
+      // Port 465 is implicit SSL; 587/25 use STARTTLS.
+      secure: port === 465,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
