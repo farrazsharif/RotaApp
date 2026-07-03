@@ -22,18 +22,55 @@ function getTransporter() {
   return transporter;
 }
 
+// Splits "CareMid <noreply@caremid.co.uk>" into { name, email }.
+function parseFrom(): { name: string; email: string } {
+  const raw = process.env.SMTP_FROM || 'RotaApp <noreply@rotaapp.com>';
+  const m = raw.match(/^\s*(.*?)\s*<(.+?)>\s*$/);
+  if (m) return { name: m[1] || 'RotaApp', email: m[2] };
+  return { name: 'RotaApp', email: raw.trim() };
+}
+
+// Render blocks outbound SMTP ports (25/465/587), so on the server we send via
+// Brevo's HTTPS API (port 443) when BREVO_API_KEY is set. SMTP is kept as a
+// fallback for local development.
+async function sendViaBrevo(to: string, subject: string, html: string) {
+  const from = parseFrom();
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': process.env.BREVO_API_KEY!,
+      'content-type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: from,
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Brevo API ${res.status}: ${detail}`);
+  }
+}
+
 export async function sendEmail(to: string, subject: string, html: string) {
-  if (!process.env.SMTP_HOST) {
+  if (!process.env.BREVO_API_KEY && !process.env.SMTP_HOST) {
     console.log(`[EMAIL] To: ${to} | Subject: ${subject}`);
     return;
   }
   try {
-    await getTransporter().sendMail({
-      from: process.env.SMTP_FROM || 'RotaApp <noreply@rotaapp.com>',
-      to,
-      subject,
-      html,
-    });
+    if (process.env.BREVO_API_KEY) {
+      await sendViaBrevo(to, subject, html);
+    } else {
+      await getTransporter().sendMail({
+        from: process.env.SMTP_FROM || 'RotaApp <noreply@rotaapp.com>',
+        to,
+        subject,
+        html,
+      });
+    }
   } catch (err) {
     console.error('Email send failed:', err);
   }
