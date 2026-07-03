@@ -14,6 +14,9 @@ function getTransporter() {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
+      // Fail fast instead of hanging ~2 min if the host is unreachable/blocked.
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
     });
   }
   return transporter;
