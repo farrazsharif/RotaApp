@@ -4,7 +4,7 @@ import { randomBytes } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
-import { createPasswordSetupToken } from './authController';
+import { createPasswordSetupToken, portalUrlForRole } from './authController';
 import { sendEmail, setPasswordEmail } from '../lib/email';
 
 const userSelect = {
@@ -62,7 +62,7 @@ export async function createUser(req: AuthRequest, res: Response) {
 
   if (sendInvite) {
     const token = await createPasswordSetupToken(user.id);
-    const link = `${process.env.CLIENT_URL || 'http://localhost:5173'}/set-password?token=${token}`;
+    const link = `${portalUrlForRole(user.role)}/set-password?token=${token}`;
     sendEmail(user.email, 'Welcome to Caremid — set your password', setPasswordEmail(user.firstName, link));
   }
 

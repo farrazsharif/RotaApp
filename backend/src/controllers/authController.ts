@@ -7,6 +7,15 @@ import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { sendEmail, resetPasswordEmail } from '../lib/email';
 
+// Which front-end a password/invite link should open in, by the user's role:
+//   FAMILY_MEMBER → family portal, EMPLOYEE (carer) → Caremid Carer app,
+//   ADMIN/MANAGER → main Caremid app.
+export function portalUrlForRole(role: string): string {
+  if (role === Role.FAMILY_MEMBER) return process.env.FAMILY_PORTAL_URL || 'http://localhost:5175';
+  if (role === Role.EMPLOYEE) return process.env.CARER_APP_URL || 'http://localhost:5174';
+  return process.env.CLIENT_URL || 'http://localhost:5173';
+}
+
 export async function login(req: Request, res: Response) {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
@@ -102,10 +111,7 @@ export async function adminResetPassword(req: AuthRequest, res: Response) {
 
   // Default: email a reset link.
   const token = await createPasswordSetupToken(id);
-  const base = user.role === Role.FAMILY_MEMBER
-    ? (process.env.FAMILY_PORTAL_URL || 'http://localhost:5175')
-    : (process.env.CLIENT_URL || 'http://localhost:5173');
-  const link = `${base}/set-password?token=${token}`;
+  const link = `${portalUrlForRole(user.role)}/set-password?token=${token}`;
   sendEmail(user.email, 'Reset your Caremid password', resetPasswordEmail(user.firstName, link));
   res.json({ message: 'Reset email sent', email: user.email });
 }

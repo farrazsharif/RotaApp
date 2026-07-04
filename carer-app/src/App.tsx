@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { usePushSubscription } from './lib/usePushSubscription';
 import Login from './pages/Login';
+import SetPassword from './pages/SetPassword';
 import Today from './pages/Today';
 import Rota from './pages/Rota';
 import CallDetail from './pages/CallDetail';
@@ -22,6 +23,7 @@ export default function App() {
         <PushRegistration />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/set-password" element={<SetPassword />} />
           <Route path="/" element={<ProtectedRoute><Today /></ProtectedRoute>} />
           <Route path="/rota" element={<ProtectedRoute><Rota /></ProtectedRoute>} />
           <Route path="/call/:id" element={<ProtectedRoute><CallDetail /></ProtectedRoute>} />
