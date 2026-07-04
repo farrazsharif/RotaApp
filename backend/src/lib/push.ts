@@ -5,7 +5,7 @@ const configured = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_
 
 if (configured) {
   webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || 'mailto:support@rotaapp.com',
+    process.env.VAPID_SUBJECT || 'mailto:support@caremid.co.uk',
     process.env.VAPID_PUBLIC_KEY!,
     process.env.VAPID_PRIVATE_KEY!
   );

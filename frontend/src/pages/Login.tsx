@@ -30,7 +30,7 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-700 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">RotaApp</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">Caremid</h1>
           <p className="text-blue-200">Workforce Scheduling Platform</p>
         </div>
 
@@ -76,9 +76,9 @@ export default function Login() {
 
           <div className="mt-6 p-4 bg-gray-50 rounded-lg text-xs text-gray-500 space-y-1">
             <p className="font-semibold text-gray-700 mb-2">Demo accounts:</p>
-            <p>Admin: <span className="font-mono">admin@rotaapp.com</span> / admin123</p>
-            <p>Manager: <span className="font-mono">manager@rotaapp.com</span> / manager123</p>
-            <p>Employee: <span className="font-mono">alice@rotaapp.com</span> / employee123</p>
+            <p>Admin: <span className="font-mono">admin@caremid.co.uk</span> / admin123</p>
+            <p>Manager: <span className="font-mono">manager@caremid.co.uk</span> / manager123</p>
+            <p>Employee: <span className="font-mono">alice@caremid.co.uk</span> / employee123</p>
           </div>
         </div>
       </div>

@@ -42,7 +42,7 @@ export default function Layout() {
       <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-gray-900 text-white flex flex-col transform transition-transform duration-200
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:static lg:translate-x-0`}>
         <div className="h-16 flex items-center px-6 border-b border-gray-700">
-          <span className="text-xl font-bold text-blue-400">RotaApp</span>
+          <span className="text-xl font-bold text-blue-400">Caremid</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4">

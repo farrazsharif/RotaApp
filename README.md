@@ -1,4 +1,4 @@
-# RotaApp — Workforce Scheduling
+# Caremid — Workforce Scheduling
 
 A full-featured workforce scheduling (rota) web application similar to Humanity.com.
 
@@ -91,10 +91,10 @@ Frontend is running at **http://localhost:5173**
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | admin@rotaapp.com | admin123 |
-| Manager | manager@rotaapp.com | manager123 |
-| Employee | alice@rotaapp.com | employee123 |
-| Employee | bob@rotaapp.com | employee123 |
+| Admin | admin@caremid.co.uk | admin123 |
+| Manager | manager@caremid.co.uk | manager123 |
+| Employee | alice@caremid.co.uk | employee123 |
+| Employee | bob@caremid.co.uk | employee123 |
 
 ---
 

@@ -24,10 +24,10 @@ function getTransporter() {
 
 // Splits "CareMid <noreply@caremid.co.uk>" into { name, email }.
 function parseFrom(): { name: string; email: string } {
-  const raw = process.env.SMTP_FROM || 'RotaApp <noreply@rotaapp.com>';
+  const raw = process.env.SMTP_FROM || 'Caremid <noreply@caremid.co.uk>';
   const m = raw.match(/^\s*(.*?)\s*<(.+?)>\s*$/);
-  if (m) return { name: m[1] || 'RotaApp', email: m[2] };
-  return { name: 'RotaApp', email: raw.trim() };
+  if (m) return { name: m[1] || 'Caremid', email: m[2] };
+  return { name: 'Caremid', email: raw.trim() };
 }
 
 // Render blocks outbound SMTP ports (25/465/587), so on the server we send via
@@ -65,7 +65,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
       await sendViaBrevo(to, subject, html);
     } else {
       await getTransporter().sendMail({
-        from: process.env.SMTP_FROM || 'RotaApp <noreply@rotaapp.com>',
+        from: process.env.SMTP_FROM || 'Caremid <noreply@caremid.co.uk>',
         to,
         subject,
         html,
@@ -85,15 +85,15 @@ export function shiftAssignedEmail(name: string, date: string, start: string, en
       <li><strong>Date:</strong> ${date}</li>
       <li><strong>Time:</strong> ${start} – ${end}</li>
     </ul>
-    <p>Please log in to RotaApp to view details.</p>
+    <p>Please log in to Caremid to view details.</p>
   `;
 }
 
 export function setPasswordEmail(name: string, link: string) {
   return `
-    <h2>Welcome to RotaApp</h2>
+    <h2>Welcome to Caremid</h2>
     <p>Hi ${name},</p>
-    <p>An account has been created for you on RotaApp. Click the link below to set your own password and get started:</p>
+    <p>An account has been created for you on Caremid. Click the link below to set your own password and get started:</p>
     <p><a href="${link}">Set my password</a></p>
     <p>This link expires in 7 days. If you weren't expecting this, you can ignore this email.</p>
   `;
@@ -101,7 +101,7 @@ export function setPasswordEmail(name: string, link: string) {
 
 export function resetPasswordEmail(name: string, link: string) {
   return `
-    <h2>Reset your RotaApp password</h2>
+    <h2>Reset your Caremid password</h2>
     <p>Hi ${name},</p>
     <p>An administrator has requested a password reset for your account. Click the link below to choose a new password:</p>
     <p><a href="${link}">Reset my password</a></p>
@@ -117,7 +117,7 @@ export function tradeRequestEmail(requesterName: string, date: string, start: st
       <li><strong>Shift Date:</strong> ${date}</li>
       <li><strong>Time:</strong> ${start} – ${end}</li>
     </ul>
-    <p>Please log in to RotaApp to accept or reject this request.</p>
+    <p>Please log in to Caremid to accept or reject this request.</p>
   `;
 }
 
@@ -126,6 +126,6 @@ export function timeOffDecisionEmail(name: string, status: string, startDate: st
     <h2>Time-Off Request ${status}</h2>
     <p>Hi ${name},</p>
     <p>Your time-off request from <strong>${startDate}</strong> to <strong>${endDate}</strong> has been <strong>${status.toLowerCase()}</strong>.</p>
-    <p>Log in to RotaApp for more details.</p>
+    <p>Log in to Caremid for more details.</p>
   `;
 }

@@ -35,23 +35,23 @@ async function main() {
 
   // ---- Staff ----
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@rotaapp.com' },
+    where: { email: 'admin@caremid.co.uk' },
     update: { firstName: 'Aisha', lastName: 'Khan', role: Role.ADMIN, phone: '07700900000', hourlyRate: 0 },
-    create: { email: 'admin@rotaapp.com', password: adminPassword, firstName: 'Aisha', lastName: 'Khan', role: Role.ADMIN, phone: '07700900000', hourlyRate: 0 },
+    create: { email: 'admin@caremid.co.uk', password: adminPassword, firstName: 'Aisha', lastName: 'Khan', role: Role.ADMIN, phone: '07700900000', hourlyRate: 0 },
   });
 
   const coordinator = await prisma.user.upsert({
-    where: { email: 'manager@rotaapp.com' },
+    where: { email: 'manager@caremid.co.uk' },
     update: { firstName: 'Sarah', lastName: 'Johnson', role: Role.MANAGER, phone: '07700900001', hourlyRate: 18 },
-    create: { email: 'manager@rotaapp.com', password: managerPassword, firstName: 'Sarah', lastName: 'Johnson', role: Role.MANAGER, phone: '07700900001', hourlyRate: 18 },
+    create: { email: 'manager@caremid.co.uk', password: managerPassword, firstName: 'Sarah', lastName: 'Johnson', role: Role.MANAGER, phone: '07700900001', hourlyRate: 18 },
   });
 
   const carerDefs = [
-    { email: 'alice@rotaapp.com', firstName: 'Alice', lastName: 'Brown', phone: '07700900002' },
-    { email: 'bob@rotaapp.com', firstName: 'Bob', lastName: 'Smith', phone: '07700900003' },
-    { email: 'carol@rotaapp.com', firstName: 'Carol', lastName: 'Davies', phone: '07700900004' },
-    { email: 'david@rotaapp.com', firstName: 'David', lastName: 'Okafor', phone: '07700900005' },
-    { email: 'emma@rotaapp.com', firstName: 'Emma', lastName: 'Wilson', phone: '07700900006' },
+    { email: 'alice@caremid.co.uk', firstName: 'Alice', lastName: 'Brown', phone: '07700900002' },
+    { email: 'bob@caremid.co.uk', firstName: 'Bob', lastName: 'Smith', phone: '07700900003' },
+    { email: 'carol@caremid.co.uk', firstName: 'Carol', lastName: 'Davies', phone: '07700900004' },
+    { email: 'david@caremid.co.uk', firstName: 'David', lastName: 'Okafor', phone: '07700900005' },
+    { email: 'emma@caremid.co.uk', firstName: 'Emma', lastName: 'Wilson', phone: '07700900006' },
   ];
   const carers = [];
   for (const c of carerDefs) {
@@ -270,9 +270,9 @@ async function main() {
   console.log(`  Completed visits (clock records): ${createdClock}`);
   console.log(`  Call logs: ${createdLogs}`);
   console.log('\nLogin credentials:');
-  console.log('  Registered Manager (admin): admin@rotaapp.com   / admin123');
-  console.log('  Care Coordinator (manager): manager@rotaapp.com / manager123');
-  console.log('  Care Workers:               alice@rotaapp.com   / carer123  (also bob, carol, david, emma)');
+  console.log('  Registered Manager (admin): admin@caremid.co.uk   / admin123');
+  console.log('  Care Coordinator (manager): manager@caremid.co.uk / manager123');
+  console.log('  Care Workers:               alice@caremid.co.uk   / carer123  (also bob, carol, david, emma)');
 }
 
 main()

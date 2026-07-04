@@ -106,7 +106,7 @@ export async function adminResetPassword(req: AuthRequest, res: Response) {
     ? (process.env.FAMILY_PORTAL_URL || 'http://localhost:5175')
     : (process.env.CLIENT_URL || 'http://localhost:5173');
   const link = `${base}/set-password?token=${token}`;
-  sendEmail(user.email, 'Reset your RotaApp password', resetPasswordEmail(user.firstName, link));
+  sendEmail(user.email, 'Reset your Caremid password', resetPasswordEmail(user.firstName, link));
   res.json({ message: 'Reset email sent', email: user.email });
 }
 

@@ -48,7 +48,7 @@ export async function createFamilyLink(req: AuthRequest, res: Response) {
     });
     const token = await createPasswordSetupToken(user.id);
     const link = `${process.env.FAMILY_PORTAL_URL || 'http://localhost:5175'}/set-password?token=${token}`;
-    sendEmail(user.email, 'You now have family portal access on RotaApp', setPasswordEmail(user.firstName, link));
+    sendEmail(user.email, 'You now have family portal access on Caremid', setPasswordEmail(user.firstName, link));
   }
 
   const existingLink = await prisma.familyLink.findUnique({

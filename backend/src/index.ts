@@ -73,7 +73,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
-  console.log(`RotaApp API running on http://localhost:${PORT}`);
+  console.log(`Caremid API running on http://localhost:${PORT}`);
   startShiftReminders();
 });
 

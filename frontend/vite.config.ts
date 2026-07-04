@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'RotaApp – Workforce Scheduling',
-        short_name: 'RotaApp',
+        name: 'Caremid – Workforce Scheduling',
+        short_name: 'Caremid',
         description: 'Manage shifts, service users, and rotas on the go',
         theme_color: '#1e3a8a',
         background_color: '#ffffff',

@@ -15,7 +15,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'RotaApp Carer',
+        name: 'Caremid Carer',
         short_name: 'Carer',
         description: 'Clock in/out, call logs, medication and rota for carers',
         theme_color: '#2563eb',

@@ -63,7 +63,7 @@ export async function createUser(req: AuthRequest, res: Response) {
   if (sendInvite) {
     const token = await createPasswordSetupToken(user.id);
     const link = `${process.env.CLIENT_URL || 'http://localhost:5173'}/set-password?token=${token}`;
-    sendEmail(user.email, 'Welcome to RotaApp — set your password', setPasswordEmail(user.firstName, link));
+    sendEmail(user.email, 'Welcome to Caremid — set your password', setPasswordEmail(user.firstName, link));
   }
 
   res.status(201).json(user);
