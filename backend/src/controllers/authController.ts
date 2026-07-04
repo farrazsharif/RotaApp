@@ -127,7 +127,9 @@ export async function setPassword(req: Request, res: Response) {
   }
 
   const hashed = await bcrypt.hash(password, 10);
-  await prisma.user.update({ where: { id: record.userId }, data: { password: hashed } });
+  // Setting a password completes onboarding — activate the account so they
+  // can log in (invited accounts start inactive/pending).
+  await prisma.user.update({ where: { id: record.userId }, data: { password: hashed, active: true } });
   // One-time use — remove it (and any other outstanding tokens for this
   // user) so the same link can't be replayed.
   await prisma.passwordSetupToken.deleteMany({ where: { userId: record.userId } });

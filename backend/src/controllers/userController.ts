@@ -22,13 +22,21 @@ export async function listUsers(req: AuthRequest, res: Response) {
   else where.role = { not: Role.FAMILY_MEMBER };
   if (active !== undefined) where.active = active === 'true';
   const users = await prisma.user.findMany({ where, select: userSelect, orderBy: [{ firstName: 'asc' }] });
-  res.json(users);
+  // An outstanding setup token on an inactive account means the person was
+  // invited but hasn't chosen a password yet — surfaced as "Pending".
+  const tokens = await prisma.passwordSetupToken.findMany({
+    where: { userId: { in: users.map((u) => u.id) } },
+    select: { userId: true },
+  });
+  const invited = new Set(tokens.map((t) => t.userId));
+  res.json(users.map((u) => ({ ...u, pendingSetup: !u.active && invited.has(u.id) })));
 }
 
 export async function getUser(req: AuthRequest, res: Response) {
   const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: userSelect });
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json(user);
+  const token = await prisma.passwordSetupToken.findFirst({ where: { userId: user.id }, select: { id: true } });
+  res.json({ ...user, pendingSetup: !user.active && !!token });
 }
 
 export async function createUser(req: AuthRequest, res: Response) {
@@ -56,6 +64,9 @@ export async function createUser(req: AuthRequest, res: Response) {
       hourlyRate: hourlyRate ? Number(hourlyRate) : 0,
       phone: phone || null,
       photo: photo || null,
+      // Invited users stay inactive (and can't log in) until they set their
+      // own password via the emailed link; setPassword flips them active.
+      active: sendInvite ? false : true,
     },
     select: userSelect,
   });

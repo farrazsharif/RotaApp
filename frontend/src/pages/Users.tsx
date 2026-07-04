@@ -14,6 +14,12 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
+export function statusInfo(u: { active: boolean; pendingSetup?: boolean }) {
+  if (u.active) return { cls: 'badge-green', label: 'Active' };
+  if (u.pendingSetup) return { cls: 'badge-yellow', label: 'Pending setup' };
+  return { cls: 'badge-red', label: 'Inactive' };
+}
+
 export default function Users() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
@@ -78,7 +84,7 @@ export default function Users() {
                 <td className="px-4 py-3"><span className={roleBadge[u.role]}>{u.role}</span></td>
                 <td className="px-4 py-3 text-right text-gray-600">£{u.hourlyRate.toFixed(2)}</td>
                 <td className="px-4 py-3">
-                  <span className={u.active ? 'badge-green' : 'badge-red'}>{u.active ? 'Active' : 'Inactive'}</span>
+                  {(() => { const s = statusInfo(u); return <span className={s.cls}>{s.label}</span>; })()}
                 </td>
                 <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                   {confirmDelete === u.id ? (

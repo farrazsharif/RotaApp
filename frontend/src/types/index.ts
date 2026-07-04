@@ -16,6 +16,7 @@ export interface User {
   phone?: string;
   photo?: string;
   active: boolean;
+  pendingSetup?: boolean; // invited but hasn't set a password yet
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;

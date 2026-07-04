@@ -9,6 +9,7 @@ import { Role, Training, ImportantDate } from '../types';
 import { format } from 'date-fns';
 import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
+import { statusInfo } from './Users';
 
 const roleBadge: Record<Role, string> = {
   ADMIN: 'badge-purple',
@@ -77,7 +78,7 @@ export default function StaffDetail() {
               <p className="text-sm text-gray-500">{user.email}{user.phone && ` · ${user.phone}`}</p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <span className={roleBadge[user.role]}>{user.role}</span>
-                <span className={user.active ? 'badge-green' : 'badge-red'}>{user.active ? 'Active' : 'Inactive'}</span>
+                <span className={statusInfo(user).cls}>{statusInfo(user).label}</span>
                 <span className="badge-blue badge">£{user.hourlyRate.toFixed(2)}/hr</span>
               </div>
             </div>
@@ -116,7 +117,7 @@ export default function StaffDetail() {
             <div className="grid grid-cols-2 gap-4">
               <div><p className="text-xs text-gray-400">Role</p><p className="text-sm text-gray-800">{user.role}</p></div>
               <div><p className="text-xs text-gray-400">Hourly Rate</p><p className="text-sm text-gray-800">£{user.hourlyRate.toFixed(2)}</p></div>
-              <div><p className="text-xs text-gray-400">Status</p><p className="text-sm text-gray-800">{user.active ? 'Active' : 'Inactive'}</p></div>
+              <div><p className="text-xs text-gray-400">Status</p><p className="text-sm text-gray-800">{statusInfo(user).label}</p></div>
               <div><p className="text-xs text-gray-400">Joined</p><p className="text-sm text-gray-800">{format(new Date(user.createdAt), 'dd MMM yyyy')}</p></div>
             </div>
           </div>

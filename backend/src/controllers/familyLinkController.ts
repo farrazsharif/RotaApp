@@ -44,6 +44,8 @@ export async function createFamilyLink(req: AuthRequest, res: Response) {
         firstName,
         lastName,
         role: Role.FAMILY_MEMBER,
+        // Pending until they set a password via the emailed link.
+        active: false,
       },
     });
     const token = await createPasswordSetupToken(user.id);
