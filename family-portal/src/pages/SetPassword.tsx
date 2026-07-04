@@ -40,7 +40,8 @@ export default function SetPassword() {
     <div className="min-h-screen bg-blue-600 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white mb-1">Caremid Family Portal</h1>
+          <img src="/logo.png" alt="Caremid" className="mx-auto mb-3 w-44 rounded-2xl bg-white p-3 shadow-lg" />
+          <h1 className="text-lg font-bold text-white mb-1">Caremid Family Portal</h1>
           <p className="text-blue-100 text-sm">Set your password</p>
         </div>
         <div className="bg-white rounded-2xl shadow-xl p-6">

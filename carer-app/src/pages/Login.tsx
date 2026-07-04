@@ -28,8 +28,8 @@ export default function Login() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-blue-600 px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-2">🩺</div>
-          <h1 className="text-2xl font-bold text-white">Caremid Carer</h1>
+          <img src="/logo.png" alt="Caremid" className="mx-auto mb-3 w-44 rounded-2xl bg-white p-3 shadow-lg" />
+          <h1 className="text-lg font-bold text-white">Caremid Carer</h1>
           <p className="text-blue-100 text-sm mt-1">Clock in, log calls, record medication</p>
         </div>
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-5 shadow-xl space-y-4">

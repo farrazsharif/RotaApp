@@ -76,6 +76,14 @@ export async function sendEmail(to: string, subject: string, html: string) {
   }
 }
 
+// Centred Caremid logo for the top of transactional emails. Email clients
+// need an absolute HTTPS URL; LOGO_URL overrides, else it's served from the
+// main Caremid web app's public folder.
+function emailHeader(): string {
+  const logo = process.env.LOGO_URL || `${process.env.CLIENT_URL || 'https://rota-app-black.vercel.app'}/logo.png`;
+  return `<div style="text-align:center;margin:8px 0 20px"><img src="${logo}" alt="Caremid" style="max-width:200px;height:auto" /></div>`;
+}
+
 export function shiftAssignedEmail(name: string, date: string, start: string, end: string) {
   return `
     <h2>New Shift Assigned</h2>
@@ -91,6 +99,7 @@ export function shiftAssignedEmail(name: string, date: string, start: string, en
 
 export function setPasswordEmail(name: string, link: string) {
   return `
+    ${emailHeader()}
     <h2>Welcome to Caremid</h2>
     <p>Hi ${name},</p>
     <p>An account has been created for you on Caremid. Click the link below to set your own password and get started:</p>
@@ -101,6 +110,7 @@ export function setPasswordEmail(name: string, link: string) {
 
 export function resetPasswordEmail(name: string, link: string) {
   return `
+    ${emailHeader()}
     <h2>Reset your Caremid password</h2>
     <p>Hi ${name},</p>
     <p>An administrator has requested a password reset for your account. Click the link below to choose a new password:</p>
