@@ -98,6 +98,19 @@ export async function updateUser(req: AuthRequest, res: Response) {
   res.json(user);
 }
 
+// Re-sends the welcome / set-password email for someone who was invited but
+// hasn't completed setup yet. Issues a fresh token (invalidating older links).
+export async function resendInvite(req: AuthRequest, res: Response) {
+  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.active) return res.status(400).json({ error: 'This user has already set up their account' });
+  await prisma.passwordSetupToken.deleteMany({ where: { userId: user.id } });
+  const token = await createPasswordSetupToken(user.id);
+  const link = `${portalUrlForRole(user.role)}/set-password?token=${token}`;
+  sendEmail(user.email, 'Welcome to Caremid — set your password', setPasswordEmail(user.firstName, link));
+  res.json({ message: 'Invite resent', email: user.email });
+}
+
 export async function deleteUser(req: AuthRequest, res: Response) {
   await prisma.user.update({ where: { id: req.params.id }, data: { active: false } });
   res.json({ message: 'User deactivated' });

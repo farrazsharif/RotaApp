@@ -22,11 +22,12 @@ export function statusInfo(u: { active: boolean; pendingSetup?: boolean }) {
 
 export default function Users() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isManager } = useAuth();
   const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [resentId, setResentId] = useState<string | null>(null);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users', 'all'],
@@ -41,6 +42,11 @@ export default function Users() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => usersApi.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setConfirmDelete(null); },
+  });
+
+  const resendMut = useMutation({
+    mutationFn: (id: string) => usersApi.resendInvite(id),
+    onSuccess: (_r, id) => { setResentId(id); setTimeout(() => setResentId((c) => (c === id ? null : c)), 4000); },
   });
 
   const filtered = users.filter((u) =>
@@ -100,8 +106,15 @@ export default function Users() {
                       <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
                     </div>
                   ) : (
-                    <div className="flex gap-2 justify-end">
+                    <div className="flex gap-2 justify-end items-center">
                       <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate(`/users/${u.id}`)}>View →</button>
+                      {isManager && u.pendingSetup && (
+                        resentId === u.id
+                          ? <span className="text-xs text-green-700">Invite sent ✓</span>
+                          : <button className="btn-secondary btn btn-sm" disabled={resendMut.isPending} onClick={() => resendMut.mutate(u.id)}>
+                              {resendMut.isPending ? 'Sending…' : 'Resend invite'}
+                            </button>
+                      )}
                       {isAdmin && u.active && (
                         <button className="btn-secondary btn btn-sm" onClick={() => deactivateMut.mutate(u.id)}>
                           Deactivate
