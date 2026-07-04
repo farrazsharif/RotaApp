@@ -74,6 +74,8 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Caremid API running on http://localhost:${PORT}`);
+  const transport = process.env.BREVO_API_KEY ? 'Brevo API (HTTPS)' : process.env.SMTP_HOST ? 'SMTP' : 'console (no email configured)';
+  console.log(`Email transport: ${transport}`);
   startShiftReminders();
 });
 
