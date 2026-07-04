@@ -17,6 +17,7 @@ const navItems = [
   { to: '/attendance', label: 'Attendance', icon: '⏱️', managerOnly: true },
   { to: '/reports', label: 'Reports', icon: '📊', managerOnly: true },
   { to: '/users', label: 'Staff', icon: '👥', managerOnly: true },
+  { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
 export default function Layout() {

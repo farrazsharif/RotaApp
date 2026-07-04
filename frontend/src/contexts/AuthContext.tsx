@@ -7,6 +7,7 @@ interface AuthContextValue {
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   loading: boolean;
   isAdmin: boolean;
   isManager: boolean;
@@ -47,11 +48,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
+  async function refreshUser() {
+    const res = await api.get('/auth/me');
+    setUser(res.data);
+  }
+
   const isAdmin = user?.role === 'ADMIN';
   const isManager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, isAdmin, isManager }}>
+    <AuthContext.Provider value={{ user, token, login, logout, refreshUser, loading, isAdmin, isManager }}>
       {children}
     </AuthContext.Provider>
   );

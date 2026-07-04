@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { sendEmail, resetPasswordEmail } from '../lib/email';
+import { loadOrgSettings } from './settingsController';
 
 // Which front-end a password/invite link should open in, by the user's role:
 //   FAMILY_MEMBER → family portal, EMPLOYEE (carer) → Caremid Carer app,
@@ -46,6 +47,21 @@ export async function getMe(req: AuthRequest, res: Response) {
   res.json(safeUser);
 }
 
+// Lets a signed-in user edit their own basic profile (name, phone, photo)
+// without needing manager rights.
+export async function updateMe(req: AuthRequest, res: Response) {
+  const { firstName, lastName, phone, photo } = req.body;
+  const data: Record<string, unknown> = {};
+  if (firstName !== undefined) data.firstName = firstName;
+  if (lastName !== undefined) data.lastName = lastName;
+  if (phone !== undefined) data.phone = phone || null;
+  if (photo !== undefined) data.photo = photo || null;
+
+  const user = await prisma.user.update({ where: { id: req.user!.id }, data });
+  const { password: _, ...safeUser } = user;
+  res.json(safeUser);
+}
+
 export async function changePassword(req: AuthRequest, res: Response) {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
@@ -71,7 +87,9 @@ export async function changePassword(req: AuthRequest, res: Response) {
 // rather than sets a password directly.
 export async function createPasswordSetupToken(userId: string): Promise<string> {
   const token = randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const { inviteExpiryDays } = await loadOrgSettings();
+  const days = inviteExpiryDays && inviteExpiryDays > 0 ? inviteExpiryDays : 7;
+  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   await prisma.passwordSetupToken.create({ data: { userId, token, expiresAt } });
   return token;
 }

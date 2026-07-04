@@ -6,6 +6,23 @@ export type NotificationType =
   | 'SHIFT_ASSIGNED' | 'SHIFT_UPDATED' | 'SHIFT_CANCELLED' | 'SHIFT_PUBLISHED' | 'SHIFT_REMOVED'
   | 'TIME_OFF_APPROVED' | 'TIME_OFF_REJECTED' | 'CLOCK_REMINDER';
 
+export interface OrgSettings {
+  id: string;
+  companyName: string;
+  logo?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  cqcProviderId?: string | null;
+  icoNumber?: string | null;
+  timezone: string;
+  defaultHourlyRate: number;
+  overtimeThreshold: number;
+  inviteExpiryDays: number;
+  defaultRole: Role;
+  updatedAt: string;
+}
+
 export interface User {
   id: string;
   email: string;

@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useRef } from 'react';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
+import { settingsApi } from '../api/settings';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Role } from '../types';
 import PhotoUpload from './PhotoUpload';
@@ -37,6 +38,19 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState>(() => initialForm(editUser));
+
+  // For a new employee, prefill rate and role from the org's Staff Defaults.
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const defaultsApplied = useRef(false);
+  useEffect(() => {
+    if (editUser || !settings || defaultsApplied.current) return;
+    defaultsApplied.current = true;
+    setForm((f) => ({
+      ...f,
+      hourlyRate: f.hourlyRate || (settings.defaultHourlyRate ? String(settings.defaultHourlyRate) : ''),
+      role: settings.defaultRole || f.role,
+    }));
+  }, [settings, editUser]);
 
   const onSuccess = (user: User) => {
     qc.invalidateQueries({ queryKey: ['users'] });

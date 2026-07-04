@@ -1,0 +1,336 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../contexts/AuthContext';
+import { settingsApi } from '../api/settings';
+import { authApi } from '../api/auth';
+import { sitesApi } from '../api/sites';
+import { OrgSettings, Role, Site } from '../types';
+import PhotoUpload from '../components/PhotoUpload';
+import { fileToLogoDataUrl } from '../lib/image';
+
+const TIMEZONES = ['Europe/London', 'UTC', 'Europe/Dublin', 'Europe/Paris'];
+
+type TabKey = 'account' | 'org' | 'sites' | 'staff';
+
+export default function Settings() {
+  const { isAdmin, isManager } = useAuth();
+  const tabs = [
+    { key: 'account' as const, label: 'My Account', show: true },
+    { key: 'org' as const, label: 'Organisation', show: isAdmin },
+    { key: 'sites' as const, label: 'Sites', show: isManager },
+    { key: 'staff' as const, label: 'Staff Defaults', show: isAdmin },
+  ].filter((t) => t.show);
+
+  const [tab, setTab] = useState<TabKey>('account');
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+
+      <div className="border-b border-gray-200">
+        <nav className="flex flex-wrap gap-1 -mb-px">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                tab === t.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {tab === 'account' && <MyAccountTab />}
+      {tab === 'org' && <OrganisationTab />}
+      {tab === 'sites' && <SitesTab isManager={isManager} />}
+      {tab === 'staff' && <StaffDefaultsTab />}
+    </div>
+  );
+}
+
+function Saved({ show }: { show: boolean }) {
+  if (!show) return null;
+  return <span className="text-sm text-green-600 self-center">Saved ✓</span>;
+}
+
+/* ---------------- My Account ---------------- */
+function MyAccountTab() {
+  const { user, refreshUser } = useAuth();
+  const [firstName, setFirstName] = useState(user?.firstName || '');
+  const [lastName, setLastName] = useState(user?.lastName || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [photo, setPhoto] = useState(user?.photo || '');
+
+  const profileMut = useMutation({
+    mutationFn: () => authApi.updateMe({ firstName, lastName, phone: phone || undefined, photo: photo || '' }),
+    onSuccess: () => refreshUser(),
+  });
+
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [pwError, setPwError] = useState('');
+  const pwMut = useMutation({
+    mutationFn: () => authApi.changePassword({ currentPassword: current, newPassword: next }),
+    onSuccess: () => { setCurrent(''); setNext(''); setConfirm(''); setPwError(''); },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: string } } };
+      setPwError(e.response?.data?.error || 'Could not change password.');
+    },
+  });
+
+  function submitPassword() {
+    setPwError('');
+    if (next.length < 6) { setPwError('New password must be at least 6 characters.'); return; }
+    if (next !== confirm) { setPwError('New passwords do not match.'); return; }
+    pwMut.mutate();
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <div className="card space-y-4">
+        <h2 className="font-semibold text-gray-900">My Profile</h2>
+        <PhotoUpload photo={photo} firstName={firstName} lastName={lastName} onChange={(p) => setPhoto(p || '')} />
+        <div className="grid grid-cols-2 gap-4">
+          <div><label className="label">First Name</label><input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="input" /></div>
+          <div><label className="label">Last Name</label><input value={lastName} onChange={(e) => setLastName(e.target.value)} className="input" /></div>
+        </div>
+        <div><label className="label">Email</label><input value={user?.email || ''} className="input bg-gray-50" disabled /></div>
+        <div><label className="label">Phone</label><input value={phone} onChange={(e) => setPhone(e.target.value)} className="input" /></div>
+        <div className="flex gap-3 pt-1">
+          <div className="flex-1" />
+          <Saved show={profileMut.isSuccess && !profileMut.isPending} />
+          <button className="btn-primary btn" disabled={profileMut.isPending} onClick={() => profileMut.mutate()}>
+            {profileMut.isPending ? 'Saving…' : 'Save Profile'}
+          </button>
+        </div>
+      </div>
+
+      <div className="card space-y-4">
+        <h2 className="font-semibold text-gray-900">Change Password</h2>
+        {pwError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{pwError}</div>}
+        {pwMut.isSuccess && <div className="bg-green-50 border border-green-200 text-green-700 px-3 py-2 rounded-lg text-sm">Password changed.</div>}
+        <div><label className="label">Current Password</label><input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} className="input" /></div>
+        <div><label className="label">New Password</label><input type="password" value={next} onChange={(e) => setNext(e.target.value)} className="input" placeholder="At least 6 characters" /></div>
+        <div><label className="label">Confirm New Password</label><input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="input" /></div>
+        <div className="flex justify-end pt-1">
+          <button className="btn-primary btn" disabled={pwMut.isPending || !current || !next} onClick={submitPassword}>
+            {pwMut.isPending ? 'Saving…' : 'Change Password'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Organisation ---------------- */
+function OrganisationTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const [form, setForm] = useState<Partial<OrgSettings> | null>(null);
+  const s = form ?? data;
+
+  const mut = useMutation({
+    mutationFn: (payload: Partial<OrgSettings>) => settingsApi.update(payload),
+    onSuccess: (updated) => { qc.setQueryData(['settings'], updated); setForm(null); },
+  });
+
+  if (isLoading || !s) return <div className="card text-gray-400">Loading…</div>;
+  const set = (patch: Partial<OrgSettings>) => setForm({ ...s, ...patch });
+
+  async function onLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await fileToLogoDataUrl(file);
+    set({ logo: dataUrl });
+  }
+
+  return (
+    <div className="card space-y-4 max-w-2xl">
+      <h2 className="font-semibold text-gray-900">Organisation Profile</h2>
+
+      <div>
+        <label className="label">Logo</label>
+        <div className="flex items-center gap-4">
+          <div className="h-16 w-32 rounded-lg border bg-white flex items-center justify-center overflow-hidden">
+            {s.logo ? <img src={s.logo} alt="Logo" className="max-h-full max-w-full object-contain" /> : <span className="text-xs text-gray-400">No logo</span>}
+          </div>
+          <label className="btn-secondary btn cursor-pointer">
+            Upload<input type="file" accept="image/*" className="hidden" onChange={onLogo} />
+          </label>
+          {s.logo && <button className="text-sm text-red-600 hover:underline" onClick={() => set({ logo: null })}>Remove</button>}
+        </div>
+      </div>
+
+      <div><label className="label">Company Name *</label><input value={s.companyName || ''} onChange={(e) => set({ companyName: e.target.value })} className="input" /></div>
+      <div><label className="label">Address</label><textarea value={s.address || ''} onChange={(e) => set({ address: e.target.value })} rows={2} className="input resize-none" /></div>
+      <div className="grid grid-cols-2 gap-4">
+        <div><label className="label">Phone</label><input value={s.phone || ''} onChange={(e) => set({ phone: e.target.value })} className="input" /></div>
+        <div><label className="label">Email</label><input value={s.email || ''} onChange={(e) => set({ email: e.target.value })} className="input" /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div><label className="label">CQC Provider ID</label><input value={s.cqcProviderId || ''} onChange={(e) => set({ cqcProviderId: e.target.value })} className="input" /></div>
+        <div><label className="label">ICO Registration No.</label><input value={s.icoNumber || ''} onChange={(e) => set({ icoNumber: e.target.value })} className="input" /></div>
+      </div>
+      <div>
+        <label className="label">Timezone</label>
+        <select value={s.timezone} onChange={(e) => set({ timezone: e.target.value })} className="input">
+          {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+        </select>
+      </div>
+
+      <div className="flex gap-3 pt-1 items-center">
+        <div className="flex-1" />
+        <Saved show={mut.isSuccess && !mut.isPending && !form} />
+        <button className="btn-primary btn" disabled={mut.isPending || !s.companyName} onClick={() => mut.mutate(s)}>
+          {mut.isPending ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Sites ---------------- */
+function SitesTab({ isManager }: { isManager: boolean }) {
+  const qc = useQueryClient();
+  const { data: sites = [], isLoading } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
+  const [name, setName] = useState('');
+  const [color, setColor] = useState('#3b82f6');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const reset = () => { setName(''); setColor('#3b82f6'); setEditingId(null); setError(''); };
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['sites'] });
+
+  const saveMut = useMutation({
+    mutationFn: () => (editingId ? sitesApi.update(editingId, { name, color }) : sitesApi.create({ name, color })),
+    onSuccess: () => { invalidate(); reset(); },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error || 'Could not save site.');
+    },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => sitesApi.delete(id),
+    onSuccess: () => { invalidate(); setConfirmDeleteId(null); },
+  });
+
+  return (
+    <div className="card space-y-5 max-w-2xl">
+      <h2 className="font-semibold text-gray-900">Sites / Locations</h2>
+
+      {isLoading ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : sites.length === 0 ? (
+        <p className="text-sm text-gray-400">No sites yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {sites.map((site: Site & { _count?: { serviceUsers: number } }) => (
+            <div key={site.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <div className="flex items-center gap-3">
+                <span className="h-5 w-5 rounded-full border" style={{ backgroundColor: site.color }} />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{site.name}</p>
+                  <p className="text-xs text-gray-400">{site._count?.serviceUsers ?? 0} service users</p>
+                </div>
+              </div>
+              {isManager && (
+                confirmDeleteId === site.id ? (
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs text-red-700">Delete? Service users will be unassigned.</span>
+                    <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(site.id)}>Yes</button>
+                    <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDeleteId(null)}>No</button>
+                  </span>
+                ) : (
+                  <span className="flex gap-2">
+                    <button className="text-blue-600 text-xs hover:underline" onClick={() => { setEditingId(site.id); setName(site.name); setColor(site.color); }}>Edit</button>
+                    <button className="text-red-600 text-xs hover:underline" onClick={() => setConfirmDeleteId(site.id)}>Delete</button>
+                  </span>
+                )
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isManager && (
+        <div className="border-t pt-4 space-y-3">
+          <h3 className="font-semibold text-gray-900">{editingId ? 'Edit Site' : 'Add Site'}</h3>
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
+          <div className="flex items-end gap-3">
+            <div className="flex-1"><label className="label">Name *</label><input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="e.g. North Team" /></div>
+            <div><label className="label">Colour</label><input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-10 w-14 rounded border p-1" /></div>
+          </div>
+          <div className="flex gap-3">
+            {editingId && <button className="btn-secondary btn" onClick={reset}>Cancel Edit</button>}
+            <div className="flex-1" />
+            <button className="btn-primary btn" disabled={!name || saveMut.isPending} onClick={() => saveMut.mutate()}>
+              {saveMut.isPending ? 'Saving…' : editingId ? 'Save Changes' : 'Add Site'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Staff Defaults ---------------- */
+function StaffDefaultsTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const [form, setForm] = useState<Partial<OrgSettings> | null>(null);
+  const s = form ?? data;
+
+  const mut = useMutation({
+    mutationFn: (payload: Partial<OrgSettings>) => settingsApi.update(payload),
+    onSuccess: (updated) => { qc.setQueryData(['settings'], updated); setForm(null); },
+  });
+
+  if (isLoading || !s) return <div className="card text-gray-400">Loading…</div>;
+  const set = (patch: Partial<OrgSettings>) => setForm({ ...s, ...patch });
+
+  return (
+    <div className="card space-y-4 max-w-xl">
+      <h2 className="font-semibold text-gray-900">Staff Defaults</h2>
+      <p className="text-sm text-gray-500">Applied when adding new staff and calculating reports.</p>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">Default Hourly Rate (£)</label>
+          <input type="number" step="0.01" value={s.defaultHourlyRate ?? 0} onChange={(e) => set({ defaultHourlyRate: Number(e.target.value) })} className="input" />
+        </div>
+        <div>
+          <label className="label">Default Role</label>
+          <select value={s.defaultRole} onChange={(e) => set({ defaultRole: e.target.value as Role })} className="input">
+            <option value="EMPLOYEE">Employee</option>
+            <option value="MANAGER">Manager</option>
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="label">Overtime Threshold (hrs/week)</label>
+          <input type="number" step="1" value={s.overtimeThreshold ?? 40} onChange={(e) => set({ overtimeThreshold: Number(e.target.value) })} className="input" />
+          <p className="text-xs text-gray-400 mt-1">Hours above this count as overtime in reports.</p>
+        </div>
+        <div>
+          <label className="label">Invite Link Expiry (days)</label>
+          <input type="number" step="1" value={s.inviteExpiryDays ?? 7} onChange={(e) => set({ inviteExpiryDays: Number(e.target.value) })} className="input" />
+          <p className="text-xs text-gray-400 mt-1">How long a set-password link stays valid.</p>
+        </div>
+      </div>
+
+      <div className="flex gap-3 pt-1 items-center">
+        <div className="flex-1" />
+        <Saved show={mut.isSuccess && !mut.isPending && !form} />
+        <button className="btn-primary btn" disabled={mut.isPending} onClick={() => mut.mutate(s)}>
+          {mut.isPending ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  );
+}

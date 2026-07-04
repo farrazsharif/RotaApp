@@ -373,3 +373,22 @@ model PasswordSetupToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
+
+// Organisation-wide settings. Single row, keyed by the fixed id "org".
+model OrgSettings {
+  id                String   @id @default("org")
+  companyName       String   @default("Caremid")
+  logo              String?  // base64 data URL, used on reports/letterheads
+  address           String?
+  phone             String?
+  email             String?
+  cqcProviderId     String?
+  icoNumber         String?
+  timezone          String   @default("Europe/London")
+  defaultHourlyRate Float    @default(0)
+  overtimeThreshold Float    @default(40)
+  inviteExpiryDays  Int      @default(7)
+  defaultRole       String   @default("EMPLOYEE")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}

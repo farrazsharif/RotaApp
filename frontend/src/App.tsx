@@ -19,6 +19,7 @@ import Emar from './pages/Emar';
 import CarePlans from './pages/CarePlans';
 import Reviews from './pages/Reviews';
 import ServicePlans from './pages/ServicePlans';
+import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -71,6 +72,7 @@ function AppRoutes() {
         <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
         <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
         <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
+        <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

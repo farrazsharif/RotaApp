@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { loadOrgSettings } from './settingsController';
 
 function hoursWorked(clockIn: Date, clockOut: Date | null) {
   if (!clockOut) return 0;
@@ -63,6 +64,8 @@ export async function overtimeReport(req: AuthRequest, res: Response) {
 
   const start = new Date(startDate as string);
   const end = new Date(endDate as string);
+  const { overtimeThreshold } = await loadOrgSettings();
+  const threshold = overtimeThreshold && overtimeThreshold > 0 ? overtimeThreshold : 40;
 
   const records = await prisma.clockRecord.findMany({
     where: { clockIn: { gte: start, lte: end }, clockOut: { not: null } },
@@ -83,13 +86,13 @@ export async function overtimeReport(req: AuthRequest, res: Response) {
   for (const [userId, weeks] of Object.entries(byUserWeek)) {
     const user = records.find((r) => r.userId === userId)?.user;
     for (const [week, hours] of Object.entries(weeks)) {
-      if (hours > 40) {
+      if (hours > threshold) {
         overtimeResult.push({
           userId,
           name: user ? `${user.firstName} ${user.lastName}` : userId,
           weekStarting: week,
-          regularHours: 40,
-          overtimeHours: Math.round((hours - 40) * 100) / 100,
+          regularHours: threshold,
+          overtimeHours: Math.round((hours - threshold) * 100) / 100,
           totalHours: Math.round(hours * 100) / 100,
         });
       }
