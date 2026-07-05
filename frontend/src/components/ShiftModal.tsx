@@ -112,7 +112,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
         notes: shift.notes || '',
       });
     } else {
-      reset({ date: defaultDate || format(new Date(), 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00', serviceUserId: '', visitName: '' });
+      reset({ userId: '', date: defaultDate || format(new Date(), 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00', serviceUserId: '', visitName: '' });
     }
   }, [shift, defaultDate, reset]);
 
@@ -191,6 +191,13 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
 
   const isPending = createMut.isPending || updateMut.isPending;
   const error = (createMut.error || updateMut.error) as { response?: { data?: { error?: string } } } | null;
+
+  // Assignment state shared by both the create form and the edit two-pane view.
+  const assignedUsers = assignedIds.map((id) => users.find((u) => u.id === id)).filter(Boolean) as typeof users;
+  const availableUsers = users.filter(
+    (u) => !assignedIds.includes(u.id) && `${u.firstName} ${u.lastName}`.toLowerCase().includes(employeeSearch.trim().toLowerCase())
+  );
+  const fullyAssigned = assignedIds.length >= cover;
 
   // The two-pane Employee Assignment layout only applies when a manager is
   // editing an existing shift — creating a new shift keeps the original
@@ -273,37 +280,49 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
           </div>
 
           <div>
-            <label className="label">{cover > 1 ? '1st Carer (Employee)' : 'Carer (Employee)'}</label>
-            <select {...register('userId')} className="input">
-              <option value="">Unassigned — assign later</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-              ))}
-            </select>
-
-            {cover > 1 && (
-              <div className="mt-2 space-y-2">
-                {Array.from({ length: cover - 1 }).map((_, i) => (
-                  <div key={i}>
-                    <label className="label">{i === 0 ? '2nd' : '3rd'} Carer</label>
-                    <select
-                      value={coverCarerIds[i] || ''}
-                      onChange={(e) =>
-                        setCoverCarerIds((prev) => {
-                          const next = [...prev];
-                          next[i] = e.target.value;
-                          return next;
-                        })
-                      }
-                      className="input"
+            <label className="label">Carers (Employees)</label>
+            {!readOnly && (
+              <p className="text-xs text-gray-500 mb-2">{assignedIds.length} of {cover} slot{cover > 1 ? 's' : ''} filled — leave unchecked to assign later.</p>
+            )}
+            {!readOnly && (
+              <input
+                value={employeeSearch}
+                onChange={(e) => setEmployeeSearch(e.target.value)}
+                placeholder="Search by employee name"
+                className="input mb-2"
+              />
+            )}
+            <div className="mb-2">
+              {!readOnly && <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Who's Working ({assignedUsers.length})</p>}
+              {assignedUsers.length === 0 ? (
+                <p className="text-sm text-gray-400">No one assigned yet.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {assignedUsers.map((u) => (
+                    <label key={u.id} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 cursor-pointer hover:bg-gray-50">
+                      <input type="checkbox" checked onChange={() => removeCarer(u.id)} className="h-4 w-4 accent-blue-600" />
+                      <span className="text-sm text-gray-800">{u.firstName} {u.lastName}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            {!readOnly && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Available ({availableUsers.length})</p>
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {availableUsers.map((u) => (
+                    <label
+                      key={u.id}
+                      title={fullyAssigned ? 'All cover slots are filled' : 'Add to this shift'}
+                      className={`flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 ${fullyAssigned ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'}`}
                     >
-                      <option value="">Unassigned — assign later</option>
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
+                      <input type="checkbox" checked={false} disabled={fullyAssigned} onChange={() => addCarer(u.id)} className="h-4 w-4 accent-blue-600" />
+                      <span className="text-sm text-gray-800">{u.firstName} {u.lastName}</span>
+                    </label>
+                  ))}
+                  {availableUsers.length === 0 && <p className="text-sm text-gray-400">No matching employees.</p>}
+                </div>
               </div>
             )}
 
@@ -568,12 +587,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   }
 
   // --- Manager editing an existing shift: two-pane layout (shift details + employee assignment) ---
-  const assignedUsers = assignedIds.map((id) => users.find((u) => u.id === id)).filter(Boolean) as typeof users;
-  const availableUsers = users.filter(
-    (u) => !assignedIds.includes(u.id) && `${u.firstName} ${u.lastName}`.toLowerCase().includes(employeeSearch.trim().toLowerCase())
-  );
   const patient = serviceUsers.find((su) => su.id === watch('serviceUserId'));
-  const fullyAssigned = assignedIds.length >= cover;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto">
