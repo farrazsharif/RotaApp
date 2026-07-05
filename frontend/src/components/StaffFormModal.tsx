@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { settingsApi } from '../api/settings';
+import { rolesApi } from '../api/roles';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Role } from '../types';
 import PhotoUpload from './PhotoUpload';
@@ -18,6 +19,7 @@ interface FormState {
   firstName: string;
   lastName: string;
   role: Role;
+  customRoleId: string;
   hourlyRate: string;
   phone: string;
   photo: string;
@@ -26,18 +28,20 @@ interface FormState {
 
 const emptyForm: FormState = {
   email: '', password: '', firstName: '', lastName: '',
-  role: 'EMPLOYEE', hourlyRate: '', phone: '', photo: '', sendInvite: true,
+  role: 'EMPLOYEE', customRoleId: '', hourlyRate: '', phone: '', photo: '', sendInvite: true,
 };
 
 function initialForm(u: User | null): FormState {
   if (!u) return emptyForm;
-  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', sendInvite: false };
+  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', sendInvite: false };
 }
 
 export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState>(() => initialForm(editUser));
+
+  const { data: customRoles = [] } = useQuery({ queryKey: ['roles'], queryFn: rolesApi.list });
 
   // For a new employee, prefill rate and role from the org's Staff Defaults.
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
@@ -128,10 +132,27 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
           )}
           <div>
             <label className="label">Role</label>
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })} className="input">
-              <option value="EMPLOYEE">Employee</option>
-              <option value="MANAGER">Manager</option>
-              {isAdmin && <option value="ADMIN">Admin</option>}
+            <select
+              value={form.customRoleId ? `custom:${form.customRoleId}` : `base:${form.role}`}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v.startsWith('custom:')) setForm({ ...form, customRoleId: v.slice(7) });
+                else setForm({ ...form, customRoleId: '', role: v.slice(5) as Role });
+              }}
+              className="input"
+            >
+              <optgroup label="Built-in">
+                <option value="base:EMPLOYEE">Employee</option>
+                <option value="base:MANAGER">Manager</option>
+                {isAdmin && <option value="base:ADMIN">Admin</option>}
+              </optgroup>
+              {customRoles.filter((r) => isAdmin || r.baseType !== 'ADMIN').length > 0 && (
+                <optgroup label="Custom roles">
+                  {customRoles.filter((r) => isAdmin || r.baseType !== 'ADMIN').map((r) => (
+                    <option key={r.id} value={`custom:${r.id}`}>{r.name}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-4">

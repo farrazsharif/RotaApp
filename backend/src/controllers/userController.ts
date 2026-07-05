@@ -10,8 +10,18 @@ import { sendEmail, setPasswordEmail } from '../lib/email';
 const userSelect = {
   id: true, email: true, firstName: true, lastName: true, role: true,
   hourlyRate: true, phone: true, photo: true, active: true, createdAt: true,
+  customRoleId: true,
+  customRole: { select: { id: true, name: true, baseType: true } },
   emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true,
 };
+
+// Resolves an optional custom-role id to a base account type, so an assigned
+// role keeps a consistent base `role`. Throws a 400-style marker on bad id.
+async function resolveCustomRole(customRoleId: string | null | undefined) {
+  if (!customRoleId) return null;
+  const role = await prisma.customRole.findUnique({ where: { id: customRoleId } });
+  return role; // null if not found — caller decides how to handle
+}
 
 export async function listUsers(req: AuthRequest, res: Response) {
   const { role, active } = req.query;
@@ -40,7 +50,7 @@ export async function getUser(req: AuthRequest, res: Response) {
 }
 
 export async function createUser(req: AuthRequest, res: Response) {
-  const { email, password, firstName, lastName, role, hourlyRate, phone, photo, sendInvite } = req.body;
+  const { email, password, firstName, lastName, role, hourlyRate, phone, photo, sendInvite, customRoleId } = req.body;
   if (!email || !firstName || !lastName) {
     return res.status(400).json({ error: 'email, firstName, lastName required' });
   }
@@ -49,6 +59,11 @@ export async function createUser(req: AuthRequest, res: Response) {
   }
   const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   if (existing) return res.status(409).json({ error: 'Email already in use' });
+
+  // A custom role fixes the base account type; otherwise use the provided role.
+  const customRole = await resolveCustomRole(customRoleId);
+  if (customRoleId && !customRole) return res.status(400).json({ error: 'Unknown role' });
+  const baseRole = customRole ? customRole.baseType : (role || Role.EMPLOYEE);
 
   // Inviting a carer to set their own password: the account still needs
   // *some* password to satisfy the schema, so it gets a random one nobody
@@ -60,7 +75,8 @@ export async function createUser(req: AuthRequest, res: Response) {
       password: hashed,
       firstName,
       lastName,
-      role: role || Role.EMPLOYEE,
+      role: baseRole,
+      customRoleId: customRole ? customRole.id : null,
       hourlyRate: hourlyRate ? Number(hourlyRate) : 0,
       phone: phone || null,
       photo: photo || null,
@@ -81,7 +97,7 @@ export async function createUser(req: AuthRequest, res: Response) {
 }
 
 export async function updateUser(req: AuthRequest, res: Response) {
-  const { firstName, lastName, role, hourlyRate, phone, photo, active, emergencyContactName, emergencyContactPhone, emergencyContactRelation } = req.body;
+  const { firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, emergencyContactName, emergencyContactPhone, emergencyContactRelation } = req.body;
   const data: Record<string, unknown> = {};
   if (firstName !== undefined) data.firstName = firstName;
   if (lastName !== undefined) data.lastName = lastName;
@@ -90,6 +106,21 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (phone !== undefined) data.phone = phone || null;
   if (photo !== undefined) data.photo = photo || null;
   if (active !== undefined && req.user!.role === Role.ADMIN) data.active = active;
+  // Assigning a custom role also fixes the base account type. Only admins may
+  // assign an admin-level role (prevents privilege escalation by managers).
+  if (customRoleId !== undefined) {
+    if (customRoleId) {
+      const cr = await resolveCustomRole(customRoleId);
+      if (!cr) return res.status(400).json({ error: 'Unknown role' });
+      if (cr.baseType === Role.ADMIN && req.user!.role !== Role.ADMIN) {
+        return res.status(403).json({ error: 'Only an admin can assign an admin-level role' });
+      }
+      data.customRoleId = cr.id;
+      data.role = cr.baseType;
+    } else {
+      data.customRoleId = null;
+    }
+  }
   if (emergencyContactName !== undefined) data.emergencyContactName = emergencyContactName || null;
   if (emergencyContactPhone !== undefined) data.emergencyContactPhone = emergencyContactPhone || null;
   if (emergencyContactRelation !== undefined) data.emergencyContactRelation = emergencyContactRelation || null;

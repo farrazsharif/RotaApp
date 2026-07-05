@@ -87,7 +87,9 @@ export default function Users() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                <td className="px-4 py-3"><span className={roleBadge[u.role]}>{u.role}</span></td>
+                <td className="px-4 py-3">
+                  <span className={roleBadge[u.role]}>{u.customRole?.name || u.role}</span>
+                </td>
                 <td className="px-4 py-3 text-right text-gray-600">£{u.hourlyRate.toFixed(2)}</td>
                 <td className="px-4 py-3">
                   {(() => { const s = statusInfo(u); return <span className={s.cls}>{s.label}</span>; })()}

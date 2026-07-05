@@ -14,6 +14,7 @@ model User {
   firstName    String
   lastName     String
   role         String      @default("EMPLOYEE")
+  customRoleId String?
   hourlyRate   Float       @default(0)
   phone        String?
   photo        String?     // profile picture as a base64 data URL
@@ -36,6 +37,22 @@ model User {
   familyLinks        FamilyLink[]
   trainings          Training[]
   importantDates     ImportantDate[]
+  customRole         CustomRole?      @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+}
+
+// A named role an admin can create (e.g. "Senior Carer"). baseType decides
+// fundamental app access (which of the 4 built-in account types it behaves
+// like); permissions is a JSON array of capability keys for fine-grained
+// control, overriding the base-role matrix for users assigned to it.
+model CustomRole {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  baseType    String   @default("EMPLOYEE")
+  permissions String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
 }
 
 model Site {

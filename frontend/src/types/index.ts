@@ -22,6 +22,14 @@ export interface PermissionDef {
 
 export type PermissionMap = Partial<Record<PermissionKey, Role[]>>;
 
+export interface CustomRole {
+  id: string;
+  name: string;
+  baseType: Role;
+  permissions: PermissionKey[];
+  userCount: number;
+}
+
 export interface PermissionsResponse {
   definitions: PermissionDef[];
   permissions: Record<PermissionKey, Role[]>;
@@ -55,6 +63,9 @@ export interface User {
   photo?: string;
   active: boolean;
   pendingSetup?: boolean; // invited but hasn't set a password yet
+  customRoleId?: string | null;
+  customRole?: { id: string; name: string; baseType: Role } | null;
+  capabilities?: PermissionKey[]; // effective capabilities (from /auth/me)
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;

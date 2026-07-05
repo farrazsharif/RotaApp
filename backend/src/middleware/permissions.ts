@@ -43,6 +43,21 @@ export const PERMISSIONS: PermissionDef[] = [
 ];
 
 const DEF_BY_KEY = new Map(PERMISSIONS.map((p) => [p.key, p]));
+const KEY_SET = new Set<string>(PERMISSIONS.map((p) => p.key));
+
+// Drops anything that isn't a known capability key.
+export function sanitiseCapabilityList(input: unknown): PermissionKey[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((k): k is PermissionKey => typeof k === 'string' && KEY_SET.has(k));
+}
+
+// The effective capabilities for a user: a custom role's own list if they have
+// one, otherwise everything the base-role matrix grants their role.
+export async function capabilitiesFor(role: Role, customPermissions?: string[] | null): Promise<PermissionKey[]> {
+  if (customPermissions) return sanitiseCapabilityList(customPermissions);
+  const map = await getEffectivePermissions();
+  return PERMISSIONS.filter((p) => (map[p.key] || []).includes(role)).map((p) => p.key);
+}
 
 let cache: Record<string, Role[]> | null = null;
 let cacheAt = 0;
@@ -96,11 +111,14 @@ export function sanitisePermissions(input: unknown): Record<string, Role[]> {
 export function requirePermission(key: PermissionKey) {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: 'Authentication required' });
-    const map = await getEffectivePermissions();
-    const allowed = map[key] || [];
-    if (!allowed.includes(req.user.role)) {
+    // A user with a custom role is governed solely by that role's capability
+    // list; otherwise fall back to the base-role matrix.
+    if (req.user.customPermissions) {
+      if (req.user.customPermissions.includes(key)) return next();
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
-    next();
+    const map = await getEffectivePermissions();
+    if ((map[key] || []).includes(req.user.role)) return next();
+    return res.status(403).json({ error: 'Insufficient permissions' });
   };
 }

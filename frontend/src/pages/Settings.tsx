@@ -5,6 +5,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { settingsApi } from '../api/settings';
 import { authApi } from '../api/auth';
 import { sitesApi } from '../api/sites';
+import { rolesApi } from '../api/roles';
 import { OrgSettings, Role, Site, PermissionKey, PermissionMap } from '../types';
 import PhotoUpload from '../components/PhotoUpload';
 import { fileToLogoDataUrl } from '../lib/image';
@@ -49,7 +50,133 @@ export default function Settings() {
       {tab === 'org' && <OrganisationTab />}
       {tab === 'sites' && <SitesTab isManager={can('manage_sites')} />}
       {tab === 'staff' && <StaffDefaultsTab />}
-      {tab === 'roles' && <RolesPermissionsTab />}
+      {tab === 'roles' && (
+        <div className="space-y-6">
+          <CustomRolesManager />
+          <RolesPermissionsTab />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Custom Roles ---------------- */
+interface RoleDraft { id?: string; name: string; baseType: Role; permissions: PermissionKey[]; }
+
+function CustomRolesManager() {
+  const qc = useQueryClient();
+  const { data: roles = [] } = useQuery({ queryKey: ['roles'], queryFn: rolesApi.list });
+  const { data: perm } = useQuery({ queryKey: ['permissions'], queryFn: settingsApi.getPermissions });
+  const [draft, setDraft] = useState<RoleDraft | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const saveMut = useMutation({
+    mutationFn: (d: RoleDraft) =>
+      d.id ? rolesApi.update(d.id, { name: d.name, baseType: d.baseType, permissions: d.permissions })
+           : rolesApi.create({ name: d.name, baseType: d.baseType, permissions: d.permissions }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['roles'] }); setDraft(null); setError(''); },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error || 'Could not save role.');
+    },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => rolesApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['roles'] }); setConfirmDelete(null); },
+  });
+
+  const defs = perm?.definitions ?? [];
+  const groups = [...new Set(defs.map((d) => d.group))];
+
+  function toggle(key: PermissionKey) {
+    if (!draft) return;
+    const has = draft.permissions.includes(key);
+    setDraft({ ...draft, permissions: has ? draft.permissions.filter((k) => k !== key) : [...draft.permissions, key] });
+  }
+
+  return (
+    <div className="card space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-gray-900">Custom Roles</h2>
+          <p className="text-sm text-gray-500">Named roles with their own capability set. Assign them to staff on the Staff page.</p>
+        </div>
+        {!draft && <button className="btn-primary btn" onClick={() => { setError(''); setDraft({ name: '', baseType: 'EMPLOYEE', permissions: [] }); }}>+ New Role</button>}
+      </div>
+
+      {!draft && (
+        roles.length === 0
+          ? <p className="text-sm text-gray-400">No custom roles yet.</p>
+          : (
+            <div className="space-y-2">
+              {roles.map((r) => (
+                <div key={r.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{r.name} <span className="text-xs text-gray-400">· base: {r.baseType}</span></p>
+                    <p className="text-xs text-gray-400">{r.permissions.length} capabilities · {r.userCount} staff</p>
+                  </div>
+                  {confirmDelete === r.id ? (
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs text-red-700">Delete? Staff revert to base role.</span>
+                      <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(r.id)}>Yes</button>
+                      <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
+                    </span>
+                  ) : (
+                    <span className="flex gap-2">
+                      <button className="text-blue-600 text-xs hover:underline" onClick={() => { setError(''); setDraft({ id: r.id, name: r.name, baseType: r.baseType, permissions: r.permissions }); }}>Edit</button>
+                      <button className="text-red-600 text-xs hover:underline" onClick={() => setConfirmDelete(r.id)}>Delete</button>
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+      )}
+
+      {draft && (
+        <div className="space-y-4">
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><label className="label">Role Name *</label><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="input" placeholder="e.g. Senior Carer" /></div>
+            <div>
+              <label className="label">Base Account Type</label>
+              <select value={draft.baseType} onChange={(e) => setDraft({ ...draft, baseType: e.target.value as Role })} className="input">
+                <option value="EMPLOYEE">Employee (carer app)</option>
+                <option value="MANAGER">Manager (office app)</option>
+                <option value="ADMIN">Admin (office app)</option>
+                <option value="FAMILY_MEMBER">Family (family portal)</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Which app/portal this role can sign into.</p>
+            </div>
+          </div>
+          <div>
+            <label className="label">Capabilities</label>
+            <div className="space-y-3 border rounded-lg p-3">
+              {groups.map((g) => (
+                <div key={g}>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">{g}</p>
+                  <div className="grid sm:grid-cols-2 gap-1.5">
+                    {defs.filter((d) => d.group === g).map((d) => (
+                      <label key={d.key} className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" className="h-4 w-4 accent-blue-600" checked={draft.permissions.includes(d.key)} onChange={() => toggle(d.key)} />
+                        {d.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button className="btn-secondary btn" onClick={() => { setDraft(null); setError(''); }}>Cancel</button>
+            <div className="flex-1" />
+            <button className="btn-primary btn" disabled={!draft.name || saveMut.isPending} onClick={() => saveMut.mutate(draft)}>
+              {saveMut.isPending ? 'Saving…' : draft.id ? 'Save Role' : 'Create Role'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { sendEmail, resetPasswordEmail } from '../lib/email';
 import { loadOrgSettings } from './settingsController';
+import { capabilitiesFor } from '../middleware/permissions';
 
 // Which front-end a password/invite link should open in, by the user's role:
 //   FAMILY_MEMBER → family portal, EMPLOYEE (carer) → Caremid Carer app,
@@ -41,10 +42,21 @@ export async function login(req: Request, res: Response) {
 export async function getMe(req: AuthRequest, res: Response) {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
+    include: { customRole: { select: { id: true, name: true, baseType: true, permissions: true } } },
   });
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const { password: _, ...safeUser } = user;
-  res.json(safeUser);
+  const custom = user.customRole ? (safeParse(user.customRole.permissions)) : null;
+  const capabilities = await capabilitiesFor(user.role as Role, custom);
+  const { password: _, customRole, ...safeUser } = user;
+  res.json({
+    ...safeUser,
+    customRole: customRole ? { id: customRole.id, name: customRole.name, baseType: customRole.baseType } : null,
+    capabilities,
+  });
+}
+
+function safeParse(s: string): string[] {
+  try { return JSON.parse(s); } catch { return []; }
 }
 
 // Lets a signed-in user edit their own basic profile (name, phone, photo)

@@ -77,7 +77,7 @@ export default function StaffDetail() {
               <h1 className="text-2xl font-bold text-gray-900">{user.firstName} {user.lastName}</h1>
               <p className="text-sm text-gray-500">{user.email}{user.phone && ` · ${user.phone}`}</p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className={roleBadge[user.role]}>{user.role}</span>
+                <span className={roleBadge[user.role]}>{user.customRole?.name || user.role}</span>
                 <span className={statusInfo(user).cls}>{statusInfo(user).label}</span>
                 <span className="badge-blue badge">£{user.hourlyRate.toFixed(2)}/hr</span>
               </div>

@@ -27,6 +27,7 @@ import trainingRoutes from './routes/training';
 import importantDateRoutes from './routes/importantDates';
 import reviewRoutes from './routes/reviews';
 import settingsRoutes from './routes/settings';
+import roleRoutes from './routes/roles';
 import { startShiftReminders } from './lib/shiftReminders';
 
 const app = express();
@@ -70,6 +71,7 @@ app.use('/api/training', trainingRoutes);
 app.use('/api/important-dates', importantDateRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/roles', roleRoutes);
 
 app.use(errorHandler);
 
