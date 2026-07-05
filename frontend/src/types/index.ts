@@ -251,6 +251,9 @@ export interface ServiceUser {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
+  nextOfKinName?: string;
+  nextOfKinPhone?: string;
+  nextOfKinRelation?: string;
   gpName?: string;
   gpPractice?: string;
   gpPhone?: string;

@@ -30,6 +30,7 @@ function parseVisits(json?: string): VisitRow[] {
 const emptyForm: FormState = {
   firstName: '', lastName: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '',
   phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelation: '',
+  nextOfKinName: '', nextOfKinPhone: '', nextOfKinRelation: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
   pharmacyName: '', pharmacyPhone: '', pharmacyAddress: '',
   needsMedication: false, needsMobility: false, needsPersonalCare: false, careNotes: '',
@@ -71,6 +72,7 @@ export default function ServiceUserForm() {
       phone: su.phone || '', email: su.email || '',
       emergencyContactName: su.emergencyContactName || '', emergencyContactPhone: su.emergencyContactPhone || '',
       emergencyContactRelation: su.emergencyContactRelation || '',
+      nextOfKinName: su.nextOfKinName || '', nextOfKinPhone: su.nextOfKinPhone || '', nextOfKinRelation: su.nextOfKinRelation || '',
       gpName: su.gpName || '', gpPractice: su.gpPractice || '', gpPhone: su.gpPhone || '', gpAddress: su.gpAddress || '',
       pharmacyName: su.pharmacyName || '', pharmacyPhone: su.pharmacyPhone || '', pharmacyAddress: su.pharmacyAddress || '',
       needsMedication: su.needsMedication, needsMobility: su.needsMobility, needsPersonalCare: su.needsPersonalCare,
@@ -208,6 +210,23 @@ export default function ServiceUserForm() {
           <div>
             <label className="label">Relationship</label>
             <input value={form.emergencyContactRelation} onChange={(e) => setForm({ ...form, emergencyContactRelation: e.target.value })} className="input" />
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Next of Kin">
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="label">Name</label>
+            <input value={form.nextOfKinName} onChange={(e) => setForm({ ...form, nextOfKinName: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="label">Phone</label>
+            <input value={form.nextOfKinPhone} onChange={(e) => setForm({ ...form, nextOfKinPhone: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="label">Relationship</label>
+            <input value={form.nextOfKinRelation} onChange={(e) => setForm({ ...form, nextOfKinRelation: e.target.value })} className="input" />
           </div>
         </div>
       </Section>

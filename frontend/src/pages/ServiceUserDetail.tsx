@@ -237,6 +237,15 @@ export default function ServiceUserDetail() {
           </div>
         </Section>
 
+        {/* Next of kin */}
+        <Section title="Next of Kin">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Name" value={su.nextOfKinName} />
+            <Field label="Relationship" value={su.nextOfKinRelation} />
+            <Field label="Phone" value={su.nextOfKinPhone} />
+          </div>
+        </Section>
+
         {/* GP */}
         <Section title="GP Details">
           <div className="grid grid-cols-2 gap-4">
