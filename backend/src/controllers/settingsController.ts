@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { PERMISSIONS, getEffectivePermissions, sanitisePermissions, clearPermissionCache } from '../middleware/permissions';
+import { logAudit } from '../lib/audit';
 
 const SINGLETON_ID = 'org';
 
@@ -20,6 +21,7 @@ export async function updatePermissions(req: AuthRequest, res: Response) {
     create: { id: SINGLETON_ID, permissions: JSON.stringify(clean) },
   });
   clearPermissionCache();
+  await logAudit(req, 'PERMISSIONS_UPDATED', 'Role permission matrix');
   const permissions = await getEffectivePermissions();
   res.json({ definitions: PERMISSIONS, permissions });
 }
@@ -70,5 +72,6 @@ export async function updateOrgSettings(req: AuthRequest, res: Response) {
     update: data,
     create: { id: SINGLETON_ID, ...data },
   });
+  await logAudit(req, 'SETTINGS_UPDATED', 'Organisation settings', Object.keys(data).join(', '));
   res.json(settings);
 }

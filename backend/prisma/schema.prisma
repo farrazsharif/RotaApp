@@ -394,6 +394,19 @@ model PasswordSetupToken {
   createdAt DateTime @default(now())
 }
 
+// Append-only record of sensitive changes (who did what, when).
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actorName String   // snapshot of the actor's email/name at the time
+  action    String   // e.g. STAFF_UPDATED, PASSWORD_RESET, PERMISSIONS_UPDATED
+  target    String?  // human label of the affected thing
+  details   String?  // short human description of what changed
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // Organisation-wide settings. Single row, keyed by the fixed id "org".
 model OrgSettings {
   id                String   @id @default("org")

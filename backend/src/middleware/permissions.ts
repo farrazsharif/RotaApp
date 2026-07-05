@@ -7,7 +7,7 @@ export type PermissionKey =
   | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
-  | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data';
+  | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data' | 'view_audit_log';
 
 export interface PermissionDef {
   key: PermissionKey;
@@ -40,6 +40,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'manage_settings',       label: 'Change organisation settings',     group: 'Administration', default: A, protectedAdmin: true },
   { key: 'manage_permissions',    label: 'Manage roles & permissions',       group: 'Administration', default: A, protectedAdmin: true },
   { key: 'reset_test_data',       label: 'Reset/wipe data',                  group: 'Administration', default: A, protectedAdmin: true },
+  { key: 'view_audit_log',        label: 'View the audit log',               group: 'Administration', default: A },
 ];
 
 const DEF_BY_KEY = new Map(PERMISSIONS.map((p) => [p.key, p]));

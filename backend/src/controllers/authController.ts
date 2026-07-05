@@ -8,6 +8,7 @@ import { Role } from '../constants';
 import { sendEmail, resetPasswordEmail } from '../lib/email';
 import { loadOrgSettings } from './settingsController';
 import { capabilitiesFor } from '../middleware/permissions';
+import { logAudit } from '../lib/audit';
 
 // Which front-end a password/invite link should open in, by the user's role:
 //   FAMILY_MEMBER → family portal, EMPLOYEE (carer) → Caremid Carer app,
@@ -76,6 +77,7 @@ export async function updateMe(req: AuthRequest, res: Response) {
   if (photo !== undefined) data.photo = photo || null;
 
   const user = await prisma.user.update({ where: { id: req.user!.id }, data });
+  if (data.email) await logAudit(req, 'EMAIL_CHANGED', `${user.firstName} ${user.lastName}`, `to ${data.email}`);
   const { password: _, ...safeUser } = user;
   res.json(safeUser);
 }
@@ -97,6 +99,7 @@ export async function changePassword(req: AuthRequest, res: Response) {
 
   const hashed = await bcrypt.hash(newPassword, 10);
   await prisma.user.update({ where: { id: req.user!.id }, data: { password: hashed } });
+  await logAudit(req, 'PASSWORD_CHANGED', req.user!.email, 'changed their own password');
   res.json({ message: 'Password updated' });
 }
 
@@ -142,6 +145,7 @@ export async function adminResetPassword(req: AuthRequest, res: Response) {
     const hashed = await bcrypt.hash(password, 10);
     await prisma.user.update({ where: { id }, data: { password: hashed } });
     await prisma.passwordSetupToken.deleteMany({ where: { userId: id } });
+    await logAudit(req, 'PASSWORD_SET_BY_ADMIN', `${user.firstName} ${user.lastName}`, user.email);
     return res.json({ message: 'Password updated' });
   }
 
@@ -149,6 +153,7 @@ export async function adminResetPassword(req: AuthRequest, res: Response) {
   const token = await createPasswordSetupToken(id);
   const link = `${portalUrlForRole(user.role)}/set-password?token=${token}`;
   sendEmail(user.email, 'Reset your Caremid password', resetPasswordEmail(user.firstName, link));
+  await logAudit(req, 'PASSWORD_RESET_SENT', `${user.firstName} ${user.lastName}`, user.email);
   res.json({ message: 'Reset email sent', email: user.email });
 }
 

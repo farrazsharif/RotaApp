@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { sanitiseCapabilityList } from '../middleware/permissions';
+import { logAudit } from '../lib/audit';
 
 const BASE_TYPES: Role[] = ['ADMIN', 'MANAGER', 'EMPLOYEE', 'FAMILY_MEMBER'];
 
@@ -32,6 +33,7 @@ export async function createRole(req: AuthRequest, res: Response) {
     data: { name: name.trim(), baseType: base, permissions: JSON.stringify(sanitiseCapabilityList(permissions)) },
     include: { _count: { select: { users: true } } },
   });
+  await logAudit(req, 'ROLE_CREATED', role.name);
   res.status(201).json(shape(role));
 }
 
@@ -55,6 +57,7 @@ export async function updateRole(req: AuthRequest, res: Response) {
     if (data.baseType) {
       await prisma.user.updateMany({ where: { customRoleId: role.id }, data: { role: role.baseType } });
     }
+    await logAudit(req, 'ROLE_UPDATED', role.name, Object.keys(data).join(', '));
     res.json(shape(role));
   } catch (err) {
     const e = err as { code?: string };
@@ -67,6 +70,8 @@ export async function updateRole(req: AuthRequest, res: Response) {
 export async function deleteRole(req: AuthRequest, res: Response) {
   // Users referencing this role are detached automatically (onDelete: SetNull),
   // reverting them to their base account type.
+  const role = await prisma.customRole.findUnique({ where: { id: req.params.id }, select: { name: true } });
   await prisma.customRole.delete({ where: { id: req.params.id } });
+  await logAudit(req, 'ROLE_DELETED', role?.name || req.params.id);
   res.json({ message: 'Role deleted' });
 }

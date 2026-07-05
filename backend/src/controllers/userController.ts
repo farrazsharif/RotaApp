@@ -7,6 +7,7 @@ import { Role } from '../constants';
 import { createPasswordSetupToken, portalUrlForRole } from './authController';
 import { sendEmail, setPasswordEmail } from '../lib/email';
 import { isScoped, staffInScope } from '../lib/scope';
+import { logAudit } from '../lib/audit';
 
 const userSelect = {
   id: true, email: true, firstName: true, lastName: true, role: true,
@@ -115,6 +116,7 @@ export async function createUser(req: AuthRequest, res: Response) {
     sendEmail(user.email, 'Welcome to Caremid — set your password', setPasswordEmail(user.firstName, link));
   }
 
+  await logAudit(req, 'STAFF_CREATED', `${user.firstName} ${user.lastName}`, `${user.email} · ${user.customRole?.name || user.role}`);
   res.status(201).json(user);
 }
 
@@ -164,6 +166,12 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (emergencyContactRelation !== undefined) data.emergencyContactRelation = emergencyContactRelation || null;
 
   const user = await prisma.user.update({ where: { id: req.params.id }, data, select: userSelect });
+
+  // Record only sensitive changes (skip routine phone/photo/name edits).
+  const sensitive = ['email', 'role', 'customRoleId', 'active', 'sites'].filter((k) => k in data);
+  if (sensitive.length) {
+    await logAudit(req, 'STAFF_UPDATED', `${user.firstName} ${user.lastName}`, `changed ${sensitive.join(', ')}`);
+  }
   res.json(user);
 }
 
@@ -178,12 +186,14 @@ export async function resendInvite(req: AuthRequest, res: Response) {
   const token = await createPasswordSetupToken(user.id);
   const link = `${portalUrlForRole(user.role)}/set-password?token=${token}`;
   sendEmail(user.email, 'Welcome to Caremid — set your password', setPasswordEmail(user.firstName, link));
+  await logAudit(req, 'INVITE_RESENT', `${user.firstName} ${user.lastName}`, user.email);
   res.json({ message: 'Invite resent', email: user.email });
 }
 
 export async function deleteUser(req: AuthRequest, res: Response) {
   if (!(await staffInScope(req.user, req.params.id))) return res.status(404).json({ error: 'User not found' });
-  await prisma.user.update({ where: { id: req.params.id }, data: { active: false } });
+  const u = await prisma.user.update({ where: { id: req.params.id }, data: { active: false }, select: { firstName: true, lastName: true } });
+  await logAudit(req, 'STAFF_DEACTIVATED', `${u.firstName} ${u.lastName}`);
   res.json({ message: 'User deactivated' });
 }
 
@@ -193,7 +203,9 @@ export async function permanentDeleteUser(req: AuthRequest, res: Response) {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
   if (!(await staffInScope(req.user, id))) return res.status(404).json({ error: 'User not found' });
+  const u = await prisma.user.findUnique({ where: { id }, select: { firstName: true, lastName: true, email: true } });
   // Shifts, time-off, clock records and notifications cascade on user delete
   await prisma.user.delete({ where: { id } });
+  await logAudit(req, 'STAFF_DELETED', u ? `${u.firstName} ${u.lastName}` : id, u?.email);
   res.json({ message: 'User deleted' });
 }

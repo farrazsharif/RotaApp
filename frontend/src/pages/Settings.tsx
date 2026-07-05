@@ -6,13 +6,15 @@ import { settingsApi } from '../api/settings';
 import { authApi } from '../api/auth';
 import { sitesApi } from '../api/sites';
 import { rolesApi } from '../api/roles';
+import { auditApi } from '../api/audit';
 import { OrgSettings, Role, Site, PermissionKey, PermissionMap } from '../types';
+import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
 import { fileToLogoDataUrl } from '../lib/image';
 
 const TIMEZONES = ['Europe/London', 'UTC', 'Europe/Dublin', 'Europe/Paris'];
 
-type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles';
+type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles' | 'audit';
 
 export default function Settings() {
   const { can } = usePermissions();
@@ -22,6 +24,7 @@ export default function Settings() {
     { key: 'sites' as const, label: 'Sites', show: can('manage_sites') },
     { key: 'staff' as const, label: 'Staff Defaults', show: can('manage_settings') },
     { key: 'roles' as const, label: 'Roles & Permissions', show: can('manage_permissions') },
+    { key: 'audit' as const, label: 'Audit Log', show: can('view_audit_log') },
   ].filter((t) => t.show);
 
   const [tab, setTab] = useState<TabKey>('account');
@@ -55,6 +58,64 @@ export default function Settings() {
           <CustomRolesManager />
           <RolesPermissionsTab />
         </div>
+      )}
+      {tab === 'audit' && <AuditLogTab />}
+    </div>
+  );
+}
+
+/* ---------------- Audit Log ---------------- */
+const ACTION_LABEL: Record<string, string> = {
+  STAFF_CREATED: 'Staff created',
+  STAFF_UPDATED: 'Staff updated',
+  STAFF_DEACTIVATED: 'Staff deactivated',
+  STAFF_DELETED: 'Staff deleted',
+  INVITE_RESENT: 'Invite resent',
+  PASSWORD_RESET_SENT: 'Password reset emailed',
+  PASSWORD_SET_BY_ADMIN: 'Password set by admin',
+  PASSWORD_CHANGED: 'Password changed',
+  EMAIL_CHANGED: 'Email changed',
+  PERMISSIONS_UPDATED: 'Permissions updated',
+  SETTINGS_UPDATED: 'Settings updated',
+  ROLE_CREATED: 'Role created',
+  ROLE_UPDATED: 'Role updated',
+  ROLE_DELETED: 'Role deleted',
+};
+
+function AuditLogTab() {
+  const { data: logs = [], isLoading } = useQuery({ queryKey: ['audit'], queryFn: auditApi.list });
+
+  return (
+    <div className="card p-0 overflow-hidden">
+      <div className="p-4 border-b">
+        <h2 className="font-semibold text-gray-900">Audit Log</h2>
+        <p className="text-sm text-gray-500">Recent sensitive changes — who did what and when.</p>
+      </div>
+      {isLoading ? (
+        <div className="p-6 text-gray-400 text-sm">Loading…</div>
+      ) : logs.length === 0 ? (
+        <div className="p-6 text-gray-400 text-sm">No activity recorded yet.</div>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-600">When</th>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-600">Who</th>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-600">Action</th>
+              <th className="text-left px-4 py-2.5 font-medium text-gray-600">Details</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {logs.map((l) => (
+              <tr key={l.id}>
+                <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{format(new Date(l.createdAt), 'dd MMM yyyy HH:mm')}</td>
+                <td className="px-4 py-2.5 text-gray-700">{l.actorName}</td>
+                <td className="px-4 py-2.5"><span className="badge-blue badge">{ACTION_LABEL[l.action] || l.action}</span></td>
+                <td className="px-4 py-2.5 text-gray-600">{l.target}{l.details ? ` — ${l.details}` : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
