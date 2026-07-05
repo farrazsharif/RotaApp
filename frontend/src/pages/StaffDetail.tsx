@@ -80,6 +80,11 @@ export default function StaffDetail() {
                 <span className={roleBadge[user.role]}>{user.customRole?.name || user.role}</span>
                 <span className={statusInfo(user).cls}>{statusInfo(user).label}</span>
                 <span className="badge-blue badge">£{user.hourlyRate.toFixed(2)}/hr</span>
+                {user.sites && user.sites.length > 0
+                  ? user.sites.map((s) => (
+                      <span key={s.id} className="badge" style={{ backgroundColor: `${s.color}22`, color: s.color }}>📍 {s.name}</span>
+                    ))
+                  : <span className="badge-gray badge">All sites</span>}
               </div>
             </div>
           </div>

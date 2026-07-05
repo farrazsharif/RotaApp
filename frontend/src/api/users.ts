@@ -5,9 +5,9 @@ export const usersApi = {
   list: (params?: { role?: string; active?: boolean }) =>
     api.get<User[]>('/users', { params }).then((r) => r.data),
   get: (id: string) => api.get<User>(`/users/${id}`).then((r) => r.data),
-  create: (data: Partial<User> & { password?: string; sendInvite?: boolean }) =>
+  create: (data: Partial<User> & { password?: string; sendInvite?: boolean; siteIds?: string[] }) =>
     api.post<User>('/users', data).then((r) => r.data),
-  update: (id: string, data: Partial<User>) =>
+  update: (id: string, data: Partial<User> & { siteIds?: string[] }) =>
     api.put<User>(`/users/${id}`, data).then((r) => r.data),
   resetPassword: (id: string, body: { mode: 'email' } | { mode: 'set'; password: string }) =>
     api.post<{ message: string; email?: string }>(`/users/${id}/reset-password`, body).then((r) => r.data),

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { settingsApi } from '../api/settings';
 import { rolesApi } from '../api/roles';
+import { sitesApi } from '../api/sites';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Role } from '../types';
 import PhotoUpload from './PhotoUpload';
@@ -20,6 +21,7 @@ interface FormState {
   lastName: string;
   role: Role;
   customRoleId: string;
+  siteIds: string[];
   hourlyRate: string;
   phone: string;
   photo: string;
@@ -28,12 +30,12 @@ interface FormState {
 
 const emptyForm: FormState = {
   email: '', password: '', firstName: '', lastName: '',
-  role: 'EMPLOYEE', customRoleId: '', hourlyRate: '', phone: '', photo: '', sendInvite: true,
+  role: 'EMPLOYEE', customRoleId: '', siteIds: [], hourlyRate: '', phone: '', photo: '', sendInvite: true,
 };
 
 function initialForm(u: User | null): FormState {
   if (!u) return emptyForm;
-  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', sendInvite: false };
+  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', siteIds: (u.sites || []).map((s) => s.id), hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', sendInvite: false };
 }
 
 export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
@@ -42,6 +44,11 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
   const [form, setForm] = useState<FormState>(() => initialForm(editUser));
 
   const { data: customRoles = [] } = useQuery({ queryKey: ['roles'], queryFn: rolesApi.list });
+  const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
+
+  function toggleSite(id: string) {
+    setForm((f) => ({ ...f, siteIds: f.siteIds.includes(id) ? f.siteIds.filter((s) => s !== id) : [...f.siteIds, id] }));
+  }
 
   // For a new employee, prefill rate and role from the org's Staff Defaults.
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
@@ -155,6 +162,29 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
               )}
             </select>
           </div>
+          {sites.length > 0 && (
+            <div>
+              <label className="label">Site access</label>
+              <div className="flex flex-wrap gap-2">
+                {sites.map((s) => {
+                  const on = form.siteIds.includes(s.id);
+                  return (
+                    <button
+                      type="button"
+                      key={s.id}
+                      onClick={() => toggleSite(s.id)}
+                      className={`px-3 py-1.5 rounded-full text-sm border ${on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'}`}
+                    >
+                      {s.name}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Leave all unselected for full access to every site. Selecting sites restricts this person to only those locations.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Hourly Rate (£)</label>

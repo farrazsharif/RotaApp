@@ -66,6 +66,7 @@ export interface User {
   customRoleId?: string | null;
   customRole?: { id: string; name: string; baseType: Role } | null;
   capabilities?: PermissionKey[]; // effective capabilities (from /auth/me)
+  sites?: { id: string; name: string; color: string }[]; // scoped sites (empty = org-wide)
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
