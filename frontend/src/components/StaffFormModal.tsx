@@ -69,6 +69,12 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
     onClose();
   };
 
+  const [error, setError] = useState('');
+  const onError = (err: unknown) => {
+    const e = err as { response?: { data?: { error?: string } } };
+    setError(e.response?.data?.error || 'Could not save. Please try again.');
+  };
+
   const createMut = useMutation({
     mutationFn: () => usersApi.create({
       ...form,
@@ -77,11 +83,13 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
       password: form.sendInvite ? undefined : form.password,
     }),
     onSuccess,
+    onError,
   });
 
   const updateMut = useMutation({
     mutationFn: () => usersApi.update(editUser!.id, { ...form, hourlyRate: Number(form.hourlyRate) || 0, phone: form.phone || undefined }),
     onSuccess,
+    onError,
   });
 
   return (
@@ -92,6 +100,7 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
         <div className="p-6 space-y-4">
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
           <div>
             <label className="label">Photo</label>
             <PhotoUpload
@@ -113,7 +122,8 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
           </div>
           <div>
             <label className="label">Email *</label>
-            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" disabled={!!editUser} />
+            <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" />
+            {editUser && <p className="text-xs text-gray-400 mt-1">This is their login email — changing it changes how they sign in.</p>}
           </div>
           {!editUser && (
             <div className="space-y-2">

@@ -122,8 +122,20 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (!(await staffInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const { firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation } = req.body;
+  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation } = req.body;
   const data: Record<string, unknown> = {};
+  // Changing the login email — must stay unique. Only admins may change the
+  // email of another admin account.
+  if (email !== undefined && String(email).trim()) {
+    const normalized = String(email).toLowerCase().trim();
+    const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { role: true } });
+    if (target?.role === Role.ADMIN && req.user!.role !== Role.ADMIN) {
+      return res.status(403).json({ error: 'Only an admin can change an admin account email' });
+    }
+    const clash = await prisma.user.findUnique({ where: { email: normalized } });
+    if (clash && clash.id !== req.params.id) return res.status(409).json({ error: 'Email already in use' });
+    data.email = normalized;
+  }
   if (siteIds !== undefined) data.sites = { set: requestedSiteIds(req, siteIds).map((id) => ({ id })) };
   if (firstName !== undefined) data.firstName = firstName;
   if (lastName !== undefined) data.lastName = lastName;

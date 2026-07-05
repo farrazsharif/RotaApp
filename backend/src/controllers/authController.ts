@@ -62,8 +62,14 @@ function safeParse(s: string): string[] {
 // Lets a signed-in user edit their own basic profile (name, phone, photo)
 // without needing manager rights.
 export async function updateMe(req: AuthRequest, res: Response) {
-  const { firstName, lastName, phone, photo } = req.body;
+  const { email, firstName, lastName, phone, photo } = req.body;
   const data: Record<string, unknown> = {};
+  if (email !== undefined && String(email).trim()) {
+    const normalized = String(email).toLowerCase().trim();
+    const clash = await prisma.user.findUnique({ where: { email: normalized } });
+    if (clash && clash.id !== req.user!.id) return res.status(409).json({ error: 'Email already in use' });
+    data.email = normalized;
+  }
   if (firstName !== undefined) data.firstName = firstName;
   if (lastName !== undefined) data.lastName = lastName;
   if (phone !== undefined) data.phone = phone || null;

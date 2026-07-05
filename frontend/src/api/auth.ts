@@ -2,7 +2,7 @@ import api from '../lib/axios';
 import { User } from '../types';
 
 export const authApi = {
-  updateMe: (data: { firstName?: string; lastName?: string; phone?: string; photo?: string }) =>
+  updateMe: (data: { email?: string; firstName?: string; lastName?: string; phone?: string; photo?: string }) =>
     api.put<User>('/auth/me', data).then((r) => r.data),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.put('/auth/change-password', data).then((r) => r.data),

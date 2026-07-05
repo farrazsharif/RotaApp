@@ -276,14 +276,20 @@ function Saved({ show }: { show: boolean }) {
 /* ---------------- My Account ---------------- */
 function MyAccountTab() {
   const { user, refreshUser } = useAuth();
+  const [email, setEmail] = useState(user?.email || '');
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [photo, setPhoto] = useState(user?.photo || '');
+  const [profileError, setProfileError] = useState('');
 
   const profileMut = useMutation({
-    mutationFn: () => authApi.updateMe({ firstName, lastName, phone: phone || undefined, photo: photo || '' }),
-    onSuccess: () => refreshUser(),
+    mutationFn: () => authApi.updateMe({ email: email || undefined, firstName, lastName, phone: phone || undefined, photo: photo || '' }),
+    onSuccess: () => { setProfileError(''); refreshUser(); },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: string } } };
+      setProfileError(e.response?.data?.error || 'Could not save profile.');
+    },
   });
 
   const [current, setCurrent] = useState('');
@@ -310,12 +316,13 @@ function MyAccountTab() {
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="card space-y-4">
         <h2 className="font-semibold text-gray-900">My Profile</h2>
+        {profileError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{profileError}</div>}
         <PhotoUpload photo={photo} firstName={firstName} lastName={lastName} onChange={(p) => setPhoto(p || '')} />
         <div className="grid grid-cols-2 gap-4">
           <div><label className="label">First Name</label><input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="input" /></div>
           <div><label className="label">Last Name</label><input value={lastName} onChange={(e) => setLastName(e.target.value)} className="input" /></div>
         </div>
-        <div><label className="label">Email</label><input value={user?.email || ''} className="input bg-gray-50" disabled /></div>
+        <div><label className="label">Email (your login)</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input" /></div>
         <div><label className="label">Phone</label><input value={phone} onChange={(e) => setPhone(e.target.value)} className="input" /></div>
         <div className="flex gap-3 pt-1">
           <div className="flex-1" />
