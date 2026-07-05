@@ -228,21 +228,20 @@ export default function ServiceUserDetail() {
           )}
         </Section>
 
-        {/* Emergency contact */}
-        <Section title="Emergency Contact">
+        {/* Emergency contact & next of kin */}
+        <Section title="Emergency Contact & Next of Kin">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Name" value={su.emergencyContactName} />
             <Field label="Relationship" value={su.emergencyContactRelation} />
             <Field label="Phone" value={su.emergencyContactPhone} />
           </div>
-        </Section>
-
-        {/* Next of kin */}
-        <Section title="Next of Kin">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Name" value={su.nextOfKinName} />
-            <Field label="Relationship" value={su.nextOfKinRelation} />
-            <Field label="Phone" value={su.nextOfKinPhone} />
+          <div className="border-t mt-4 pt-4">
+            <p className="text-sm font-semibold text-gray-700 mb-3">Next of Kin</p>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Name" value={su.nextOfKinName} />
+              <Field label="Relationship" value={su.nextOfKinRelation} />
+              <Field label="Phone" value={su.nextOfKinPhone} />
+            </div>
           </div>
         </Section>
 

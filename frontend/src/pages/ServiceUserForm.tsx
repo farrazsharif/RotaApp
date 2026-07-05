@@ -197,7 +197,7 @@ export default function ServiceUserForm() {
         </div>
       </Section>
 
-      <Section title="Emergency Contact">
+      <Section title="Emergency Contact & Next of Kin">
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="label">Name</label>
@@ -212,21 +212,21 @@ export default function ServiceUserForm() {
             <input value={form.emergencyContactRelation} onChange={(e) => setForm({ ...form, emergencyContactRelation: e.target.value })} className="input" />
           </div>
         </div>
-      </Section>
-
-      <Section title="Next of Kin">
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <label className="label">Name</label>
-            <input value={form.nextOfKinName} onChange={(e) => setForm({ ...form, nextOfKinName: e.target.value })} className="input" />
-          </div>
-          <div>
-            <label className="label">Phone</label>
-            <input value={form.nextOfKinPhone} onChange={(e) => setForm({ ...form, nextOfKinPhone: e.target.value })} className="input" />
-          </div>
-          <div>
-            <label className="label">Relationship</label>
-            <input value={form.nextOfKinRelation} onChange={(e) => setForm({ ...form, nextOfKinRelation: e.target.value })} className="input" />
+        <div className="border-t mt-4 pt-4">
+          <p className="text-sm font-semibold text-gray-700 mb-3">Next of Kin</p>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="label">Name</label>
+              <input value={form.nextOfKinName} onChange={(e) => setForm({ ...form, nextOfKinName: e.target.value })} className="input" />
+            </div>
+            <div>
+              <label className="label">Phone</label>
+              <input value={form.nextOfKinPhone} onChange={(e) => setForm({ ...form, nextOfKinPhone: e.target.value })} className="input" />
+            </div>
+            <div>
+              <label className="label">Relationship</label>
+              <input value={form.nextOfKinRelation} onChange={(e) => setForm({ ...form, nextOfKinRelation: e.target.value })} className="input" />
+            </div>
           </div>
         </div>
       </Section>
