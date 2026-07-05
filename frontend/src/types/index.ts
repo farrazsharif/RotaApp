@@ -6,6 +6,27 @@ export type NotificationType =
   | 'SHIFT_ASSIGNED' | 'SHIFT_UPDATED' | 'SHIFT_CANCELLED' | 'SHIFT_PUBLISHED' | 'SHIFT_REMOVED'
   | 'TIME_OFF_APPROVED' | 'TIME_OFF_REJECTED' | 'CLOCK_REMINDER';
 
+export type PermissionKey =
+  | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access'
+  | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
+  | 'manage_schedule' | 'manage_time_off' | 'view_reports'
+  | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data';
+
+export interface PermissionDef {
+  key: PermissionKey;
+  label: string;
+  group: string;
+  default: Role[];
+  protectedAdmin?: boolean;
+}
+
+export type PermissionMap = Partial<Record<PermissionKey, Role[]>>;
+
+export interface PermissionsResponse {
+  definitions: PermissionDef[];
+  permissions: Record<PermissionKey, Role[]>;
+}
+
 export interface OrgSettings {
   id: string;
   companyName: string;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { User, Role } from '../types';
 import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
@@ -22,7 +22,7 @@ export function statusInfo(u: { active: boolean; pendingSetup?: boolean }) {
 
 export default function Users() {
   const navigate = useNavigate();
-  const { isAdmin, isManager } = useAuth();
+  const { can } = usePermissions();
   const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
@@ -61,7 +61,7 @@ export default function Users() {
         <h1 className="text-2xl font-bold text-gray-900">Staff</h1>
         <div className="flex gap-3">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="input w-48" />
-          <button className="btn-primary btn" onClick={() => setShowModal(true)}>+ Add Employee</button>
+          {can('manage_staff') && <button className="btn-primary btn" onClick={() => setShowModal(true)}>+ Add Employee</button>}
         </div>
       </div>
 
@@ -108,19 +108,19 @@ export default function Users() {
                   ) : (
                     <div className="flex gap-2 justify-end items-center">
                       <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate(`/users/${u.id}`)}>View →</button>
-                      {isManager && u.pendingSetup && (
+                      {can('manage_staff') && u.pendingSetup && (
                         resentId === u.id
                           ? <span className="text-xs text-green-700">Invite sent ✓</span>
                           : <button className="btn-secondary btn btn-sm" disabled={resendMut.isPending} onClick={() => resendMut.mutate(u.id)}>
                               {resendMut.isPending ? 'Sending…' : 'Resend invite'}
                             </button>
                       )}
-                      {isAdmin && u.active && (
+                      {can('delete_staff') && u.active && (
                         <button className="btn-secondary btn btn-sm" onClick={() => deactivateMut.mutate(u.id)}>
                           Deactivate
                         </button>
                       )}
-                      {isAdmin && (
+                      {can('delete_staff') && (
                         <button className="btn-danger btn btn-sm" onClick={() => setConfirmDelete(u.id)}>
                           Delete
                         </button>

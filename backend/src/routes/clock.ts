@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { clockIn, clockOut, getClockStatus, listClockRecords, listActiveClockRecords, updateClockRecord, myCalls, dueMeds } from '../controllers/clockController';
 import { authenticate, requireRole } from '../middleware/auth';
+import { requirePermission } from '../middleware/permissions';
 
 const router = Router();
 
@@ -11,8 +12,8 @@ router.get('/due-meds', dueMeds);
 router.post('/in', clockIn);
 router.post('/out', clockOut);
 router.get('/status', getClockStatus);
-router.get('/active', requireRole('ADMIN', 'MANAGER'), listActiveClockRecords);
+router.get('/active', requirePermission('manage_schedule'), listActiveClockRecords);
 router.get('/records', listClockRecords);
-router.put('/records/:id', requireRole('ADMIN', 'MANAGER'), updateClockRecord);
+router.put('/records/:id', requirePermission('manage_schedule'), updateClockRecord);
 
 export default router;

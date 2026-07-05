@@ -389,6 +389,7 @@ model OrgSettings {
   overtimeThreshold Float    @default(40)
   inviteExpiryDays  Int      @default(7)
   defaultRole       String   @default("EMPLOYEE")
+  permissions       String   @default("{}") // JSON: { permissionKey: Role[] } overrides
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

@@ -1,8 +1,28 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { PERMISSIONS, getEffectivePermissions, sanitisePermissions, clearPermissionCache } from '../middleware/permissions';
 
 const SINGLETON_ID = 'org';
+
+// Returns the permission definitions plus the current effective role map, so
+// the UI can both render the matrix and gate its own controls.
+export async function getPermissions(_req: AuthRequest, res: Response) {
+  const permissions = await getEffectivePermissions();
+  res.json({ definitions: PERMISSIONS, permissions });
+}
+
+export async function updatePermissions(req: AuthRequest, res: Response) {
+  const clean = sanitisePermissions((req.body as { permissions?: unknown })?.permissions);
+  await prisma.orgSettings.upsert({
+    where: { id: SINGLETON_ID },
+    update: { permissions: JSON.stringify(clean) },
+    create: { id: SINGLETON_ID, permissions: JSON.stringify(clean) },
+  });
+  clearPermissionCache();
+  const permissions = await getEffectivePermissions();
+  res.json({ definitions: PERMISSIONS, permissions });
+}
 
 // Returns the org settings, creating the default row on first access.
 export async function getOrgSettings(_req: AuthRequest, res: Response) {

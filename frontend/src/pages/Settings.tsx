@@ -1,24 +1,26 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { settingsApi } from '../api/settings';
 import { authApi } from '../api/auth';
 import { sitesApi } from '../api/sites';
-import { OrgSettings, Role, Site } from '../types';
+import { OrgSettings, Role, Site, PermissionKey, PermissionMap } from '../types';
 import PhotoUpload from '../components/PhotoUpload';
 import { fileToLogoDataUrl } from '../lib/image';
 
 const TIMEZONES = ['Europe/London', 'UTC', 'Europe/Dublin', 'Europe/Paris'];
 
-type TabKey = 'account' | 'org' | 'sites' | 'staff';
+type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles';
 
 export default function Settings() {
-  const { isAdmin, isManager } = useAuth();
+  const { can } = usePermissions();
   const tabs = [
     { key: 'account' as const, label: 'My Account', show: true },
-    { key: 'org' as const, label: 'Organisation', show: isAdmin },
-    { key: 'sites' as const, label: 'Sites', show: isManager },
-    { key: 'staff' as const, label: 'Staff Defaults', show: isAdmin },
+    { key: 'org' as const, label: 'Organisation', show: can('manage_settings') },
+    { key: 'sites' as const, label: 'Sites', show: can('manage_sites') },
+    { key: 'staff' as const, label: 'Staff Defaults', show: can('manage_settings') },
+    { key: 'roles' as const, label: 'Roles & Permissions', show: can('manage_permissions') },
   ].filter((t) => t.show);
 
   const [tab, setTab] = useState<TabKey>('account');
@@ -45,8 +47,96 @@ export default function Settings() {
 
       {tab === 'account' && <MyAccountTab />}
       {tab === 'org' && <OrganisationTab />}
-      {tab === 'sites' && <SitesTab isManager={isManager} />}
+      {tab === 'sites' && <SitesTab isManager={can('manage_sites')} />}
       {tab === 'staff' && <StaffDefaultsTab />}
+      {tab === 'roles' && <RolesPermissionsTab />}
+    </div>
+  );
+}
+
+/* ---------------- Roles & Permissions ---------------- */
+const MATRIX_ROLES: { key: Role; label: string }[] = [
+  { key: 'ADMIN', label: 'Admin' },
+  { key: 'MANAGER', label: 'Manager' },
+  { key: 'EMPLOYEE', label: 'Employee' },
+  { key: 'FAMILY_MEMBER', label: 'Family' },
+];
+
+function RolesPermissionsTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['permissions'], queryFn: settingsApi.getPermissions });
+  const [draft, setDraft] = useState<Record<string, Role[]> | null>(null);
+  const map = draft ?? data?.permissions ?? null;
+
+  const mut = useMutation({
+    mutationFn: (payload: PermissionMap) => settingsApi.updatePermissions(payload),
+    onSuccess: (res) => { qc.setQueryData(['permissions'], res); setDraft(null); },
+  });
+
+  if (isLoading || !data || !map) return <div className="card text-gray-400">Loading…</div>;
+
+  const groups = [...new Set(data.definitions.map((d) => d.group))];
+
+  function toggle(key: PermissionKey, role: Role, protectedAdmin?: boolean) {
+    if (protectedAdmin && role === 'ADMIN') return;
+    const current = map![key] || [];
+    const next = current.includes(role) ? current.filter((r) => r !== role) : [...current, role];
+    setDraft({ ...map!, [key]: next });
+  }
+
+  return (
+    <div className="card space-y-4">
+      <div>
+        <h2 className="font-semibold text-gray-900">Roles &amp; Permissions</h2>
+        <p className="text-sm text-gray-500">Choose which roles can perform each action. Admin keeps the critical rights so you can't lock yourself out.</p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse min-w-[520px]">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left p-2 font-medium text-gray-600">Capability</th>
+              {MATRIX_ROLES.map((r) => <th key={r.key} className="p-2 font-medium text-gray-600 text-center w-20">{r.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((group) => (
+              <Fragment key={group}>
+                <tr className="bg-gray-50"><td colSpan={5} className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">{group}</td></tr>
+                {data.definitions.filter((d) => d.group === group).map((def) => (
+                  <tr key={def.key} className="border-b">
+                    <td className="p-2 text-gray-800">{def.label}</td>
+                    {MATRIX_ROLES.map((r) => {
+                      const locked = def.protectedAdmin && r.key === 'ADMIN';
+                      return (
+                        <td key={r.key} className="p-2 text-center">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-blue-600"
+                            checked={(map![def.key] || []).includes(r.key)}
+                            disabled={locked}
+                            title={locked ? "Admin can't be removed from this" : undefined}
+                            onChange={() => toggle(def.key, r.key, def.protectedAdmin)}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex gap-3 items-center pt-1">
+        <div className="flex-1" />
+        {mut.isSuccess && !draft && <span className="text-sm text-green-600">Saved ✓</span>}
+        {draft && <button className="btn-secondary btn" onClick={() => setDraft(null)}>Discard</button>}
+        <button className="btn-primary btn" disabled={!draft || mut.isPending} onClick={() => mut.mutate(map!)}>
+          {mut.isPending ? 'Saving…' : 'Save Permissions'}
+        </button>
+      </div>
     </div>
   );
 }
