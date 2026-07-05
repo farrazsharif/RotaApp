@@ -26,7 +26,7 @@ interface FormValues {
   notes: string;
 }
 
-const VISIT_PRESETS = ['Morning Call', 'Lunch Call', 'Tea Call', 'Bed Call'];
+const VISIT_PRESETS = ['Morning Call', 'Lunch Call', 'Tea Call', 'Bed Call', 'Shopping', 'Cleaning', 'Domestic', 'Social'];
 const WEEKDAYS = [
   { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
   { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' }, { value: 0, label: 'Sun' },
@@ -84,6 +84,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const [assignScope, setAssignScope] = useState<'one' | 'future' | 'days'>('one');
   const [assignDays, setAssignDays] = useState<number[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState('');
+  const [visitNameCustomOpen, setVisitNameCustomOpen] = useState(false);
 
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: () => usersApi.list({ active: true }) });
   const { data: serviceUsers = [] } = useQuery({ queryKey: ['service-users', ''], queryFn: () => serviceUsersApi.list() });
@@ -111,10 +112,68 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
         role: shift.role || '',
         notes: shift.notes || '',
       });
+      setVisitNameCustomOpen(!!shift.visitName && !VISIT_PRESETS.includes(shift.visitName));
     } else {
       reset({ userId: '', date: defaultDate || format(new Date(), 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00', serviceUserId: '', visitName: '' });
+      setVisitNameCustomOpen(false);
     }
   }, [shift, defaultDate, reset]);
+
+  function selectVisitPreset(preset: string) {
+    setValue('visitName', preset, { shouldValidate: true });
+    setVisitNameCustomOpen(false);
+  }
+
+  function selectVisitOther() {
+    setVisitNameCustomOpen(true);
+    if (VISIT_PRESETS.includes(watch('visitName'))) setValue('visitName', '', { shouldValidate: false });
+  }
+
+  // Shared by the create form and the edit two-pane view: preset chips plus
+  // an "Other…" option that reveals a free-text box for anything else. The
+  // text input stays mounted (just visually hidden) so react-hook-form keeps
+  // its ref and validation regardless of which mode is active.
+  function renderVisitNamePicker(required: boolean) {
+    const currentValue = watch('visitName');
+    return (
+      <div>
+        <label className="label">Visit Name{required ? ' *' : ''}</label>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {VISIT_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => selectVisitPreset(preset)}
+              className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                currentValue === preset
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {preset}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={selectVisitOther}
+            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+              visitNameCustomOpen
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Other…
+          </button>
+        </div>
+        <input
+          {...register('visitName', required ? { required: true } : {})}
+          placeholder="Enter a call name"
+          className={visitNameCustomOpen ? 'input' : 'hidden'}
+        />
+        {errors.visitName && <p className="text-xs text-red-500 mt-1">Required</p>}
+      </div>
+    );
+  }
 
   function toggleRepeatDay(d: number) {
     setRepeatDays((days) => (days.includes(d) ? days.filter((x) => x !== d) : [...days, d]));
@@ -237,19 +296,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
             {errors.serviceUserId && <p className="text-xs text-red-500 mt-1">Required</p>}
           </div>
 
-          <div>
-            <label className="label">Visit Name *</label>
-            <input
-              list="visit-presets"
-              {...register('visitName', { required: true })}
-              placeholder="e.g. Morning Call, Lunch Call…"
-              className="input"
-            />
-            <datalist id="visit-presets">
-              {VISIT_PRESETS.map((v) => <option key={v} value={v} />)}
-            </datalist>
-            {errors.visitName && <p className="text-xs text-red-500 mt-1">Required</p>}
-          </div>
+          {renderVisitNamePicker(true)}
 
           <div>
             <label className="label">Date *</label>
@@ -625,18 +672,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 {errors.serviceUserId && <p className="text-xs text-red-500 mt-1">Required</p>}
               </div>
 
-              <div>
-                <label className="label">Visit Name</label>
-                <input
-                  list="visit-presets"
-                  {...register('visitName')}
-                  placeholder="e.g. Morning Call, Lunch Call…"
-                  className="input"
-                />
-                <datalist id="visit-presets">
-                  {VISIT_PRESETS.map((v) => <option key={v} value={v} />)}
-                </datalist>
-              </div>
+              {renderVisitNamePicker(false)}
 
               <div className="flex items-center justify-between">
                 <label className="label mb-0">Date & Time</label>
