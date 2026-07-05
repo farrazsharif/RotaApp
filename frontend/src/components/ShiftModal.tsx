@@ -797,17 +797,15 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 ) : (
                   <div className="space-y-1.5">
                     {assignedUsers.map((u) => (
-                      <div key={u.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-1.5">
+                      <label key={u.id} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked
+                          onChange={() => removeCarer(u.id)}
+                          className="h-4 w-4 accent-blue-600"
+                        />
                         <span className="text-sm text-gray-800">{u.firstName} {u.lastName}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeCarer(u.id)}
-                          title="Remove from this shift"
-                          className="text-red-500 hover:text-red-700 text-lg leading-none"
-                        >
-                          −
-                        </button>
-                      </div>
+                      </label>
                     ))}
                   </div>
                 )}
@@ -819,18 +817,22 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 </p>
                 <div className="space-y-1.5 max-h-64 overflow-y-auto">
                   {availableUsers.map((u) => (
-                    <div key={u.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-1.5">
-                      <span className="text-sm text-gray-800">{u.firstName} {u.lastName}</span>
-                      <button
-                        type="button"
-                        onClick={() => addCarer(u.id)}
+                    <label
+                      key={u.id}
+                      title={fullyAssigned ? 'All cover slots are filled' : 'Add to this shift'}
+                      className={`flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 ${
+                        fullyAssigned ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={false}
                         disabled={fullyAssigned}
-                        title={fullyAssigned ? 'All cover slots are filled' : 'Add to this shift'}
-                        className="text-green-600 hover:text-green-700 disabled:text-gray-300 text-lg leading-none"
-                      >
-                        +
-                      </button>
-                    </div>
+                        onChange={() => addCarer(u.id)}
+                        className="h-4 w-4 accent-blue-600"
+                      />
+                      <span className="text-sm text-gray-800">{u.firstName} {u.lastName}</span>
+                    </label>
                   ))}
                   {availableUsers.length === 0 && <p className="text-sm text-gray-400">No matching employees.</p>}
                 </div>
