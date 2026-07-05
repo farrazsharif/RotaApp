@@ -6,6 +6,7 @@ import { Role } from '../constants';
 import { emitToUser } from '../lib/socket';
 import { sendEmail, shiftAssignedEmail } from '../lib/email';
 import { sendPushToUser } from '../lib/push';
+import { isScoped, serviceUserInScope, relatedServiceUserScopeWhere } from '../lib/scope';
 
 const shiftInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
@@ -32,6 +33,9 @@ export async function listShifts(req: AuthRequest, res: Response) {
     if (endDate) (where.date as Record<string, unknown>).lte = new Date(endDate as string);
   }
 
+  // Scoped managers only see shifts for service users in their sites.
+  Object.assign(where, relatedServiceUserScopeWhere(req.user));
+
   const shifts = await prisma.shift.findMany({
     where,
     include: shiftInclude,
@@ -43,6 +47,7 @@ export async function listShifts(req: AuthRequest, res: Response) {
 export async function getShift(req: AuthRequest, res: Response) {
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id }, include: shiftInclude });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
+  if (!(await serviceUserInScope(req.user, shift.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
   res.json(shift);
 }
 
@@ -83,6 +88,9 @@ export async function createShift(req: AuthRequest, res: Response) {
   }
   if (!serviceUserId) {
     return res.status(400).json({ error: 'A service user (patient) is required' });
+  }
+  if (!(await serviceUserInScope(req.user, serviceUserId))) {
+    return res.status(403).json({ error: 'That service user is outside your assigned sites' });
   }
 
   const baseData = {
@@ -164,6 +172,14 @@ export async function createShift(req: AuthRequest, res: Response) {
 export async function updateShift(req: AuthRequest, res: Response) {
   const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId } = req.body;
 
+  if (isScoped(req.user)) {
+    const cur = await prisma.shift.findUnique({ where: { id: req.params.id }, select: { serviceUserId: true } });
+    if (!cur || !(await serviceUserInScope(req.user, cur.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
+    if (serviceUserId !== undefined && !(await serviceUserInScope(req.user, serviceUserId))) {
+      return res.status(403).json({ error: 'That service user is outside your assigned sites' });
+    }
+  }
+
   // Capture who's assigned before the update so we can tell, after it,
   // which of them got taken off (this endpoint sets the full assignment
   // each save, so a removal is just "was there before, isn't there now").
@@ -222,6 +238,7 @@ export async function deleteShift(req: AuthRequest, res: Response) {
 
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id } });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
+  if (!(await serviceUserInScope(req.user, shift.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
 
   let idsToCancel: string[] = [shift.id];
 
@@ -267,6 +284,7 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
 
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id } });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
+  if (!(await serviceUserInScope(req.user, shift.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
 
   let ids: string[] = [shift.id];
   if (shift.seriesId && scope && scope !== 'one') {
@@ -340,7 +358,7 @@ export async function cancelBulkShifts(req: AuthRequest, res: Response) {
   }
 
   const result = await prisma.shift.updateMany({
-    where: { id: { in: ids }, status: { not: 'CANCELLED' } },
+    where: { id: { in: ids }, status: { not: 'CANCELLED' }, ...relatedServiceUserScopeWhere(req.user) },
     data: { status: 'CANCELLED' },
   });
 
@@ -467,7 +485,7 @@ export async function publishBulkShifts(req: AuthRequest, res: Response) {
   }
 
   const candidates = await prisma.shift.findMany({
-    where: { id: { in: ids }, published: false },
+    where: { id: { in: ids }, published: false, ...relatedServiceUserScopeWhere(req.user) },
     include: { coverCarers: { select: { id: true } } },
   });
   const publishable = candidates.filter(isFullyAssigned);

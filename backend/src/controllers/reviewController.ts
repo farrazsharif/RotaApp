@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { relatedServiceUserScopeWhere } from '../lib/scope';
 
 const include = {
   serviceUser: { select: { id: true, firstName: true, lastName: true } },
@@ -8,7 +9,8 @@ const include = {
 
 export async function listReviews(req: AuthRequest, res: Response) {
   const serviceUserId = req.query.serviceUserId as string | undefined;
-  const where = serviceUserId ? { serviceUserId } : {};
+  const where: Record<string, unknown> = serviceUserId ? { serviceUserId } : {};
+  Object.assign(where, relatedServiceUserScopeWhere(req.user));
 
   const reviews = await prisma.review.findMany({
     where,

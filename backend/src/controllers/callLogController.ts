@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { relatedServiceUserScopeWhere } from '../lib/scope';
 
 const include = {
   user: { select: { id: true, firstName: true, lastName: true } },
@@ -36,6 +37,7 @@ export async function listCallLogs(req: AuthRequest, res: Response) {
   const { serviceUserId } = req.query;
   const where: Record<string, unknown> = {};
   if (serviceUserId) where.serviceUserId = serviceUserId;
+  Object.assign(where, relatedServiceUserScopeWhere(req.user));
 
   const logs = await prisma.callLog.findMany({
     where,

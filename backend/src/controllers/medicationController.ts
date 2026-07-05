@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { MedStatus } from '../constants';
+import { relatedServiceUserScopeWhere } from '../lib/scope';
 
 function parseTimes(input: unknown): string {
   if (Array.isArray(input)) return JSON.stringify(input.filter((t) => typeof t === 'string'));
@@ -85,6 +86,7 @@ export async function listAdministrations(req: AuthRequest, res: Response) {
   const { serviceUserId, date, startDate, endDate, recent } = req.query;
   const where: Record<string, unknown> = {};
   if (serviceUserId) where.serviceUserId = String(serviceUserId);
+  Object.assign(where, relatedServiceUserScopeWhere(req.user));
   if (date) {
     const [y, m, d] = String(date).split('-').map(Number);
     where.scheduledFor = { gte: new Date(y, m - 1, d, 0, 0, 0), lte: new Date(y, m - 1, d, 23, 59, 59) };

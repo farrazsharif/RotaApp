@@ -6,12 +6,14 @@ import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { createPasswordSetupToken, portalUrlForRole } from './authController';
 import { sendEmail, setPasswordEmail } from '../lib/email';
+import { isScoped, staffInScope } from '../lib/scope';
 
 const userSelect = {
   id: true, email: true, firstName: true, lastName: true, role: true,
   hourlyRate: true, phone: true, photo: true, active: true, createdAt: true,
   customRoleId: true,
   customRole: { select: { id: true, name: true, baseType: true } },
+  sites: { select: { id: true, name: true, color: true } },
   emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true,
 };
 
@@ -23,6 +25,14 @@ async function resolveCustomRole(customRoleId: string | null | undefined) {
   return role; // null if not found — caller decides how to handle
 }
 
+// Normalises a siteIds array from the request, and — for a scoped caller —
+// restricts it to sites they themselves belong to (can't grant access to a
+// site they can't see).
+function requestedSiteIds(req: AuthRequest, siteIds: unknown): string[] {
+  const list = Array.isArray(siteIds) ? siteIds.filter((x): x is string => typeof x === 'string') : [];
+  return isScoped(req.user) ? list.filter((id) => req.user!.siteIds!.includes(id)) : list;
+}
+
 export async function listUsers(req: AuthRequest, res: Response) {
   const { role, active } = req.query;
   const where: Record<string, unknown> = {};
@@ -31,6 +41,14 @@ export async function listUsers(req: AuthRequest, res: Response) {
   if (role) where.role = role;
   else where.role = { not: Role.FAMILY_MEMBER };
   if (active !== undefined) where.active = active === 'true';
+  // A scoped viewer only sees staff sharing at least one of their sites
+  // (plus themselves).
+  if (isScoped(req.user)) {
+    where.OR = [
+      { sites: { some: { id: { in: req.user!.siteIds } } } },
+      { id: req.user!.id },
+    ];
+  }
   const users = await prisma.user.findMany({ where, select: userSelect, orderBy: [{ firstName: 'asc' }] });
   // An outstanding setup token on an inactive account means the person was
   // invited but hasn't chosen a password yet — surfaced as "Pending".
@@ -43,6 +61,9 @@ export async function listUsers(req: AuthRequest, res: Response) {
 }
 
 export async function getUser(req: AuthRequest, res: Response) {
+  if (!(await staffInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'User not found' });
+  }
   const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: userSelect });
   if (!user) return res.status(404).json({ error: 'User not found' });
   const token = await prisma.passwordSetupToken.findFirst({ where: { userId: user.id }, select: { id: true } });
@@ -50,7 +71,7 @@ export async function getUser(req: AuthRequest, res: Response) {
 }
 
 export async function createUser(req: AuthRequest, res: Response) {
-  const { email, password, firstName, lastName, role, hourlyRate, phone, photo, sendInvite, customRoleId } = req.body;
+  const { email, password, firstName, lastName, role, hourlyRate, phone, photo, sendInvite, customRoleId, siteIds } = req.body;
   if (!email || !firstName || !lastName) {
     return res.status(400).json({ error: 'email, firstName, lastName required' });
   }
@@ -83,6 +104,7 @@ export async function createUser(req: AuthRequest, res: Response) {
       // Invited users stay inactive (and can't log in) until they set their
       // own password via the emailed link; setPassword flips them active.
       active: sendInvite ? false : true,
+      sites: { connect: requestedSiteIds(req, siteIds).map((id) => ({ id })) },
     },
     select: userSelect,
   });
@@ -97,8 +119,12 @@ export async function createUser(req: AuthRequest, res: Response) {
 }
 
 export async function updateUser(req: AuthRequest, res: Response) {
-  const { firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, emergencyContactName, emergencyContactPhone, emergencyContactRelation } = req.body;
+  if (!(await staffInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const { firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation } = req.body;
   const data: Record<string, unknown> = {};
+  if (siteIds !== undefined) data.sites = { set: requestedSiteIds(req, siteIds).map((id) => ({ id })) };
   if (firstName !== undefined) data.firstName = firstName;
   if (lastName !== undefined) data.lastName = lastName;
   if (role !== undefined && req.user!.role === Role.ADMIN) data.role = role;
@@ -132,6 +158,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
 // Re-sends the welcome / set-password email for someone who was invited but
 // hasn't completed setup yet. Issues a fresh token (invalidating older links).
 export async function resendInvite(req: AuthRequest, res: Response) {
+  if (!(await staffInScope(req.user, req.params.id))) return res.status(404).json({ error: 'User not found' });
   const user = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.active) return res.status(400).json({ error: 'This user has already set up their account' });
@@ -143,6 +170,7 @@ export async function resendInvite(req: AuthRequest, res: Response) {
 }
 
 export async function deleteUser(req: AuthRequest, res: Response) {
+  if (!(await staffInScope(req.user, req.params.id))) return res.status(404).json({ error: 'User not found' });
   await prisma.user.update({ where: { id: req.params.id }, data: { active: false } });
   res.json({ message: 'User deactivated' });
 }
@@ -152,6 +180,7 @@ export async function permanentDeleteUser(req: AuthRequest, res: Response) {
   if (id === req.user!.id) {
     return res.status(400).json({ error: 'You cannot delete your own account' });
   }
+  if (!(await staffInScope(req.user, id))) return res.status(404).json({ error: 'User not found' });
   // Shifts, time-off, clock records and notifications cascade on user delete
   await prisma.user.delete({ where: { id } });
   res.json({ message: 'User deleted' });

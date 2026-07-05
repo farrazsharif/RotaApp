@@ -2,10 +2,12 @@ import { Router } from 'express';
 import { getServicePlan, upsertServicePlan } from '../controllers/servicePlanController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
+import { scopeServiceUserParam } from '../middleware/scope';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(scopeServiceUserParam);
 
 // Any authenticated user (incl. carers) can view; only admin/manager can edit.
 router.get('/:serviceUserId', getServicePlan);

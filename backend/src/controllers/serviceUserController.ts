@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { ServiceUserStatus } from '../constants';
+import { isScoped, serviceUserInScope } from '../lib/scope';
 
 const include = {
   preferredCaregivers: { select: { id: true, firstName: true, lastName: true } },
@@ -24,6 +25,16 @@ export async function listServiceUsers(req: AuthRequest, res: Response) {
     ];
   }
 
+  // Restrict to the caller's sites when scoped.
+  if (isScoped(req.user)) {
+    const scope = req.user!.siteIds!;
+    if (typeof where.siteId === 'string') {
+      if (!scope.includes(where.siteId)) return res.json([]);
+    } else {
+      where.siteId = { in: scope };
+    }
+  }
+
   const users = await prisma.serviceUser.findMany({
     where,
     include,
@@ -33,9 +44,18 @@ export async function listServiceUsers(req: AuthRequest, res: Response) {
 }
 
 export async function getServiceUser(req: AuthRequest, res: Response) {
+  if (!(await serviceUserInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'Service user not found' });
+  }
   const user = await prisma.serviceUser.findUnique({ where: { id: req.params.id }, include });
   if (!user) return res.status(404).json({ error: 'Service user not found' });
   res.json(user);
+}
+
+// Ensures a scoped caller may create/move a service user into the given site.
+function siteAllowed(req: AuthRequest, siteId: unknown): boolean {
+  if (!isScoped(req.user)) return true;
+  return typeof siteId === 'string' && req.user!.siteIds!.includes(siteId);
 }
 
 function buildData(body: Record<string, unknown>) {
@@ -78,6 +98,11 @@ export async function createServiceUser(req: AuthRequest, res: Response) {
   data.lastName = lastName;
   data.dateOfBirth = new Date(dateOfBirth);
 
+  // A scoped user can only create service users within one of their sites.
+  if (!siteAllowed(req, data.siteId)) {
+    return res.status(403).json({ error: 'You must assign this person to one of your sites' });
+  }
+
   if (Array.isArray(preferredCaregiverIds)) {
     data.preferredCaregivers = { connect: preferredCaregiverIds.map((id: string) => ({ id })) };
   }
@@ -87,8 +112,16 @@ export async function createServiceUser(req: AuthRequest, res: Response) {
 }
 
 export async function updateServiceUser(req: AuthRequest, res: Response) {
+  if (!(await serviceUserInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'Service user not found' });
+  }
   const { preferredCaregiverIds } = req.body;
   const data = buildData(req.body);
+
+  // Prevent moving a service user out of the caller's sites.
+  if (data.siteId !== undefined && !siteAllowed(req, data.siteId)) {
+    return res.status(403).json({ error: 'You can only assign this person to one of your sites' });
+  }
 
   if (Array.isArray(preferredCaregiverIds)) {
     data.preferredCaregivers = { set: preferredCaregiverIds.map((id: string) => ({ id })) };
@@ -107,6 +140,9 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
 }
 
 export async function deleteServiceUser(req: AuthRequest, res: Response) {
+  if (!(await serviceUserInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'Service user not found' });
+  }
   await prisma.serviceUser.delete({ where: { id: req.params.id } });
   res.json({ message: 'Service user deleted' });
 }

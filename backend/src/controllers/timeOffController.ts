@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { emitToUser } from '../lib/socket';
 import { sendEmail, timeOffDecisionEmail } from '../lib/email';
+import { relatedStaffScopeWhere } from '../lib/scope';
 
 const timeOffInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true } },
@@ -15,6 +16,7 @@ export async function listTimeOff(req: AuthRequest, res: Response) {
     where.userId = req.user!.id;
   }
   if (req.query.status) where.status = req.query.status;
+  Object.assign(where, relatedStaffScopeWhere(req.user));
 
   const requests = await prisma.timeOffRequest.findMany({
     where,

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
+import { relatedStaffScopeWhere } from '../lib/scope';
 
 // The logged-in carer's calls for a given day (default today), ordered by visit time.
 // Includes calls where they are the primary carer or an additional cover carer.
@@ -149,9 +150,9 @@ export async function getClockStatus(req: AuthRequest, res: Response) {
 }
 
 // Everyone currently clocked in right now (manager-wide), for the dashboard.
-export async function listActiveClockRecords(_req: AuthRequest, res: Response) {
+export async function listActiveClockRecords(req: AuthRequest, res: Response) {
   const records = await prisma.clockRecord.findMany({
-    where: { clockOut: null },
+    where: { clockOut: null, ...relatedStaffScopeWhere(req.user) },
     include: {
       user: { select: { id: true, firstName: true, lastName: true } },
       shift: { include: { serviceUser: { select: { id: true, firstName: true, lastName: true } } } },
@@ -176,6 +177,7 @@ export async function listClockRecords(req: AuthRequest, res: Response) {
     if (startDate) (where.clockIn as Record<string, unknown>).gte = new Date(startDate as string);
     if (endDate) (where.clockIn as Record<string, unknown>).lte = new Date(endDate as string);
   }
+  Object.assign(where, relatedStaffScopeWhere(req.user));
 
   const records = await prisma.clockRecord.findMany({
     where,

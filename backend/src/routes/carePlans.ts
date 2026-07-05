@@ -2,10 +2,12 @@ import { Router } from 'express';
 import { getCarePlan, upsertCarePlan } from '../controllers/carePlanController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
+import { scopeServiceUserParam } from '../middleware/scope';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(scopeServiceUserParam);
 
 // Any authenticated user (incl. carers) can view a care plan.
 router.get('/:serviceUserId', getCarePlan);

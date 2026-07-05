@@ -38,6 +38,8 @@ model User {
   trainings          Training[]
   importantDates     ImportantDate[]
   customRole         CustomRole?      @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  // Sites this user is scoped to / belongs to. Empty = org-wide (no restriction).
+  sites              Site[]           @relation("UserSites")
 }
 
 // A named role an admin can create (e.g. "Senior Carer"). baseType decides
@@ -62,6 +64,7 @@ model Site {
   createdAt DateTime      @default(now())
 
   serviceUsers ServiceUser[]
+  scopedUsers  User[]        @relation("UserSites")
 }
 
 model ServiceUser {

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { loadOrgSettings } from './settingsController';
+import { isScoped, relatedServiceUserScopeWhere, relatedStaffScopeWhere } from '../lib/scope';
 
 function hoursWorked(clockIn: Date, clockOut: Date | null) {
   if (!clockOut) return 0;
@@ -27,6 +28,7 @@ export async function hoursReport(req: AuthRequest, res: Response) {
     clockIn: { gte: start, lte: end },
   };
   if (userId) clockWhere.userId = userId;
+  Object.assign(clockWhere, relatedStaffScopeWhere(req.user));
 
   const records = await prisma.clockRecord.findMany({
     where: clockWhere,
@@ -68,7 +70,7 @@ export async function overtimeReport(req: AuthRequest, res: Response) {
   const threshold = overtimeThreshold && overtimeThreshold > 0 ? overtimeThreshold : 40;
 
   const records = await prisma.clockRecord.findMany({
-    where: { clockIn: { gte: start, lte: end }, clockOut: { not: null } },
+    where: { clockIn: { gte: start, lte: end }, clockOut: { not: null }, ...relatedStaffScopeWhere(req.user) },
     include: { user: { select: { id: true, firstName: true, lastName: true, hourlyRate: true } } },
   });
 
@@ -112,6 +114,7 @@ export async function coverageReport(req: AuthRequest, res: Response) {
   const shiftWhere: Record<string, unknown> = {
     date: { gte: start, lte: end },
     status: { not: 'CANCELLED' },
+    ...relatedServiceUserScopeWhere(req.user),
   };
 
   const shifts = await prisma.shift.findMany({
@@ -151,6 +154,9 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
   if (siteId) where.serviceUser = { siteId: siteId as string };
   if (role) where.role = role as string;
   if (userId) where.OR = [{ userId: userId as string }, { coverCarers: { some: { id: userId as string } } }];
+  // Scoped users are confined to their sites (overrides any siteId query).
+  const suScope = relatedServiceUserScopeWhere(req.user);
+  if (suScope.serviceUser) where.serviceUser = suScope.serviceUser;
 
   const shifts = await prisma.shift.findMany({
     where,
@@ -209,7 +215,7 @@ export async function cribSheetReport(req: AuthRequest, res: Response) {
   const end = new Date(endDate as string);
 
   const shifts = await prisma.shift.findMany({
-    where: { date: { gte: start, lte: end }, status: { not: 'CANCELLED' } },
+    where: { date: { gte: start, lte: end }, status: { not: 'CANCELLED' }, ...relatedServiceUserScopeWhere(req.user) },
     include: {
       user: { select: { id: true, firstName: true, lastName: true } },
       coverCarers: { select: { id: true, firstName: true, lastName: true } },
@@ -268,7 +274,7 @@ export async function cribSheetReport(req: AuthRequest, res: Response) {
 // Distinct shift roles in use, for the Hours Scheduled report's Position filter.
 export async function shiftRoles(req: AuthRequest, res: Response) {
   const rows = await prisma.shift.findMany({
-    where: { role: { not: null } },
+    where: { role: { not: null }, ...relatedServiceUserScopeWhere(req.user) },
     select: { role: true },
     distinct: ['role'],
   });
@@ -281,10 +287,11 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
   const weekEnd = new Date(today);
   weekEnd.setDate(weekEnd.getDate() + 7);
 
+  const employeeSiteFilter = isScoped(req.user) ? { sites: { some: { id: { in: req.user!.siteIds } } } } : {};
   const [totalEmployees, shiftsThisWeek, pendingTimeOff] = await Promise.all([
-    prisma.user.count({ where: { active: true, role: 'EMPLOYEE' } }),
-    prisma.shift.count({ where: { date: { gte: today, lte: weekEnd }, status: { not: 'CANCELLED' } } }),
-    prisma.timeOffRequest.count({ where: { status: 'PENDING' } }),
+    prisma.user.count({ where: { active: true, role: 'EMPLOYEE', ...employeeSiteFilter } }),
+    prisma.shift.count({ where: { date: { gte: today, lte: weekEnd }, status: { not: 'CANCELLED' }, ...relatedServiceUserScopeWhere(req.user) } }),
+    prisma.timeOffRequest.count({ where: { status: 'PENDING', ...relatedStaffScopeWhere(req.user) } }),
   ]);
 
   res.json({ totalEmployees, shiftsThisWeek, pendingTimeOff });

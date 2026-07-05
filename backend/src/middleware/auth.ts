@@ -11,6 +11,8 @@ export interface AuthRequest extends Request {
     // Capability keys from an assigned custom role; null means "use the
     // base-role matrix instead".
     customPermissions?: string[] | null;
+    // Sites this user is scoped to. Empty array = org-wide (no restriction).
+    siteIds?: string[];
   };
 }
 
@@ -25,7 +27,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, role: true, email: true, active: true, customRole: { select: { permissions: true } } },
+      select: { id: true, role: true, email: true, active: true, customRole: { select: { permissions: true } }, sites: { select: { id: true } } },
     });
     if (!user || !user.active) {
       return res.status(401).json({ error: 'Account not found or inactive' });
@@ -34,7 +36,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     if (user.customRole) {
       try { customPermissions = JSON.parse(user.customRole.permissions); } catch { customPermissions = []; }
     }
-    req.user = { id: user.id, role: user.role as Role, email: user.email, customPermissions };
+    req.user = { id: user.id, role: user.role as Role, email: user.email, customPermissions, siteIds: user.sites.map((s) => s.id) };
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
