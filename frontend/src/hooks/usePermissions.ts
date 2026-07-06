@@ -14,6 +14,7 @@ export function usePermissions() {
     const managerFallback: PermissionKey[] = [
       'manage_staff', 'manage_family_access', 'manage_service_users', 'manage_reviews',
       'manage_medications', 'manage_schedule', 'manage_time_off', 'view_reports', 'manage_sites',
+      'manage_billing',
     ];
     return isManager && managerFallback.includes(key);
   }

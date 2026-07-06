@@ -115,6 +115,7 @@ model ServiceUser {
   familyLinks         FamilyLink[]
   likesDislikes       LikesDislikes?
   reviews             Review[]
+  fundingArrangements FundingArrangement[]
 }
 
 // Links a family-member User account to the service user(s) they're allowed
@@ -428,4 +429,47 @@ model OrgSettings {
   permissions       String   @default("{}") // JSON: { permissionKey: Role[] } overrides
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+// Who pays for a service user's care: a local authority/council, a private
+// self-funding client, or an NHS body. Reused across many service users.
+model Funder {
+  id               String   @id @default(cuid())
+  name             String
+  type             String   @default("PRIVATE") // COUNCIL | PRIVATE | NHS_CHC
+  contactName      String?
+  email            String?
+  phone            String?
+  billingAddress   String?
+  poReference      String?
+  paymentTermsDays Int      @default(30)
+  vatExempt        Boolean  @default(true)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  fundingArrangements FundingArrangement[]
+}
+
+// Links a service user to a funder with a charge rate. The schema supports many
+// per service user (for future split funding); v1 uses one funder each.
+model FundingArrangement {
+  id            String    @id @default(cuid())
+  serviceUserId String
+  funderId      String
+  billingUnit   String    @default("PER_HOUR") // PER_HOUR in v1
+  rate          Float     @default(0) // charge per hour (revenue, NOT carer pay)
+  allocation    String    @default("ALL") // ALL in v1; PERCENTAGE/HOURS_CAP/VISIT_TYPES later
+  startDate     DateTime?
+  endDate       DateTime?
+  poNumber      String?
+  contractRef   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+  funder      Funder      @relation(fields: [funderId], references: [id], onDelete: Restrict)
+
+  @@index([serviceUserId])
+  @@index([funderId])
 }

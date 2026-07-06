@@ -10,6 +10,7 @@ export type PermissionKey =
   | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
+  | 'manage_billing'
   | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data' | 'view_audit_log';
 
 export interface AuditLog {
@@ -233,6 +234,41 @@ export interface Site {
   name: string;
   color: string;
   _count?: { serviceUsers: number };
+}
+
+export type FunderType = 'COUNCIL' | 'PRIVATE' | 'NHS_CHC';
+
+export interface Funder {
+  id: string;
+  name: string;
+  type: FunderType;
+  contactName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  billingAddress?: string | null;
+  poReference?: string | null;
+  paymentTermsDays: number;
+  vatExempt: boolean;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { fundingArrangements: number };
+}
+
+export interface FundingArrangement {
+  id: string;
+  serviceUserId: string;
+  funderId: string;
+  funder?: Funder;
+  billingUnit: 'PER_HOUR';
+  rate: number; // charge per hour to the funder (revenue, not carer pay)
+  allocation: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  poNumber?: string | null;
+  contractRef?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ServiceUser {

@@ -7,6 +7,7 @@ export type PermissionKey =
   | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
+  | 'manage_billing'
   | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data' | 'view_audit_log';
 
 export interface PermissionDef {
@@ -35,6 +36,8 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'manage_schedule',       label: 'Create & edit shifts, edit clock records', group: 'Scheduling', default: AM },
   { key: 'manage_time_off',       label: 'Review & decide time-off requests', group: 'Scheduling', default: AM },
   { key: 'view_reports',          label: 'View reports',                     group: 'Scheduling', default: AM },
+
+  { key: 'manage_billing',        label: 'Manage funders & service-user billing', group: 'Billing', default: AM },
 
   { key: 'manage_sites',          label: 'Manage sites / locations',         group: 'Administration', default: AM },
   { key: 'manage_settings',       label: 'Change organisation settings',     group: 'Administration', default: A, protectedAdmin: true },
