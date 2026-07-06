@@ -19,9 +19,6 @@ import EmarModal from '../components/EmarModal';
 import MarChartModal from '../components/MarChartModal';
 import CallLogsModal from '../components/CallLogsModal';
 import FamilyAccessModal from '../components/FamilyAccessModal';
-import { fundersApi } from '../api/funders';
-import { fundingApi } from '../api/funding';
-import { usePermissions } from '../hooks/usePermissions';
 
 const durationLabel = (m: number) =>
   m >= 60 ? `${m / 60} hr${m > 60 ? 's' : ''}${m % 60 ? ` ${m % 60}m` : ''}` : `${m} mins`;
@@ -69,7 +66,6 @@ export default function ServiceUserDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { isManager } = useAuth();
-  const { can } = usePermissions();
   const [carePlanOpen, setCarePlanOpen] = useState(false);
   const [likesDislikesOpen, setLikesDislikesOpen] = useState(false);
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
@@ -312,9 +308,6 @@ export default function ServiceUserDetail() {
         </Section>
       </div>
 
-      {/* Funding & Billing */}
-      <FundingSection serviceUserId={id} canManage={can('manage_billing')} />
-
       {/* Care Plan */}
       <Section
         title="Care Plan"
@@ -469,107 +462,5 @@ export default function ServiceUserDetail() {
       {logsOpen && <CallLogsModal serviceUser={su} onClose={() => setLogsOpen(false)} />}
       {familyAccessOpen && <FamilyAccessModal serviceUser={su} onClose={() => setFamilyAccessOpen(false)} />}
     </div>
-  );
-}
-
-/* ---------------- Funding & Billing ---------------- */
-const FUNDER_TYPE_LABEL: Record<string, string> = {
-  COUNCIL: 'Council / LA',
-  PRIVATE: 'Private',
-  NHS_CHC: 'NHS CHC',
-};
-
-function FundingSection({ serviceUserId, canManage }: { serviceUserId: string; canManage: boolean }) {
-  const qc = useQueryClient();
-  const { data: arrangements = [] } = useQuery({ queryKey: ['funding', serviceUserId], queryFn: () => fundingApi.list(serviceUserId), enabled: canManage });
-  const { data: funders = [] } = useQuery({ queryKey: ['funders'], queryFn: fundersApi.list, enabled: canManage });
-  const [editing, setEditing] = useState(false);
-  const [funderId, setFunderId] = useState('');
-  const [rate, setRate] = useState('');
-  const [poNumber, setPoNumber] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [error, setError] = useState('');
-
-  const current = arrangements[0]; // v1: single funder per service user
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['funding', serviceUserId] });
-
-  function openForm() {
-    setError('');
-    if (current) {
-      setFunderId(current.funderId);
-      setRate(String(current.rate ?? ''));
-      setPoNumber(current.poNumber || '');
-      setStartDate(current.startDate ? current.startDate.slice(0, 10) : '');
-    } else {
-      setFunderId(funders[0]?.id || '');
-      setRate(''); setPoNumber(''); setStartDate('');
-    }
-    setEditing(true);
-  }
-
-  const saveMut = useMutation({
-    mutationFn: () => {
-      const payload = { funderId, rate: Number(rate) || 0, poNumber: poNumber || undefined, startDate: startDate || undefined };
-      return current ? fundingApi.update(current.id, payload) : fundingApi.create({ serviceUserId, ...payload });
-    },
-    onSuccess: () => { invalidate(); setEditing(false); },
-    onError: (err: unknown) => {
-      const e = err as { response?: { data?: { error?: string } } };
-      setError(e.response?.data?.error || 'Could not save funding.');
-    },
-  });
-  const deleteMut = useMutation({
-    mutationFn: () => fundingApi.delete(current!.id),
-    onSuccess: () => { invalidate(); setEditing(false); },
-  });
-
-  // Hidden entirely from users without billing access.
-  if (!canManage) return null;
-
-  return (
-    <Section
-      title="Funding & Billing"
-      action={!editing && <button className="btn-secondary btn btn-sm" onClick={openForm}>{current ? 'Edit' : 'Set Funder'}</button>}
-    >
-      {editing ? (
-        <div className="space-y-3">
-          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
-          {funders.length === 0 ? (
-            <p className="text-sm text-gray-500">No funders exist yet. Add one in <span className="font-medium">Settings → Funders</span> first.</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="label">Funder</label>
-                <select value={funderId} onChange={(e) => setFunderId(e.target.value)} className="input">
-                  {funders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </select>
-              </div>
-              <div><label className="label">Charge Rate (£/hr)</label><input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="input" placeholder="e.g. 22.50" /></div>
-              <div><label className="label">PO / Reference</label><input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} className="input" /></div>
-              <div><label className="label">Start Date</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input" /></div>
-            </div>
-          )}
-          <div className="flex gap-3">
-            <button className="btn-secondary btn" onClick={() => setEditing(false)}>Cancel</button>
-            {current && <button className="btn-danger btn" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>Remove Funder</button>}
-            <div className="flex-1" />
-            {funders.length > 0 && (
-              <button className="btn-primary btn" disabled={!funderId || saveMut.isPending} onClick={() => saveMut.mutate()}>
-                {saveMut.isPending ? 'Saving…' : 'Save'}
-              </button>
-            )}
-          </div>
-        </div>
-      ) : !current ? (
-        <p className="text-sm text-gray-400">No funder assigned. Charging can't be calculated until a funder and charge rate are set.</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Field label="Funder" value={current.funder?.name} />
-          <Field label="Type" value={current.funder ? FUNDER_TYPE_LABEL[current.funder.type] : undefined} />
-          <Field label="Charge Rate" value={`£${current.rate.toFixed(2)} / hr`} />
-          <Field label="PO / Reference" value={current.poNumber} />
-        </div>
-      )}
-    </Section>
   );
 }

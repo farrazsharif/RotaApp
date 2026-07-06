@@ -1,10 +1,12 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
+import { PermissionKey } from '../types';
 import NotificationBell from './NotificationBell';
 import ClockWidget from './ClockWidget';
 import { useState } from 'react';
 
-const navItems = [
+const navItems: { to: string; label: string; icon: string; exact?: boolean; managerOnly?: boolean; capability?: PermissionKey }[] = [
   { to: '/', label: 'Dashboard', icon: '🏠', exact: true },
   { to: '/schedule', label: 'Schedule', icon: '📅' },
   { to: '/service-users', label: 'Service Users', icon: '🧑‍🦽' },
@@ -16,12 +18,14 @@ const navItems = [
   { to: '/time-off', label: 'Time Off', icon: '🏖️', managerOnly: true },
   { to: '/attendance', label: 'Attendance', icon: '⏱️', managerOnly: true },
   { to: '/reports', label: 'Reports', icon: '📊', managerOnly: true },
+  { to: '/finances', label: 'Finances', icon: '💷', capability: 'manage_billing' },
   { to: '/users', label: 'Staff', icon: '👥', managerOnly: true },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
 export default function Layout() {
   const { user, logout, isManager } = useAuth();
+  const { can } = usePermissions();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -30,7 +34,11 @@ export default function Layout() {
     navigate('/login');
   }
 
-  const visibleNav = navItems.filter((item) => !item.managerOnly || isManager);
+  const visibleNav = navItems.filter((item) => {
+    if (item.managerOnly && !isManager) return false;
+    if (item.capability && !can(item.capability)) return false;
+    return true;
+  });
 
   return (
     <div className="flex h-screen bg-gray-50">

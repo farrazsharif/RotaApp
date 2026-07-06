@@ -260,6 +260,7 @@ export interface FundingArrangement {
   serviceUserId: string;
   funderId: string;
   funder?: Funder;
+  serviceUser?: Pick<ServiceUser, 'id' | 'firstName' | 'lastName' | 'status'>;
   billingUnit: 'PER_HOUR';
   rate: number; // charge per hour to the funder (revenue, not carer pay)
   allocation: string;

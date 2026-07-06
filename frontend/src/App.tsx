@@ -19,6 +19,7 @@ import Emar from './pages/Emar';
 import CarePlans from './pages/CarePlans';
 import Reviews from './pages/Reviews';
 import ServicePlans from './pages/ServicePlans';
+import Finances from './pages/Finances';
 import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -70,6 +71,7 @@ function AppRoutes() {
         <Route path="time-off" element={<ManagerRoute><TimeOff /></ManagerRoute>} />
         <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />
         <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
+        <Route path="finances" element={<Finances />} />
         <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
         <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
         <Route path="settings" element={<Settings />} />

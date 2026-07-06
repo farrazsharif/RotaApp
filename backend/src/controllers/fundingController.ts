@@ -1,15 +1,22 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { relatedServiceUserScopeWhere } from '../lib/scope';
 
 // Funding arrangements link a service user to a funder + charge rate. Site
-// scoping is enforced by the route middleware (scopeServiceUserRef / by-id).
+// scoping is enforced by the route middleware (scopeServiceUserRef / by-id);
+// the list-all branch below applies its own site scope.
 export async function listFunding(req: AuthRequest, res: Response) {
   const serviceUserId = req.query.serviceUserId as string | undefined;
-  if (!serviceUserId) return res.status(400).json({ error: 'serviceUserId required' });
+  // With a serviceUserId, list that user's arrangement(s) (guarded by middleware).
+  // Without one, list all arrangements the caller can see (Finances overview).
+  const where = serviceUserId ? { serviceUserId } : relatedServiceUserScopeWhere(req.user);
   const arrangements = await prisma.fundingArrangement.findMany({
-    where: { serviceUserId },
-    include: { funder: true },
+    where,
+    include: {
+      funder: true,
+      serviceUser: { select: { id: true, firstName: true, lastName: true, status: true } },
+    },
     orderBy: { createdAt: 'asc' },
   });
   res.json(arrangements);

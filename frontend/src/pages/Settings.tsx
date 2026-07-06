@@ -5,17 +5,16 @@ import { usePermissions } from '../hooks/usePermissions';
 import { settingsApi } from '../api/settings';
 import { authApi } from '../api/auth';
 import { sitesApi } from '../api/sites';
-import { fundersApi, FunderData } from '../api/funders';
 import { rolesApi } from '../api/roles';
 import { auditApi } from '../api/audit';
-import { OrgSettings, Role, Site, PermissionKey, PermissionMap, FunderType } from '../types';
+import { OrgSettings, Role, Site, PermissionKey, PermissionMap } from '../types';
 import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
 import { fileToLogoDataUrl } from '../lib/image';
 
 const TIMEZONES = ['Europe/London', 'UTC', 'Europe/Dublin', 'Europe/Paris'];
 
-type TabKey = 'account' | 'org' | 'sites' | 'funders' | 'staff' | 'roles' | 'audit';
+type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles' | 'audit';
 
 export default function Settings() {
   const { can } = usePermissions();
@@ -23,7 +22,6 @@ export default function Settings() {
     { key: 'account' as const, label: 'My Account', show: true },
     { key: 'org' as const, label: 'Organisation', show: can('manage_settings') },
     { key: 'sites' as const, label: 'Sites', show: can('manage_sites') },
-    { key: 'funders' as const, label: 'Funders', show: can('manage_billing') },
     { key: 'staff' as const, label: 'Staff Defaults', show: can('manage_settings') },
     { key: 'roles' as const, label: 'Roles & Permissions', show: can('manage_permissions') },
     { key: 'audit' as const, label: 'Audit Log', show: can('view_audit_log') },
@@ -54,7 +52,6 @@ export default function Settings() {
       {tab === 'account' && <MyAccountTab />}
       {tab === 'org' && <OrganisationTab />}
       {tab === 'sites' && <SitesTab isManager={can('manage_sites')} />}
-      {tab === 'funders' && <FundersTab />}
       {tab === 'staff' && <StaffDefaultsTab />}
       {tab === 'roles' && (
         <div className="space-y-6">
@@ -619,133 +616,6 @@ function StaffDefaultsTab() {
           {mut.isPending ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
-    </div>
-  );
-}
-
-/* ---------------- Funders ---------------- */
-const FUNDER_TYPE_META: Record<FunderType, { label: string; className: string }> = {
-  COUNCIL: { label: 'Council / LA', className: 'bg-blue-100 text-blue-700' },
-  PRIVATE: { label: 'Private', className: 'bg-green-100 text-green-700' },
-  NHS_CHC: { label: 'NHS CHC', className: 'bg-purple-100 text-purple-700' },
-};
-
-const emptyFunder: FunderData = { name: '', type: 'PRIVATE', contactName: '', email: '', phone: '', paymentTermsDays: 30 };
-
-function FundersTab() {
-  const qc = useQueryClient();
-  const { data: funders = [], isLoading } = useQuery({ queryKey: ['funders'], queryFn: fundersApi.list });
-  const [form, setForm] = useState<FunderData | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [error, setError] = useState('');
-
-  const reset = () => { setForm(null); setEditingId(null); setError(''); };
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['funders'] });
-  const set = (patch: Partial<FunderData>) => setForm((f) => ({ ...(f ?? emptyFunder), ...patch }));
-
-  const saveMut = useMutation({
-    mutationFn: () => (editingId ? fundersApi.update(editingId, form!) : fundersApi.create(form!)),
-    onSuccess: () => { invalidate(); reset(); },
-    onError: (err: unknown) => {
-      const e = err as { response?: { data?: { error?: string } } };
-      setError(e.response?.data?.error || 'Could not save funder.');
-    },
-  });
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => fundersApi.delete(id),
-    onSuccess: () => { invalidate(); setConfirmDeleteId(null); },
-    onError: (err: unknown) => {
-      const e = err as { response?: { data?: { error?: string } } };
-      setError(e.response?.data?.error || 'Could not delete funder.');
-      setConfirmDeleteId(null);
-    },
-  });
-
-  return (
-    <div className="card space-y-5 max-w-2xl">
-      <div>
-        <h2 className="font-semibold text-gray-900">Funders</h2>
-        <p className="text-sm text-gray-500">Councils, private clients and NHS bodies that get billed for care. Assign one to each service user from their profile.</p>
-      </div>
-
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
-
-      {isLoading ? (
-        <p className="text-sm text-gray-400">Loading…</p>
-      ) : funders.length === 0 ? (
-        <p className="text-sm text-gray-400">No funders yet.</p>
-      ) : (
-        <div className="space-y-2">
-          {funders.map((f) => (
-            <div key={f.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium text-gray-900">
-                  {f.name} <span className={`badge ${FUNDER_TYPE_META[f.type].className}`}>{FUNDER_TYPE_META[f.type].label}</span>
-                </p>
-                <p className="text-xs text-gray-400">
-                  {f._count?.fundingArrangements ?? 0} service user{(f._count?.fundingArrangements ?? 0) === 1 ? '' : 's'}
-                  {f.paymentTermsDays ? ` · ${f.paymentTermsDays}-day terms` : ''}
-                </p>
-              </div>
-              {confirmDeleteId === f.id ? (
-                <span className="flex items-center gap-2">
-                  <span className="text-xs text-red-700">Delete this funder?</span>
-                  <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(f.id)}>Yes</button>
-                  <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDeleteId(null)}>No</button>
-                </span>
-              ) : (
-                <span className="flex gap-2">
-                  <button
-                    className="text-blue-600 text-xs hover:underline"
-                    onClick={() => {
-                      setEditingId(f.id);
-                      setForm({
-                        name: f.name, type: f.type, contactName: f.contactName || '', email: f.email || '',
-                        phone: f.phone || '', billingAddress: f.billingAddress || '', poReference: f.poReference || '',
-                        paymentTermsDays: f.paymentTermsDays, vatExempt: f.vatExempt, notes: f.notes || '',
-                      });
-                      setError('');
-                    }}
-                  >Edit</button>
-                  <button className="text-red-600 text-xs hover:underline" onClick={() => setConfirmDeleteId(f.id)}>Delete</button>
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {form ? (
-        <div className="border-t pt-4 space-y-3">
-          <h3 className="font-semibold text-gray-900">{editingId ? 'Edit Funder' : 'Add Funder'}</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div><label className="label">Name *</label><input value={form.name} onChange={(e) => set({ name: e.target.value })} className="input" placeholder="e.g. Stockport Council" /></div>
-            <div>
-              <label className="label">Type</label>
-              <select value={form.type} onChange={(e) => set({ type: e.target.value })} className="input">
-                <option value="COUNCIL">Council / Local Authority</option>
-                <option value="PRIVATE">Private / Self-funded</option>
-                <option value="NHS_CHC">NHS CHC</option>
-              </select>
-            </div>
-            <div><label className="label">Contact Name</label><input value={form.contactName || ''} onChange={(e) => set({ contactName: e.target.value })} className="input" /></div>
-            <div><label className="label">Email</label><input value={form.email || ''} onChange={(e) => set({ email: e.target.value })} className="input" /></div>
-            <div><label className="label">Phone</label><input value={form.phone || ''} onChange={(e) => set({ phone: e.target.value })} className="input" /></div>
-            <div><label className="label">Payment Terms (days)</label><input type="number" step="1" value={form.paymentTermsDays ?? 30} onChange={(e) => set({ paymentTermsDays: Number(e.target.value) })} className="input" /></div>
-            <div className="sm:col-span-2"><label className="label">Billing Address</label><textarea value={form.billingAddress || ''} onChange={(e) => set({ billingAddress: e.target.value })} rows={2} className="input resize-none" /></div>
-          </div>
-          <div className="flex gap-3">
-            <button className="btn-secondary btn" onClick={reset}>Cancel</button>
-            <div className="flex-1" />
-            <button className="btn-primary btn" disabled={!form.name || saveMut.isPending} onClick={() => saveMut.mutate()}>
-              {saveMut.isPending ? 'Saving…' : editingId ? 'Save Changes' : 'Add Funder'}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div><button className="btn-primary btn" onClick={() => { setForm(emptyFunder); setEditingId(null); setError(''); }}>+ Add Funder</button></div>
-      )}
     </div>
   );
 }
