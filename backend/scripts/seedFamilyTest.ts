@@ -42,7 +42,7 @@ async function main() {
   console.log(`  Email:    ${email}`);
   console.log(`  Password: ${password}`);
   console.log(`  Linked to service user: ${serviceUser.firstName} ${serviceUser.lastName}`);
-  console.log(`\nLogin at: https://rota-app-lf1o.vercel.app\n`);
+  console.log(`\nLogin at: https://family.caremid.co.uk\n`);
 }
 
 main()

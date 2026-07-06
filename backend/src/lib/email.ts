@@ -80,7 +80,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
 // need an absolute HTTPS URL; LOGO_URL overrides, else it's served from the
 // main Caremid web app's public folder.
 function emailHeader(): string {
-  const logo = process.env.LOGO_URL || `${process.env.CLIENT_URL || 'https://rota-app-black.vercel.app'}/logo.png`;
+  const logo = process.env.LOGO_URL || `${process.env.CLIENT_URL || 'https://caremid.co.uk'}/logo.png`;
   return `<div style="text-align:center;margin:8px 0 20px"><img src="${logo}" alt="Caremid" style="max-width:200px;height:auto" /></div>`;
 }
 
