@@ -41,7 +41,7 @@ export async function getInvoice(req: AuthRequest, res: Response) {
 // Build a DRAFT invoice from every unbilled scheduled visit in the period for
 // service users funded by the given funder. Marks those visits billed.
 export async function generateInvoice(req: AuthRequest, res: Response) {
-  const { funderId, periodStart, periodEnd } = req.body;
+  const { funderId, periodStart, periodEnd, serviceUserId } = req.body;
   if (!funderId || !periodStart || !periodEnd) {
     return res.status(400).json({ error: 'funderId, periodStart and periodEnd are required' });
   }
@@ -49,12 +49,15 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
   const funder = await prisma.funder.findUnique({ where: { id: funderId } });
   if (!funder) return res.status(400).json({ error: 'Funder not found' });
 
+  // An optional serviceUserId narrows the invoice to a single service user.
   const arrangements = await prisma.fundingArrangement.findMany({
-    where: { funderId },
+    where: { funderId, ...(serviceUserId ? { serviceUserId } : {}) },
     select: { serviceUserId: true, rate: true },
   });
   if (arrangements.length === 0) {
-    return res.status(400).json({ error: 'No service users are funded by this funder yet.' });
+    return res.status(400).json({
+      error: serviceUserId ? 'That service user is not funded by this funder.' : 'No service users are funded by this funder yet.',
+    });
   }
   const rateBySu = new Map(arrangements.map((a) => [a.serviceUserId, a.rate]));
   const suIds = arrangements.map((a) => a.serviceUserId);

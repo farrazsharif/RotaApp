@@ -338,14 +338,19 @@ function InvoicesManager() {
   const qc = useQueryClient();
   const { data: invoices = [], isLoading } = useQuery({ queryKey: ['invoices'], queryFn: invoicesApi.list });
   const { data: funders = [] } = useQuery({ queryKey: ['funders'], queryFn: fundersApi.list });
+  const { data: arrangements = [] } = useQuery({ queryKey: ['funding-all'], queryFn: fundingApi.listAll });
   const [funderId, setFunderId] = useState('');
+  const [serviceUserId, setServiceUserId] = useState('');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
 
+  // Service users funded by the selected funder (for the optional single-user filter).
+  const funderSUs = arrangements.filter((a) => a.funderId === funderId && a.serviceUser);
+
   const genMut = useMutation({
-    mutationFn: () => invoicesApi.generate({ funderId, periodStart: start, periodEnd: end }),
+    mutationFn: () => invoicesApi.generate({ funderId, periodStart: start, periodEnd: end, serviceUserId: serviceUserId || undefined }),
     onSuccess: (inv) => { qc.invalidateQueries({ queryKey: ['invoices'] }); setError(''); setOpenId(inv.id); },
     onError: (err: unknown) => {
       const e = err as { response?: { data?: { error?: string } } };
@@ -369,9 +374,16 @@ function InvoicesManager() {
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[180px]">
               <label className="label">Funder</label>
-              <select value={funderId} onChange={(e) => setFunderId(e.target.value)} className="input">
+              <select value={funderId} onChange={(e) => { setFunderId(e.target.value); setServiceUserId(''); }} className="input">
                 <option value="">Select…</option>
                 {funders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <div className="min-w-[180px]">
+              <label className="label">Service User</label>
+              <select value={serviceUserId} onChange={(e) => setServiceUserId(e.target.value)} className="input" disabled={!funderId}>
+                <option value="">All service users</option>
+                {funderSUs.map((a) => <option key={a.serviceUserId} value={a.serviceUserId}>{a.serviceUser?.firstName} {a.serviceUser?.lastName}</option>)}
               </select>
             </div>
             <div><label className="label">Period Start</label><input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
