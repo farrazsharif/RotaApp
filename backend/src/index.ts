@@ -4,6 +4,7 @@ import http from 'http';
 import cors from 'cors';
 import { initSocket } from './lib/socket';
 import { errorHandler } from './middleware/errorHandler';
+import { prisma } from './lib/prisma';
 
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
@@ -48,7 +49,16 @@ app.use(cors({
 }));
 app.use(express.json());
 
-app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+// Health check that also verifies database connectivity, so uptime monitors
+// (e.g. UptimeRobot) go red on a DB outage, not just a web-server crash.
+app.get('/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', db: 'ok', timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ status: 'error', db: 'down', timestamp: new Date().toISOString() });
+  }
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
