@@ -116,6 +116,7 @@ model ServiceUser {
   likesDislikes       LikesDislikes?
   reviews             Review[]
   fundingArrangements FundingArrangement[]
+  invoiceLines        InvoiceLine[]
 }
 
 // Links a family-member User account to the service user(s) they're allowed
@@ -311,6 +312,7 @@ model Shift {
   serviceUser  ServiceUser? @relation(fields: [serviceUserId], references: [id])
   clockRecords ClockRecord[]
   callLogs     CallLog[]
+  invoiceLine  InvoiceLine?
 }
 
 model CallLog {
@@ -449,6 +451,7 @@ model Funder {
   updatedAt        DateTime @updatedAt
 
   fundingArrangements FundingArrangement[]
+  invoices            Invoice[]
 }
 
 // Links a service user to a funder with a charge rate. The schema supports many
@@ -472,4 +475,49 @@ model FundingArrangement {
 
   @@index([serviceUserId])
   @@index([funderId])
+}
+
+// An invoice to a funder for a billing period, built from scheduled visits.
+model Invoice {
+  id          String    @id @default(cuid())
+  funderId    String
+  number      String? // assigned when finalised (e.g. INV-0001)
+  periodStart DateTime
+  periodEnd   DateTime
+  status      String    @default("DRAFT") // DRAFT | SENT | PAID | VOID
+  issueDate   DateTime?
+  dueDate     DateTime?
+  subtotal    Float     @default(0)
+  vat         Float     @default(0)
+  total       Float     @default(0)
+  poNumber    String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  funder Funder        @relation(fields: [funderId], references: [id], onDelete: Restrict)
+  lines  InvoiceLine[]
+
+  @@index([funderId])
+}
+
+// One billed visit on an invoice. sourceShiftId is unique so a scheduled visit
+// can only be billed once (its Shift.invoiceLine relation then excludes it).
+model InvoiceLine {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  serviceUserId String?
+  sourceShiftId String?  @unique
+  date          DateTime
+  description   String
+  quantity      Float    @default(0) // carer-hours
+  unitRate      Float    @default(0)
+  amount        Float    @default(0)
+  createdAt     DateTime @default(now())
+
+  invoice     Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  serviceUser ServiceUser? @relation(fields: [serviceUserId], references: [id], onDelete: SetNull)
+  sourceShift Shift?       @relation(fields: [sourceShiftId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
 }

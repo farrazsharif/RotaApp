@@ -32,6 +32,7 @@ import roleRoutes from './routes/roles';
 import auditRoutes from './routes/audit';
 import funderRoutes from './routes/funders';
 import fundingRoutes from './routes/funding';
+import invoiceRoutes from './routes/invoices';
 import { startShiftReminders } from './lib/shiftReminders';
 
 const app = express();
@@ -88,6 +89,7 @@ app.use('/api/roles', roleRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/funders', funderRoutes);
 app.use('/api/funding', fundingRoutes);
+app.use('/api/invoices', invoiceRoutes);
 
 app.use(errorHandler);
 

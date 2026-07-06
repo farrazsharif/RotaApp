@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
 import { usePermissions } from '../hooks/usePermissions';
 import { fundersApi, FunderData } from '../api/funders';
 import { fundingApi } from '../api/funding';
+import { invoicesApi } from '../api/invoices';
+import { settingsApi } from '../api/settings';
 import { serviceUsersApi } from '../api/serviceUsers';
-import { Funder, FunderType, FundingArrangement, ServiceUser } from '../types';
+import { downloadInvoiceCsv, downloadInvoicePdf } from '../lib/invoiceExport';
+import { Funder, FunderType, FundingArrangement, Invoice, InvoiceStatus, ServiceUser } from '../types';
 
 const FUNDER_TYPE_META: Record<FunderType, { label: string; className: string }> = {
   COUNCIL: { label: 'Council / LA', className: 'bg-blue-100 text-blue-700' },
@@ -12,7 +16,7 @@ const FUNDER_TYPE_META: Record<FunderType, { label: string; className: string }>
   NHS_CHC: { label: 'NHS CHC', className: 'bg-purple-100 text-purple-700' },
 };
 
-type Tab = 'funding' | 'funders';
+type Tab = 'funding' | 'invoices' | 'funders';
 
 export default function Finances() {
   const { can } = usePermissions();
@@ -24,6 +28,7 @@ export default function Finances() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'funding', label: 'Service User Funding' },
+    { key: 'invoices', label: 'Invoices' },
     { key: 'funders', label: 'Funders' },
   ];
 
@@ -48,6 +53,7 @@ export default function Finances() {
       </div>
 
       {tab === 'funding' && <FundingManager />}
+      {tab === 'invoices' && <InvoicesManager />}
       {tab === 'funders' && <FundersManager />}
     </div>
   );
@@ -316,6 +322,187 @@ function FundersManager() {
       ) : (
         <div><button className="btn-primary btn" onClick={() => { setForm(emptyFunder); setEditingId(null); setError(''); }}>+ Add Funder</button></div>
       )}
+    </div>
+  );
+}
+
+/* ---------------- Invoices ---------------- */
+const STATUS_META: Record<InvoiceStatus, { label: string; className: string }> = {
+  DRAFT: { label: 'Draft', className: 'bg-gray-200 text-gray-700' },
+  SENT: { label: 'Sent', className: 'bg-blue-100 text-blue-700' },
+  PAID: { label: 'Paid', className: 'bg-green-100 text-green-700' },
+  VOID: { label: 'Void', className: 'bg-red-100 text-red-700' },
+};
+
+function InvoicesManager() {
+  const qc = useQueryClient();
+  const { data: invoices = [], isLoading } = useQuery({ queryKey: ['invoices'], queryFn: invoicesApi.list });
+  const { data: funders = [] } = useQuery({ queryKey: ['funders'], queryFn: fundersApi.list });
+  const [funderId, setFunderId] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [error, setError] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const genMut = useMutation({
+    mutationFn: () => invoicesApi.generate({ funderId, periodStart: start, periodEnd: end }),
+    onSuccess: (inv) => { qc.invalidateQueries({ queryKey: ['invoices'] }); setError(''); setOpenId(inv.id); },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error || 'Could not generate invoice.');
+    },
+  });
+
+  const canGenerate = funderId && start && end;
+
+  return (
+    <div className="space-y-6">
+      <div className="card space-y-3">
+        <div>
+          <h2 className="font-semibold text-gray-900">Generate Invoice</h2>
+          <p className="text-sm text-gray-500">Bills every unbilled scheduled visit in the period for the funder's service users.</p>
+        </div>
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
+        {funders.length === 0 ? (
+          <p className="text-sm text-gray-400">Add a funder and assign it to service users first.</p>
+        ) : (
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[180px]">
+              <label className="label">Funder</label>
+              <select value={funderId} onChange={(e) => setFunderId(e.target.value)} className="input">
+                <option value="">Select…</option>
+                {funders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <div><label className="label">Period Start</label><input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
+            <div><label className="label">Period End</label><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></div>
+            <button className="btn-primary btn" disabled={!canGenerate || genMut.isPending} onClick={() => genMut.mutate()}>
+              {genMut.isPending ? 'Generating…' : 'Generate'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="card p-0 overflow-hidden">
+        <div className="p-4 border-b"><h2 className="font-semibold text-gray-900">Invoices</h2></div>
+        {isLoading ? (
+          <div className="p-6 text-sm text-gray-400">Loading…</div>
+        ) : invoices.length === 0 ? (
+          <div className="p-6 text-sm text-gray-400">No invoices yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Invoice</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Funder</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Period</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-gray-600">Total</th>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600">Status</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {invoices.map((inv) => (
+                  <tr key={inv.id}>
+                    <td className="px-4 py-2.5 font-medium text-gray-800">{inv.number || 'Draft'}</td>
+                    <td className="px-4 py-2.5 text-gray-700">{inv.funder?.name}</td>
+                    <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{format(new Date(inv.periodStart), 'dd MMM')} – {format(new Date(inv.periodEnd), 'dd MMM yyyy')}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-800">£{inv.total.toFixed(2)}</td>
+                    <td className="px-4 py-2.5"><span className={`badge ${STATUS_META[inv.status].className}`}>{STATUS_META[inv.status].label}</span></td>
+                    <td className="px-4 py-2.5 text-right"><button className="text-blue-600 text-xs hover:underline" onClick={() => setOpenId(inv.id)}>View</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {openId && <InvoiceDetailModal id={openId} onClose={() => setOpenId(null)} />}
+    </div>
+  );
+}
+
+function InvoiceDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: inv, isLoading } = useQuery({ queryKey: ['invoice', id], queryFn: () => invoicesApi.get(id) });
+  const { data: org } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const [busy, setBusy] = useState(false);
+
+  const invalidate = () => { qc.invalidateQueries({ queryKey: ['invoices'] }); qc.invalidateQueries({ queryKey: ['invoice', id] }); };
+  const statusMut = useMutation({ mutationFn: (status: InvoiceStatus) => invoicesApi.update(id, { status }), onSuccess: invalidate });
+  const deleteMut = useMutation({ mutationFn: () => invoicesApi.delete(id), onSuccess: () => { invalidate(); onClose(); } });
+
+  async function pdf() {
+    if (!inv) return;
+    setBusy(true);
+    try { await downloadInvoicePdf(inv, org); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="card w-full max-w-3xl max-h-[90vh] overflow-y-auto space-y-4" onClick={(e) => e.stopPropagation()}>
+        {isLoading || !inv ? (
+          <p className="text-sm text-gray-400">Loading…</p>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">{inv.number || 'Draft invoice'}</h2>
+                <p className="text-sm text-gray-500">
+                  {inv.funder?.name} · {format(new Date(inv.periodStart), 'dd MMM')} – {format(new Date(inv.periodEnd), 'dd MMM yyyy')}
+                </p>
+              </div>
+              <span className={`badge ${STATUS_META[inv.status].className}`}>{STATUS_META[inv.status].label}</span>
+            </div>
+
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium text-gray-600 whitespace-nowrap">Date</th>
+                    <th className="text-left px-3 py-2 font-medium text-gray-600">Description</th>
+                    <th className="text-right px-3 py-2 font-medium text-gray-600">Hours</th>
+                    <th className="text-right px-3 py-2 font-medium text-gray-600">Rate</th>
+                    <th className="text-right px-3 py-2 font-medium text-gray-600">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {(inv.lines || []).map((l) => (
+                    <tr key={l.id}>
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{format(new Date(l.date), 'dd MMM')}</td>
+                      <td className="px-3 py-2 text-gray-800">{l.description}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{l.quantity.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">£{l.unitRate.toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right text-gray-800">£{l.amount.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end">
+              <div className="w-56 space-y-1 text-sm">
+                <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>£{inv.subtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">VAT</span><span>£{inv.vat.toFixed(2)}</span></div>
+                <div className="flex justify-between font-semibold border-t pt-1"><span>Total</span><span>£{inv.total.toFixed(2)}</span></div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 border-t pt-4">
+              <button className="btn-secondary btn" onClick={onClose}>Close</button>
+              <div className="flex-1" />
+              <button className="btn-secondary btn" onClick={() => downloadInvoiceCsv(inv)}>CSV</button>
+              <button className="btn-secondary btn" disabled={busy} onClick={pdf}>{busy ? 'PDF…' : 'PDF'}</button>
+              {inv.status === 'DRAFT' && <button className="btn-danger btn" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>Delete</button>}
+              {inv.status === 'DRAFT' && <button className="btn-primary btn" disabled={statusMut.isPending} onClick={() => statusMut.mutate('SENT')}>Finalise &amp; Send</button>}
+              {inv.status === 'SENT' && <button className="btn-secondary btn" disabled={statusMut.isPending} onClick={() => statusMut.mutate('VOID')}>Void</button>}
+              {inv.status === 'SENT' && <button className="btn-primary btn" disabled={statusMut.isPending} onClick={() => statusMut.mutate('PAID')}>Mark Paid</button>}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

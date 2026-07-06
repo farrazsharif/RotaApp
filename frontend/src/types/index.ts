@@ -272,6 +272,42 @@ export interface FundingArrangement {
   updatedAt: string;
 }
 
+export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PAID' | 'VOID';
+
+export interface InvoiceLine {
+  id: string;
+  invoiceId: string;
+  serviceUserId?: string | null;
+  serviceUser?: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'> | null;
+  sourceShiftId?: string | null;
+  date: string;
+  description: string;
+  quantity: number; // carer-hours
+  unitRate: number;
+  amount: number;
+}
+
+export interface Invoice {
+  id: string;
+  funderId: string;
+  funder?: Pick<Funder, 'id' | 'name' | 'type' | 'billingAddress' | 'paymentTermsDays' | 'vatExempt'>;
+  number?: string | null;
+  periodStart: string;
+  periodEnd: string;
+  status: InvoiceStatus;
+  issueDate?: string | null;
+  dueDate?: string | null;
+  subtotal: number;
+  vat: number;
+  total: number;
+  poNumber?: string | null;
+  notes?: string | null;
+  lines?: InvoiceLine[];
+  _count?: { lines: number };
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ServiceUser {
   id: string;
   firstName: string;
