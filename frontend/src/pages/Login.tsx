@@ -73,13 +73,6 @@ export default function Login() {
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg text-xs text-gray-500 space-y-1">
-            <p className="font-semibold text-gray-700 mb-2">Demo accounts:</p>
-            <p>Admin: <span className="font-mono">admin@caremid.co.uk</span> / admin123</p>
-            <p>Manager: <span className="font-mono">manager@caremid.co.uk</span> / manager123</p>
-            <p>Employee: <span className="font-mono">alice@caremid.co.uk</span> / employee123</p>
-          </div>
         </div>
       </div>
     </div>
