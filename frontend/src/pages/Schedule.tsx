@@ -356,7 +356,11 @@ export default function Schedule() {
           locale={enGbLocale}
           firstDay={1}
           dayHeaderContent={(arg) =>
-            arg.view.type.startsWith('dayGrid') ? format(arg.date, 'EEE') : format(arg.date, 'EEE dd-MM')
+            arg.view.type === 'dayGridMonth'
+              ? format(arg.date, 'EEE')
+              : arg.view.type === 'dayGridWeek'
+                ? format(arg.date, 'EEE, dd-MM-yyyy')
+                : format(arg.date, 'EEE dd-MM')
           }
           headerToolbar={{
             left: 'prev,next today',
