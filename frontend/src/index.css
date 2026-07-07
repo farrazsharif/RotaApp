@@ -16,9 +16,10 @@
 }
 
 /* Draft (unpublished) calls: dashed border + faded fill, invisible to carers until published */
+/* Drafts keep their dashed red outline but are NOT dulled — only past calls
+   fade (via .past-shift), so upcoming unassigned drafts stay prominent. */
 .fc .draft-shift {
   border-style: dashed !important;
-  opacity: 0.65;
 }
 
 /* Past calls: same colour as always, just dulled so today/upcoming calls stand out at a glance */
