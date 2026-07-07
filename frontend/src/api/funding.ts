@@ -7,6 +7,7 @@ export interface FundingData {
   rate: number;
   weekendRate?: number | null;
   bankHolidayRate?: number | null;
+  sharePercent?: number;
   startDate?: string;
   endDate?: string;
   poNumber?: string;

@@ -265,6 +265,7 @@ export interface FundingArrangement {
   rate: number; // base/weekday charge per hour to the funder (revenue, not carer pay)
   weekendRate?: number | null; // charge per hour on Sat/Sun; null = use base rate
   bankHolidayRate?: number | null; // charge per hour on bank holidays; null = use base rate
+  sharePercent?: number; // % of each visit billed to this funder (split funding)
   allocation: string;
   startDate?: string | null;
   endDate?: string | null;

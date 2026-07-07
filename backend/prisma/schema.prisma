@@ -312,7 +312,7 @@ model Shift {
   serviceUser  ServiceUser? @relation(fields: [serviceUserId], references: [id])
   clockRecords ClockRecord[]
   callLogs     CallLog[]
-  invoiceLine  InvoiceLine?
+  invoiceLines InvoiceLine[]
 }
 
 model CallLog {
@@ -464,7 +464,8 @@ model FundingArrangement {
   rate          Float     @default(0) // base/weekday charge per hour (revenue, NOT carer pay)
   weekendRate     Float?  // charge per hour on Sat/Sun; falls back to `rate` when null
   bankHolidayRate Float?  // charge per hour on bank holidays; falls back to `rate` when null
-  allocation    String    @default("ALL") // ALL in v1; PERCENTAGE/HOURS_CAP/VISIT_TYPES later
+  allocation    String    @default("ALL") // legacy; superseded by sharePercent
+  sharePercent  Float     @default(100) // % of each visit billed to this funder (split funding)
   startDate     DateTime?
   endDate       DateTime?
   poNumber      String?
@@ -530,16 +531,19 @@ model Payment {
   @@index([invoiceId])
 }
 
-// One billed visit on an invoice. sourceShiftId is unique so a scheduled visit
-// can only be billed once (its Shift.invoiceLine relation then excludes it).
+// One billed visit on an invoice. A visit can be split across funders, so it is
+// billed at most once PER funder: the composite unique on (sourceShiftId,
+// funderId) blocks double-billing the same visit to the same funder while
+// still allowing each funder its share.
 model InvoiceLine {
   id            String   @id @default(cuid())
   invoiceId     String
+  funderId      String?  // denormalised from the invoice, for the per-funder unique
   serviceUserId String?
-  sourceShiftId String?  @unique
+  sourceShiftId String?
   date          DateTime
   description   String
-  quantity      Float    @default(0) // carer-hours
+  quantity      Float    @default(0) // carer-hours billed to this funder (after share)
   unitRate      Float    @default(0)
   amount        Float    @default(0)
   createdAt     DateTime @default(now())
@@ -548,5 +552,6 @@ model InvoiceLine {
   serviceUser ServiceUser? @relation(fields: [serviceUserId], references: [id], onDelete: SetNull)
   sourceShift Shift?       @relation(fields: [sourceShiftId], references: [id], onDelete: SetNull)
 
+  @@unique([sourceShiftId, funderId])
   @@index([invoiceId])
 }

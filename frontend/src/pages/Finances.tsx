@@ -124,14 +124,14 @@ function FundingManager() {
   const { data: funders = [] } = useQuery({ queryKey: ['funders'], queryFn: fundersApi.list });
   const [editSu, setEditSu] = useState<ServiceUser | null>(null);
 
-  const byServiceUser = new Map<string, FundingArrangement>();
-  arrangements.forEach((a) => byServiceUser.set(a.serviceUserId, a));
+  const bySu = new Map<string, FundingArrangement[]>();
+  arrangements.forEach((a) => { const l = bySu.get(a.serviceUserId) || []; l.push(a); bySu.set(a.serviceUserId, l); });
 
   return (
     <div className="card p-0 overflow-hidden">
       <div className="p-4 border-b">
         <h2 className="font-semibold text-gray-900">Service User Funding</h2>
-        <p className="text-sm text-gray-500">Assign a funder and hourly charge rate to each service user.</p>
+        <p className="text-sm text-gray-500">Assign one or more funders and hourly charge rates to each service user. Add several funders to split a package.</p>
       </div>
 
       {funders.length === 0 && (
@@ -150,43 +150,52 @@ function FundingManager() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-4 py-2.5 font-medium text-gray-600">Service User</th>
-                <th className="text-left px-4 py-2.5 font-medium text-gray-600">Funder</th>
+                <th className="text-left px-4 py-2.5 font-medium text-gray-600">Funders</th>
                 <th className="text-left px-4 py-2.5 font-medium text-gray-600">Charge Rate</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody className="divide-y">
               {serviceUsers.map((su) => {
-                const arr = byServiceUser.get(su.id);
+                const list = bySu.get(su.id) || [];
                 return (
                   <tr key={su.id}>
-                    <td className="px-4 py-2.5 text-gray-800 font-medium">{su.firstName} {su.lastName}</td>
+                    <td className="px-4 py-2.5 text-gray-800 font-medium align-top">{su.firstName} {su.lastName}</td>
                     <td className="px-4 py-2.5">
-                      {arr?.funder ? (
-                        <span className="inline-flex items-center gap-2">
-                          {arr.funder.name}
-                          <span className={`badge ${FUNDER_TYPE_META[arr.funder.type].className}`}>{FUNDER_TYPE_META[arr.funder.type].label}</span>
-                        </span>
-                      ) : (
+                      {list.length === 0 ? (
                         <span className="text-gray-400">— not set</span>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {list.map((a) => (
+                            <span key={a.id} className="inline-flex items-center gap-2">
+                              {a.funder?.name}
+                              {a.funder && <span className={`badge ${FUNDER_TYPE_META[a.funder.type].className}`}>{FUNDER_TYPE_META[a.funder.type].label}</span>}
+                              {(a.sharePercent ?? 100) < 100 && <span className="text-xs text-gray-400">{a.sharePercent}%</span>}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-gray-700">
-                      {arr ? (
-                        <>
-                          £{arr.rate.toFixed(2)} / hr
-                          {(arr.weekendRate != null || arr.bankHolidayRate != null) && (
-                            <span className="block text-xs text-gray-400">
-                              {arr.weekendRate != null && `Wknd £${arr.weekendRate.toFixed(2)}`}
-                              {arr.weekendRate != null && arr.bankHolidayRate != null && ' · '}
-                              {arr.bankHolidayRate != null && `BH £${arr.bankHolidayRate.toFixed(2)}`}
+                      {list.length === 0 ? '—' : (
+                        <div className="flex flex-col gap-1">
+                          {list.map((a) => (
+                            <span key={a.id}>
+                              £{a.rate.toFixed(2)} / hr
+                              {(a.weekendRate != null || a.bankHolidayRate != null) && (
+                                <span className="text-xs text-gray-400">
+                                  {' '}({a.weekendRate != null && `Wknd £${a.weekendRate.toFixed(2)}`}
+                                  {a.weekendRate != null && a.bankHolidayRate != null && ', '}
+                                  {a.bankHolidayRate != null && `BH £${a.bankHolidayRate.toFixed(2)}`})
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </>
-                      ) : '—'}
+                          ))}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <button className="text-blue-600 text-xs hover:underline" onClick={() => setEditSu(su)}>{arr ? 'Edit' : 'Set funder'}</button>
+                    <td className="px-4 py-2.5 text-right align-top">
+                      <button className="text-blue-600 text-xs hover:underline" onClick={() => setEditSu(su)}>{list.length ? 'Edit' : 'Set funder'}</button>
                     </td>
                   </tr>
                 );
@@ -199,7 +208,7 @@ function FundingManager() {
       {editSu && (
         <FundingModal
           serviceUser={editSu}
-          arrangement={byServiceUser.get(editSu.id) || null}
+          arrangements={bySu.get(editSu.id) || []}
           funders={funders}
           onClose={() => setEditSu(null)}
         />
@@ -208,81 +217,119 @@ function FundingManager() {
   );
 }
 
-function FundingModal({ serviceUser, arrangement, funders, onClose }: {
+function FundingModal({ serviceUser, arrangements, funders, onClose }: {
   serviceUser: ServiceUser;
-  arrangement: FundingArrangement | null;
+  arrangements: FundingArrangement[];
   funders: Funder[];
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [funderId, setFunderId] = useState(arrangement?.funderId || funders[0]?.id || '');
-  const [rate, setRate] = useState(arrangement ? String(arrangement.rate) : '');
-  const [weekendRate, setWeekendRate] = useState(arrangement?.weekendRate != null ? String(arrangement.weekendRate) : '');
-  const [bankHolidayRate, setBankHolidayRate] = useState(arrangement?.bankHolidayRate != null ? String(arrangement.bankHolidayRate) : '');
-  const [poNumber, setPoNumber] = useState(arrangement?.poNumber || '');
-  const [startDate, setStartDate] = useState(arrangement?.startDate ? arrangement.startDate.slice(0, 10) : '');
-  const [error, setError] = useState('');
-
   const invalidate = () => { qc.invalidateQueries({ queryKey: ['funding-all'] }); qc.invalidateQueries({ queryKey: ['funders'] }); };
-
-  const saveMut = useMutation({
-    mutationFn: () => {
-      const payload = {
-        funderId,
-        rate: Number(rate) || 0,
-        weekendRate: weekendRate === '' ? null : Number(weekendRate),
-        bankHolidayRate: bankHolidayRate === '' ? null : Number(bankHolidayRate),
-        poNumber: poNumber || undefined,
-        startDate: startDate || undefined,
-      };
-      return arrangement ? fundingApi.update(arrangement.id, payload) : fundingApi.create({ serviceUserId: serviceUser.id, ...payload });
-    },
-    onSuccess: () => { invalidate(); onClose(); },
-    onError: (err: unknown) => {
-      const e = err as { response?: { data?: { error?: string } } };
-      setError(e.response?.data?.error || 'Could not save funding.');
-    },
-  });
-  const deleteMut = useMutation({
-    mutationFn: () => fundingApi.delete(arrangement!.id),
-    onSuccess: () => { invalidate(); onClose(); },
-  });
+  const totalShare = arrangements.reduce((s, a) => s + (a.sharePercent ?? 100), 0);
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="card w-full max-w-lg space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="card w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-semibold text-gray-900">Funding — {serviceUser.firstName} {serviceUser.lastName}</h2>
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
 
         {funders.length === 0 ? (
           <p className="text-sm text-gray-500">No funders exist yet. Add one in the Funders tab first.</p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label className="label">Funder</label>
-              <select value={funderId} onChange={(e) => setFunderId(e.target.value)} className="input">
-                {funders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
-            </div>
-            <div><label className="label">Weekday Rate (£/hr)</label><input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="input" placeholder="e.g. 22.50" /></div>
-            <div><label className="label">Weekend Rate (£/hr)</label><input type="number" step="0.01" value={weekendRate} onChange={(e) => setWeekendRate(e.target.value)} className="input" placeholder="Blank = weekday rate" /></div>
-            <div><label className="label">Bank Holiday Rate (£/hr)</label><input type="number" step="0.01" value={bankHolidayRate} onChange={(e) => setBankHolidayRate(e.target.value)} className="input" placeholder="Blank = weekday rate" /></div>
-            <div><label className="label">PO / Reference</label><input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} className="input" /></div>
-            <div><label className="label">Start Date</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input" /></div>
-          </div>
-        )}
-        <p className="text-xs text-gray-400">Weekend/bank-holiday visits are billed at their rate automatically; leave blank to use the weekday rate. Manage bank-holiday dates in the Bank Holidays tab.</p>
+          <>
+            {arrangements.length === 0 ? (
+              <p className="text-sm text-gray-500">No funder set yet. Add one below.</p>
+            ) : (
+              <div className="space-y-3">
+                {arrangements.map((a) => (
+                  <ArrangementRow key={a.id} arrangement={a} onChanged={invalidate} />
+                ))}
+                {arrangements.length > 1 && (
+                  <p className={`text-xs ${totalShare === 100 ? 'text-gray-400' : 'text-amber-600'}`}>
+                    Total share across funders: {totalShare}%{totalShare !== 100 ? ' — should add up to 100% for a full split.' : ''}
+                  </p>
+                )}
+              </div>
+            )}
 
-        <div className="flex gap-3 pt-1">
-          <button className="btn-secondary btn" onClick={onClose}>Cancel</button>
-          {arrangement && <button className="btn-danger btn" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>Remove</button>}
+            <AddArrangementForm serviceUserId={serviceUser.id} funders={funders} onChanged={invalidate} />
+            <p className="text-xs text-gray-400">Add more than one funder to split a package (e.g. council 70% + private top-up 30%). Each visit is billed to every funder at its share. Weekend/bank-holiday rates are optional; blank uses the weekday rate.</p>
+          </>
+        )}
+
+        <div className="flex gap-3 pt-1 border-t">
           <div className="flex-1" />
-          {funders.length > 0 && (
-            <button className="btn-primary btn" disabled={!funderId || saveMut.isPending} onClick={() => saveMut.mutate()}>
-              {saveMut.isPending ? 'Saving…' : 'Save'}
-            </button>
-          )}
+          <button className="btn-secondary btn" onClick={onClose}>Done</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ArrangementRow({ arrangement, onChanged }: { arrangement: FundingArrangement; onChanged: () => void }) {
+  const [rate, setRate] = useState(String(arrangement.rate));
+  const [weekendRate, setWeekendRate] = useState(arrangement.weekendRate != null ? String(arrangement.weekendRate) : '');
+  const [bankHolidayRate, setBankHolidayRate] = useState(arrangement.bankHolidayRate != null ? String(arrangement.bankHolidayRate) : '');
+  const [sharePercent, setSharePercent] = useState(String(arrangement.sharePercent ?? 100));
+  const [error, setError] = useState('');
+
+  const saveMut = useMutation({
+    mutationFn: () => fundingApi.update(arrangement.id, {
+      rate: Number(rate) || 0,
+      weekendRate: weekendRate === '' ? null : Number(weekendRate),
+      bankHolidayRate: bankHolidayRate === '' ? null : Number(bankHolidayRate),
+      sharePercent: sharePercent === '' ? 100 : Number(sharePercent),
+    }),
+    onSuccess: () => { setError(''); onChanged(); },
+    onError: (err: unknown) => { const e = err as { response?: { data?: { error?: string } } }; setError(e.response?.data?.error || 'Could not save.'); },
+  });
+  const deleteMut = useMutation({ mutationFn: () => fundingApi.delete(arrangement.id), onSuccess: onChanged });
+
+  return (
+    <div className="rounded-lg border p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-gray-900 text-sm">{arrangement.funder?.name || 'Funder'}</span>
+        <button className="text-red-600 text-xs hover:underline" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>Remove</button>
+      </div>
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-1.5 rounded text-xs">{error}</div>}
+      <div className="grid gap-2 sm:grid-cols-4">
+        <div><label className="label">Weekday £/hr</label><input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="input" /></div>
+        <div><label className="label">Weekend £/hr</label><input type="number" step="0.01" value={weekendRate} onChange={(e) => setWeekendRate(e.target.value)} className="input" placeholder="—" /></div>
+        <div><label className="label">Bank Hol £/hr</label><input type="number" step="0.01" value={bankHolidayRate} onChange={(e) => setBankHolidayRate(e.target.value)} className="input" placeholder="—" /></div>
+        <div><label className="label">Share %</label><input type="number" step="1" value={sharePercent} onChange={(e) => setSharePercent(e.target.value)} className="input" /></div>
+      </div>
+      <div className="flex justify-end">
+        <button className="btn-primary btn btn-sm" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>{saveMut.isPending ? 'Saving…' : 'Save'}</button>
+      </div>
+    </div>
+  );
+}
+
+function AddArrangementForm({ serviceUserId, funders, onChanged }: { serviceUserId: string; funders: Funder[]; onChanged: () => void }) {
+  const [funderId, setFunderId] = useState(funders[0]?.id || '');
+  const [rate, setRate] = useState('');
+  const [sharePercent, setSharePercent] = useState('100');
+  const [error, setError] = useState('');
+
+  const addMut = useMutation({
+    mutationFn: () => fundingApi.create({ serviceUserId, funderId, rate: Number(rate) || 0, sharePercent: Number(sharePercent) || 100 }),
+    onSuccess: () => { setRate(''); setSharePercent('100'); setError(''); onChanged(); },
+    onError: (err: unknown) => { const e = err as { response?: { data?: { error?: string } } }; setError(e.response?.data?.error || 'Could not add funder.'); },
+  });
+
+  return (
+    <div className="border-t pt-3 space-y-2">
+      <h3 className="text-sm font-semibold text-gray-900">Add funder</h3>
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-1.5 rounded text-xs">{error}</div>}
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-[160px]">
+          <label className="label">Funder</label>
+          <select value={funderId} onChange={(e) => setFunderId(e.target.value)} className="input">
+            {funders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        </div>
+        <div><label className="label">Weekday £/hr</label><input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="input w-28" placeholder="e.g. 22.50" /></div>
+        <div><label className="label">Share %</label><input type="number" step="1" value={sharePercent} onChange={(e) => setSharePercent(e.target.value)} className="input w-20" /></div>
+        <button className="btn-primary btn" disabled={!funderId || addMut.isPending} onClick={() => addMut.mutate()}>{addMut.isPending ? 'Adding…' : '+ Add'}</button>
       </div>
     </div>
   );

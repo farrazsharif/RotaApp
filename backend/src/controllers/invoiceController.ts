@@ -62,7 +62,7 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
   // An optional serviceUserId narrows the invoice to a single service user.
   const arrangements = await prisma.fundingArrangement.findMany({
     where: { funderId, ...(serviceUserId ? { serviceUserId } : {}) },
-    select: { serviceUserId: true, rate: true, weekendRate: true, bankHolidayRate: true },
+    select: { serviceUserId: true, rate: true, weekendRate: true, bankHolidayRate: true, sharePercent: true },
   });
   if (arrangements.length === 0) {
     return res.status(400).json({
@@ -84,7 +84,9 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
       serviceUserId: { in: suIds },
       date: { gte: start, lte: end },
       status: { in: ['SCHEDULED', 'COMPLETED'] },
-      invoiceLine: null,
+      // Unbilled *for this funder*: a visit may already be billed to a
+      // different funder under split funding, but never twice to the same one.
+      invoiceLines: { none: { funderId } },
     },
     include: { serviceUser: { select: { firstName: true, lastName: true } } },
     orderBy: [{ serviceUserId: 'asc' }, { date: 'asc' }],
@@ -94,10 +96,13 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
   }
 
   const lines = shifts.map((s) => {
-    const hours = durationHours(s.startTime, s.endTime);
-    const quantity = money(hours * (s.cover || 1));
     const dateStr = s.date.toISOString().slice(0, 10);
     const arr = arrBySu.get(s.serviceUserId!);
+    const share = arr?.sharePercent ?? 100;
+
+    // Only this funder's share of the visit's carer-hours.
+    const fullHours = durationHours(s.startTime, s.endTime) * (s.cover || 1);
+    const quantity = money(fullHours * (share / 100));
 
     // Pick the rate for this visit's day type, falling back to the base rate.
     const day = s.date.getUTCDay(); // 0 = Sun … 6 = Sat
@@ -114,11 +119,13 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
     const amount = money(quantity * unitRate);
     const name = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Service user';
     const cov = (s.cover || 1) > 1 ? ` (×${s.cover} carers)` : '';
+    const shareNote = share < 100 ? ` · ${share}% share` : '';
     return {
+      funderId,
       serviceUserId: s.serviceUserId,
       sourceShiftId: s.id,
       date: s.date,
-      description: `${dateStr} · ${s.visitName || 'Visit'} · ${name}${cov}${dayType}`,
+      description: `${dateStr} · ${s.visitName || 'Visit'} · ${name}${cov}${dayType}${shareNote}`,
       quantity,
       unitRate,
       amount,
