@@ -52,18 +52,22 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
   // An optional serviceUserId narrows the invoice to a single service user.
   const arrangements = await prisma.fundingArrangement.findMany({
     where: { funderId, ...(serviceUserId ? { serviceUserId } : {}) },
-    select: { serviceUserId: true, rate: true },
+    select: { serviceUserId: true, rate: true, weekendRate: true, bankHolidayRate: true },
   });
   if (arrangements.length === 0) {
     return res.status(400).json({
       error: serviceUserId ? 'That service user is not funded by this funder.' : 'No service users are funded by this funder yet.',
     });
   }
-  const rateBySu = new Map(arrangements.map((a) => [a.serviceUserId, a.rate]));
+  const arrBySu = new Map(arrangements.map((a) => [a.serviceUserId, a]));
   const suIds = arrangements.map((a) => a.serviceUserId);
 
   const start = new Date(`${periodStart}T00:00:00`);
   const end = new Date(`${periodEnd}T23:59:59`);
+
+  // Bank-holiday dates (YYYY-MM-DD) so each visit can pick weekday/weekend/BH rate.
+  const holidayRows = await prisma.bankHoliday.findMany({ select: { date: true } });
+  const holidays = new Set(holidayRows.map((h) => h.date.toISOString().slice(0, 10)));
 
   const shifts = await prisma.shift.findMany({
     where: {
@@ -82,16 +86,29 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
   const lines = shifts.map((s) => {
     const hours = durationHours(s.startTime, s.endTime);
     const quantity = money(hours * (s.cover || 1));
-    const unitRate = rateBySu.get(s.serviceUserId!) ?? 0;
+    const dateStr = s.date.toISOString().slice(0, 10);
+    const arr = arrBySu.get(s.serviceUserId!);
+
+    // Pick the rate for this visit's day type, falling back to the base rate.
+    const day = s.date.getUTCDay(); // 0 = Sun … 6 = Sat
+    let unitRate = arr?.rate ?? 0;
+    let dayType = '';
+    if (holidays.has(dateStr)) {
+      unitRate = arr?.bankHolidayRate ?? arr?.rate ?? 0;
+      dayType = ' · Bank holiday';
+    } else if (day === 0 || day === 6) {
+      unitRate = arr?.weekendRate ?? arr?.rate ?? 0;
+      dayType = ' · Weekend';
+    }
+
     const amount = money(quantity * unitRate);
     const name = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Service user';
-    const dateStr = s.date.toISOString().slice(0, 10);
     const cov = (s.cover || 1) > 1 ? ` (×${s.cover} carers)` : '';
     return {
       serviceUserId: s.serviceUserId,
       sourceShiftId: s.id,
       date: s.date,
-      description: `${dateStr} · ${s.visitName || 'Visit'} · ${name}${cov}`,
+      description: `${dateStr} · ${s.visitName || 'Visit'} · ${name}${cov}${dayType}`,
       quantity,
       unitRate,
       amount,

@@ -262,7 +262,9 @@ export interface FundingArrangement {
   funder?: Funder;
   serviceUser?: Pick<ServiceUser, 'id' | 'firstName' | 'lastName' | 'status'>;
   billingUnit: 'PER_HOUR';
-  rate: number; // charge per hour to the funder (revenue, not carer pay)
+  rate: number; // base/weekday charge per hour to the funder (revenue, not carer pay)
+  weekendRate?: number | null; // charge per hour on Sat/Sun; null = use base rate
+  bankHolidayRate?: number | null; // charge per hour on bank holidays; null = use base rate
   allocation: string;
   startDate?: string | null;
   endDate?: string | null;
@@ -270,6 +272,13 @@ export interface FundingArrangement {
   contractRef?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BankHoliday {
+  id: string;
+  date: string;
+  name: string;
+  createdAt: string;
 }
 
 export type InvoiceStatus = 'DRAFT' | 'SENT' | 'PAID' | 'VOID';

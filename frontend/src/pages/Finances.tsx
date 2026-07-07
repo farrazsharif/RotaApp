@@ -5,6 +5,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { fundersApi, FunderData } from '../api/funders';
 import { fundingApi } from '../api/funding';
 import { invoicesApi } from '../api/invoices';
+import { bankHolidaysApi } from '../api/bankHolidays';
 import { settingsApi } from '../api/settings';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { downloadInvoiceCsv, downloadInvoicePdf } from '../lib/invoiceExport';
@@ -16,7 +17,7 @@ const FUNDER_TYPE_META: Record<FunderType, { label: string; className: string }>
   NHS_CHC: { label: 'NHS CHC', className: 'bg-purple-100 text-purple-700' },
 };
 
-type Tab = 'funding' | 'invoices' | 'funders';
+type Tab = 'funding' | 'invoices' | 'funders' | 'holidays';
 
 export default function Finances() {
   const { can } = usePermissions();
@@ -30,6 +31,7 @@ export default function Finances() {
     { key: 'funding', label: 'Service User Funding' },
     { key: 'invoices', label: 'Invoices' },
     { key: 'funders', label: 'Funders' },
+    { key: 'holidays', label: 'Bank Holidays' },
   ];
 
   return (
@@ -55,6 +57,59 @@ export default function Finances() {
       {tab === 'funding' && <FundingManager />}
       {tab === 'invoices' && <InvoicesManager />}
       {tab === 'funders' && <FundersManager />}
+      {tab === 'holidays' && <BankHolidaysManager />}
+    </div>
+  );
+}
+
+/* ---------------- Bank Holidays ---------------- */
+function BankHolidaysManager() {
+  const qc = useQueryClient();
+  const { data: holidays = [], isLoading } = useQuery({ queryKey: ['bank-holidays'], queryFn: bankHolidaysApi.list });
+  const [date, setDate] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['bank-holidays'] });
+  const addMut = useMutation({
+    mutationFn: () => bankHolidaysApi.create({ date, name }),
+    onSuccess: () => { invalidate(); setDate(''); setName(''); setError(''); },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error || 'Could not add bank holiday.');
+    },
+  });
+  const deleteMut = useMutation({ mutationFn: (id: string) => bankHolidaysApi.delete(id), onSuccess: invalidate });
+
+  return (
+    <div className="card space-y-5 max-w-2xl">
+      <div>
+        <h2 className="font-semibold text-gray-900">Bank Holidays</h2>
+        <p className="text-sm text-gray-500">Visits on these dates are billed at each funder's bank-holiday rate. Seeded with England &amp; Wales holidays.</p>
+      </div>
+
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
+
+      <div className="flex flex-wrap items-end gap-3 border-b pb-4">
+        <div><label className="label">Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" /></div>
+        <div className="flex-1 min-w-[160px]"><label className="label">Name</label><input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="e.g. Spring bank holiday" /></div>
+        <button className="btn-primary btn" disabled={!date || !name || addMut.isPending} onClick={() => addMut.mutate()}>{addMut.isPending ? 'Adding…' : '+ Add'}</button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : holidays.length === 0 ? (
+        <p className="text-sm text-gray-400">No bank holidays set.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {holidays.map((h) => (
+            <div key={h.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
+              <span><span className="font-medium text-gray-900">{format(new Date(h.date), 'EEE dd MMM yyyy')}</span> <span className="text-gray-500">· {h.name}</span></span>
+              <button className="text-red-600 text-xs hover:underline" onClick={() => deleteMut.mutate(h.id)}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -113,7 +168,20 @@ function FundingManager() {
                         <span className="text-gray-400">— not set</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-700">{arr ? `£${arr.rate.toFixed(2)} / hr` : '—'}</td>
+                    <td className="px-4 py-2.5 text-gray-700">
+                      {arr ? (
+                        <>
+                          £{arr.rate.toFixed(2)} / hr
+                          {(arr.weekendRate != null || arr.bankHolidayRate != null) && (
+                            <span className="block text-xs text-gray-400">
+                              {arr.weekendRate != null && `Wknd £${arr.weekendRate.toFixed(2)}`}
+                              {arr.weekendRate != null && arr.bankHolidayRate != null && ' · '}
+                              {arr.bankHolidayRate != null && `BH £${arr.bankHolidayRate.toFixed(2)}`}
+                            </span>
+                          )}
+                        </>
+                      ) : '—'}
+                    </td>
                     <td className="px-4 py-2.5 text-right">
                       <button className="text-blue-600 text-xs hover:underline" onClick={() => setEditSu(su)}>{arr ? 'Edit' : 'Set funder'}</button>
                     </td>
@@ -146,6 +214,8 @@ function FundingModal({ serviceUser, arrangement, funders, onClose }: {
   const qc = useQueryClient();
   const [funderId, setFunderId] = useState(arrangement?.funderId || funders[0]?.id || '');
   const [rate, setRate] = useState(arrangement ? String(arrangement.rate) : '');
+  const [weekendRate, setWeekendRate] = useState(arrangement?.weekendRate != null ? String(arrangement.weekendRate) : '');
+  const [bankHolidayRate, setBankHolidayRate] = useState(arrangement?.bankHolidayRate != null ? String(arrangement.bankHolidayRate) : '');
   const [poNumber, setPoNumber] = useState(arrangement?.poNumber || '');
   const [startDate, setStartDate] = useState(arrangement?.startDate ? arrangement.startDate.slice(0, 10) : '');
   const [error, setError] = useState('');
@@ -154,7 +224,14 @@ function FundingModal({ serviceUser, arrangement, funders, onClose }: {
 
   const saveMut = useMutation({
     mutationFn: () => {
-      const payload = { funderId, rate: Number(rate) || 0, poNumber: poNumber || undefined, startDate: startDate || undefined };
+      const payload = {
+        funderId,
+        rate: Number(rate) || 0,
+        weekendRate: weekendRate === '' ? null : Number(weekendRate),
+        bankHolidayRate: bankHolidayRate === '' ? null : Number(bankHolidayRate),
+        poNumber: poNumber || undefined,
+        startDate: startDate || undefined,
+      };
       return arrangement ? fundingApi.update(arrangement.id, payload) : fundingApi.create({ serviceUserId: serviceUser.id, ...payload });
     },
     onSuccess: () => { invalidate(); onClose(); },
@@ -184,11 +261,14 @@ function FundingModal({ serviceUser, arrangement, funders, onClose }: {
                 {funders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
-            <div><label className="label">Charge Rate (£/hr)</label><input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="input" placeholder="e.g. 22.50" /></div>
+            <div><label className="label">Weekday Rate (£/hr)</label><input type="number" step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} className="input" placeholder="e.g. 22.50" /></div>
+            <div><label className="label">Weekend Rate (£/hr)</label><input type="number" step="0.01" value={weekendRate} onChange={(e) => setWeekendRate(e.target.value)} className="input" placeholder="Blank = weekday rate" /></div>
+            <div><label className="label">Bank Holiday Rate (£/hr)</label><input type="number" step="0.01" value={bankHolidayRate} onChange={(e) => setBankHolidayRate(e.target.value)} className="input" placeholder="Blank = weekday rate" /></div>
             <div><label className="label">PO / Reference</label><input value={poNumber} onChange={(e) => setPoNumber(e.target.value)} className="input" /></div>
             <div><label className="label">Start Date</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input" /></div>
           </div>
         )}
+        <p className="text-xs text-gray-400">Weekend/bank-holiday visits are billed at their rate automatically; leave blank to use the weekday rate. Manage bank-holiday dates in the Bank Holidays tab.</p>
 
         <div className="flex gap-3 pt-1">
           <button className="btn-secondary btn" onClick={onClose}>Cancel</button>

@@ -5,6 +5,8 @@ export interface FundingData {
   serviceUserId: string;
   funderId: string;
   rate: number;
+  weekendRate?: number | null;
+  bankHolidayRate?: number | null;
   startDate?: string;
   endDate?: string;
   poNumber?: string;

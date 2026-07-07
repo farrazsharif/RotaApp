@@ -23,7 +23,7 @@ export async function listFunding(req: AuthRequest, res: Response) {
 }
 
 export async function createFunding(req: AuthRequest, res: Response) {
-  const { serviceUserId, funderId, rate, startDate, endDate, poNumber, contractRef } = req.body;
+  const { serviceUserId, funderId, rate, weekendRate, bankHolidayRate, startDate, endDate, poNumber, contractRef } = req.body;
   if (!serviceUserId || !funderId) return res.status(400).json({ error: 'serviceUserId and funderId are required' });
 
   const funder = await prisma.funder.findUnique({ where: { id: funderId } });
@@ -34,6 +34,9 @@ export async function createFunding(req: AuthRequest, res: Response) {
       serviceUserId,
       funderId,
       rate: Number(rate) || 0,
+      // Blank enhanced rates fall back to the base rate at billing time.
+      weekendRate: weekendRate === '' || weekendRate == null ? null : Number(weekendRate),
+      bankHolidayRate: bankHolidayRate === '' || bankHolidayRate == null ? null : Number(bankHolidayRate),
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
       poNumber: poNumber || null,
@@ -45,7 +48,7 @@ export async function createFunding(req: AuthRequest, res: Response) {
 }
 
 export async function updateFunding(req: AuthRequest, res: Response) {
-  const { funderId, rate, startDate, endDate, poNumber, contractRef } = req.body;
+  const { funderId, rate, weekendRate, bankHolidayRate, startDate, endDate, poNumber, contractRef } = req.body;
   const data: Record<string, unknown> = {};
   if (funderId !== undefined) {
     const funder = await prisma.funder.findUnique({ where: { id: funderId } });
@@ -53,6 +56,8 @@ export async function updateFunding(req: AuthRequest, res: Response) {
     data.funderId = funderId;
   }
   if (rate !== undefined) data.rate = Number(rate) || 0;
+  if (weekendRate !== undefined) data.weekendRate = weekendRate === '' || weekendRate == null ? null : Number(weekendRate);
+  if (bankHolidayRate !== undefined) data.bankHolidayRate = bankHolidayRate === '' || bankHolidayRate == null ? null : Number(bankHolidayRate);
   if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
   if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
   if (poNumber !== undefined) data.poNumber = poNumber || null;

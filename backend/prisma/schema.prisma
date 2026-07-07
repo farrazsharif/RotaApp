@@ -461,7 +461,9 @@ model FundingArrangement {
   serviceUserId String
   funderId      String
   billingUnit   String    @default("PER_HOUR") // PER_HOUR in v1
-  rate          Float     @default(0) // charge per hour (revenue, NOT carer pay)
+  rate          Float     @default(0) // base/weekday charge per hour (revenue, NOT carer pay)
+  weekendRate     Float?  // charge per hour on Sat/Sun; falls back to `rate` when null
+  bankHolidayRate Float?  // charge per hour on bank holidays; falls back to `rate` when null
   allocation    String    @default("ALL") // ALL in v1; PERCENTAGE/HOURS_CAP/VISIT_TYPES later
   startDate     DateTime?
   endDate       DateTime?
@@ -475,6 +477,15 @@ model FundingArrangement {
 
   @@index([serviceUserId])
   @@index([funderId])
+}
+
+// Dates that count as bank holidays when picking a funding arrangement's rate.
+// Seeded with England & Wales holidays; editable under Finances.
+model BankHoliday {
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  name      String
+  createdAt DateTime @default(now())
 }
 
 // An invoice to a funder for a billing period, built from scheduled visits.
