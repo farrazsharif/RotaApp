@@ -506,10 +506,28 @@ model Invoice {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  funder Funder        @relation(fields: [funderId], references: [id], onDelete: Restrict)
-  lines  InvoiceLine[]
+  funder   Funder        @relation(fields: [funderId], references: [id], onDelete: Restrict)
+  lines    InvoiceLine[]
+  payments Payment[]
 
   @@index([funderId])
+}
+
+// A payment received against an invoice. An invoice can have several (part
+// payments); it is marked PAID once payments cover the total.
+model Payment {
+  id        String   @id @default(cuid())
+  invoiceId String
+  amount    Float
+  date      DateTime @default(now())
+  method    String?  // BACS | CARD | CHEQUE | CASH | OTHER
+  reference String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
 }
 
 // One billed visit on an invoice. sourceShiftId is unique so a scheduled visit

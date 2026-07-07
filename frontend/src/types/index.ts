@@ -312,9 +312,38 @@ export interface Invoice {
   poNumber?: string | null;
   notes?: string | null;
   lines?: InvoiceLine[];
+  payments?: Payment[];
+  amountPaid?: number;
+  outstanding?: number;
   _count?: { lines: number };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  date: string;
+  method?: string | null;
+  reference?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface AgedDebt {
+  buckets: { current: number; days30: number; days60: number; days90: number };
+  totalOutstanding: number;
+  rows: {
+    id: string;
+    number?: string | null;
+    funder?: string;
+    dueDate?: string | null;
+    total: number;
+    paid: number;
+    outstanding: number;
+    daysOverdue: number;
+  }[];
 }
 
 export interface ServiceUser {

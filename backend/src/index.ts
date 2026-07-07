@@ -34,6 +34,7 @@ import funderRoutes from './routes/funders';
 import fundingRoutes from './routes/funding';
 import invoiceRoutes from './routes/invoices';
 import bankHolidayRoutes from './routes/bankHolidays';
+import paymentRoutes from './routes/payments';
 import { startShiftReminders } from './lib/shiftReminders';
 
 const app = express();
@@ -92,6 +93,7 @@ app.use('/api/funders', funderRoutes);
 app.use('/api/funding', fundingRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/bank-holidays', bankHolidayRoutes);
+app.use('/api/payments', paymentRoutes);
 
 app.use(errorHandler);
 
