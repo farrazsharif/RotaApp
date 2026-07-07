@@ -19,6 +19,18 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Retire any leftover service worker from when the app lived on this
+      // origin, so returning visitors get the website and not the cached app.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((reg) => reg.unregister());
+        });
+        if (window.caches) {
+          caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+        }
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
