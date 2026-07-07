@@ -352,7 +352,7 @@ export default function Schedule() {
       <div className="card p-0 overflow-hidden">
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
+          initialView="dayGridWeek"
           locale={enGbLocale}
           firstDay={1}
           dayHeaderContent={(arg) =>
