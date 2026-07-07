@@ -200,6 +200,27 @@ export default function Schedule() {
     const showStatus = !!patientStatus && patientStatus !== 'ACTIVE'
       && shiftOnOrAfterStatusChange(s.date, s.serviceUser?.statusUpdatedAt);
     const statusIcon = showStatus ? STATUS_ICON[patientStatus!] : '';
+
+    // Week/day (timeGrid) columns get very narrow when many calls run at once,
+    // so use a compact two-line layout there; month keeps the fuller card.
+    const compact = arg.view.type.startsWith('timeGrid');
+    if (compact) {
+      return (
+        <div className="px-0.5 overflow-hidden leading-tight">
+          <p className="text-[11px] font-bold truncate">
+            {unassigned && <span title="Unassigned call">⚠ </span>}
+            {statusIcon && <span title={STATUS_LABEL[patientStatus!]}>{statusIcon} </span>}
+            {patient}
+          </p>
+          <p className="text-[10px] truncate">
+            {formatTime12h(s.startTime)}
+            {isManager && unassigned && <span className="font-bold"> · needs {missing}</span>}
+            {isManager && !s.published && <span className="font-bold uppercase"> · draft</span>}
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="p-0.5 overflow-hidden leading-tight">
         <p className="text-xs font-bold truncate">
@@ -352,6 +373,15 @@ export default function Schedule() {
           eventContent={renderEventContent}
           height="calc(100vh - 220px)"
           eventDisplay="block"
+          allDaySlot={false}
+          slotEventOverlap={false}
+          eventMaxStack={3}
+          eventMinHeight={26}
+          slotMinTime="06:00:00"
+          slotMaxTime="23:00:00"
+          expandRows
+          nowIndicator
+          moreLinkClick="popover"
         />
       </div>
 
