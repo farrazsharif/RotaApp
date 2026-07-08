@@ -24,9 +24,9 @@ function minutesUntil(time: string, nowMinutesOfDay: number): number {
   return h * 60 + m - nowMinutesOfDay;
 }
 
-async function notifyIfDue(shiftId: string, carerId: string, type: 'BEFORE' | 'START', payload: { title: string; body: string; url?: string }) {
+async function notifyIfDue(shiftId: string, carerId: string, companyId: string | null, type: 'BEFORE' | 'START', payload: { title: string; body: string; url?: string }) {
   try {
-    await prisma.shiftReminder.create({ data: { shiftId, userId: carerId, type } });
+    await prisma.shiftReminder.create({ data: { shiftId, userId: carerId, type, companyId } });
   } catch {
     return; // unique constraint hit — already sent
   }
@@ -63,14 +63,14 @@ export async function checkShiftReminders() {
       if (hasOpenClockIn) continue;
 
       if (dueBefore) {
-        await notifyIfDue(shift.id, carerId, 'BEFORE', {
+        await notifyIfDue(shift.id, carerId, shift.companyId, 'BEFORE', {
           title: 'Upcoming call in 30 minutes',
           body: `${shift.visitName || 'Your call'} starts at ${shift.startTime}`,
           url: `/call/${shift.id}`,
         });
       }
       if (dueStart) {
-        await notifyIfDue(shift.id, carerId, 'START', {
+        await notifyIfDue(shift.id, carerId, shift.companyId, 'START', {
           title: 'Call starting now',
           body: `${shift.visitName || 'Your call'} is starting — tap to clock in`,
           url: `/call/${shift.id}`,
