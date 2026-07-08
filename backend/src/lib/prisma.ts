@@ -31,9 +31,22 @@ function buildClient() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async $allOperations({ model, operation, args, query }: any) {
           const ctx = getTenant();
+          const isTenantModel = !!model && TENANT_MODELS.has(model);
+
           // No context (background job / pre-auth) or explicit bypass, or a
-          // non-tenant model → run unscoped.
-          if (!ctx || ctx.bypass || !model || !TENANT_MODELS.has(model)) {
+          // non-tenant model → run unscoped. But guard against an accidental
+          // unscoped WRITE to a tenant model that would create an orphan row
+          // (null companyId): allow it only if the caller supplied companyId
+          // explicitly (e.g. the background reminder poller).
+          if (!ctx || ctx.bypass || !isTenantModel) {
+            if (isTenantModel && !ctx?.bypass && (operation === 'create' || operation === 'createMany' || operation === 'upsert')) {
+              const rows = operation === 'createMany' ? args.data : [operation === 'upsert' ? args.create : args.data];
+              const list = Array.isArray(rows) ? rows : [rows];
+              const missing = list.some((r: Record<string, unknown>) => !r || r.companyId == null);
+              if (missing) {
+                throw new Error(`Refusing unscoped write to ${model} without a companyId — no tenant in scope.`);
+              }
+            }
             return query(args);
           }
           const companyId = ctx.companyId;

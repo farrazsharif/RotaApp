@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth';
 import { Role } from '../constants';
 import { prisma } from '../lib/prisma';
+import { getTenant } from '../lib/tenantContext';
 
 export type PermissionKey =
   | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access'
@@ -63,20 +64,25 @@ export async function capabilitiesFor(role: Role, customPermissions?: string[] |
   return PERMISSIONS.filter((p) => (map[p.key] || []).includes(role)).map((p) => p.key);
 }
 
-let cache: Record<string, Role[]> | null = null;
-let cacheAt = 0;
+// Effective-permissions cache, keyed per company (the role matrix is a
+// per-company setting). Keyed by companyId, or '_global' when there's no
+// tenant in scope.
+const cache = new Map<string, { map: Record<string, Role[]>; at: number }>();
 const TTL_MS = 10_000;
 
 export function clearPermissionCache() {
-  cache = null;
+  cache.clear();
 }
 
 // Merges stored overrides over the defaults, always keeping Admin on the
 // protected capabilities so an admin can't remove their own access.
 export async function getEffectivePermissions(): Promise<Record<string, Role[]>> {
-  if (cache && Date.now() - cacheAt < TTL_MS) return cache;
+  const key = getTenant()?.companyId || '_global';
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.map;
 
-  const settings = await prisma.orgSettings.findUnique({ where: { id: 'org' } });
+  // Auto-scoped by the tenant extension to the current company's settings row.
+  const settings = await prisma.orgSettings.findFirst();
   let overrides: Record<string, string[]> = {};
   if (settings?.permissions) {
     try { overrides = JSON.parse(settings.permissions); } catch { overrides = {}; }
@@ -91,8 +97,7 @@ export async function getEffectivePermissions(): Promise<Record<string, Role[]>>
     map[def.key] = roles;
   }
 
-  cache = map;
-  cacheAt = Date.now();
+  cache.set(key, { map, at: Date.now() });
   return map;
 }
 

@@ -146,7 +146,9 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
       vat,
       total,
       poNumber: funder.poReference || null,
-      lines: { create: lines },
+      // Nested creates aren't auto-scoped by the tenant extension, so stamp
+      // each line with the current company explicitly.
+      lines: { create: lines.map((l) => ({ ...l, companyId: req.user!.companyId })) },
     },
     include: { funder: true, lines: { include: lineInclude, orderBy: { date: 'asc' } } },
   });

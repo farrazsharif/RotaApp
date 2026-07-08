@@ -38,7 +38,7 @@ model Company {
 }
 
 model User {
-  companyId                String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId                String? // tenant scope (app-enforced via Prisma extension)
   id                       String   @id @default(cuid())
   email                    String   @unique
   password                 String
@@ -80,7 +80,7 @@ model User {
 // like); permissions is a JSON array of capability keys for fine-grained
 // control, overriding the base-role matrix for users assigned to it.
 model CustomRole {
-  companyId   String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId   String? // tenant scope (app-enforced via Prisma extension)
   id          String   @id @default(cuid())
   name        String   @unique
   baseType    String   @default("EMPLOYEE")
@@ -94,7 +94,7 @@ model CustomRole {
 }
 
 model Site {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   name      String   @unique
   color     String   @default("#3b82f6")
@@ -107,7 +107,7 @@ model Site {
 }
 
 model ServiceUser {
-  companyId                String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId                String? // tenant scope (app-enforced via Prisma extension)
   id                       String   @id @default(cuid())
   firstName                String
   lastName                 String
@@ -168,7 +168,7 @@ model ServiceUser {
 // Links a family-member User account to the service user(s) they're allowed
 // to view read-only details for, via the separate family-portal app.
 model FamilyLink {
-  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String   @id @default(cuid())
   userId        String
   serviceUserId String
@@ -183,7 +183,7 @@ model FamilyLink {
 }
 
 model PersonalServicePlan {
-  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String   @id @default(cuid())
   serviceUserId String   @unique
   data          String   @default("{}") // JSON: all assessment field values keyed by item id
@@ -197,7 +197,7 @@ model PersonalServicePlan {
 }
 
 model CarePlan {
-  companyId       String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId       String? // tenant scope (app-enforced via Prisma extension)
   id              String    @id @default(cuid())
   serviceUserId   String    @unique
   // Weekly visit profile — JSON: { Monday: { morning, lunch, tea, bed }, ... }
@@ -234,7 +234,7 @@ model CarePlan {
 }
 
 model LikesDislikes {
-  companyId      String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId      String? // tenant scope (app-enforced via Prisma extension)
   id             String   @id @default(cuid())
   serviceUserId  String   @unique
   likes          String?
@@ -258,7 +258,7 @@ model LikesDislikes {
 // JSON keyed by question id: { q1: { answer: "YES"|"NO"|"NA", comment: "" } }.
 // Agreed outcomes is a JSON array: [{ action, outcome, timescale, actionBy, completion }].
 model Review {
-  companyId          String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId          String? // tenant scope (app-enforced via Prisma extension)
   id                 String    @id @default(cuid())
   serviceUserId      String
   // "SIX_WEEK" (once, ~6 weeks after service start) or "QUARTERLY" (recurring)
@@ -283,7 +283,7 @@ model Review {
 // Training course attended by a staff member, e.g. "First Aid", with an
 // optional expiry so managers can see at a glance who needs renewal.
 model Training {
-  companyId   String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId   String? // tenant scope (app-enforced via Prisma extension)
   id          String    @id @default(cuid())
   userId      String
   course      String
@@ -302,7 +302,7 @@ model Training {
 // Generic recurring/one-off important date for a staff member — DBS renewal,
 // supervision, appraisal, contract review, etc.
 model ImportantDate {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   userId    String
   label     String
@@ -317,7 +317,7 @@ model ImportantDate {
 }
 
 model Medication {
-  companyId        String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId        String? // tenant scope (app-enforced via Prisma extension)
   id               String    @id @default(cuid())
   serviceUserId    String
   name             String
@@ -340,7 +340,7 @@ model Medication {
 }
 
 model MedAdministration {
-  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String   @id @default(cuid())
   medicationId  String
   serviceUserId String
@@ -359,7 +359,7 @@ model MedAdministration {
 }
 
 model Shift {
-  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String   @id @default(cuid())
   userId        String?
   serviceUserId String?
@@ -390,7 +390,7 @@ model Shift {
 }
 
 model CallLog {
-  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String   @id @default(cuid())
   shiftId       String?
   serviceUserId String
@@ -406,7 +406,7 @@ model CallLog {
 }
 
 model TimeOffRequest {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   userId    String
   startDate DateTime
@@ -423,7 +423,7 @@ model TimeOffRequest {
 }
 
 model ClockRecord {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String    @id @default(cuid())
   userId    String
   shiftId   String?
@@ -438,7 +438,7 @@ model ClockRecord {
 }
 
 model PushSubscription {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   userId    String
   endpoint  String   @unique
@@ -454,7 +454,7 @@ model PushSubscription {
 // Tracks which shift-reminder pushes have already been sent so the
 // reminder poller (which runs every minute) never double-sends.
 model ShiftReminder {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   shiftId   String
   userId    String
@@ -466,7 +466,7 @@ model ShiftReminder {
 }
 
 model Notification {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   userId    String
   type      String
@@ -484,7 +484,7 @@ model Notification {
 // One-time link sent to a newly-created staff member so they can set
 // their own password instead of a manager choosing one for them.
 model PasswordSetupToken {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
@@ -496,7 +496,7 @@ model PasswordSetupToken {
 
 // Append-only record of sensitive changes (who did what, when).
 model AuditLog {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   actorId   String?
   actorName String // snapshot of the actor's email/name at the time
@@ -509,10 +509,10 @@ model AuditLog {
   @@index([companyId])
 }
 
-// Organisation-wide settings. Single row, keyed by the fixed id "org".
+// Per-company organisation settings — exactly one row per Company.
 model OrgSettings {
-  companyId         String? // tenant scope (Phase 1: nullable; enforced later)
-  id                String   @id @default("org")
+  companyId         String?  @unique // one settings row per company
+  id                String   @id @default(cuid())
   companyName       String   @default("Caremid")
   logo              String? // base64 data URL, used on reports/letterheads
   address           String?
@@ -528,14 +528,12 @@ model OrgSettings {
   permissions       String   @default("{}") // JSON: { permissionKey: Role[] } overrides
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-
-  @@index([companyId])
 }
 
 // Who pays for a service user's care: a local authority/council, a private
 // self-funding client, or an NHS body. Reused across many service users.
 model Funder {
-  companyId        String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId        String? // tenant scope (app-enforced via Prisma extension)
   id               String   @id @default(cuid())
   name             String
   type             String   @default("PRIVATE") // COUNCIL | PRIVATE | NHS_CHC
@@ -559,7 +557,7 @@ model Funder {
 // Links a service user to a funder with a charge rate. The schema supports many
 // per service user (for future split funding); v1 uses one funder each.
 model FundingArrangement {
-  companyId       String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId       String? // tenant scope (app-enforced via Prisma extension)
   id              String    @id @default(cuid())
   serviceUserId   String
   funderId        String
@@ -587,7 +585,7 @@ model FundingArrangement {
 // Dates that count as bank holidays when picking a funding arrangement's rate.
 // Seeded with England & Wales holidays; editable under Finances.
 model BankHoliday {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   date      DateTime @unique
   name      String
@@ -598,7 +596,7 @@ model BankHoliday {
 
 // An invoice to a funder for a billing period, built from scheduled visits.
 model Invoice {
-  companyId   String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId   String? // tenant scope (app-enforced via Prisma extension)
   id          String    @id @default(cuid())
   funderId    String
   number      String? // assigned when finalised (e.g. INV-0001)
@@ -626,7 +624,7 @@ model Invoice {
 // A payment received against an invoice. An invoice can have several (part
 // payments); it is marked PAID once payments cover the total.
 model Payment {
-  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String   @id @default(cuid())
   invoiceId String
   amount    Float
@@ -647,7 +645,7 @@ model Payment {
 // funderId) blocks double-billing the same visit to the same funder while
 // still allowing each funder its share.
 model InvoiceLine {
-  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String   @id @default(cuid())
   invoiceId     String
   funderId      String? // denormalised from the invoice, for the per-funder unique

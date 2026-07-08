@@ -3,8 +3,26 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { PERMISSIONS, getEffectivePermissions, sanitisePermissions, clearPermissionCache } from '../middleware/permissions';
 import { logAudit } from '../lib/audit';
+import { getTenant } from '../lib/tenantContext';
 
-const SINGLETON_ID = 'org';
+// The company whose settings we're reading/writing. The tenant extension scopes
+// every query, but upsert/create still need the companyId value explicitly.
+function currentCompanyId(): string {
+  const id = getTenant()?.companyId;
+  if (!id) throw new Error('No company in scope');
+  return id;
+}
+
+// Returns the org settings for the current company, creating the default row on
+// first access. Keyed by companyId (one settings row per company).
+async function upsertOrgSettings(update: Record<string, unknown> = {}) {
+  const companyId = currentCompanyId();
+  return prisma.orgSettings.upsert({
+    where: { companyId },
+    update,
+    create: { companyId, ...update },
+  });
+}
 
 // Returns the permission definitions plus the current effective role map, so
 // the UI can both render the matrix and gate its own controls.
@@ -15,11 +33,7 @@ export async function getPermissions(_req: AuthRequest, res: Response) {
 
 export async function updatePermissions(req: AuthRequest, res: Response) {
   const clean = sanitisePermissions((req.body as { permissions?: unknown })?.permissions);
-  await prisma.orgSettings.upsert({
-    where: { id: SINGLETON_ID },
-    update: { permissions: JSON.stringify(clean) },
-    create: { id: SINGLETON_ID, permissions: JSON.stringify(clean) },
-  });
+  await upsertOrgSettings({ permissions: JSON.stringify(clean) });
   clearPermissionCache();
   await logAudit(req, 'PERMISSIONS_UPDATED', 'Role permission matrix');
   const permissions = await getEffectivePermissions();
@@ -28,22 +42,14 @@ export async function updatePermissions(req: AuthRequest, res: Response) {
 
 // Returns the org settings, creating the default row on first access.
 export async function getOrgSettings(_req: AuthRequest, res: Response) {
-  const settings = await prisma.orgSettings.upsert({
-    where: { id: SINGLETON_ID },
-    update: {},
-    create: { id: SINGLETON_ID },
-  });
+  const settings = await upsertOrgSettings();
   res.json(settings);
 }
 
 // Convenience for other controllers that need a setting (e.g. invite expiry,
 // overtime threshold) without duplicating the upsert.
 export async function loadOrgSettings() {
-  return prisma.orgSettings.upsert({
-    where: { id: SINGLETON_ID },
-    update: {},
-    create: { id: SINGLETON_ID },
-  });
+  return upsertOrgSettings();
 }
 
 const STRING_FIELDS = ['companyName', 'logo', 'address', 'phone', 'email', 'cqcProviderId', 'icoNumber', 'timezone', 'defaultRole'] as const;
@@ -67,11 +73,7 @@ export async function updateOrgSettings(req: AuthRequest, res: Response) {
     }
   }
 
-  const settings = await prisma.orgSettings.upsert({
-    where: { id: SINGLETON_ID },
-    update: data,
-    create: { id: SINGLETON_ID, ...data },
-  });
+  const settings = await upsertOrgSettings(data);
   await logAudit(req, 'SETTINGS_UPDATED', 'Organisation settings', Object.keys(data).join(', '));
   res.json(settings);
 }

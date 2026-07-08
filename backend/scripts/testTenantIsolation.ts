@@ -41,9 +41,41 @@ async function main() {
   );
   assert('c1 updateMany cannot modify c2 row (0 affected)', crossUpd.count === 0);
 
-  // Cleanup: remove the throwaway company + its patient (unscoped).
+  // Per-company OrgSettings: each company gets its own settings row.
+  const s1 = await runWithCompany(c1.id, async () =>
+    prisma.orgSettings.upsert({ where: { companyId: c1.id }, update: {}, create: { companyId: c1.id } }),
+  );
+  const s2 = await runWithCompany(c2.id, async () =>
+    prisma.orgSettings.upsert({ where: { companyId: c2.id }, update: { companyName: 'TestCo' }, create: { companyId: c2.id, companyName: 'TestCo' } }),
+  );
+  assert('OrgSettings are per-company (distinct rows)', !!s1 && !!s2 && s1.id !== s2.id);
+  const c2Settings = await runWithCompany(c2.id, async () => prisma.orgSettings.findFirst());
+  assert('c2 sees only its own settings (TestCo)', c2Settings?.companyName === 'TestCo');
+
+  // Transaction-based write (mirrors shift createMany) is scoped + stamped.
+  await runWithCompany(c2.id, async () =>
+    prisma.$transaction(async (tx) => {
+      await tx.site.create({ data: { name: 'TestSite-' + Date.now() } });
+    }),
+  );
+  const c2Sites = await runWithCompany(c2.id, async () => prisma.site.count());
+  const c1SeesC2Site = await runWithCompany(c1.id, async () => prisma.site.findMany({ where: { name: { startsWith: 'TestSite-' } } }));
+  assert('tx create is scoped to c2 (c2 has 1 site)', c2Sites === 1);
+  assert('c1 cannot see c2 tx-created site', c1SeesC2Site.length === 0);
+
+  // Fail-loud guard: a write to a tenant model with NO tenant context at all
+  // (a forgotten scope) must throw rather than create a null-companyId orphan.
+  let threw = false;
+  try {
+    await prisma.site.create({ data: { name: 'Orphan' } });
+  } catch { threw = true; }
+  assert('no-context tenant-model create throws (no orphan)', threw);
+
+  // Cleanup: remove all the throwaway company's data (unscoped).
   await runWithoutScope(async () => {
     await prisma.serviceUser.deleteMany({ where: { companyId: c2.id } });
+    await prisma.site.deleteMany({ where: { companyId: c2.id } });
+    await prisma.orgSettings.deleteMany({ where: { companyId: c2.id } });
     await prisma.company.delete({ where: { id: c2.id } });
   });
 
