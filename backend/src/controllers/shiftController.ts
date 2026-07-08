@@ -4,7 +4,6 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { emitToUser } from '../lib/socket';
-import { sendEmail, shiftAssignedEmail } from '../lib/email';
 import { sendPushToUser } from '../lib/push';
 import { isScoped, serviceUserInScope, relatedServiceUserScopeWhere } from '../lib/scope';
 
@@ -157,13 +156,6 @@ export async function createShift(req: AuthRequest, res: Response) {
       },
     });
     emitToUser(userId, 'notification', notification);
-
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user) {
-      sendEmail(user.email, 'New Shift Assigned', shiftAssignedEmail(
-        user.firstName, new Date(date).toDateString(), startTime, endTime
-      ));
-    }
   }
 
   res.status(201).json({ ...shift, createdCount });
