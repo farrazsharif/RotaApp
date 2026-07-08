@@ -42,14 +42,29 @@ const server = http.createServer(app);
 
 initSocket(server);
 
+// Explicitly-configured origins (env) plus local dev ports.
 const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:5173',
-  process.env.CARER_APP_URL || 'http://localhost:5174',
-  process.env.FAMILY_PORTAL_URL || 'http://localhost:5175',
-].filter(Boolean);
+  process.env.CLIENT_URL,
+  process.env.CARER_APP_URL,
+  process.env.FAMILY_PORTAL_URL,
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+].filter(Boolean) as string[];
+
+// Allow the manager app, carer app and family portal — all served from
+// *.caremid.co.uk — plus the apex domain, regardless of which subdomain each
+// ends up on. This keeps CORS working when a frontend moves domains (as the
+// app did to portal.caremid.co.uk) without needing an env change per deploy.
+const CAREMID_HOST = /^https:\/\/([a-z0-9-]+\.)*caremid\.co\.uk$/;
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin(origin, callback) {
+    // Same-origin / non-browser requests (curl, health checks) send no Origin.
+    if (!origin) return callback(null, true);
+    const ok = allowedOrigins.includes(origin) || CAREMID_HOST.test(origin);
+    callback(null, ok);
+  },
   credentials: true,
 }));
 app.use(express.json());
