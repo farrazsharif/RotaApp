@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import SetPassword from './pages/SetPassword';
 import Dashboard from './pages/Dashboard';
 import Schedule from './pages/Schedule';
@@ -21,6 +22,7 @@ import Reviews from './pages/Reviews';
 import ServicePlans from './pages/ServicePlans';
 import Finances from './pages/Finances';
 import Settings from './pages/Settings';
+import Billing from './pages/Billing';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -46,6 +48,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/signup" element={user ? <Navigate to="/" replace /> : <Signup />} />
       <Route path="/set-password" element={<SetPassword />} />
       <Route
         path="/"
@@ -75,6 +78,7 @@ function AppRoutes() {
         <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
         <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
         <Route path="settings" element={<Settings />} />
+        <Route path="settings/billing" element={<Billing />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

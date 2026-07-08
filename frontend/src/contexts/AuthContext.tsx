@@ -6,11 +6,20 @@ interface AuthContextValue {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
+  signup: (data: SignupData) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   loading: boolean;
   isAdmin: boolean;
   isManager: boolean;
+}
+
+export interface SignupData {
+  companyName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -42,6 +51,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(newUser);
   }
 
+  async function signup(data: SignupData) {
+    const res = await api.post('/auth/signup', data);
+    const { token: newToken, user: newUser } = res.data;
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
+    setUser(newUser);
+  }
+
   function logout() {
     localStorage.removeItem('token');
     setToken(null);
@@ -57,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isManager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, refreshUser, loading, isAdmin, isManager }}>
+    <AuthContext.Provider value={{ user, token, login, signup, logout, refreshUser, loading, isAdmin, isManager }}>
       {children}
     </AuthContext.Provider>
   );

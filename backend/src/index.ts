@@ -35,6 +35,8 @@ import fundingRoutes from './routes/funding';
 import invoiceRoutes from './routes/invoices';
 import bankHolidayRoutes from './routes/bankHolidays';
 import paymentRoutes from './routes/payments';
+import billingRoutes from './routes/billing';
+import { handleWebhook } from './controllers/billingController';
 import { startShiftReminders } from './lib/shiftReminders';
 
 const app = express();
@@ -67,6 +69,11 @@ app.use(cors({
   },
   credentials: true,
 }));
+
+// Stripe webhook must receive the RAW body for signature verification, so it is
+// mounted before the JSON body parser.
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleWebhook);
+
 app.use(express.json());
 
 // Health check that also verifies database connectivity, so uptime monitors
@@ -109,6 +116,7 @@ app.use('/api/funding', fundingRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/bank-holidays', bankHolidayRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/billing', billingRoutes);
 
 app.use(errorHandler);
 

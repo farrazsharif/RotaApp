@@ -35,6 +35,11 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+    // 402 = subscription inactive / trial ended. Send the user to the billing
+    // page so they can subscribe; leave them there if already on it.
+    if (err.response?.status === 402 && window.location.pathname !== '/settings/billing') {
+      window.location.href = '/settings/billing';
+    }
     return Promise.reject(err);
   }
 );
