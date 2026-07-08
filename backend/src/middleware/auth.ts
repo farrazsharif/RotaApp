@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { runWithCompany } from '../lib/tenantContext';
+import { hasAccess } from '../lib/subscription';
 import { Role } from '../constants';
 
 export interface AuthRequest extends Request {
@@ -36,6 +37,21 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     }
     if (!user.companyId) {
       return res.status(401).json({ error: 'Account is not linked to a company' });
+    }
+
+    // Subscription/access gate. Billing and auth routes stay reachable so a
+    // locked-out company can still see the paywall and go pay. Everything else
+    // is blocked with 402 once the trial lapses (and no active subscription) or
+    // the company is suspended at the platform level.
+    const exempt = req.baseUrl.startsWith('/api/billing') || req.baseUrl.startsWith('/api/auth');
+    if (!exempt) {
+      const company = await prisma.company.findUnique({
+        where: { id: user.companyId },
+        select: { active: true, subscriptionStatus: true, trialEndsAt: true },
+      });
+      if (company && (!company.active || !hasAccess(company))) {
+        return res.status(402).json({ error: 'Your subscription is inactive', code: 'SUBSCRIPTION_INACTIVE' });
+      }
     }
     let customPermissions: string[] | null = null;
     if (user.customRole) {

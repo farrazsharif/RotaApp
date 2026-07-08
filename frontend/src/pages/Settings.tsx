@@ -1,4 +1,5 @@
 import { useState, Fragment } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -31,7 +32,14 @@ export default function Settings() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+        {can('manage_settings') && (
+          <Link to="/settings/billing" className="text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg px-3 py-1.5">
+            Billing &amp; subscription
+          </Link>
+        )}
+      </div>
 
       <div className="border-b border-gray-200">
         <nav className="flex flex-wrap gap-1 -mb-px">
