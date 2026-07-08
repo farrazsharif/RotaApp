@@ -230,7 +230,9 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
 
   function onSubmit(values: FormValues, publishAfter = false) {
     const data: CreateShiftData = {
-      userId: values.userId || undefined,
+      // null (not undefined) so an unassignment is sent and actually clears the
+      // carer — undefined would be dropped from the JSON and left unchanged.
+      userId: values.userId || null,
       serviceUserId: values.serviceUserId || undefined,
       date: values.date,
       startTime: values.startTime,

@@ -8,7 +8,7 @@ export interface ShiftFilters {
 }
 
 export interface CreateShiftData {
-  userId?: string;
+  userId?: string | null;
   serviceUserId?: string;
   date: string;
   startTime: string;
@@ -48,6 +48,6 @@ export const shiftsApi = {
   publish: (id: string) => api.post<Shift>(`/shifts/${id}/publish`).then((r) => r.data),
   publishBulk: (ids: string[]) =>
     api.post<{ message: string; count: number }>('/shifts/publish-bulk', { ids }).then((r) => r.data),
-  assignCarer: (id: string, body: { userId?: string; coverCarerIds?: string[]; scope?: 'one' | 'future' | 'days'; days?: number[] }) =>
+  assignCarer: (id: string, body: { userId?: string | null; coverCarerIds?: string[]; scope?: 'one' | 'future' | 'days'; days?: number[] }) =>
     api.post<{ message: string; count: number }>(`/shifts/${id}/assign`, body).then((r) => r.data),
 };
