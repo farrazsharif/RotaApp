@@ -72,6 +72,7 @@ export interface User {
   phone?: string;
   photo?: string;
   active: boolean;
+  platformAdmin?: boolean; // platform owner — sees the cross-company admin area
   pendingSetup?: boolean; // invited but hasn't set a password yet
   customRoleId?: string | null;
   customRole?: { id: string; name: string; baseType: Role } | null;

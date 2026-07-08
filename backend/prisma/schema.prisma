@@ -50,6 +50,9 @@ model User {
   phone                    String?
   photo                    String? // profile picture as a base64 data URL
   active                   Boolean  @default(true)
+  // Platform owner: can see the cross-company admin dashboard. Kept separate
+  // from the per-company ADMIN role.
+  platformAdmin            Boolean  @default(false)
   emergencyContactName     String?
   emergencyContactPhone    String?
   emergencyContactRelation String?

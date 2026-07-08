@@ -11,6 +11,7 @@ export interface AuthRequest extends Request {
     companyId: string;
     role: Role;
     email: string;
+    platformAdmin?: boolean;
     // Capability keys from an assigned custom role; null means "use the
     // base-role matrix instead".
     customPermissions?: string[] | null;
@@ -30,7 +31,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, companyId: true, role: true, email: true, active: true, customRole: { select: { permissions: true } }, sites: { select: { id: true } } },
+      select: { id: true, companyId: true, role: true, email: true, active: true, platformAdmin: true, customRole: { select: { permissions: true } }, sites: { select: { id: true } } },
     });
     if (!user || !user.active) {
       return res.status(401).json({ error: 'Account not found or inactive' });
@@ -43,7 +44,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     // locked-out company can still see the paywall and go pay. Everything else
     // is blocked with 402 once the trial lapses (and no active subscription) or
     // the company is suspended at the platform level.
-    const exempt = req.baseUrl.startsWith('/api/billing') || req.baseUrl.startsWith('/api/auth');
+    const exempt = req.baseUrl.startsWith('/api/billing') || req.baseUrl.startsWith('/api/auth') || req.baseUrl.startsWith('/api/platform');
     if (!exempt) {
       const company = await prisma.company.findUnique({
         where: { id: user.companyId },
@@ -57,13 +58,19 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     if (user.customRole) {
       try { customPermissions = JSON.parse(user.customRole.permissions); } catch { customPermissions = []; }
     }
-    req.user = { id: user.id, companyId: user.companyId, role: user.role as Role, email: user.email, customPermissions, siteIds: user.sites.map((s) => s.id) };
+    req.user = { id: user.id, companyId: user.companyId, role: user.role as Role, email: user.email, platformAdmin: user.platformAdmin, customPermissions, siteIds: user.sites.map((s) => s.id) };
     // Activate tenant scoping for the remainder of this request so every
     // Prisma query is automatically filtered to this user's company.
     runWithCompany(user.companyId, () => next());
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
+}
+
+// Guards the cross-company platform admin area. Only platform owners pass.
+export function requirePlatformAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+  if (!req.user?.platformAdmin) return res.status(403).json({ error: 'Platform admin access required' });
+  next();
 }
 
 export function requireRole(...roles: Role[]) {

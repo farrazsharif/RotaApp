@@ -23,6 +23,7 @@ import ServicePlans from './pages/ServicePlans';
 import Finances from './pages/Finances';
 import Settings from './pages/Settings';
 import Billing from './pages/Billing';
+import Platform from './pages/Platform';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -40,6 +41,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function ManagerRoute({ children }: { children: React.ReactNode }) {
   const { isManager } = useAuth();
   if (!isManager) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+function PlatformRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user?.platformAdmin) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -79,6 +86,7 @@ function AppRoutes() {
         <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
         <Route path="settings" element={<Settings />} />
         <Route path="settings/billing" element={<Billing />} />
+        <Route path="platform" element={<PlatformRoute><Platform /></PlatformRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

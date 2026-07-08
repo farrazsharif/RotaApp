@@ -6,7 +6,8 @@ import NotificationBell from './NotificationBell';
 import ClockWidget from './ClockWidget';
 import { useState } from 'react';
 
-const navItems: { to: string; label: string; icon: string; exact?: boolean; managerOnly?: boolean; capability?: PermissionKey }[] = [
+const navItems: { to: string; label: string; icon: string; exact?: boolean; managerOnly?: boolean; capability?: PermissionKey; platformOnly?: boolean }[] = [
+  { to: '/platform', label: 'Platform Admin', icon: '🏢', platformOnly: true },
   { to: '/', label: 'Dashboard', icon: '🏠', exact: true },
   { to: '/schedule', label: 'Schedule', icon: '📅' },
   { to: '/service-users', label: 'Service Users', icon: '🧑‍🦽' },
@@ -35,6 +36,7 @@ export default function Layout() {
   }
 
   const visibleNav = navItems.filter((item) => {
+    if (item.platformOnly && !user?.platformAdmin) return false;
     if (item.managerOnly && !isManager) return false;
     if (item.capability && !can(item.capability)) return false;
     return true;

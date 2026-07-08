@@ -36,6 +36,7 @@ import invoiceRoutes from './routes/invoices';
 import bankHolidayRoutes from './routes/bankHolidays';
 import paymentRoutes from './routes/payments';
 import billingRoutes from './routes/billing';
+import platformRoutes from './routes/platform';
 import { handleWebhook } from './controllers/billingController';
 import { startShiftReminders } from './lib/shiftReminders';
 
@@ -117,6 +118,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/bank-holidays', bankHolidayRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/platform', platformRoutes);
 
 app.use(errorHandler);
 
