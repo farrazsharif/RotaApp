@@ -475,6 +475,17 @@ function InvoicesManager() {
   const [end, setEnd] = useState('');
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const deleteMut = useMutation({
+    mutationFn: (invId: string) => invoicesApi.delete(invId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['invoices'] }); qc.invalidateQueries({ queryKey: ['aged-debt'] }); setConfirmDeleteId(null); },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error || 'Could not delete invoice.');
+      setConfirmDeleteId(null);
+    },
+  });
 
   // Service users funded by the selected funder (for the optional single-user filter).
   const funderSUs = arrangements.filter((a) => a.funderId === funderId && a.serviceUser);
@@ -557,7 +568,22 @@ function InvoicesManager() {
                       )}
                     </td>
                     <td className="px-4 py-2.5"><span className={`badge ${STATUS_META[inv.status].className}`}>{STATUS_META[inv.status].label}</span></td>
-                    <td className="px-4 py-2.5 text-right"><button className="text-blue-600 text-xs hover:underline" onClick={() => setOpenId(inv.id)}>View</button></td>
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      {confirmDeleteId === inv.id ? (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="text-xs text-red-700">Delete?</span>
+                          <button className="text-red-600 text-xs font-medium hover:underline" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(inv.id)}>Yes</button>
+                          <button className="text-gray-500 text-xs hover:underline" onClick={() => setConfirmDeleteId(null)}>No</button>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-3">
+                          <button className="text-blue-600 text-xs hover:underline" onClick={() => setOpenId(inv.id)}>View</button>
+                          {(inv.status === 'DRAFT' || inv.status === 'VOID') && (
+                            <button className="text-red-600 text-xs hover:underline" onClick={() => setConfirmDeleteId(inv.id)}>Delete</button>
+                          )}
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -644,6 +670,7 @@ function InvoiceDetailModal({ id, onClose }: { id: string; onClose: () => void }
   const { data: inv, isLoading } = useQuery({ queryKey: ['invoice', id], queryFn: () => invoicesApi.get(id) });
   const { data: org } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('BACS');
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
@@ -760,15 +787,28 @@ function InvoiceDetailModal({ id, onClose }: { id: string; onClose: () => void }
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2 border-t pt-4">
+            <div className="flex flex-wrap items-center gap-2 border-t pt-4">
               <button className="btn-secondary btn" onClick={onClose}>Close</button>
               <div className="flex-1" />
               <button className="btn-secondary btn" onClick={() => downloadInvoiceCsv(inv)}>CSV</button>
               <button className="btn-secondary btn" disabled={busy} onClick={pdf}>{busy ? 'PDF…' : 'PDF'}</button>
-              {inv.status === 'DRAFT' && <button className="btn-danger btn" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>Delete</button>}
+              {(inv.status === 'DRAFT' || inv.status === 'VOID') && (
+                confirmDelete ? (
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs text-red-700">Delete this invoice permanently?</span>
+                    <button className="btn-danger btn" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>Yes, delete</button>
+                    <button className="btn-secondary btn" onClick={() => setConfirmDelete(false)}>No</button>
+                  </span>
+                ) : (
+                  <button className="btn-danger btn" onClick={() => setConfirmDelete(true)}>Delete</button>
+                )
+              )}
               {inv.status === 'DRAFT' && <button className="btn-primary btn" disabled={statusMut.isPending} onClick={() => statusMut.mutate('SENT')}>Finalise &amp; Send</button>}
-              {inv.status === 'SENT' && <button className="btn-secondary btn" disabled={statusMut.isPending} onClick={() => statusMut.mutate('VOID')}>Void</button>}
+              {(inv.status === 'SENT' || inv.status === 'PAID') && <button className="btn-secondary btn" disabled={statusMut.isPending} onClick={() => statusMut.mutate('VOID')}>Void</button>}
             </div>
+            {(inv.status === 'SENT' || inv.status === 'PAID') && (
+              <p className="text-xs text-gray-400">To delete a sent invoice, Void it first (this frees its billed visits), then delete.</p>
+            )}
           </>
         )}
       </div>
