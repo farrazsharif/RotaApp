@@ -26,7 +26,8 @@ export async function createRole(req: AuthRequest, res: Response) {
   if (!name || !name.trim()) return res.status(400).json({ error: 'Role name required' });
   const base = BASE_TYPES.includes(baseType as Role) ? (baseType as Role) : 'EMPLOYEE';
 
-  const existing = await prisma.customRole.findUnique({ where: { name: name.trim() } });
+  // Auto-scoped to the current company by the tenant extension.
+  const existing = await prisma.customRole.findFirst({ where: { name: name.trim() } });
   if (existing) return res.status(409).json({ error: 'A role with that name already exists' });
 
   const role = await prisma.customRole.create({

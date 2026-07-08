@@ -85,7 +85,7 @@ model User {
 model CustomRole {
   companyId   String? // tenant scope (app-enforced via Prisma extension)
   id          String   @id @default(cuid())
-  name        String   @unique
+  name        String
   baseType    String   @default("EMPLOYEE")
   permissions String   @default("[]")
   createdAt   DateTime @default(now())
@@ -93,6 +93,7 @@ model CustomRole {
 
   users User[]
 
+  @@unique([companyId, name])
   @@index([companyId])
 }
 

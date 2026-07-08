@@ -5,6 +5,7 @@ import { reportsApi } from '../api/reports';
 import { shiftsApi } from '../api/shifts';
 import { clockApi } from '../api/clock';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { format, startOfWeek, endOfWeek, formatDistanceToNow } from 'date-fns';
 import { Shift } from '../types';
 import { formatTime12h } from '../lib/time';
@@ -48,6 +49,7 @@ function AlertTile({ count, label, tone, to }: { count: number; label: string; t
 
 export default function Dashboard() {
   const { user, isManager } = useAuth();
+  const { can } = usePermissions();
   const today = new Date();
   const weekStart = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
   const weekEnd = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
@@ -76,13 +78,11 @@ export default function Dashboard() {
           </h1>
           <p className="text-gray-500 mt-1">{format(today, 'EEEE, MMMM d yyyy')}</p>
         </div>
-        {isManager && (
-          <div className="flex flex-wrap gap-2">
-            <Link to="/schedule" className="btn-secondary btn">+ Add shift</Link>
-            <Link to="/schedule" className="btn-secondary btn">Publish rota</Link>
-            <Link to="/finances" className="btn-primary btn">New invoice</Link>
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {can('manage_schedule') && <Link to="/schedule" className="btn-secondary btn">+ Add shift</Link>}
+          {can('manage_schedule') && <Link to="/schedule" className="btn-secondary btn">Publish rota</Link>}
+          {can('manage_billing') && <Link to="/finances" className="btn-primary btn">New invoice</Link>}
+        </div>
       </div>
 
       {/* Needs attention */}

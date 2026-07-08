@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { runWithoutScope } from '../lib/tenantContext';
+import { ensureDefaultRoles } from '../lib/defaultRoles';
 import { Role } from '../constants';
 
 const TRIAL_DAYS = 14;
@@ -77,6 +78,8 @@ export async function signup(req: Request, res: Response) {
       await tx.orgSettings.create({
         data: { companyId: company.id, companyName: companyName.trim() },
       });
+      // Give every new company the standard staff-category roles.
+      await ensureDefaultRoles(tx, company.id);
       return { user, company };
     }),
   );
