@@ -7,39 +7,72 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// A tenant: one care company that has signed up to the platform. Every
+// piece of business data carries a companyId and is automatically scoped to
+// the signed-in user's company, so companies can never see each other's data.
+model Company {
+  id         String  @id @default(cuid())
+  name       String
+  // URL-safe identifier used for the company's subdomain (slug.caremid.co.uk).
+  slug       String  @unique
+  // White-label branding shown inside the app for this company.
+  logo       String? // base64 data URL
+  brandColor String  @default("#2563eb")
+  // Platform-level on/off switch (suspend a company without deleting data).
+  active     Boolean @default(true)
+
+  // --- Subscription / billing (Stripe) ---
+  // Chosen plan shape: FLAT (fixed monthly) or PER_SEAT (per carer/staff).
+  plan                 String    @default("FLAT") // FLAT | PER_SEAT
+  // TRIALING | ACTIVE | PAST_DUE | CANCELED | INCOMPLETE
+  subscriptionStatus   String    @default("TRIALING")
+  trialEndsAt          DateTime?
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  currentPeriodEnd     DateTime?
+  seats                Int? // for PER_SEAT plans: billed carer count
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
-  password     String
-  firstName    String
-  lastName     String
-  role         String      @default("EMPLOYEE")
-  customRoleId String?
-  hourlyRate   Float       @default(0)
-  phone        String?
-  photo        String?     // profile picture as a base64 data URL
-  active       Boolean     @default(true)
+  companyId                String? // tenant scope (Phase 1: nullable; enforced later)
+  id                       String   @id @default(cuid())
+  email                    String   @unique
+  password                 String
+  firstName                String
+  lastName                 String
+  role                     String   @default("EMPLOYEE")
+  customRoleId             String?
+  hourlyRate               Float    @default(0)
+  phone                    String?
+  photo                    String? // profile picture as a base64 data URL
+  active                   Boolean  @default(true)
   emergencyContactName     String?
   emergencyContactPhone    String?
   emergencyContactRelation String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   shifts             Shift[]
-  coverShifts        Shift[]          @relation("ShiftCoverCarers")
+  coverShifts        Shift[]             @relation("ShiftCoverCarers")
   timeOffRequests    TimeOffRequest[]
   clockRecords       ClockRecord[]
   notifications      Notification[]
-  preferredBy        ServiceUser[]    @relation("PreferredCaregivers")
+  preferredBy        ServiceUser[]       @relation("PreferredCaregivers")
   callLogs           CallLog[]
   medAdministrations MedAdministration[]
   pushSubscriptions  PushSubscription[]
   familyLinks        FamilyLink[]
   trainings          Training[]
   importantDates     ImportantDate[]
-  customRole         CustomRole?      @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  customRole         CustomRole?         @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   // Sites this user is scoped to / belongs to. Empty = org-wide (no restriction).
-  sites              Site[]           @relation("UserSites")
+  sites              Site[]              @relation("UserSites")
+
+  @@index([companyId])
 }
 
 // A named role an admin can create (e.g. "Senior Carer"). baseType decides
@@ -47,6 +80,7 @@ model User {
 // like); permissions is a JSON array of capability keys for fine-grained
 // control, overriding the base-role matrix for users assigned to it.
 model CustomRole {
+  companyId   String? // tenant scope (Phase 1: nullable; enforced later)
   id          String   @id @default(cuid())
   name        String   @unique
   baseType    String   @default("EMPLOYEE")
@@ -55,24 +89,30 @@ model CustomRole {
   updatedAt   DateTime @updatedAt
 
   users User[]
+
+  @@index([companyId])
 }
 
 model Site {
-  id        String        @id @default(cuid())
-  name      String        @unique
-  color     String        @default("#3b82f6")
-  createdAt DateTime      @default(now())
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#3b82f6")
+  createdAt DateTime @default(now())
 
   serviceUsers ServiceUser[]
   scopedUsers  User[]        @relation("UserSites")
+
+  @@index([companyId])
 }
 
 model ServiceUser {
+  companyId                String? // tenant scope (Phase 1: nullable; enforced later)
   id                       String   @id @default(cuid())
   firstName                String
   lastName                 String
   dateOfBirth              DateTime
-  photo                    String?  // profile picture as a base64 data URL
+  photo                    String? // profile picture as a base64 data URL
   siteId                   String?
   nhsNumber                String?
   address                  String?
@@ -108,8 +148,8 @@ model ServiceUser {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
-  site                Site?   @relation(fields: [siteId], references: [id])
-  preferredCaregivers User[]  @relation("PreferredCaregivers")
+  site                Site?                @relation(fields: [siteId], references: [id])
+  preferredCaregivers User[]               @relation("PreferredCaregivers")
   shifts              Shift[]
   callLogs            CallLog[]
   medications         Medication[]
@@ -121,11 +161,14 @@ model ServiceUser {
   reviews             Review[]
   fundingArrangements FundingArrangement[]
   invoiceLines        InvoiceLine[]
+
+  @@index([companyId])
 }
 
 // Links a family-member User account to the service user(s) they're allowed
 // to view read-only details for, via the separate family-portal app.
 model FamilyLink {
+  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
   id            String   @id @default(cuid())
   userId        String
   serviceUserId String
@@ -136,9 +179,11 @@ model FamilyLink {
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
 
   @@unique([userId, serviceUserId])
+  @@index([companyId])
 }
 
 model PersonalServicePlan {
+  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
   id            String   @id @default(cuid())
   serviceUserId String   @unique
   data          String   @default("{}") // JSON: all assessment field values keyed by item id
@@ -147,11 +192,14 @@ model PersonalServicePlan {
   updatedAt     DateTime @updatedAt
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model CarePlan {
-  id            String    @id @default(cuid())
-  serviceUserId String    @unique
+  companyId       String? // tenant scope (Phase 1: nullable; enforced later)
+  id              String    @id @default(cuid())
+  serviceUserId   String    @unique
   // Weekly visit profile — JSON: { Monday: { morning, lunch, tea, bed }, ... }
   schedule        String    @default("{}")
   // Tasks required at each visit
@@ -164,69 +212,78 @@ model CarePlan {
   otherNotes      String?
   reviewDate      DateTime?
   // Legacy assessment-style fields (retained; now covered by the Personal Service Plan)
-  summary       String?
-  personalCare  String?
-  mobility      String?
-  nutrition     String?
-  continence    String?
-  medication    String?
-  communication String?
-  mentalHealth  String?
-  social        String?
-  dailyRoutine  String?
-  risks         String?
-  goals         String?
-  updatedById   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  summary         String?
+  personalCare    String?
+  mobility        String?
+  nutrition       String?
+  continence      String?
+  medication      String?
+  communication   String?
+  mentalHealth    String?
+  social          String?
+  dailyRoutine    String?
+  risks           String?
+  goals           String?
+  updatedById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model LikesDislikes {
-  id              String   @id @default(cuid())
-  serviceUserId   String   @unique
-  likes           String?
-  dislikes        String?
-  lifeHistory     String? // "A little of my life history"
-  health          String? // "My health"
-  whatPeopleLike  String? // "What might people like about me?"
-  relationships   String?
-  goodDay         String? // "What makes a good day for me"
-  badDay          String? // "What makes a bad day for me"
-  updatedById     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  companyId      String? // tenant scope (Phase 1: nullable; enforced later)
+  id             String   @id @default(cuid())
+  serviceUserId  String   @unique
+  likes          String?
+  dislikes       String?
+  lifeHistory    String? // "A little of my life history"
+  health         String? // "My health"
+  whatPeopleLike String? // "What might people like about me?"
+  relationships  String?
+  goodDay        String? // "What makes a good day for me"
+  badDay         String? // "What makes a bad day for me"
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 // 6-week (and subsequent) service review. Question answers are stored as
 // JSON keyed by question id: { q1: { answer: "YES"|"NO"|"NA", comment: "" } }.
 // Agreed outcomes is a JSON array: [{ action, outcome, timescale, actionBy, completion }].
 model Review {
-  id                 String   @id @default(cuid())
+  companyId          String? // tenant scope (Phase 1: nullable; enforced later)
+  id                 String    @id @default(cuid())
   serviceUserId      String
   // "SIX_WEEK" (once, ~6 weeks after service start) or "QUARTERLY" (recurring)
-  type               String   @default("SIX_WEEK")
+  type               String    @default("SIX_WEEK")
   reviewDate         DateTime
   // When the next (quarterly) review is due — drives the overdue alert.
   nextReviewDate     DateTime?
   assessorName       String?
-  answers            String   @default("{}")
+  answers            String    @default("{}")
   otherInfo          String?
-  outcomes           String   @default("[]")
+  outcomes           String    @default("[]")
   representativeName String?
-  phoneConsent       Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  phoneConsent       Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 // Training course attended by a staff member, e.g. "First Aid", with an
 // optional expiry so managers can see at a glance who needs renewal.
 model Training {
+  companyId   String? // tenant scope (Phase 1: nullable; enforced later)
   id          String    @id @default(cuid())
   userId      String
   course      String
@@ -238,49 +295,58 @@ model Training {
   updatedAt   DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 // Generic recurring/one-off important date for a staff member — DBS renewal,
 // supervision, appraisal, contract review, etc.
 model ImportantDate {
-  id     String   @id @default(cuid())
-  userId String
-  label  String
-  date   DateTime
-  notes  String?
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  id        String   @id @default(cuid())
+  userId    String
+  label     String
+  date      DateTime
+  notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model Medication {
-  id            String    @id @default(cuid())
-  serviceUserId String
-  name          String
-  dose          String?
-  route         String?
-  instructions  String?
-  times         String    @default("[]") // JSON array of "HH:MM" dose times
+  companyId        String? // tenant scope (Phase 1: nullable; enforced later)
+  id               String    @id @default(cuid())
+  serviceUserId    String
+  name             String
+  dose             String?
+  route            String?
+  instructions     String?
+  times            String    @default("[]") // JSON array of "HH:MM" dose times
   // JSON array of { view: 'front'|'back'|'faceFront'|'faceSide', x, y } body-map
   // points (x/y as % of the diagram) — where a cream/lotion should be applied.
-  applicationSites String  @default("[]")
-  startDate     DateTime?
-  endDate       DateTime?
-  active        Boolean   @default(true)
-  createdAt     DateTime  @default(now())
+  applicationSites String    @default("[]")
+  startDate        DateTime?
+  endDate          DateTime?
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now())
 
   serviceUser     ServiceUser         @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
   administrations MedAdministration[]
+
+  @@index([companyId])
 }
 
 model MedAdministration {
+  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
   id            String   @id @default(cuid())
   medicationId  String
   serviceUserId String
   userId        String?
   scheduledFor  DateTime
-  status        String   // GIVEN, REFUSED, MISSED, NOT_NEEDED, SELF_ADMIN
+  status        String // GIVEN, REFUSED, MISSED, NOT_NEEDED, SELF_ADMIN
   note          String?
   recordedAt    DateTime @default(now())
 
@@ -289,10 +355,12 @@ model MedAdministration {
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@unique([medicationId, scheduledFor])
+  @@index([companyId])
 }
 
 model Shift {
-  id            String      @id @default(cuid())
+  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
+  id            String   @id @default(cuid())
   userId        String?
   serviceUserId String?
   seriesId      String?
@@ -300,26 +368,29 @@ model Shift {
   startTime     String
   endTime       String
   visitName     String?
-  cover         Int         @default(1)
+  cover         Int      @default(1)
   role          String?
   notes         String?
-  status        String      @default("SCHEDULED")
+  status        String   @default("SCHEDULED")
   // Defaults true at the DB level so pre-existing shifts stay visible to
   // carers; newly created shifts are explicitly set to false by the
   // controller until a manager publishes them.
-  published     Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  published     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  coverCarers  User[]       @relation("ShiftCoverCarers")
-  serviceUser  ServiceUser? @relation(fields: [serviceUserId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coverCarers  User[]        @relation("ShiftCoverCarers")
+  serviceUser  ServiceUser?  @relation(fields: [serviceUserId], references: [id])
   clockRecords ClockRecord[]
   callLogs     CallLog[]
   invoiceLines InvoiceLine[]
+
+  @@index([companyId])
 }
 
 model CallLog {
+  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
   id            String   @id @default(cuid())
   shiftId       String?
   serviceUserId String
@@ -330,9 +401,12 @@ model CallLog {
   shift       Shift?      @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
 }
 
 model TimeOffRequest {
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
   id        String   @id @default(cuid())
   userId    String
   startDate DateTime
@@ -344,9 +418,12 @@ model TimeOffRequest {
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model ClockRecord {
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
   id        String    @id @default(cuid())
   userId    String
   shiftId   String?
@@ -356,9 +433,12 @@ model ClockRecord {
 
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   shift Shift? @relation(fields: [shiftId], references: [id])
+
+  @@index([companyId])
 }
 
 model PushSubscription {
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
   id        String   @id @default(cuid())
   userId    String
   endpoint  String   @unique
@@ -367,21 +447,26 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 // Tracks which shift-reminder pushes have already been sent so the
 // reminder poller (which runs every minute) never double-sends.
 model ShiftReminder {
-  id      String   @id @default(cuid())
-  shiftId String
-  userId  String
-  type    String // "BEFORE" (30 mins before) | "START" (at call start)
-  sentAt  DateTime @default(now())
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
+  id        String   @id @default(cuid())
+  shiftId   String
+  userId    String
+  type      String // "BEFORE" (30 mins before) | "START" (at call start)
+  sentAt    DateTime @default(now())
 
   @@unique([shiftId, userId, type])
+  @@index([companyId])
 }
 
 model Notification {
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
   id        String   @id @default(cuid())
   userId    String
   type      String
@@ -392,36 +477,44 @@ model Notification {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 // One-time link sent to a newly-created staff member so they can set
 // their own password instead of a manager choosing one for them.
 model PasswordSetupToken {
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([companyId])
 }
 
 // Append-only record of sensitive changes (who did what, when).
 model AuditLog {
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
   id        String   @id @default(cuid())
   actorId   String?
-  actorName String   // snapshot of the actor's email/name at the time
-  action    String   // e.g. STAFF_UPDATED, PASSWORD_RESET, PERMISSIONS_UPDATED
-  target    String?  // human label of the affected thing
-  details   String?  // short human description of what changed
+  actorName String // snapshot of the actor's email/name at the time
+  action    String // e.g. STAFF_UPDATED, PASSWORD_RESET, PERMISSIONS_UPDATED
+  target    String? // human label of the affected thing
+  details   String? // short human description of what changed
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+  @@index([companyId])
 }
 
 // Organisation-wide settings. Single row, keyed by the fixed id "org".
 model OrgSettings {
+  companyId         String? // tenant scope (Phase 1: nullable; enforced later)
   id                String   @id @default("org")
   companyName       String   @default("Caremid")
-  logo              String?  // base64 data URL, used on reports/letterheads
+  logo              String? // base64 data URL, used on reports/letterheads
   address           String?
   phone             String?
   email             String?
@@ -435,11 +528,14 @@ model OrgSettings {
   permissions       String   @default("{}") // JSON: { permissionKey: Role[] } overrides
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  @@index([companyId])
 }
 
 // Who pays for a service user's care: a local authority/council, a private
 // self-funding client, or an NHS body. Reused across many service users.
 model Funder {
+  companyId        String? // tenant scope (Phase 1: nullable; enforced later)
   id               String   @id @default(cuid())
   name             String
   type             String   @default("PRIVATE") // COUNCIL | PRIVATE | NHS_CHC
@@ -456,45 +552,53 @@ model Funder {
 
   fundingArrangements FundingArrangement[]
   invoices            Invoice[]
+
+  @@index([companyId])
 }
 
 // Links a service user to a funder with a charge rate. The schema supports many
 // per service user (for future split funding); v1 uses one funder each.
 model FundingArrangement {
-  id            String    @id @default(cuid())
-  serviceUserId String
-  funderId      String
-  billingUnit   String    @default("PER_HOUR") // PER_HOUR in v1
-  rate          Float     @default(0) // base/weekday charge per hour (revenue, NOT carer pay)
-  weekendRate     Float?  // charge per hour on Sat/Sun; falls back to `rate` when null
-  bankHolidayRate Float?  // charge per hour on bank holidays; falls back to `rate` when null
-  allocation    String    @default("ALL") // legacy; superseded by sharePercent
-  sharePercent  Float     @default(100) // % of each visit billed to this funder (split funding)
-  startDate     DateTime?
-  endDate       DateTime?
-  poNumber      String?
-  contractRef   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  companyId       String? // tenant scope (Phase 1: nullable; enforced later)
+  id              String    @id @default(cuid())
+  serviceUserId   String
+  funderId        String
+  billingUnit     String    @default("PER_HOUR") // PER_HOUR in v1
+  rate            Float     @default(0) // base/weekday charge per hour (revenue, NOT carer pay)
+  weekendRate     Float? // charge per hour on Sat/Sun; falls back to `rate` when null
+  bankHolidayRate Float? // charge per hour on bank holidays; falls back to `rate` when null
+  allocation      String    @default("ALL") // legacy; superseded by sharePercent
+  sharePercent    Float     @default(100) // % of each visit billed to this funder (split funding)
+  startDate       DateTime?
+  endDate         DateTime?
+  poNumber        String?
+  contractRef     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
   funder      Funder      @relation(fields: [funderId], references: [id], onDelete: Restrict)
 
   @@index([serviceUserId])
   @@index([funderId])
+  @@index([companyId])
 }
 
 // Dates that count as bank holidays when picking a funding arrangement's rate.
 // Seeded with England & Wales holidays; editable under Finances.
 model BankHoliday {
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
   id        String   @id @default(cuid())
   date      DateTime @unique
   name      String
   createdAt DateTime @default(now())
+
+  @@index([companyId])
 }
 
 // An invoice to a funder for a billing period, built from scheduled visits.
 model Invoice {
+  companyId   String? // tenant scope (Phase 1: nullable; enforced later)
   id          String    @id @default(cuid())
   funderId    String
   number      String? // assigned when finalised (e.g. INV-0001)
@@ -516,16 +620,18 @@ model Invoice {
   payments Payment[]
 
   @@index([funderId])
+  @@index([companyId])
 }
 
 // A payment received against an invoice. An invoice can have several (part
 // payments); it is marked PAID once payments cover the total.
 model Payment {
+  companyId String? // tenant scope (Phase 1: nullable; enforced later)
   id        String   @id @default(cuid())
   invoiceId String
   amount    Float
   date      DateTime @default(now())
-  method    String?  // BACS | CARD | CHEQUE | CASH | OTHER
+  method    String? // BACS | CARD | CHEQUE | CASH | OTHER
   reference String?
   notes     String?
   createdAt DateTime @default(now())
@@ -533,6 +639,7 @@ model Payment {
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId])
+  @@index([companyId])
 }
 
 // One billed visit on an invoice. A visit can be split across funders, so it is
@@ -540,9 +647,10 @@ model Payment {
 // funderId) blocks double-billing the same visit to the same funder while
 // still allowing each funder its share.
 model InvoiceLine {
+  companyId     String? // tenant scope (Phase 1: nullable; enforced later)
   id            String   @id @default(cuid())
   invoiceId     String
-  funderId      String?  // denormalised from the invoice, for the per-funder unique
+  funderId      String? // denormalised from the invoice, for the per-funder unique
   serviceUserId String?
   sourceShiftId String?
   date          DateTime
@@ -558,4 +666,5 @@ model InvoiceLine {
 
   @@unique([sourceShiftId, funderId])
   @@index([invoiceId])
+  @@index([companyId])
 }

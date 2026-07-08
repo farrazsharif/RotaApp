@@ -4,6 +4,8 @@ build/
 .vite/
 .env
 .env.local
+.env.dev
+.env.*
 *.db
 *.db-journal
 .DS_Store
