@@ -362,9 +362,13 @@ export interface ServiceUser {
   email?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  emergencyContactMobile?: string;
+  emergencyContactAddress?: string;
   emergencyContactRelation?: string;
   nextOfKinName?: string;
   nextOfKinPhone?: string;
+  nextOfKinMobile?: string;
+  nextOfKinAddress?: string;
   nextOfKinRelation?: string;
   gpName?: string;
   gpPractice?: string;

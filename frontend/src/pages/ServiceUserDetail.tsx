@@ -234,6 +234,8 @@ export default function ServiceUserDetail() {
             <Field label="Name" value={su.emergencyContactName} />
             <Field label="Relationship" value={su.emergencyContactRelation} />
             <Field label="Phone" value={su.emergencyContactPhone} />
+            <Field label="Mobile" value={su.emergencyContactMobile} />
+            <Field label="Address" value={su.emergencyContactAddress} />
           </div>
           <div className="border-t mt-4 pt-4">
             <p className="text-sm font-semibold text-gray-700 mb-3">Next of Kin</p>
@@ -241,6 +243,8 @@ export default function ServiceUserDetail() {
               <Field label="Name" value={su.nextOfKinName} />
               <Field label="Relationship" value={su.nextOfKinRelation} />
               <Field label="Phone" value={su.nextOfKinPhone} />
+              <Field label="Mobile" value={su.nextOfKinMobile} />
+              <Field label="Address" value={su.nextOfKinAddress} />
             </div>
           </div>
         </Section>

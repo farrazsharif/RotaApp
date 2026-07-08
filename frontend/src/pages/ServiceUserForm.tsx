@@ -29,8 +29,8 @@ function parseVisits(json?: string): VisitRow[] {
 
 const emptyForm: FormState = {
   firstName: '', lastName: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '',
-  phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelation: '',
-  nextOfKinName: '', nextOfKinPhone: '', nextOfKinRelation: '',
+  phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '',
+  nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
   pharmacyName: '', pharmacyPhone: '', pharmacyAddress: '',
   needsMedication: false, needsMobility: false, needsPersonalCare: false, careNotes: '',
@@ -71,8 +71,10 @@ export default function ServiceUserForm() {
       nhsNumber: su.nhsNumber || '', address: su.address || '', postcode: su.postcode || '',
       phone: su.phone || '', email: su.email || '',
       emergencyContactName: su.emergencyContactName || '', emergencyContactPhone: su.emergencyContactPhone || '',
+      emergencyContactMobile: su.emergencyContactMobile || '', emergencyContactAddress: su.emergencyContactAddress || '',
       emergencyContactRelation: su.emergencyContactRelation || '',
-      nextOfKinName: su.nextOfKinName || '', nextOfKinPhone: su.nextOfKinPhone || '', nextOfKinRelation: su.nextOfKinRelation || '',
+      nextOfKinName: su.nextOfKinName || '', nextOfKinPhone: su.nextOfKinPhone || '',
+      nextOfKinMobile: su.nextOfKinMobile || '', nextOfKinAddress: su.nextOfKinAddress || '', nextOfKinRelation: su.nextOfKinRelation || '',
       gpName: su.gpName || '', gpPractice: su.gpPractice || '', gpPhone: su.gpPhone || '', gpAddress: su.gpAddress || '',
       pharmacyName: su.pharmacyName || '', pharmacyPhone: su.pharmacyPhone || '', pharmacyAddress: su.pharmacyAddress || '',
       needsMedication: su.needsMedication, needsMobility: su.needsMobility, needsPersonalCare: su.needsPersonalCare,
@@ -208,8 +210,16 @@ export default function ServiceUserForm() {
             <input value={form.emergencyContactPhone} onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })} className="input" />
           </div>
           <div>
+            <label className="label">Mobile</label>
+            <input value={form.emergencyContactMobile} onChange={(e) => setForm({ ...form, emergencyContactMobile: e.target.value })} className="input" />
+          </div>
+          <div>
             <label className="label">Relationship</label>
             <input value={form.emergencyContactRelation} onChange={(e) => setForm({ ...form, emergencyContactRelation: e.target.value })} className="input" />
+          </div>
+          <div className="col-span-3">
+            <label className="label">Address</label>
+            <input value={form.emergencyContactAddress} onChange={(e) => setForm({ ...form, emergencyContactAddress: e.target.value })} className="input" />
           </div>
         </div>
         <div className="border-t mt-4 pt-4">
@@ -224,8 +234,16 @@ export default function ServiceUserForm() {
               <input value={form.nextOfKinPhone} onChange={(e) => setForm({ ...form, nextOfKinPhone: e.target.value })} className="input" />
             </div>
             <div>
+              <label className="label">Mobile</label>
+              <input value={form.nextOfKinMobile} onChange={(e) => setForm({ ...form, nextOfKinMobile: e.target.value })} className="input" />
+            </div>
+            <div>
               <label className="label">Relationship</label>
               <input value={form.nextOfKinRelation} onChange={(e) => setForm({ ...form, nextOfKinRelation: e.target.value })} className="input" />
+            </div>
+            <div className="col-span-3">
+              <label className="label">Address</label>
+              <input value={form.nextOfKinAddress} onChange={(e) => setForm({ ...form, nextOfKinAddress: e.target.value })} className="input" />
             </div>
           </div>
         </div>
