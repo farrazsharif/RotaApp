@@ -282,17 +282,71 @@ export async function shiftRoles(req: AuthRequest, res: Response) {
 }
 
 export async function dashboardStats(req: AuthRequest, res: Response) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const weekEnd = new Date(today);
-  weekEnd.setDate(weekEnd.getDate() + 7);
+  const now = new Date();
+  // Anchor day maths to UTC — shift dates are stored at UTC midnight, so
+  // grouping/labelling by UTC date keeps the coverage strip aligned.
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const todayEnd = new Date(todayStart);
+  todayEnd.setUTCDate(todayEnd.getUTCDate() + 1);
 
+  // Monday-anchored current week for the coverage strip.
+  const weekStart = new Date(todayStart);
+  weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
+  const weekEndExcl = new Date(weekStart);
+  weekEndExcl.setUTCDate(weekEndExcl.getUTCDate() + 7);
+  const in30 = new Date(now);
+  in30.setDate(in30.getDate() + 30);
+
+  const suScope = relatedServiceUserScopeWhere(req.user);
+  const staffScope = relatedStaffScopeWhere(req.user);
   const employeeSiteFilter = isScoped(req.user) ? { sites: { some: { id: { in: req.user!.siteIds } } } } : {};
-  const [totalEmployees, shiftsThisWeek, pendingTimeOff] = await Promise.all([
+
+  const [totalEmployees, pendingTimeOff, weekShifts, todayShifts, todayClock, missedMeds, trainingExpiring, importantSoon] = await Promise.all([
     prisma.user.count({ where: { active: true, role: 'EMPLOYEE', ...employeeSiteFilter } }),
-    prisma.shift.count({ where: { date: { gte: today, lte: weekEnd }, status: { not: 'CANCELLED' }, ...relatedServiceUserScopeWhere(req.user) } }),
-    prisma.timeOffRequest.count({ where: { status: 'PENDING', ...relatedStaffScopeWhere(req.user) } }),
+    prisma.timeOffRequest.count({ where: { status: 'PENDING', ...staffScope } }),
+    prisma.shift.findMany({ where: { date: { gte: weekStart, lt: weekEndExcl }, status: { not: 'CANCELLED' }, ...suScope }, select: { date: true, userId: true } }),
+    prisma.shift.findMany({ where: { date: { gte: todayStart, lt: todayEnd }, status: { not: 'CANCELLED' }, ...suScope }, select: { id: true, startTime: true, userId: true, status: true } }),
+    prisma.clockRecord.findMany({ where: { clockIn: { gte: todayStart } }, select: { shiftId: true } }),
+    prisma.medAdministration.count({ where: { status: 'MISSED', scheduledFor: { gte: todayStart, lt: todayEnd }, ...suScope } }),
+    prisma.training.count({ where: { expiresAt: { not: null, lte: in30 }, ...staffScope } }),
+    prisma.importantDate.count({ where: { date: { gte: todayStart, lte: in30 }, ...staffScope } }),
   ]);
 
-  res.json({ totalEmployees, shiftsThisWeek, pendingTimeOff });
+  const shiftsThisWeek = weekShifts.length;
+
+  // Coverage per weekday: share of visits with a carer assigned.
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const coverage = DAY_LABELS.map((label, i) => {
+    const day = new Date(weekStart);
+    day.setUTCDate(day.getUTCDate() + i);
+    const dayStr = day.toISOString().slice(0, 10);
+    const forDay = weekShifts.filter((s) => s.date.toISOString().slice(0, 10) === dayStr);
+    const filled = forDay.filter((s) => s.userId).length;
+    return { day: label, date: dayStr, total: forDay.length, filled, pct: forDay.length ? Math.round((filled / forDay.length) * 100) : 100 };
+  });
+
+  const visitsToday = { total: todayShifts.length, completed: todayShifts.filter((s) => s.status === 'COMPLETED').length };
+  const unassignedToday = todayShifts.filter((s) => !s.userId).length;
+
+  // Late/missed: an assigned, still-scheduled visit whose start passed 15+ mins
+  // ago with no clock-in yet.
+  const clockedShiftIds = new Set(todayClock.map((c) => c.shiftId).filter(Boolean) as string[]);
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const lateCheckins = todayShifts.filter((s) => {
+    if (!s.userId || s.status !== 'SCHEDULED' || clockedShiftIds.has(s.id)) return false;
+    const [h, m] = s.startTime.split(':').map(Number);
+    return nowMins - (h * 60 + m) >= 15;
+  }).length;
+
+  res.json({
+    totalEmployees,
+    shiftsThisWeek,
+    pendingTimeOff,
+    visitsToday,
+    unassignedToday,
+    lateCheckins,
+    missedMeds,
+    expiringCompliance: trainingExpiring + importantSoon,
+    coverage,
+  });
 }

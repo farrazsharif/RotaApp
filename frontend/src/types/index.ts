@@ -457,8 +457,22 @@ export interface ImportantDate {
   updatedAt: string;
 }
 
+export interface CoverageDay {
+  day: string;
+  date: string;
+  total: number;
+  filled: number;
+  pct: number;
+}
+
 export interface DashboardStats {
   totalEmployees: number;
   shiftsThisWeek: number;
   pendingTimeOff: number;
+  visitsToday: { total: number; completed: number };
+  unassignedToday: number;
+  lateCheckins: number;
+  missedMeds: number;
+  expiringCompliance: number;
+  coverage: CoverageDay[];
 }
