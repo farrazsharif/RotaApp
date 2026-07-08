@@ -50,6 +50,14 @@ function PlatformRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Platform owners get the cross-company dashboard as their home; everyone else
+// gets the normal company dashboard.
+function Home() {
+  const { user } = useAuth();
+  if (user?.platformAdmin) return <Navigate to="/platform" replace />;
+  return <Dashboard />;
+}
+
 function AppRoutes() {
   const { user } = useAuth();
   return (
@@ -67,7 +75,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<Home />} />
         <Route path="schedule" element={<Schedule />} />
         <Route path="service-users" element={<ServiceUsers />} />
         <Route path="service-users/new" element={<ManagerRoute><ServiceUserForm /></ManagerRoute>} />

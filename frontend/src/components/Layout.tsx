@@ -37,6 +37,9 @@ export default function Layout() {
 
   const visibleNav = navItems.filter((item) => {
     if (item.platformOnly && !user?.platformAdmin) return false;
+    // Platform owners get a platform-only experience: just Platform Admin +
+    // Settings, none of the per-company care screens.
+    if (user?.platformAdmin && !item.platformOnly && item.to !== '/settings') return false;
     if (item.managerOnly && !isManager) return false;
     if (item.capability && !can(item.capability)) return false;
     return true;
