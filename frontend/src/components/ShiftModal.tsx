@@ -119,6 +119,16 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
     }
   }, [shift, defaultDate, reset]);
 
+  // A <select> can't hold a value until its matching <option> exists. If the
+  // service-user list finishes loading after the modal's reset(), the patient
+  // field ends up blank even though the shift has one — re-apply it once the
+  // options are present (only while still empty, so it never clobbers an edit).
+  useEffect(() => {
+    if (shift?.serviceUserId && serviceUsers.length > 0 && !watch('serviceUserId')) {
+      setValue('serviceUserId', shift.serviceUserId, { shouldValidate: true });
+    }
+  }, [serviceUsers, shift, setValue, watch]);
+
   function selectVisitPreset(preset: string) {
     setValue('visitName', preset, { shouldValidate: true });
     setVisitNameCustomOpen(false);
