@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { reportsApi } from '../api/reports';
 import { shiftsApi } from '../api/shifts';
 import { clockApi } from '../api/clock';
@@ -7,16 +8,24 @@ import { format, startOfWeek, endOfWeek, formatDistanceToNow } from 'date-fns';
 import { Shift } from '../types';
 import { formatTime12h } from '../lib/time';
 
-function StatCard({ label, value, icon, color }: { label: string; value: number | string; icon: string; color: string }) {
-  return (
-    <div className="card flex items-center gap-4">
+function StatCard({ label, value, icon, color, to }: { label: string; value: number | string; icon: string; color: string; to?: string }) {
+  const inner = (
+    <>
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${color}`}>{icon}</div>
       <div>
         <p className="text-2xl font-bold text-gray-900">{value}</p>
         <p className="text-sm text-gray-500">{label}</p>
       </div>
-    </div>
+    </>
   );
+  if (to) {
+    return (
+      <Link to={to} className="card flex items-center gap-4 hover:shadow-md hover:border-blue-200 transition-shadow">
+        {inner}
+      </Link>
+    );
+  }
+  return <div className="card flex items-center gap-4">{inner}</div>;
 }
 
 function shiftDuration(s: Shift) {
@@ -66,8 +75,8 @@ export default function Dashboard() {
 
       {isManager && stats && (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-          <StatCard label="Active Employees" value={stats.totalEmployees} icon="👥" color="bg-blue-100" />
-          <StatCard label="Shifts This Week" value={stats.shiftsThisWeek} icon="📅" color="bg-green-100" />
+          <StatCard label="Active Employees" value={stats.totalEmployees} icon="👥" color="bg-blue-100" to="/users" />
+          <StatCard label="Shifts This Week" value={stats.shiftsThisWeek} icon="📅" color="bg-green-100" to="/schedule" />
           <StatCard label="Pending Time Off" value={stats.pendingTimeOff} icon="🏖️" color="bg-yellow-100" />
         </div>
       )}
