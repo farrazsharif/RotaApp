@@ -22,6 +22,15 @@ export interface SignupData {
   password: string;
 }
 
+// Where each role's app lives. Carers → carer app, family → family portal;
+// managers/admins (null) stay in this portal. Works on prod domains and local.
+function appUrlForRole(role: string): string | null {
+  const prod = window.location.hostname.endsWith('caremid.co.uk');
+  if (role === 'EMPLOYEE') return prod ? 'https://carer.caremid.co.uk' : 'http://localhost:5174';
+  if (role === 'FAMILY_MEMBER') return prod ? 'https://family.caremid.co.uk' : 'http://localhost:5175';
+  return null;
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -46,6 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(email: string, password: string) {
     const res = await api.post('/auth/login', { email, password });
     const { token: newToken, user: newUser } = res.data;
+    // Carers and family members belong in their own apps, not the manager
+    // portal. Hand the session over so they don't have to log in twice.
+    const dest = appUrlForRole(newUser.role);
+    if (dest) {
+      window.location.replace(`${dest}/login?sso=${encodeURIComponent(newToken)}`);
+      return;
+    }
     localStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(newUser);

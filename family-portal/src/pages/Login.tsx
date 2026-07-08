@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { authApi } from '../api/auth';
 
 export default function Login() {
   const { login } = useAuth();
@@ -9,6 +10,24 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Single sign-on handoff from the manager portal (?sso=<token>).
+  useEffect(() => {
+    const sso = new URLSearchParams(window.location.search).get('sso');
+    if (!sso) return;
+    setLoading(true);
+    localStorage.setItem('family_token', sso);
+    authApi.me()
+      .then((u) => {
+        localStorage.setItem('family_user', JSON.stringify(u));
+        window.location.replace('/');
+      })
+      .catch(() => {
+        localStorage.removeItem('family_token');
+        setError('Sign-in link expired — please log in.');
+        setLoading(false);
+      });
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

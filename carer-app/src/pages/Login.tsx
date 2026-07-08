@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { authApi } from '../api/auth';
 
 export default function Login() {
   const { login } = useAuth();
@@ -9,6 +10,25 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Single sign-on handoff: the manager portal redirects carers here with a
+  // ?sso=<token> param. Adopt that session so they don't log in twice.
+  useEffect(() => {
+    const sso = new URLSearchParams(window.location.search).get('sso');
+    if (!sso) return;
+    setLoading(true);
+    localStorage.setItem('carer_token', sso);
+    authApi.me()
+      .then((u) => {
+        localStorage.setItem('carer_user', JSON.stringify(u));
+        window.location.replace('/'); // reload so AuthProvider picks up the session
+      })
+      .catch(() => {
+        localStorage.removeItem('carer_token');
+        setError('Sign-in link expired — please log in.');
+        setLoading(false);
+      });
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
