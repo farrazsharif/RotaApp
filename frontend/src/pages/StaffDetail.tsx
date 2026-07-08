@@ -5,10 +5,11 @@ import { usersApi } from '../api/users';
 import { trainingApi, TrainingData } from '../api/training';
 import { importantDatesApi, ImportantDateData } from '../api/importantDates';
 import { useAuth } from '../contexts/AuthContext';
-import { Role, Training, ImportantDate } from '../types';
+import { Role, Training, ImportantDate, FitForWork, YesNo, User } from '../types';
 import { format } from 'date-fns';
 import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
+import SignaturePad from '../components/SignaturePad';
 import { statusInfo } from './Users';
 
 const roleBadge: Record<Role, string> = {
@@ -18,8 +19,26 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-const TABS = ['Details', 'Training', 'Important Dates', 'Emergency Contact'] as const;
+const TABS = ['Details', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work'] as const;
 type Tab = typeof TABS[number];
+
+// The health-declaration checklist from the paper "Fit for Work Declaration".
+const FIT_FOR_WORK_CONDITIONS: { id: string; label: string }[] = [
+  { id: 'asthma', label: 'Asthma or shortness of breath' },
+  { id: 'epilepsy', label: 'Epilepsy or blackouts' },
+  { id: 'bloodPressure', label: 'High / low blood pressure' },
+  { id: 'stomach', label: 'Stomach disorders' },
+  { id: 'hearing', label: 'Any hearing disability' },
+  { id: 'liver', label: 'Liver disorders' },
+  { id: 'diabetes', label: 'Diabetes (insulin dependent)' },
+  { id: 'anaemia', label: 'Anaemia' },
+  { id: 'nervous', label: 'Nervous disorders' },
+  { id: 'allergies', label: 'Allergies' },
+  { id: 'back', label: 'Back or disc related problem' },
+  { id: 'mobility', label: 'Mobility problems' },
+  { id: 'havs', label: 'Vibration white finger or any HAVs related condition' },
+  { id: 'tenosynovitis', label: 'Tenosynovitis (joint problems)' },
+];
 
 const COURSES = [
   'First Aid', 'Safeguarding Adults e-learning', 'Safeguarding Children',
@@ -133,6 +152,7 @@ export default function StaffDetail() {
       {tab === 'Training' && <TrainingTab userId={user.id} isManager={isManager} />}
       {tab === 'Important Dates' && <ImportantDatesTab userId={user.id} isManager={isManager} />}
       {tab === 'Emergency Contact' && <EmergencyContactTab userId={user.id} isManager={isManager} initial={user} />}
+      {tab === 'Fit for Work' && <FitForWorkTab userId={user.id} isManager={isManager} initial={user} />}
 
       {editOpen && <StaffFormModal editUser={user} onClose={() => setEditOpen(false)} />}
     </div>
@@ -458,6 +478,131 @@ function EmergencyContactTab({ userId, isManager, initial }: { userId: string; i
           {saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
           <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
             {saveMut.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A YES / NO radio pair for a single health condition; renders plain text when read-only.
+function YesNoRow({ label, value, ro, onChange }: { label: string; value: YesNo; ro: boolean; onChange: (v: YesNo) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-gray-100 py-1.5">
+      <span className="text-sm text-gray-800">{label}</span>
+      {ro ? (
+        <span className={`text-sm font-medium ${value === 'YES' ? 'text-red-600' : value === 'NO' ? 'text-gray-500' : 'text-gray-300'}`}>{value || '—'}</span>
+      ) : (
+        <span className="flex gap-3 flex-shrink-0 text-sm">
+          <label className="flex items-center gap-1"><input type="radio" checked={value === 'YES'} onChange={() => onChange('YES')} /> Yes</label>
+          <label className="flex items-center gap-1"><input type="radio" checked={value === 'NO'} onChange={() => onChange('NO')} /> No</label>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function FitForWorkTab({ userId, isManager, initial }: { userId: string; isManager: boolean; initial: User }) {
+  const qc = useQueryClient();
+  const ro = !isManager;
+  const [form, setForm] = useState<FitForWork>(() => ({
+    conditions: {},
+    conditionsDetails: '',
+    spectacles: '',
+    medication: '',
+    illness: '',
+    restrictions: '' as YesNo,
+    restrictionsDetails: '',
+    signature: '',
+    signedName: '',
+    signedDate: '',
+    ...(initial.fitForWork || {}),
+  }));
+
+  const set = <K extends keyof FitForWork>(key: K, val: FitForWork[K]) => setForm((f) => ({ ...f, [key]: val }));
+  const setCondition = (id: string, val: YesNo) => setForm((f) => ({ ...f, conditions: { ...(f.conditions || {}), [id]: val } }));
+
+  const saveMut = useMutation({
+    mutationFn: () => usersApi.update(userId, { fitForWork: { ...form, updatedAt: new Date().toISOString() } }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['user', userId] }); },
+  });
+
+  // A labelled free-text block. Called as a plain function (not <TextBlock/>) so
+  // the textarea isn't remounted on every keystroke and keeps focus.
+  const textBlock = (label: string, k: keyof FitForWork, rows = 2) => (
+    <div>
+      <label className="label">{label}</label>
+      {ro
+        ? <p className="text-sm text-gray-800 whitespace-pre-wrap min-h-[1.25rem]">{(form[k] as string) || '—'}</p>
+        : <textarea value={(form[k] as string) || ''} rows={rows} onChange={(e) => set(k, e.target.value as FitForWork[typeof k])} className="input resize-none text-sm" />}
+    </div>
+  );
+
+  return (
+    <div className="card space-y-6 max-w-3xl">
+      <div>
+        <h2 className="font-semibold text-gray-900">Fit for Work Declaration</h2>
+        <p className="text-xs text-gray-500">Staff health declaration to be completed on joining.{form.updatedAt && ` Last updated ${format(new Date(form.updatedAt), 'dd MMM yyyy')}.`}</p>
+      </div>
+
+      <div>
+        <p className="text-sm font-medium text-gray-900 mb-2">1. Do you suffer, or have you ever suffered from any of the following?</p>
+        <div className="rounded-lg border border-gray-200 px-3">
+          {FIT_FOR_WORK_CONDITIONS.map((c) => (
+            <YesNoRow key={c.id} label={c.label} value={(form.conditions?.[c.id] as YesNo) || ''} ro={ro} onChange={(v) => setCondition(c.id, v)} />
+          ))}
+        </div>
+        <div className="mt-3">{textBlock('Details (please provide details for any answered Yes)', 'conditionsDetails', 3)}</div>
+      </div>
+
+      {textBlock('2. Do you wear spectacles or contact lenses? If yes, for what reason? (e.g. short sight, reading)', 'spectacles')}
+      {textBlock('3. Are you currently taking any medication (prescribed or over the counter)? Please give name, mgs and how often.', 'medication')}
+      {textBlock('4. Any details of illness, hospitalisation, etc. that may affect your ability to work', 'illness')}
+
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-gray-900">5. Are there any restrictions to the work you are able to undertake?</span>
+          {ro ? (
+            <span className={`text-sm font-medium ${form.restrictions === 'YES' ? 'text-red-600' : form.restrictions === 'NO' ? 'text-gray-500' : 'text-gray-300'}`}>{form.restrictions || '—'}</span>
+          ) : (
+            <span className="flex gap-3 flex-shrink-0 text-sm">
+              <label className="flex items-center gap-1"><input type="radio" checked={form.restrictions === 'YES'} onChange={() => set('restrictions', 'YES')} /> Yes</label>
+              <label className="flex items-center gap-1"><input type="radio" checked={form.restrictions === 'NO'} onChange={() => set('restrictions', 'NO')} /> No</label>
+            </span>
+          )}
+        </div>
+        <div className="mt-2">{textBlock('If yes, please provide details', 'restrictionsDetails')}</div>
+      </div>
+
+      <div className="border-t pt-5 space-y-4">
+        <p className="text-sm text-gray-700">I declare that all the information provided in this declaration is correct.</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Full name</label>
+            {ro
+              ? <p className="text-sm text-gray-800">{form.signedName || '—'}</p>
+              : <input value={form.signedName || ''} onChange={(e) => set('signedName', e.target.value)} className="input" placeholder="Full name" />}
+          </div>
+          <div>
+            <label className="label">Date</label>
+            {ro
+              ? <p className="text-sm text-gray-800">{form.signedDate ? format(new Date(form.signedDate), 'dd MMM yyyy') : '—'}</p>
+              : <input type="date" value={form.signedDate || ''} onChange={(e) => set('signedDate', e.target.value)} className="input" />}
+          </div>
+        </div>
+        <div>
+          <label className="label">Signature</label>
+          <SignaturePad value={form.signature || ''} ro={ro} onChange={(dataUrl) => set('signature', dataUrl)} />
+        </div>
+      </div>
+
+      {isManager && (
+        <div className="flex gap-3 pt-2">
+          <div className="flex-1" />
+          {saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+          {saveMut.isError && <span className="text-sm text-red-600 self-center">Could not save.</span>}
+          <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+            {saveMut.isPending ? 'Saving…' : 'Save Declaration'}
           </button>
         </div>
       )}

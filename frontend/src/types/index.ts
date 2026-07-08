@@ -81,7 +81,26 @@ export interface User {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
+  fitForWork?: FitForWork | null;
   createdAt: string;
+}
+
+export type YesNo = 'YES' | 'NO' | '';
+
+// Staff "Fit for Work" health declaration (matches the paper form). Stored as
+// a single JSON blob on the User record.
+export interface FitForWork {
+  conditions?: Record<string, YesNo>; // keyed by condition id (see FIT_FOR_WORK_CONDITIONS)
+  conditionsDetails?: string;
+  spectacles?: string;
+  medication?: string;
+  illness?: string;
+  restrictions?: YesNo;
+  restrictionsDetails?: string;
+  signature?: string; // drawn signature as a data URL
+  signedName?: string;
+  signedDate?: string; // yyyy-MM-dd
+  updatedAt?: string; // ISO timestamp of last save
 }
 
 export interface Shift {
