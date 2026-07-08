@@ -295,7 +295,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
           <fieldset disabled={readOnly} className="space-y-4 border-0 p-0 m-0 disabled:opacity-90">
           <div>
             <label className="label">Service User (Patient) *</label>
-            <select {...register('serviceUserId', { required: true })} className="input">
+            <select {...register('serviceUserId', { required: true })} value={watch('serviceUserId') ?? ''} className="input">
               <option value="">Select a patient…</option>
               {serviceUsers.map((su) => (
                 <option key={su.id} value={su.id}>
@@ -671,7 +671,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
 
               <div>
                 <label className="label">Service User (Patient) *</label>
-                <select {...register('serviceUserId', { required: true })} className="input">
+                <select {...register('serviceUserId', { required: true })} value={watch('serviceUserId') ?? ''} className="input">
                   <option value="">Select a patient…</option>
                   {serviceUsers.map((su) => (
                     <option key={su.id} value={su.id}>
