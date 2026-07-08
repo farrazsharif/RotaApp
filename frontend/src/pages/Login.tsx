@@ -1,20 +1,23 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, WrongApp } from '../contexts/AuthContext';
 
 export default function Login() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [wrongApp, setWrongApp] = useState<WrongApp | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setWrongApp(null);
     setLoading(true);
     try {
-      await login(email, password);
+      const result = await login(email, password);
+      if (result) setWrongApp(result); // valid carer/family creds — wrong app
     } catch (err: unknown) {
       const e = err as { code?: string; response?: { data?: { error?: string } } };
       if (e.code === 'ECONNABORTED') {
@@ -25,6 +28,31 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (wrongApp) {
+    const label = wrongApp.app === 'carer' ? 'Carer app' : 'Family portal';
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-700 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <img src="/logo.png" alt="Caremid" className="mx-auto mb-4 w-56 rounded-2xl bg-white p-3 shadow-lg" />
+          </div>
+          <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
+            <h2 className="text-xl font-bold text-gray-800 mb-2">You're in the wrong place</h2>
+            <p className="text-gray-600 text-sm mb-6">
+              This is the <strong>manager portal</strong>. Your account uses the <strong>{label}</strong> — tap below to go there, no need to sign in again.
+            </p>
+            <a href={`${wrongApp.url}/login?sso=${encodeURIComponent(wrongApp.token)}`} className="btn-primary btn w-full py-2.5 inline-block">
+              Open the {label}
+            </a>
+            <button onClick={() => { setWrongApp(null); setPassword(''); }} className="mt-4 text-sm text-gray-500 hover:text-gray-700">
+              Back to sign in
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -78,6 +106,11 @@ export default function Login() {
           <p className="mt-6 text-center text-sm text-gray-500">
             New to Caremid?{' '}
             <Link to="/signup" className="font-medium text-blue-600 hover:text-blue-700">Start a free trial</Link>
+          </p>
+          <p className="mt-2 text-center text-sm text-gray-500">
+            Doing visits?{' '}
+            <a href={window.location.hostname.endsWith('caremid.co.uk') ? 'https://carer.caremid.co.uk' : 'http://localhost:5174'}
+               className="font-medium text-blue-600 hover:text-blue-700">Open the Carer app</a>
           </p>
         </div>
       </div>

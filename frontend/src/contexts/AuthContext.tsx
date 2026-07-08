@@ -2,10 +2,18 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import api from '../lib/axios';
 import { User } from '../types';
 
+// Returned when the credentials are valid but belong to a non-portal app
+// (a carer or family member trying the manager portal).
+export interface WrongApp {
+  app: 'carer' | 'family';
+  url: string;   // destination app base URL
+  token: string; // their session token, for a one-tap handoff
+}
+
 interface AuthContextValue {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<WrongApp | null>;
   signup: (data: SignupData) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -55,16 +63,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(email: string, password: string) {
     const res = await api.post('/auth/login', { email, password });
     const { token: newToken, user: newUser } = res.data;
-    // Carers and family members belong in their own apps, not the manager
-    // portal. Hand the session over so they don't have to log in twice.
+    // Carers and family members don't belong in the manager portal. Don't log
+    // them in here — signal the Login page to show a "use the other app"
+    // message with a one-tap handoff button (so they don't re-enter details).
     const dest = appUrlForRole(newUser.role);
     if (dest) {
-      window.location.replace(`${dest}/login?sso=${encodeURIComponent(newToken)}`);
-      return;
+      const app: WrongApp['app'] = newUser.role === 'EMPLOYEE' ? 'carer' : 'family';
+      return { app, url: dest, token: newToken };
     }
     localStorage.setItem('token', newToken);
     setToken(newToken);
     setUser(newUser);
+    return null;
   }
 
   async function signup(data: SignupData) {

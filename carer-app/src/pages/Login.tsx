@@ -86,6 +86,11 @@ export default function Login() {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
+        <p className="text-center text-blue-100 text-sm mt-4">
+          For carers and staff doing visits.{' '}
+          <a href={window.location.hostname.endsWith('caremid.co.uk') ? 'https://portal.caremid.co.uk' : 'http://localhost:5173'}
+             className="underline font-medium">Manager portal</a>
+        </p>
       </div>
     </div>
   );

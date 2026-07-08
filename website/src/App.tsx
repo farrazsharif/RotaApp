@@ -1,4 +1,5 @@
-const APP_URL = 'https://portal.caremid.co.uk';
+const APP_URL = 'https://portal.caremid.co.uk';   // managers & admins
+const CARER_URL = 'https://carer.caremid.co.uk';  // carers & staff doing visits
 const CONTACT_EMAIL = 'hello@caremid.co.uk';
 
 const features = [
@@ -56,8 +57,11 @@ function Nav() {
           <a href="#contact" className="hover:text-brand-700">Contact</a>
         </nav>
         <div className="flex items-center gap-3">
+          <a href={CARER_URL} className="hidden sm:inline text-sm font-semibold text-slate-700 hover:text-brand-700">
+            Carer login
+          </a>
           <a href={APP_URL} className="hidden sm:inline text-sm font-semibold text-slate-700 hover:text-brand-700">
-            Log in
+            Manager login
           </a>
           <a
             href="#contact"
@@ -96,7 +100,13 @@ function Hero() {
             href={APP_URL}
             className="rounded-lg bg-white px-6 py-3 text-base font-semibold text-slate-700 border border-slate-200 hover:border-brand-300"
           >
-            Log in to Caremid
+            Manager login
+          </a>
+          <a
+            href={CARER_URL}
+            className="rounded-lg bg-white px-6 py-3 text-base font-semibold text-slate-700 border border-slate-200 hover:border-brand-300"
+          >
+            Carer login
           </a>
         </div>
         <p className="mt-4 text-sm text-slate-500">CQC-ready records · GDPR compliant · Data hosted in the EU</p>
@@ -289,7 +299,8 @@ function Footer() {
         <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
           <a href="#features" className="hover:text-white">Features</a>
           <a href="#pricing" className="hover:text-white">Pricing</a>
-          <a href={APP_URL} className="hover:text-white">Log in</a>
+          <a href={APP_URL} className="hover:text-white">Manager login</a>
+          <a href={CARER_URL} className="hover:text-white">Carer login</a>
           <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white">Contact</a>
         </div>
       </div>
