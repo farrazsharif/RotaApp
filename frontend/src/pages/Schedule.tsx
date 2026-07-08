@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -12,38 +12,23 @@ import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
 import HospitalIcon from '../components/HospitalIcon';
 import { Shift, ServiceUserStatus } from '../types';
-import { format, startOfDay } from 'date-fns';
+import { format, startOfDay, startOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
 const STATUS_ICON: Record<ServiceUserStatus, string> = {
-  ACTIVE: '',
-  ON_HOLD: '⏸️',
-  HOSPITALISED: '',
-  DISCHARGED: '↩️',
-  DECEASED: '⚪',
+  ACTIVE: '', ON_HOLD: '⏸️', HOSPITALISED: '', DISCHARGED: '↩️', DECEASED: '⚪',
 };
 const STATUS_LABEL: Record<ServiceUserStatus, string> = {
-  ACTIVE: 'Active',
-  ON_HOLD: 'On Hold',
-  HOSPITALISED: 'Hospitalised',
-  DISCHARGED: 'Discharged',
-  DECEASED: 'Passed Away',
+  ACTIVE: 'Active', ON_HOLD: 'On Hold', HOSPITALISED: 'Hospitalised', DISCHARGED: 'Discharged', DECEASED: 'Passed Away',
 };
 
-const COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1',
-];
-
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1'];
 function userColor(userId: string | undefined, users: { id: string }[]): string {
-  if (!userId) return '#9ca3af'; // gray for unassigned
+  if (!userId) return '#9ca3af';
   const idx = users.findIndex((u) => u.id === userId);
   return COLORS[idx % COLORS.length] || '#3b82f6';
 }
 
-// A shift counts as "past" once it has actually finished, not just once its
-// calendar day has — so earlier calls today dull as the day goes on, while
-// a call later today (or any day after) stays full brightness.
 function isPastShift(date: string | Date, endTime: string): boolean {
   const d = new Date(date);
   const [eh, em] = endTime.split(':').map(Number);
@@ -51,9 +36,6 @@ function isPastShift(date: string | Date, endTime: string): boolean {
   return end.getTime() <= Date.now();
 }
 
-// A patient's status badge should only mark shifts from the day the status
-// actually changed onward — not retroactively flag calls that already
-// happened before, e.g., they were hospitalised.
 function shiftOnOrAfterStatusChange(shiftDate: string | Date, statusUpdatedAt?: string): boolean {
   if (!statusUpdatedAt) return true;
   return startOfDay(new Date(shiftDate)).getTime() >= startOfDay(new Date(statusUpdatedAt)).getTime();
@@ -63,7 +45,7 @@ function formatDuration(start: string, end: string): string {
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);
   let mins = eh * 60 + em - (sh * 60 + sm);
-  if (mins < 0) mins += 24 * 60; // crosses midnight
+  if (mins < 0) mins += 24 * 60;
   if (mins < 60) return `${mins} mins`;
   const hours = mins / 60;
   if (mins % 60 === 0) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
@@ -74,9 +56,16 @@ function coverLabel(cover: number): string {
   return cover === 3 ? 'Triple cover' : cover === 2 ? 'Double cover' : 'Single cover';
 }
 
+type ViewKey = 'day' | 'week' | '2week' | '4week' | 'month';
+const FC_VIEW: Record<ViewKey, string> = {
+  day: 'timeGridDay', week: 'dayGridWeek', '2week': 'dayGrid2', '4week': 'dayGrid4', month: 'dayGridMonth',
+};
+
 export default function Schedule() {
   const { isManager, user } = useAuth();
   const qc = useQueryClient();
+  const calRef = useRef<FullCalendar>(null);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
@@ -84,30 +73,28 @@ export default function Schedule() {
   const [assignFilter, setAssignFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
   const [confirmPublishAll, setConfirmPublishAll] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const [mode, setMode] = useState<'calendar' | 'carer'>('calendar');
+  const [viewKey, setViewKey] = useState<ViewKey>('week');
+  const [anchor, setAnchor] = useState(new Date());
 
   const { data: shifts = [] } = useQuery({
     queryKey: ['shifts'],
-    queryFn: () => shiftsApi.list({
-      userId: isManager ? undefined : user?.id,
-    }),
+    queryFn: () => shiftsApi.list({ userId: isManager ? undefined : user?.id }),
   });
-
   const { data: users = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => usersApi.list({ active: true }),
-    enabled: isManager,
+    queryKey: ['users'], queryFn: () => usersApi.list({ active: true }), enabled: isManager,
   });
 
   const dropMut = useMutation({
     mutationFn: ({ id, date }: { id: string; date: string }) => shiftsApi.update(id, { date }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
   });
-
   const cancelAllMut = useMutation({
     mutationFn: (ids: string[]) => shiftsApi.cancelBulk(ids),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
   });
-
   const publishAllMut = useMutation({
     mutationFn: (ids: string[]) => shiftsApi.publishBulk(ids),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
@@ -138,58 +125,94 @@ export default function Schedule() {
       return names.some((n) => n.toLowerCase().includes(term));
     });
 
-  // Only fully-assigned drafts are eligible for publishing — understaffed
-  // shifts must get a carer assigned first.
   const draftShown = activeShifts.filter((s) => !s.published && !needsStaff(s));
   const draftUnassignedShown = activeShifts.filter((s) => !s.published && needsStaff(s)).length;
 
-  const events = activeShifts
-    .map((s) => {
-      const unassigned = needsStaff(s);
-      const baseColor = s.serviceUser?.site?.color || userColor(s.userId, users);
-      const dateStr = format(new Date(s.date), 'yyyy-MM-dd');
-      return {
-        id: s.id,
-        title: isManager
-          ? `${s.user ? `${s.user.firstName} ${s.user.lastName}` : 'Unassigned'}${s.visitName ? ` · ${s.visitName}` : s.role ? ` · ${s.role}` : ''}`
-          : s.visitName || s.role || 'Shift',
-        // Give events a real start/end (not just a bare date) so FullCalendar
-        // orders each day's calls chronologically by visit time instead of
-        // falling back to alphabetical title sorting.
-        start: `${dateStr}T${s.startTime}:00`,
-        end: `${dateStr}T${s.endTime}:00`,
-        extendedProps: { shift: s },
-        // Keep the location colour as the box background; only flag unassigned with a red border.
-        backgroundColor: baseColor,
-        borderColor: unassigned ? '#dc2626' : baseColor,
-        textColor: '#000',
-        classNames: [
-          ...(unassigned ? ['unassigned-shift'] : []),
-          ...(!s.published ? ['draft-shift'] : []),
-          ...(isPastShift(s.date, s.endTime) ? ['past-shift'] : []),
-        ],
-      };
-    });
+  // Visible date range for the current view (drives the summary + carer grid).
+  const range = useMemo(() => {
+    if (viewKey === 'day') { const start = startOfDay(anchor); return { start, end: addDays(start, 1) }; }
+    if (viewKey === 'month') { const start = startOfMonth(anchor); return { start, end: addDays(endOfMonth(anchor), 1) }; }
+    const start = startOfWeek(anchor, { weekStartsOn: 1 });
+    const weeks = viewKey === 'week' ? 1 : viewKey === '2week' ? 2 : 4;
+    return { start, end: addDays(start, 7 * weeks) };
+  }, [anchor, viewKey]);
+
+  const rangeShifts = useMemo(
+    () => activeShifts.filter((s) => { const d = new Date(s.date); return d >= range.start && d < range.end; }),
+    [activeShifts, range],
+  );
+
+  const summary = useMemo(() => {
+    const total = rangeShifts.length;
+    const unassigned = rangeShifts.filter(needsStaff).length;
+    const drafts = rangeShifts.filter((s) => !s.published).length;
+    const coverage = total ? Math.round(((total - unassigned) / total) * 100) : 100;
+    return { total, unassigned, drafts, coverage };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeShifts]);
+
+  const rangeDays = useMemo(() => {
+    const days: Date[] = [];
+    for (let d = new Date(range.start); d < range.end; d = addDays(d, 1)) days.push(new Date(d));
+    return days;
+  }, [range]);
+
+  const title = useMemo(() => {
+    if (viewKey === 'day') return format(anchor, 'EEEE, dd MMM yyyy');
+    if (viewKey === 'month') return format(anchor, 'MMMM yyyy');
+    return `${format(range.start, 'dd MMM')} – ${format(addDays(range.end, -1), 'dd MMM yyyy')}`;
+  }, [viewKey, anchor, range]);
+
+  // Keep FullCalendar in sync with our own view/date state.
+  useEffect(() => {
+    const api = calRef.current?.getApi();
+    if (api && mode === 'calendar') api.changeView(FC_VIEW[viewKey], anchor);
+  }, [viewKey, anchor, mode]);
+
+  const shiftBy = (dir: number) => setAnchor((a) => {
+    const d = new Date(a);
+    if (viewKey === 'day') d.setDate(d.getDate() + dir);
+    else if (viewKey === 'month') d.setMonth(d.getMonth() + dir);
+    else d.setDate(d.getDate() + dir * 7 * (viewKey === 'week' ? 1 : viewKey === '2week' ? 2 : 4));
+    return d;
+  });
+
+  const openShift = (s: Shift) => { setSelectedShift(s); setSelectedDate(undefined); setModalOpen(true); };
 
   const handleDateClick = useCallback((arg: DateClickArg) => {
     if (!isManager) return;
-    setSelectedShift(null);
-    setSelectedDate(arg.dateStr);
-    setModalOpen(true);
+    setSelectedShift(null); setSelectedDate(arg.dateStr); setModalOpen(true);
   }, [isManager]);
-
   const handleEventClick = useCallback((arg: EventClickArg) => {
-    const shift = arg.event.extendedProps.shift as Shift;
-    setSelectedShift(shift);
-    setSelectedDate(undefined);
-    setModalOpen(true);
+    openShift(arg.event.extendedProps.shift as Shift);
   }, []);
-
   const handleEventDrop = useCallback((arg: EventDropArg) => {
     if (!isManager) { arg.revert(); return; }
-    const shift = arg.event.extendedProps.shift as Shift;
-    dropMut.mutate({ id: shift.id, date: arg.event.startStr });
+    dropMut.mutate({ id: (arg.event.extendedProps.shift as Shift).id, date: arg.event.startStr });
   }, [isManager, dropMut]);
+
+  const events = activeShifts.map((s) => {
+    const unassigned = needsStaff(s);
+    const baseColor = s.serviceUser?.site?.color || userColor(s.userId, users);
+    const dateStr = format(new Date(s.date), 'yyyy-MM-dd');
+    return {
+      id: s.id,
+      title: isManager
+        ? `${s.user ? `${s.user.firstName} ${s.user.lastName}` : 'Unassigned'}${s.visitName ? ` · ${s.visitName}` : s.role ? ` · ${s.role}` : ''}`
+        : s.visitName || s.role || 'Shift',
+      start: `${dateStr}T${s.startTime}:00`,
+      end: `${dateStr}T${s.endTime}:00`,
+      extendedProps: { shift: s },
+      backgroundColor: baseColor,
+      borderColor: unassigned ? '#dc2626' : baseColor,
+      textColor: '#000',
+      classNames: [
+        ...(unassigned ? ['unassigned-shift'] : []),
+        ...(!s.published ? ['draft-shift'] : []),
+        ...(isPastShift(s.date, s.endTime) ? ['past-shift'] : []),
+      ],
+    };
+  });
 
   function renderEventContent(arg: EventContentArg) {
     const s = arg.event.extendedProps.shift as Shift;
@@ -197,12 +220,9 @@ export default function Schedule() {
     const unassigned = needsStaff(s);
     const missing = missingCarers(s);
     const patientStatus = s.serviceUser?.status;
-    const showStatus = !!patientStatus && patientStatus !== 'ACTIVE'
-      && shiftOnOrAfterStatusChange(s.date, s.serviceUser?.statusUpdatedAt);
+    const showStatus = !!patientStatus && patientStatus !== 'ACTIVE' && shiftOnOrAfterStatusChange(s.date, s.serviceUser?.statusUpdatedAt);
     const statusIcon = showStatus ? STATUS_ICON[patientStatus!] : '';
 
-    // Week/day (timeGrid) columns get very narrow when many calls run at once,
-    // so use a compact two-line layout there; month keeps the fuller card.
     const compact = arg.view.type.startsWith('timeGrid');
     if (compact) {
       return (
@@ -220,7 +240,6 @@ export default function Schedule() {
         </div>
       );
     }
-
     return (
       <div className="p-0.5 overflow-hidden leading-tight">
         <p className="text-xs font-bold truncate">
@@ -240,8 +259,7 @@ export default function Schedule() {
           <p className={`text-[10px] truncate ${unassigned ? 'font-bold' : 'opacity-90'}`}>
             {assignedCarers(s) === 0
               ? 'Unassigned'
-              : [s.user ? `${s.user.firstName} ${s.user.lastName}` : null,
-                 ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? [])].filter(Boolean).join(', ')}
+              : [s.user ? `${s.user.firstName} ${s.user.lastName}` : null, ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? [])].filter(Boolean).join(', ')}
             {unassigned && ` · needs ${missing} more`}
           </p>
         )}
@@ -250,144 +268,181 @@ export default function Schedule() {
             {[s.visitName, s.cover > 1 ? coverLabel(s.cover) : null].filter(Boolean).join(' · ')}
           </p>
         )}
-        {s.serviceUser?.site && (
-          <p className="text-[10px] opacity-90 truncate">{s.serviceUser.site.name}</p>
-        )}
+        {s.serviceUser?.site && <p className="text-[10px] opacity-90 truncate">{s.serviceUser.site.name}</p>}
       </div>
     );
   }
 
+  const VIEW_TABS: { k: ViewKey; label: string }[] = [
+    { k: 'day', label: 'Day' }, { k: 'week', label: 'Week' }, { k: '2week', label: '2 wk' }, { k: '4week', label: '4 wk' }, { k: 'month', label: 'Month' },
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
-        {isManager && (
-          <div className="flex flex-wrap items-center gap-3">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search client or carer…"
-              className="input w-56 text-sm"
-            />
-            <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
-              {([
-                { k: 'all', label: 'All' },
-                { k: 'assigned', label: 'Assigned' },
-                { k: 'unassigned', label: `Unassigned${unassignedCount ? ` (${unassignedCount})` : ''}` },
-              ] as const).map((opt) => (
+      <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
+
+      {/* Row 1: navigation + view + add */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="flex">
+            <button className="btn-secondary btn btn-sm rounded-r-none" onClick={() => shiftBy(-1)} aria-label="Previous">‹</button>
+            <button className="btn-secondary btn btn-sm rounded-l-none border-l-0" onClick={() => shiftBy(1)} aria-label="Next">›</button>
+          </div>
+          <button className="btn-secondary btn btn-sm" onClick={() => setAnchor(new Date())}>Today</button>
+          <span className="font-semibold text-gray-800 ml-1">{title}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+            {VIEW_TABS.map((t) => (
+              <button
+                key={t.k}
+                onClick={() => { setViewKey(t.k); }}
+                className={`px-3 py-1.5 border-l first:border-l-0 border-gray-200 ${viewKey === t.k ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {isManager && (
+            <button
+              onClick={() => setMode((m) => (m === 'calendar' ? 'carer' : 'calendar'))}
+              className={`btn btn-sm ${mode === 'carer' ? 'btn-primary' : 'btn-secondary'}`}
+              title="Toggle carer timeline"
+            >
+              By carer
+            </button>
+          )}
+          {isManager && (
+            <button className="btn-primary btn" onClick={() => { setSelectedShift(null); setSelectedDate(format(anchor, 'yyyy-MM-dd')); setModalOpen(true); }}>
+              + Add shift
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: search + filters + actions (managers) */}
+      {isManager && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client or carer…" className="input w-56 text-sm" />
+            <div className="flex gap-1.5">
+              {([{ k: 'all', label: 'All' }, { k: 'assigned', label: 'Assigned' }, { k: 'unassigned', label: `Unassigned${unassignedCount ? ` · ${unassignedCount}` : ''}` }] as const).map((opt) => (
                 <button
                   key={opt.k}
                   onClick={() => setAssignFilter(opt.k)}
-                  className={`px-3 py-1.5 transition-colors ${
+                  className={`px-3 py-1.5 rounded-full text-sm border ${
                     assignFilter === opt.k
-                      ? opt.k === 'unassigned' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
-                      : `bg-white hover:bg-gray-50 ${opt.k === 'unassigned' && unassignedCount ? 'text-red-600 font-medium' : 'text-gray-600'}`
+                      ? opt.k === 'unassigned' ? 'bg-red-600 text-white border-red-600' : 'bg-blue-600 text-white border-blue-600'
+                      : `bg-white hover:bg-gray-50 ${opt.k === 'unassigned' && unassignedCount ? 'text-red-600 border-red-200' : 'text-gray-600 border-gray-200'}`
                   }`}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
-            {confirmPublishAll ? (
-              <span className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-2 py-1">
-                <span className="text-sm text-green-800">Publish {draftShown.length} to carer app?</span>
-                <button
-                  className="btn-primary btn btn-sm"
-                  disabled={publishAllMut.isPending}
-                  onClick={() => {
-                    publishAllMut.mutate(draftShown.map((s) => s.id), { onSettled: () => setConfirmPublishAll(false) });
-                  }}
-                >
-                  {publishAllMut.isPending ? 'Publishing…' : 'Yes, publish all'}
-                </button>
-                <button className="btn-secondary btn btn-sm" onClick={() => setConfirmPublishAll(false)}>No</button>
-              </span>
-            ) : (
-              <button
-                className="btn-primary btn"
-                onClick={() => setConfirmPublishAll(true)}
-                disabled={draftShown.length === 0}
-              >
-                Publish All Shown ({draftShown.length})
-              </button>
-            )}
-            {!confirmPublishAll && draftUnassignedShown > 0 && (
-              <span className="text-xs text-amber-600 font-medium">
-                {draftUnassignedShown} draft{draftUnassignedShown > 1 ? 's' : ''} need{draftUnassignedShown > 1 ? '' : 's'} a carer assigned before publishing
-              </span>
-            )}
-            {confirmCancelAll ? (
-              <span className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-2 py-1">
-                <span className="text-sm text-red-800">Cancel {activeShifts.length}?</span>
-                <button
-                  className="btn-danger btn btn-sm"
-                  disabled={cancelAllMut.isPending}
-                  onClick={() => {
-                    cancelAllMut.mutate(activeShifts.map((s) => s.id), { onSettled: () => setConfirmCancelAll(false) });
-                  }}
-                >
-                  {cancelAllMut.isPending ? 'Cancelling…' : 'Yes, cancel all'}
-                </button>
-                <button className="btn-secondary btn btn-sm" onClick={() => setConfirmCancelAll(false)}>No</button>
-              </span>
-            ) : (
-              <button
-                className="btn-danger btn"
-                onClick={() => setConfirmCancelAll(true)}
-                disabled={activeShifts.length === 0}
-              >
-                Cancel All Shown ({activeShifts.length})
-              </button>
-            )}
-            <button
-              className="btn-primary btn"
-              onClick={() => { setSelectedShift(null); setSelectedDate(format(new Date(), 'yyyy-MM-dd')); setModalOpen(true); }}
-            >
-              + Add Shift
-            </button>
           </div>
-        )}
-      </div>
+          <div className="flex items-center gap-2">
+            <button className="btn-secondary btn" disabled={draftShown.length === 0} onClick={() => { setConfirmPublishAll(true); setMenuOpen(false); }}>
+              Publish ready ({draftShown.length})
+            </button>
+            <div className="relative">
+              <button className="btn-secondary btn" onClick={() => setMenuOpen((o) => !o)} aria-label="More actions">⋯</button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                  <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 text-sm">
+                    <button className="w-full text-left px-3 py-2 hover:bg-gray-50 disabled:text-gray-300" disabled={draftShown.length === 0} onClick={() => { setConfirmPublishAll(true); setMenuOpen(false); }}>
+                      Publish ready ({draftShown.length})
+                    </button>
+                    <button className="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 disabled:text-gray-300" disabled={activeShifts.length === 0} onClick={() => { setConfirmCancelAll(true); setMenuOpen(false); }}>
+                      Cancel all shown ({activeShifts.length})
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-      <div className="card p-0 overflow-hidden">
-        <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-          initialView="dayGridWeek"
-          locale={enGbLocale}
-          firstDay={1}
-          dayHeaderContent={(arg) =>
-            arg.view.type === 'dayGridMonth'
-              ? format(arg.date, 'EEE')
-              : arg.view.type === 'dayGridWeek'
-                ? format(arg.date, 'EEE, dd-MM-yyyy')
-                : format(arg.date, 'EEE dd-MM')
-          }
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,dayGridWeek,timeGridDay',
-          }}
-          events={events}
-          eventOrder="start"
-          dateClick={handleDateClick}
-          eventClick={handleEventClick}
-          eventDrop={handleEventDrop}
-          editable={isManager}
-          droppable={isManager}
-          eventContent={renderEventContent}
-          height="calc(100vh - 220px)"
-          eventDisplay="block"
-          allDaySlot={false}
-          slotEventOverlap={false}
-          eventMaxStack={3}
-          eventMinHeight={26}
-          slotMinTime="06:00:00"
-          slotMaxTime="23:00:00"
-          expandRows
-          nowIndicator
-          moreLinkClick="popover"
+      {/* Confirm bars */}
+      {isManager && confirmPublishAll && (
+        <div className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-3 py-2">
+          <span className="text-sm text-green-800">Publish {draftShown.length} fully-assigned draft{draftShown.length === 1 ? '' : 's'} to the carer app?</span>
+          <button className="btn-primary btn btn-sm" disabled={publishAllMut.isPending} onClick={() => publishAllMut.mutate(draftShown.map((s) => s.id), { onSettled: () => setConfirmPublishAll(false) })}>
+            {publishAllMut.isPending ? 'Publishing…' : 'Yes, publish'}
+          </button>
+          <button className="btn-secondary btn btn-sm" onClick={() => setConfirmPublishAll(false)}>No</button>
+          {draftUnassignedShown > 0 && <span className="text-xs text-amber-600 font-medium ml-1">{draftUnassignedShown} more need a carer first</span>}
+        </div>
+      )}
+      {isManager && confirmCancelAll && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2">
+          <span className="text-sm text-red-800">Cancel all {activeShifts.length} shown shift{activeShifts.length === 1 ? '' : 's'}? This can't be undone.</span>
+          <button className="btn-danger btn btn-sm" disabled={cancelAllMut.isPending} onClick={() => cancelAllMut.mutate(activeShifts.map((s) => s.id), { onSettled: () => setConfirmCancelAll(false) })}>
+            {cancelAllMut.isPending ? 'Cancelling…' : 'Yes, cancel all'}
+          </button>
+          <button className="btn-secondary btn btn-sm" onClick={() => setConfirmCancelAll(false)}>No</button>
+        </div>
+      )}
+
+      {/* Summary strip */}
+      {isManager && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <SummaryTile value={summary.total} label="Visits in view" />
+          <SummaryTile value={summary.unassigned} label="Unassigned" tone={summary.unassigned ? 'danger' : undefined} />
+          <SummaryTile value={summary.drafts} label="Drafts, not published" tone={summary.drafts ? 'warning' : undefined} />
+          <SummaryTile value={`${summary.coverage}%`} label="Coverage filled" tone={summary.coverage >= 90 ? 'success' : summary.coverage >= 75 ? 'warning' : 'danger'} />
+        </div>
+      )}
+
+      {mode === 'carer' && isManager ? (
+        <CarerTimeline
+          users={users}
+          days={rangeDays}
+          shiftsInRange={rangeShifts}
+          needsStaff={needsStaff}
+          missingCarers={missingCarers}
+          onOpen={openShift}
         />
-      </div>
+      ) : (
+        <div className="card p-0 overflow-hidden">
+          <FullCalendar
+            ref={calRef}
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            initialView={FC_VIEW[viewKey]}
+            initialDate={anchor}
+            locale={enGbLocale}
+            firstDay={1}
+            headerToolbar={false}
+            views={{ dayGrid2: { type: 'dayGrid', duration: { weeks: 2 } }, dayGrid4: { type: 'dayGrid', duration: { weeks: 4 } } }}
+            dayHeaderContent={(arg) =>
+              arg.view.type === 'dayGridWeek' ? format(arg.date, 'EEE, dd-MM-yyyy')
+                : arg.view.type.startsWith('dayGrid') ? format(arg.date, 'EEE')
+                  : format(arg.date, 'EEE dd-MM')
+            }
+            events={events}
+            eventOrder="start"
+            dateClick={handleDateClick}
+            eventClick={handleEventClick}
+            eventDrop={handleEventDrop}
+            editable={isManager}
+            droppable={isManager}
+            eventContent={renderEventContent}
+            height="calc(100vh - 300px)"
+            eventDisplay="block"
+            allDaySlot={false}
+            slotEventOverlap={false}
+            eventMaxStack={3}
+            eventMinHeight={26}
+            slotMinTime="06:00:00"
+            slotMaxTime="23:00:00"
+            expandRows
+            nowIndicator
+            moreLinkClick="popover"
+          />
+        </div>
+      )}
 
       {modalOpen && (
         <ShiftModal
@@ -396,6 +451,92 @@ export default function Schedule() {
           onClose={() => { setModalOpen(false); setSelectedShift(null); }}
         />
       )}
+    </div>
+  );
+}
+
+function SummaryTile({ value, label, tone }: { value: number | string; label: string; tone?: 'danger' | 'warning' | 'success' }) {
+  const c = tone === 'danger' ? 'text-red-600' : tone === 'warning' ? 'text-amber-600' : tone === 'success' ? 'text-green-600' : 'text-gray-900';
+  return (
+    <div className="bg-white border border-gray-100 rounded-lg px-4 py-2.5">
+      <div className={`text-xl font-bold ${c}`}>{value}</div>
+      <div className="text-xs text-gray-500">{label}</div>
+    </div>
+  );
+}
+
+function CarerTimeline({ users, days, shiftsInRange, needsStaff, missingCarers, onOpen }: {
+  users: { id: string; firstName: string; lastName: string }[];
+  days: Date[];
+  shiftsInRange: Shift[];
+  needsStaff: (s: Shift) => boolean;
+  missingCarers: (s: Shift) => number;
+  onOpen: (s: Shift) => void;
+}) {
+  const dayKey = (d: Date | string) => format(new Date(d), 'yyyy-MM-dd');
+  const carriesUser = (s: Shift, uid: string) => s.userId === uid || (s.coverCarers?.some((c) => c.id === uid) ?? false);
+
+  // Only carers with at least one visit in range keep the grid readable.
+  const activeUsers = users.filter((u) => shiftsInRange.some((s) => carriesUser(s, u.id)));
+  const unassigned = shiftsInRange.filter(needsStaff);
+
+  const cell = (list: Shift[], unassignedRow: boolean) => (
+    <div className="flex flex-col gap-1 p-1 min-h-[52px]">
+      {list.sort((a, b) => a.startTime.localeCompare(b.startTime)).map((s) => {
+        const color = s.serviceUser?.site?.color || '#3b82f6';
+        const patient = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
+        return (
+          <button
+            key={s.id}
+            onClick={() => onOpen(s)}
+            className={`text-left rounded px-1.5 py-1 text-[11px] leading-tight ${unassignedRow ? 'border border-dashed border-red-400 bg-red-50 text-red-700' : 'text-gray-800'} ${!s.published ? 'opacity-90' : ''}`}
+            style={unassignedRow ? undefined : { backgroundColor: `${color}22` }}
+          >
+            <div className="font-semibold truncate">{formatTime12h(s.startTime)} {patient}</div>
+            <div className="truncate opacity-80">
+              {s.visitName || 'Visit'}{unassignedRow ? ` · needs ${missingCarers(s)}` : ''}{!s.published ? ' · draft' : ''}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const gridCols = { gridTemplateColumns: `160px repeat(${days.length}, minmax(120px, 1fr))` };
+
+  return (
+    <div className="card p-0 overflow-x-auto">
+      <div className="min-w-max">
+        {/* Header */}
+        <div className="grid border-b border-gray-200 bg-gray-50 sticky top-0" style={gridCols}>
+          <div className="px-3 py-2 text-xs font-medium text-gray-500 sticky left-0 bg-gray-50 z-10">Carer</div>
+          {days.map((d) => (
+            <div key={dayKey(d)} className="px-2 py-2 text-xs font-medium text-gray-600 text-center border-l border-gray-100">{format(d, 'EEE dd/MM')}</div>
+          ))}
+        </div>
+
+        {/* Unassigned row */}
+        {unassigned.length > 0 && (
+          <div className="grid border-b border-gray-100" style={gridCols}>
+            <div className="px-3 py-2 text-sm font-medium text-red-700 sticky left-0 bg-white z-10 flex items-center">⚠ Unassigned</div>
+            {days.map((d) => (
+              <div key={dayKey(d)} className="border-l border-gray-100">{cell(unassigned.filter((s) => dayKey(s.date) === dayKey(d)), true)}</div>
+            ))}
+          </div>
+        )}
+
+        {/* One row per carer */}
+        {activeUsers.length === 0 && unassigned.length === 0 ? (
+          <div className="p-6 text-sm text-gray-400 text-center">No visits in this range.</div>
+        ) : activeUsers.map((u) => (
+          <div key={u.id} className="grid border-b border-gray-50" style={gridCols}>
+            <div className="px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 bg-white z-10 flex items-center">{u.firstName} {u.lastName}</div>
+            {days.map((d) => (
+              <div key={dayKey(d)} className="border-l border-gray-100">{cell(shiftsInRange.filter((s) => carriesUser(s, u.id) && dayKey(s.date) === dayKey(d)), false)}</div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
