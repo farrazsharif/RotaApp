@@ -103,7 +103,13 @@ export default function Schedule() {
   const assignedCarers = (s: Shift) => (s.userId ? 1 : 0) + (s.coverCarers?.length ?? 0);
   const neededCarers = (s: Shift) => s.cover || 1;
   const missingCarers = (s: Shift) => Math.max(0, neededCarers(s) - assignedCarers(s));
-  const needsStaff = (s: Shift) => missingCarers(s) > 0;
+  // A shift whose service user is not ACTIVE (e.g. hospitalised/discharged) as of that
+  // date shouldn't be treated as an unassigned call that needs a carer.
+  const patientInactive = (s: Shift) => {
+    const st = s.serviceUser?.status;
+    return !!st && st !== 'ACTIVE' && shiftOnOrAfterStatusChange(s.date, s.serviceUser?.statusUpdatedAt);
+  };
+  const needsStaff = (s: Shift) => missingCarers(s) > 0 && !patientInactive(s);
 
   const term = search.trim().toLowerCase();
   const notCancelled = shifts.filter((s) => s.status !== 'CANCELLED');
