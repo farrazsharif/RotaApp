@@ -81,8 +81,10 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const [cancelScope, setCancelScope] = useState<'one' | 'future' | 'days'>('one');
   const [cancelDays, setCancelDays] = useState<number[]>([]);
 
-  const [assignScope, setAssignScope] = useState<'one' | 'future' | 'days'>('one');
+  const [assignScope, setAssignScope] = useState<'one' | 'future' | 'days' | 'range'>('one');
   const [assignDays, setAssignDays] = useState<number[]>([]);
+  const [assignFrom, setAssignFrom] = useState('');
+  const [assignTo, setAssignTo] = useState('');
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [visitNameCustomOpen, setVisitNameCustomOpen] = useState(false);
 
@@ -99,6 +101,8 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
     setCancelDays([]);
     setAssignScope('one');
     setAssignDays([]);
+    setAssignFrom(shift ? format(new Date(shift.date), 'yyyy-MM-dd') : '');
+    setAssignTo('');
     setCoverCarerIds(shift?.coverCarers?.map((c) => c.id) ?? []);
     if (shift) {
       reset({
@@ -204,6 +208,8 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
           coverCarerIds: data.coverCarerIds,
           scope: assignScope,
           days: assignScope === 'days' ? assignDays : undefined,
+          fromDate: assignScope === 'range' ? assignFrom || undefined : undefined,
+          toDate: assignScope === 'range' ? assignTo || undefined : undefined,
         });
       }
     },
@@ -426,6 +432,16 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                   </div>
                 )}
                 <label className="flex items-center gap-2">
+                  <input type="radio" name="assignScope" checked={assignScope === 'range'} onChange={() => setAssignScope('range')} />
+                  Cover a date range (e.g. holiday cover)
+                </label>
+                {assignScope === 'range' && (
+                  <div className="flex flex-wrap items-center gap-3 pl-6 text-xs text-gray-700">
+                    <label className="flex items-center gap-1">From <input type="date" value={assignFrom} onChange={(e) => setAssignFrom(e.target.value)} className="input py-1 text-xs" /></label>
+                    <label className="flex items-center gap-1">To <input type="date" value={assignTo} onChange={(e) => setAssignTo(e.target.value)} className="input py-1 text-xs" /></label>
+                  </div>
+                )}
+                <label className="flex items-center gap-2">
                   <input type="radio" name="assignScope" checked={assignScope === 'future'} onChange={() => setAssignScope('future')} />
                   All future shifts in this series
                 </label>
@@ -631,7 +647,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 disabled={
                   isPending ||
                   (!shift && repeatEnabled && (repeatDays.length === 0 || (repeatEndType === 'date' && !repeatEndDate))) ||
-                  (!!shift && assignScope === 'days' && assignDays.length === 0)
+                  (!!shift && ((assignScope === 'days' && assignDays.length === 0) || (assignScope === 'range' && (!assignFrom || !assignTo))))
                 }
                 className="btn-primary btn"
               >
@@ -844,6 +860,16 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                     </div>
                   )}
                   <label className="flex items-center gap-2">
+                    <input type="radio" name="assignScope" checked={assignScope === 'range'} onChange={() => setAssignScope('range')} />
+                    Cover a date range (e.g. holiday cover)
+                  </label>
+                  {assignScope === 'range' && (
+                    <div className="flex flex-wrap items-center gap-3 pl-6 text-xs text-gray-700">
+                      <label className="flex items-center gap-1">From <input type="date" value={assignFrom} onChange={(e) => setAssignFrom(e.target.value)} className="input py-1 text-xs" /></label>
+                      <label className="flex items-center gap-1">To <input type="date" value={assignTo} onChange={(e) => setAssignTo(e.target.value)} className="input py-1 text-xs" /></label>
+                    </div>
+                  )}
+                  <label className="flex items-center gap-2">
                     <input type="radio" name="assignScope" checked={assignScope === 'future'} onChange={() => setAssignScope('future')} />
                     All future shifts in this series
                   </label>
@@ -909,7 +935,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
               <button
                 type="button"
                 onClick={onSaveAndPublish}
-                disabled={isPending || !fullyAssigned || (assignScope === 'days' && assignDays.length === 0)}
+                disabled={isPending || !fullyAssigned || (assignScope === 'days' && assignDays.length === 0) || (assignScope === 'range' && (!assignFrom || !assignTo))}
                 title={fullyAssigned ? undefined : 'Assign a carer to every cover slot before publishing'}
                 className="btn-primary btn"
               >
@@ -918,7 +944,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
             )}
             <button
               type="submit"
-              disabled={isPending || (assignScope === 'days' && assignDays.length === 0)}
+              disabled={isPending || (assignScope === 'days' && assignDays.length === 0) || (assignScope === 'range' && (!assignFrom || !assignTo))}
               className="btn-primary btn"
             >
               {isPending ? 'Saving…' : 'Update'}

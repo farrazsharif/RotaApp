@@ -271,7 +271,7 @@ export async function deleteShift(req: AuthRequest, res: Response) {
 // Assign (or clear) a carer across a recurring series.
 // scope: 'one' (default) | 'future' (this + later in series) | 'days' (matching weekdays from this date)
 export async function assignShiftCarer(req: AuthRequest, res: Response) {
-  const { userId, coverCarerIds, scope, days } = req.body as { userId?: string; coverCarerIds?: string[]; scope?: string; days?: number[] };
+  const { userId, coverCarerIds, scope, days, fromDate, toDate } = req.body as { userId?: string; coverCarerIds?: string[]; scope?: string; days?: number[]; fromDate?: string; toDate?: string };
   const dayList = Array.isArray(days) ? days.map(Number) : [];
 
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id } });
@@ -280,14 +280,26 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
 
   let ids: string[] = [shift.id];
   if (shift.seriesId && scope && scope !== 'one') {
-    const later = await prisma.shift.findMany({
-      where: { seriesId: shift.seriesId, date: { gte: shift.date }, status: { not: 'CANCELLED' } },
-      select: { id: true, date: true },
-    });
-    if (scope === 'future') {
-      ids = later.map((s) => s.id);
-    } else if (scope === 'days') {
-      ids = later.filter((s) => dayList.includes(new Date(s.date).getDay())).map((s) => s.id);
+    if (scope === 'range') {
+      // Cover period: every visit in the series between two dates (e.g. while
+      // the regular carer is on holiday). Defaults to the opened shift's date.
+      const from = fromDate ? new Date(`${fromDate}T00:00:00`) : shift.date;
+      const to = toDate ? new Date(`${toDate}T23:59:59`) : from;
+      const inRange = await prisma.shift.findMany({
+        where: { seriesId: shift.seriesId, date: { gte: from, lte: to }, status: { not: 'CANCELLED' } },
+        select: { id: true },
+      });
+      ids = inRange.map((s) => s.id);
+    } else {
+      const later = await prisma.shift.findMany({
+        where: { seriesId: shift.seriesId, date: { gte: shift.date }, status: { not: 'CANCELLED' } },
+        select: { id: true, date: true },
+      });
+      if (scope === 'future') {
+        ids = later.map((s) => s.id);
+      } else if (scope === 'days') {
+        ids = later.filter((s) => dayList.includes(new Date(s.date).getDay())).map((s) => s.id);
+      }
     }
   }
 
