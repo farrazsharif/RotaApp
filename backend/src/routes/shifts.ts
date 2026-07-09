@@ -1,11 +1,25 @@
 import { Router } from 'express';
 import { listShifts, getShift, createShift, updateShift, deleteShift, bulkCreateShifts, cancelBulkShifts, assignShiftCarer, publishShift, publishBulkShifts } from '../controllers/shiftController';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, AuthRequest } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
+import { emitToCompany } from '../lib/socket';
 
 const router = Router();
 
 router.use(authenticate);
+
+// After any successful shift mutation, tell the rest of the company's open
+// sessions to refetch, so a change by one manager shows up live for the others
+// without a manual page refresh.
+router.use((req: AuthRequest, res, next) => {
+  if (req.method === 'GET') return next();
+  res.on('finish', () => {
+    if (res.statusCode >= 200 && res.statusCode < 300 && req.user?.companyId) {
+      emitToCompany(req.user.companyId, 'shifts:changed', {});
+    }
+  });
+  next();
+});
 
 router.get('/', listShifts);
 router.get('/:id', getShift);

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { Notification } from '../types';
 
@@ -16,6 +17,7 @@ const SocketContext = createContext<SocketContextValue | null>(null);
 
 export function SocketProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
+  const qc = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
@@ -29,8 +31,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setNotifications((prev) => [n, ...prev]);
     });
 
+    // Another session in the same company changed the schedule — refetch shifts
+    // so the calendar updates live without a manual page refresh.
+    s.on('shifts:changed', () => {
+      qc.invalidateQueries({ queryKey: ['shifts'] });
+    });
+
     return () => { s.disconnect(); };
-  }, [token]);
+  }, [token, qc]);
 
   function addNotification(n: Notification) {
     setNotifications((prev) => [n, ...prev]);
