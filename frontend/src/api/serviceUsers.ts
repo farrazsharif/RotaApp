@@ -37,6 +37,9 @@ export interface ServiceUserData {
   visits?: string; // JSON array of { type, duration }
   preferredCaregiverIds?: string[];
   status?: ServiceUserStatus;
+  // When set alongside a status change, the moment the new status takes effect
+  // (ISO string). Defaults to now on the server if omitted.
+  statusEffectiveAt?: string;
 }
 
 export const serviceUsersApi = {

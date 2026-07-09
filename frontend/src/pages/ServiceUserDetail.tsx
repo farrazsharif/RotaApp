@@ -73,6 +73,10 @@ export default function ServiceUserDetail() {
   const [marChartOpen, setMarChartOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
   const [familyAccessOpen, setFamilyAccessOpen] = useState(false);
+  // A status change the manager has selected but not yet confirmed — lets them
+  // set (or back-date) when it takes effect before it's applied.
+  const [pendingStatus, setPendingStatus] = useState<ServiceUserStatus | null>(null);
+  const [effectiveAt, setEffectiveAt] = useState('');
 
   const { data: su, isLoading, isError } = useQuery({
     queryKey: ['service-user', id],
@@ -102,16 +106,17 @@ export default function ServiceUserDetail() {
   const { data: logs = [] } = useQuery({ queryKey: ['call-logs', id], queryFn: () => callLogsApi.list(id), enabled: !!id });
 
   const statusMut = useMutation({
-    mutationFn: (status: ServiceUserStatus) => serviceUsersApi.update(id, { status }),
+    mutationFn: (vars: { status: ServiceUserStatus; effectiveAt?: string }) =>
+      serviceUsersApi.update(id, { status: vars.status, statusEffectiveAt: vars.effectiveAt }),
     // Apply the new status to the cache immediately so the badge/dropdown update
     // without waiting on the refetch — then reconcile with the server response.
-    onMutate: async (status) => {
+    onMutate: async ({ status }) => {
       await qc.cancelQueries({ queryKey: ['service-user', id] });
       const previous = qc.getQueryData<ServiceUser>(['service-user', id]);
       if (previous) qc.setQueryData(['service-user', id], { ...previous, status });
       return { previous };
     },
-    onError: (_err, _status, context) => {
+    onError: (_err, _vars, context) => {
       if (context?.previous) qc.setQueryData(['service-user', id], context.previous);
     },
     onSettled: () => {
@@ -176,16 +181,46 @@ export default function ServiceUserDetail() {
           </div>
           {isManager && (
             <div className="flex items-start gap-2">
-              <select
-                value={su.status}
-                onChange={(e) => statusMut.mutate(e.target.value as ServiceUserStatus)}
-                disabled={statusMut.isPending}
-                className="input"
-              >
-                {Object.entries(STATUS_META).map(([value, meta]) => (
-                  <option key={value} value={value}>{value === 'HOSPITALISED' ? '🔴 H' : meta.icon} {meta.label}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={pendingStatus ?? su.status}
+                  onChange={(e) => {
+                    const next = e.target.value as ServiceUserStatus;
+                    if (next === su.status) { setPendingStatus(null); return; }
+                    setPendingStatus(next);
+                    setEffectiveAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+                  }}
+                  disabled={statusMut.isPending}
+                  className="input"
+                >
+                  {Object.entries(STATUS_META).map(([value, meta]) => (
+                    <option key={value} value={value}>{value === 'HOSPITALISED' ? '🔴 H' : meta.icon} {meta.label}</option>
+                  ))}
+                </select>
+                {pendingStatus && (
+                  <div className="absolute right-0 top-full mt-1 z-20 w-72 rounded-lg border border-gray-200 bg-white shadow-lg p-3 space-y-2 text-left">
+                    <p className="text-sm font-medium text-gray-900">Change to {STATUS_META[pendingStatus]?.label || pendingStatus}</p>
+                    <div>
+                      <label className="label">Effective from</label>
+                      <input type="datetime-local" value={effectiveAt} onChange={(e) => setEffectiveAt(e.target.value)} className="input" />
+                    </div>
+                    <p className="text-xs text-gray-500">Calls from this time onward show the new status. Defaults to now — back-date it if it happened earlier.</p>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button className="btn-secondary btn btn-sm" onClick={() => setPendingStatus(null)}>Cancel</button>
+                      <button
+                        className="btn-primary btn btn-sm"
+                        disabled={statusMut.isPending || !effectiveAt}
+                        onClick={() => statusMut.mutate(
+                          { status: pendingStatus, effectiveAt: new Date(effectiveAt).toISOString() },
+                          { onSuccess: () => setPendingStatus(null) },
+                        )}
+                      >
+                        {statusMut.isPending ? 'Applying…' : 'Apply'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <button className="btn-secondary btn" onClick={() => setFamilyAccessOpen(true)}>Family Access</button>
               <button className="btn-primary btn" onClick={() => navigate(`/service-users/${id}/edit`)}>Edit Details</button>
             </div>

@@ -139,8 +139,11 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
       select: { status: true, statusUpdatedAt: true, _count: { select: { statusChanges: true } } },
     });
     if (existing && existing.status !== data.status) {
-      const now = new Date();
-      data.statusUpdatedAt = now;
+      // Effective moment defaults to now, but a manager may back-date it — e.g.
+      // recording that the patient actually went to hospital earlier today.
+      const parsed = req.body.statusEffectiveAt ? new Date(String(req.body.statusEffectiveAt)) : null;
+      const effectiveAt = parsed && !isNaN(parsed.getTime()) ? parsed : new Date();
+      data.statusUpdatedAt = effectiveAt;
       // First change since this feature shipped: seed a baseline entry for the
       // status they were already in, so shifts before now still resolve to it.
       if (existing._count.statusChanges === 0 && existing.status !== ServiceUserStatus.ACTIVE) {
@@ -149,7 +152,7 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
         });
       }
       await prisma.serviceUserStatusChange.create({
-        data: { serviceUserId: req.params.id, status: String(data.status), effectiveAt: now, changedById: req.user?.id ?? null },
+        data: { serviceUserId: req.params.id, status: String(data.status), effectiveAt, changedById: req.user?.id ?? null },
       });
     }
   }
