@@ -31,10 +31,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setNotifications((prev) => [n, ...prev]);
     });
 
-    // Another session in the same company changed the schedule — refetch shifts
-    // so the calendar updates live without a manual page refresh.
-    s.on('shifts:changed', () => {
-      qc.invalidateQueries({ queryKey: ['shifts'] });
+    // Another session in the same company changed shared data (schedule,
+    // attendance, service users, time off…). The event names the affected
+    // query "topics"; invalidate each so those screens refetch live without a
+    // manual page refresh.
+    s.on('data:changed', (payload: { topics?: string[] }) => {
+      for (const topic of payload?.topics ?? []) {
+        qc.invalidateQueries({ queryKey: [topic] });
+      }
     });
 
     return () => { s.disconnect(); };

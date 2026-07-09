@@ -4,10 +4,15 @@ import {
 } from '../controllers/serviceUserController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
+import { broadcastOnSuccess } from '../middleware/broadcast';
 
 const router = Router();
 
 router.use(authenticate);
+
+// Editing a service user (incl. a status change) updates the service-user list
+// and the schedule badges/dashboard for everyone in the company.
+router.use(broadcastOnSuccess('service-users', 'shifts', 'dashboard-stats'));
 
 router.get('/', listServiceUsers);
 router.get('/:id', getServiceUser);
