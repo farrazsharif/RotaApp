@@ -19,6 +19,7 @@ import EmarModal from '../components/EmarModal';
 import MarChartModal from '../components/MarChartModal';
 import CallLogsModal from '../components/CallLogsModal';
 import FamilyAccessModal from '../components/FamilyAccessModal';
+import DocumentsTab from '../components/DocumentsTab';
 
 const durationLabel = (m: number) =>
   m >= 60 ? `${m / 60} hr${m > 60 ? 's' : ''}${m % 60 ? ` ${m % 60}m` : ''}` : `${m} mins`;
@@ -492,6 +493,8 @@ export default function ServiceUserDetail() {
           </div>
         )}
       </Section>
+
+      <DocumentsTab ownerType="SERVICE_USER" ownerId={id} canManage={isManager} />
 
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
       {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}

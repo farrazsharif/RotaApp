@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
 import SignaturePad from '../components/SignaturePad';
+import DocumentsTab from '../components/DocumentsTab';
 import { statusInfo } from './Users';
 
 const roleBadge: Record<Role, string> = {
@@ -19,7 +20,7 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-const TABS = ['Details', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work'] as const;
+const TABS = ['Details', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'Documents'] as const;
 type Tab = typeof TABS[number];
 
 // The health-declaration checklist from the paper "Fit for Work Declaration".
@@ -153,6 +154,7 @@ export default function StaffDetail() {
       {tab === 'Important Dates' && <ImportantDatesTab userId={user.id} isManager={isManager} />}
       {tab === 'Emergency Contact' && <EmergencyContactTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'Fit for Work' && <FitForWorkTab userId={user.id} isManager={isManager} initial={user} />}
+      {tab === 'Documents' && <DocumentsTab ownerType="USER" ownerId={user.id} canManage={isManager} />}
 
       {editOpen && <StaffFormModal editUser={user} onClose={() => setEditOpen(false)} />}
     </div>

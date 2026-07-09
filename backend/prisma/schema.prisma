@@ -192,6 +192,27 @@ model ServiceUserStatusChange {
   @@index([companyId])
 }
 
+// An uploaded file (DBS certificate, contract, GP letter, etc.) attached to
+// either a staff member (ownerType USER) or a service user (ownerType
+// SERVICE_USER). The bytes live in Cloudflare R2 under storageKey; only
+// metadata is kept here.
+model Document {
+  companyId    String? // tenant scope (app-enforced via Prisma extension)
+  id           String   @id @default(cuid())
+  ownerType    String // USER | SERVICE_USER
+  ownerId      String
+  category     String? // e.g. DBS, Contract, Reference, GP Letter
+  fileName     String
+  contentType  String
+  size         Int
+  storageKey   String // object key in the R2 bucket
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([ownerType, ownerId])
+  @@index([companyId])
+}
+
 // Links a family-member User account to the service user(s) they're allowed
 // to view read-only details for, via the separate family-portal app.
 model FamilyLink {
