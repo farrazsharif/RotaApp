@@ -1,13 +1,23 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-// Cloudflare R2 is S3-compatible. Configured via four env vars; until they're
-// set, document storage stays dormant (uploads return a clear "not configured"
+// Cloudflare R2 is S3-compatible. Configured via env vars; until they're set,
+// document storage stays dormant (uploads return a clear "not configured"
 // error) — same pattern as the Stripe billing keys.
-const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } = process.env;
+//
+// Set R2_ENDPOINT to the endpoint Cloudflare shows for your bucket (use the
+// EU jurisdiction endpoint for UK/EU care data), or just set R2_ACCOUNT_ID and
+// we build the default endpoint from it.
+const { R2_ENDPOINT, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } = process.env;
+
+function endpoint(): string | undefined {
+  if (R2_ENDPOINT) return R2_ENDPOINT;
+  if (R2_ACCOUNT_ID) return `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+  return undefined;
+}
 
 export function storageConfigured(): boolean {
-  return !!(R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET);
+  return !!(endpoint() && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET);
 }
 
 let client: S3Client | null = null;
@@ -15,7 +25,7 @@ function getClient(): S3Client {
   if (!client) {
     client = new S3Client({
       region: 'auto',
-      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      endpoint: endpoint(),
       credentials: { accessKeyId: R2_ACCESS_KEY_ID!, secretAccessKey: R2_SECRET_ACCESS_KEY! },
     });
   }
