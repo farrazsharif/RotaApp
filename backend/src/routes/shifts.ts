@@ -2,15 +2,10 @@ import { Router } from 'express';
 import { listShifts, getShift, createShift, updateShift, deleteShift, bulkCreateShifts, cancelBulkShifts, assignShiftCarer, publishShift, publishBulkShifts } from '../controllers/shiftController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
-import { broadcastOnSuccess } from '../middleware/broadcast';
 
 const router = Router();
 
 router.use(authenticate);
-
-// A shift change by one manager should show up live for the others, and also
-// update the dashboard's unassigned-calls count.
-router.use(broadcastOnSuccess('shifts', 'dashboard-stats'));
 
 router.get('/', listShifts);
 router.get('/:id', getShift);

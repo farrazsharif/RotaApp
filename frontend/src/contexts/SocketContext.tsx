@@ -31,14 +31,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setNotifications((prev) => [n, ...prev]);
     });
 
-    // Another session in the same company changed shared data (schedule,
-    // attendance, service users, time off…). The event names the affected
-    // query "topics"; invalidate each so those screens refetch live without a
-    // manual page refresh.
-    s.on('data:changed', (payload: { topics?: string[] }) => {
-      for (const topic of payload?.topics ?? []) {
-        qc.invalidateQueries({ queryKey: [topic] });
-      }
+    // Another session in the same company saved a change. Invalidate every
+    // query so whatever this session currently has open refetches and shows the
+    // live data — no manual refresh, and it covers every screen automatically.
+    s.on('data:changed', () => {
+      qc.invalidateQueries();
     });
 
     return () => { s.disconnect(); };

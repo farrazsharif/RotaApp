@@ -4,6 +4,7 @@ import http from 'http';
 import cors from 'cors';
 import { initSocket } from './lib/socket';
 import { errorHandler } from './middleware/errorHandler';
+import { broadcastChanges } from './middleware/broadcast';
 import { prisma } from './lib/prisma';
 
 import authRoutes from './routes/auth';
@@ -76,6 +77,11 @@ app.use(cors({
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleWebhook);
 
 app.use(express.json());
+
+// Broadcast every successful write to the acting company's open sessions, so
+// all managers/staff see live data without refreshing. Mounted before the
+// routes; it reads req.user (set by each router's auth) when the response ends.
+app.use(broadcastChanges);
 
 // Health check that also verifies database connectivity, so uptime monitors
 // (e.g. UptimeRobot) go red on a DB outage, not just a web-server crash.
