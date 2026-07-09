@@ -109,7 +109,7 @@ export interface Shift {
   user?: Pick<User, 'id' | 'firstName' | 'lastName' | 'email' | 'role'>;
   seriesId?: string;
   serviceUserId?: string;
-  serviceUser?: { id: string; firstName: string; lastName: string; address?: string; postcode?: string; status?: ServiceUserStatus; statusUpdatedAt?: string; site?: Site };
+  serviceUser?: { id: string; firstName: string; lastName: string; address?: string; postcode?: string; status?: ServiceUserStatus; statusUpdatedAt?: string; statusChanges?: { status: ServiceUserStatus; effectiveAt: string }[]; site?: Site };
   date: string;
   startTime: string;
   endTime: string;

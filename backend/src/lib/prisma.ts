@@ -5,7 +5,7 @@ import { getTenant } from './tenantContext';
 // platform-level Company model is deliberately excluded (managing companies is
 // a cross-tenant operation).
 const TENANT_MODELS = new Set([
-  'User', 'CustomRole', 'Site', 'ServiceUser', 'FamilyLink', 'PersonalServicePlan',
+  'User', 'CustomRole', 'Site', 'ServiceUser', 'ServiceUserStatusChange', 'FamilyLink', 'PersonalServicePlan',
   'CarePlan', 'LikesDislikes', 'Review', 'Training', 'ImportantDate', 'Medication',
   'MedAdministration', 'Shift', 'CallLog', 'TimeOffRequest', 'ClockRecord',
   'PushSubscription', 'ShiftReminder', 'Notification', 'PasswordSetupToken',

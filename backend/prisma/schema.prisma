@@ -151,7 +151,7 @@ model ServiceUser {
   visits                   String   @default("[]") // JSON array of { type, duration }
   active                   Boolean  @default(true)
   status                   String   @default("ACTIVE") // ACTIVE, ON_HOLD, HOSPITALISED, DISCHARGED, DECEASED
-  statusUpdatedAt          DateTime @default(now()) // when status last changed — so calendar badges only apply from this date onwards
+  statusUpdatedAt          DateTime @default(now()) // when the current status took effect (mirrors the latest statusChanges entry)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
@@ -168,7 +168,27 @@ model ServiceUser {
   reviews             Review[]
   fundingArrangements FundingArrangement[]
   invoiceLines        InvoiceLine[]
+  statusChanges       ServiceUserStatusChange[]
 
+  @@index([companyId])
+}
+
+// A timeline of a service user's status changes. Each entry takes effect at
+// `effectiveAt` and stays in force until the next entry, so a shift shows the
+// status that was in effect at that shift's own date+time — even after the
+// status later changes again (e.g. hospitalised, then back to active).
+model ServiceUserStatusChange {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  serviceUserId String
+  status        String // ACTIVE, ON_HOLD, HOSPITALISED, DISCHARGED, DECEASED
+  effectiveAt   DateTime @default(now())
+  changedById   String? // the staff user who made the change (if known)
+  createdAt     DateTime @default(now())
+
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@index([serviceUserId, effectiveAt])
   @@index([companyId])
 }
 

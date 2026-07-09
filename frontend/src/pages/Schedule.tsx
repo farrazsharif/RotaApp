@@ -36,9 +36,32 @@ function isPastShift(date: string | Date, endTime: string): boolean {
   return end.getTime() <= Date.now();
 }
 
-function shiftOnOrAfterStatusChange(shiftDate: string | Date, statusUpdatedAt?: string): boolean {
-  if (!statusUpdatedAt) return true;
-  return startOfDay(new Date(shiftDate)).getTime() >= startOfDay(new Date(statusUpdatedAt)).getTime();
+// The exact start moment of a shift = its calendar date + its HH:mm start time.
+function shiftStartAt(shiftDate: string | Date, startTime: string): number {
+  const d = new Date(shiftDate);
+  const [h, m] = (startTime || '00:00').split(':').map(Number);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h || 0, m || 0, 0).getTime();
+}
+
+// Resolves the service user's status as it was in effect at a given shift's
+// start time, walking the status timeline (entries ascending by effectiveAt).
+// Falls back to the legacy single-timestamp field for patients with no
+// timeline yet, so existing data still behaves sensibly.
+function statusAtShift(su: Shift['serviceUser'], shiftDate: string | Date, startTime: string): ServiceUserStatus | undefined {
+  if (!su) return undefined;
+  const when = shiftStartAt(shiftDate, startTime);
+  const changes = su.statusChanges;
+  if (changes && changes.length) {
+    let current: ServiceUserStatus = 'ACTIVE';
+    for (const c of changes) {
+      if (new Date(c.effectiveAt).getTime() <= when) current = c.status;
+      else break;
+    }
+    return current;
+  }
+  // Legacy fallback: current status applies from statusUpdatedAt onward.
+  if (!su.statusUpdatedAt) return su.status;
+  return when >= new Date(su.statusUpdatedAt).getTime() ? su.status : 'ACTIVE';
 }
 
 function formatDuration(start: string, end: string): string {
@@ -106,8 +129,8 @@ export default function Schedule() {
   // A shift whose service user is not ACTIVE (e.g. hospitalised/discharged) as of that
   // date shouldn't be treated as an unassigned call that needs a carer.
   const patientInactive = (s: Shift) => {
-    const st = s.serviceUser?.status;
-    return !!st && st !== 'ACTIVE' && shiftOnOrAfterStatusChange(s.date, s.serviceUser?.statusUpdatedAt);
+    const st = statusAtShift(s.serviceUser, s.date, s.startTime);
+    return !!st && st !== 'ACTIVE';
   };
   const needsStaff = (s: Shift) => missingCarers(s) > 0 && !patientInactive(s);
 
@@ -225,8 +248,8 @@ export default function Schedule() {
     const patient = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
     const unassigned = needsStaff(s);
     const missing = missingCarers(s);
-    const patientStatus = s.serviceUser?.status;
-    const showStatus = !!patientStatus && patientStatus !== 'ACTIVE' && shiftOnOrAfterStatusChange(s.date, s.serviceUser?.statusUpdatedAt);
+    const patientStatus = statusAtShift(s.serviceUser, s.date, s.startTime);
+    const showStatus = !!patientStatus && patientStatus !== 'ACTIVE';
     const statusIcon = showStatus ? STATUS_ICON[patientStatus!] : '';
 
     const compact = arg.view.type.startsWith('timeGrid');

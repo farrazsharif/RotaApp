@@ -128,12 +128,30 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
     data.preferredCaregivers = { set: preferredCaregiverIds.map((id: string) => ({ id })) };
   }
 
-  // Only bump statusUpdatedAt when the status is actually changing, so the
-  // Schedule calendar can show status badges starting from this date onward
-  // without retroactively flagging past shifts on every unrelated edit.
+  // When the status actually changes, record it on the status timeline and
+  // stamp statusUpdatedAt with the moment of change. Each shift then resolves
+  // the status that was in effect at its own date+time — so a change made at,
+  // say, 3pm only affects that afternoon's calls onward, and the window a
+  // patient was hospitalised keeps showing it even after they return to active.
   if (data.status !== undefined) {
-    const existing = await prisma.serviceUser.findUnique({ where: { id: req.params.id }, select: { status: true } });
-    if (existing && existing.status !== data.status) data.statusUpdatedAt = new Date();
+    const existing = await prisma.serviceUser.findUnique({
+      where: { id: req.params.id },
+      select: { status: true, statusUpdatedAt: true, _count: { select: { statusChanges: true } } },
+    });
+    if (existing && existing.status !== data.status) {
+      const now = new Date();
+      data.statusUpdatedAt = now;
+      // First change since this feature shipped: seed a baseline entry for the
+      // status they were already in, so shifts before now still resolve to it.
+      if (existing._count.statusChanges === 0 && existing.status !== ServiceUserStatus.ACTIVE) {
+        await prisma.serviceUserStatusChange.create({
+          data: { serviceUserId: req.params.id, status: existing.status, effectiveAt: existing.statusUpdatedAt },
+        });
+      }
+      await prisma.serviceUserStatusChange.create({
+        data: { serviceUserId: req.params.id, status: String(data.status), effectiveAt: now, changedById: req.user?.id ?? null },
+      });
+    }
   }
 
   const user = await prisma.serviceUser.update({ where: { id: req.params.id }, data: data as never, include });
