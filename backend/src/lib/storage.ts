@@ -27,6 +27,11 @@ function getClient(): S3Client {
       region: 'auto',
       endpoint: endpoint(),
       credentials: { accessKeyId: R2_ACCESS_KEY_ID!, secretAccessKey: R2_SECRET_ACCESS_KEY! },
+      // The AWS SDK now adds request/response integrity checksums by default,
+      // which Cloudflare R2 doesn't support and which make uploads fail/hang.
+      // Only send a checksum when an operation actually requires one.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
   return client;

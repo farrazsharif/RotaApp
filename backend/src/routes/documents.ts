@@ -1,7 +1,13 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction, RequestHandler } from 'express';
 import multer from 'multer';
 import { authenticate } from '../middleware/auth';
 import { documentConfig, listDocuments, uploadDocument, downloadDocument, deleteDocument } from '../controllers/documentController';
+
+// Express 4 doesn't forward errors thrown from an async handler, which would
+// leave the request hanging (e.g. if an R2 call fails). This forwards any
+// rejection to the error handler so the client always gets a response.
+const wrap = (fn: RequestHandler): RequestHandler => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
 
 // Files are held in memory just long enough to stream to R2. 20MB covers
 // scanned certificates and multi-page PDFs.
@@ -24,9 +30,9 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/config', documentConfig);
-router.get('/', listDocuments);
-router.post('/', uploadSingle, uploadDocument);
-router.get('/:id/download', downloadDocument);
-router.delete('/:id', deleteDocument);
+router.get('/', wrap(listDocuments));
+router.post('/', uploadSingle, wrap(uploadDocument));
+router.get('/:id/download', wrap(downloadDocument));
+router.delete('/:id', wrap(deleteDocument));
 
 export default router;
