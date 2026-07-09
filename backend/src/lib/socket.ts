@@ -5,10 +5,21 @@ import { prisma } from './prisma';
 
 let io: Server;
 
+// Any caremid.co.uk subdomain (portal, carer, family) plus the apex, matching
+// the HTTP CORS policy in index.ts — so every frontend can open a socket.
+const CAREMID_HOST = /^https:\/\/([a-z0-9-]+\.)*caremid\.co\.uk$/;
+const devOrigins = [
+  process.env.CLIENT_URL, process.env.CARER_APP_URL, process.env.FAMILY_PORTAL_URL,
+  'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175',
+].filter(Boolean) as string[];
+
 export function initSocket(server: HttpServer) {
   io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin(origin, callback) {
+        if (!origin) return callback(null, true);
+        callback(null, devOrigins.includes(origin) || CAREMID_HOST.test(origin));
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import LiveSync from './components/LiveSync';
 import Login from './pages/Login';
 import SetPassword from './pages/SetPassword';
 import ServiceUsers from './pages/ServiceUsers';
@@ -10,6 +11,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <LiveSync />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/set-password" element={<SetPassword />} />

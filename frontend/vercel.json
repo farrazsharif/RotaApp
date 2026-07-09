@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://api.caremid.co.uk/api/:path*" },
+    { "source": "/socket.io/:path*", "destination": "https://api.caremid.co.uk/socket.io/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
