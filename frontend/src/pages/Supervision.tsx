@@ -6,7 +6,7 @@ import { supervisionApi } from '../api/supervision';
 import SpotCheckModal from '../components/SpotCheckModal';
 import Reviews from './Reviews';
 
-const TABS = ['Overview', 'Reviews'] as const;
+const TABS = ['Overview', 'Reviews', 'Spot checks'] as const;
 type Tab = typeof TABS[number];
 
 function Tile({ n, label, tone }: { n: number; label: string; tone: 'danger' | 'warning' | 'accent' }) {
@@ -30,16 +30,59 @@ function dueLabel(dateStr: string, overdue: boolean): { text: string; danger: bo
   return { text: days <= 0 ? 'Due today' : `In ${days}d`, danger: days <= 3 };
 }
 
+function Loading() {
+  return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
+}
+
 function Overview() {
+  const { data, isLoading } = useQuery({ queryKey: ['supervision-summary'], queryFn: supervisionApi.summary });
+  if (isLoading || !data) return <Loading />;
+  const riskOverdue = data.risk.items.filter((i) => i.overdue).length;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <Tile n={riskOverdue} label="Risk assessments overdue" tone="danger" />
+        <Tile n={data.reviews.dueCount} label="Reviews due soon" tone="warning" />
+        <Tile n={data.spotChecks.dueCount} label="Spot checks due" tone="accent" />
+      </div>
+
+      <div className="card space-y-3">
+        <h2 className="font-semibold text-gray-900">Reviews &amp; risk assessments due</h2>
+        {data.reviews.items.length === 0 && data.risk.items.length === 0 ? (
+          <p className="text-sm text-gray-400">Nothing due in the next 30 days.</p>
+        ) : (
+          <div className="space-y-2">
+            {data.risk.items.map((r) => {
+              const d = dueLabel(r.dueDate, r.overdue);
+              return (
+                <Link key={`risk-${r.serviceUserId}`} to={`/service-users/${r.serviceUserId}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5 hover:bg-gray-50">
+                  <div><p className="text-sm font-medium text-gray-900">{r.serviceUserName}</p><p className="text-xs text-gray-500">Care plan / risk review</p></div>
+                  <span className={`text-xs px-2 py-1 rounded-full ${d.danger ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{d.text}</span>
+                </Link>
+              );
+            })}
+            {data.reviews.items.map((r) => {
+              const d = dueLabel(r.dueDate, r.overdue);
+              return (
+                <Link key={`rev-${r.id}`} to={`/service-users/${r.serviceUserId}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5 hover:bg-gray-50">
+                  <div><p className="text-sm font-medium text-gray-900">{r.serviceUserName}</p><p className="text-xs text-gray-500">Service review</p></div>
+                  <span className={`text-xs px-2 py-1 rounded-full ${d.danger ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{d.text}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SpotChecks() {
   const { data, isLoading } = useQuery({ queryKey: ['supervision-summary'], queryFn: supervisionApi.summary });
   const [newFor, setNewFor] = useState<string | 'any' | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
-
-  if (isLoading || !data) {
-    return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
-  }
-
-  const riskOverdue = data.risk.items.filter((i) => i.overdue).length;
+  if (isLoading || !data) return <Loading />;
 
   return (
     <div className="space-y-6">
@@ -48,59 +91,23 @@ function Overview() {
         <button className="btn-primary btn" onClick={() => setNewFor('any')}>+ New spot check</button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Tile n={riskOverdue} label="Risk assessments overdue" tone="danger" />
-        <Tile n={data.reviews.dueCount} label="Reviews due soon" tone="warning" />
-        <Tile n={data.spotChecks.dueCount} label="Spot checks due" tone="accent" />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="card space-y-3">
-          <h2 className="font-semibold text-gray-900">Spot checks due</h2>
-          {data.spotChecks.items.length === 0 ? (
-            <p className="text-sm text-gray-400">Everyone's up to date.</p>
-          ) : (
-            <div className="space-y-2">
-              {data.spotChecks.items.map((c) => (
-                <div key={c.carerId} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{c.carerName}</p>
-                    <p className="text-xs text-gray-500">{c.lastCheck ? `Last checked ${differenceInWeeks(new Date(), new Date(c.lastCheck))} weeks ago` : 'Never checked'}</p>
-                  </div>
-                  <button className="btn-secondary btn btn-sm" onClick={() => setNewFor(c.carerId)}>Spot check</button>
+      <div className="card space-y-3">
+        <h2 className="font-semibold text-gray-900">Spot checks due</h2>
+        {data.spotChecks.items.length === 0 ? (
+          <p className="text-sm text-gray-400">Everyone's up to date.</p>
+        ) : (
+          <div className="space-y-2">
+            {data.spotChecks.items.map((c) => (
+              <div key={c.carerId} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{c.carerName}</p>
+                  <p className="text-xs text-gray-500">{c.lastCheck ? `Last checked ${differenceInWeeks(new Date(), new Date(c.lastCheck))} weeks ago` : 'Never checked'}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="card space-y-3">
-          <h2 className="font-semibold text-gray-900">Reviews &amp; risk assessments</h2>
-          {data.reviews.items.length === 0 && data.risk.items.length === 0 ? (
-            <p className="text-sm text-gray-400">Nothing due in the next 30 days.</p>
-          ) : (
-            <div className="space-y-2">
-              {data.risk.items.map((r) => {
-                const d = dueLabel(r.dueDate, r.overdue);
-                return (
-                  <Link key={`risk-${r.serviceUserId}`} to={`/service-users/${r.serviceUserId}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5 hover:bg-gray-50">
-                    <div><p className="text-sm font-medium text-gray-900">{r.serviceUserName}</p><p className="text-xs text-gray-500">Care plan / risk review</p></div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${d.danger ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{d.text}</span>
-                  </Link>
-                );
-              })}
-              {data.reviews.items.map((r) => {
-                const d = dueLabel(r.dueDate, r.overdue);
-                return (
-                  <Link key={`rev-${r.id}`} to={`/service-users/${r.serviceUserId}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5 hover:bg-gray-50">
-                    <div><p className="text-sm font-medium text-gray-900">{r.serviceUserName}</p><p className="text-xs text-gray-500">Service review</p></div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${d.danger ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{d.text}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                <button className="btn-secondary btn btn-sm" onClick={() => setNewFor(c.carerId)}>Spot check</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card space-y-3">
@@ -150,6 +157,7 @@ export default function Supervision() {
 
       {tab === 'Overview' && <Overview />}
       {tab === 'Reviews' && <Reviews embedded />}
+      {tab === 'Spot checks' && <SpotChecks />}
     </div>
   );
 }
