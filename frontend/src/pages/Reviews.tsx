@@ -46,14 +46,9 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   }
   const overdueReviews = [...latestPerUser.values()].filter(isOverdue);
 
-  // The single review most in need of doing — most overdue first, then soonest
-  // upcoming. Its follow-up is always a quarterly (the 6-week is a one-off at
-  // the start of the care package).
-  const nextDueReview = [...latestPerUser.values()]
-    .filter((r) => r.nextReviewDate)
-    .sort((a, b) => new Date(a.nextReviewDate!).getTime() - new Date(b.nextReviewDate!).getTime())[0] || null;
   // Only a user's most recent review row offers "Review now" — older, superseded
-  // rows shouldn't.
+  // rows shouldn't. The follow-up is always a quarterly (the 6-week is a one-off
+  // at the start of the care package).
   const latestReviewIds = new Set([...latestPerUser.values()].map((r) => r.id));
 
   const startFollowUp = (r: Review) => setModal({
@@ -69,7 +64,6 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
     setModal({ serviceUserId: su.id, serviceUserName: `${su.firstName} ${su.lastName}`, reviewType: newType, editReview: null });
   };
 
-  const reviewNextDue = () => { if (nextDueReview) startFollowUp(nextDueReview); };
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
@@ -89,16 +83,6 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
             placeholder="Search by client or assessor…"
             className="input w-64"
           />
-          {isManager && (
-            <button
-              className="btn-primary btn whitespace-nowrap"
-              disabled={!nextDueReview}
-              onClick={reviewNextDue}
-              title={nextDueReview?.serviceUser ? `Next due: ${nextDueReview.serviceUser.firstName} ${nextDueReview.serviceUser.lastName}` : 'No reviews due'}
-            >
-              Review now
-            </button>
-          )}
           {isManager && (
             <div className="flex gap-2">
               <select value={newForUserId} onChange={(e) => setNewForUserId(e.target.value)} className="input">
