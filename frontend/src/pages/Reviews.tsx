@@ -52,6 +52,16 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   const nextDueReview = [...latestPerUser.values()]
     .filter((r) => r.nextReviewDate)
     .sort((a, b) => new Date(a.nextReviewDate!).getTime() - new Date(b.nextReviewDate!).getTime())[0] || null;
+  // Only a user's most recent review row offers "Review now" — older, superseded
+  // rows shouldn't.
+  const latestReviewIds = new Set([...latestPerUser.values()].map((r) => r.id));
+
+  const startFollowUp = (r: Review) => setModal({
+    serviceUserId: r.serviceUserId,
+    serviceUserName: r.serviceUser ? `${r.serviceUser.firstName} ${r.serviceUser.lastName}` : '',
+    reviewType: 'QUARTERLY',
+    editReview: null,
+  });
 
   const startNewReview = () => {
     const su = serviceUsers.find((s) => s.id === newForUserId);
@@ -59,15 +69,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
     setModal({ serviceUserId: su.id, serviceUserName: `${su.firstName} ${su.lastName}`, reviewType: newType, editReview: null });
   };
 
-  const reviewNextDue = () => {
-    if (!nextDueReview?.serviceUser) return;
-    setModal({
-      serviceUserId: nextDueReview.serviceUserId,
-      serviceUserName: `${nextDueReview.serviceUser.firstName} ${nextDueReview.serviceUser.lastName}`,
-      reviewType: 'QUARTERLY',
-      editReview: null,
-    });
-  };
+  const reviewNextDue = () => { if (nextDueReview) startFollowUp(nextDueReview); };
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
@@ -184,6 +186,9 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                       </span>
                     ) : (
                       <span className="flex gap-2 justify-end">
+                        {isManager && isOverdue(r) && latestReviewIds.has(r.id) && (
+                          <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => startFollowUp(r)}>Review now</button>
+                        )}
                         <button
                           className="btn-secondary btn btn-sm"
                           onClick={() => setModal({
