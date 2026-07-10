@@ -57,11 +57,14 @@ export default function DocumentsTab({ ownerType, ownerId, canManage }: { ownerT
 
   async function view(doc: DocumentMeta) {
     // Open the tab synchronously (inside the click) so pop-up blockers allow it,
-    // then point it at the signed URL once we have it.
-    const win = window.open('', '_blank', 'noopener');
+    // then point it at the signed URL once we have it. Note: passing 'noopener'
+    // here makes window.open return null, so instead we null the opener manually.
+    const win = window.open('', '_blank');
+    if (win) win.opener = null;
     try {
       const url = await documentsApi.downloadUrl(doc.id, true);
-      if (win) win.location.href = url; else window.open(url, '_blank', 'noopener');
+      if (win) win.location.href = url;
+      else window.open(url, '_blank');
     } catch { win?.close(); setError('Could not open that file.'); }
   }
 
