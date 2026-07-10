@@ -7,6 +7,13 @@ const include = {
   serviceUser: { select: { id: true, firstName: true, lastName: true } },
 };
 
+// Adds whole months to a date (month-accurate, not 30-day approximation).
+function addMonthsUtc(d: Date, months: number): Date {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + months);
+  return x;
+}
+
 export async function listReviews(req: AuthRequest, res: Response) {
   const serviceUserId = req.query.serviceUserId as string | undefined;
   const where: Record<string, unknown> = serviceUserId ? { serviceUserId } : {};
@@ -37,7 +44,9 @@ export async function createReview(req: AuthRequest, res: Response) {
       serviceUserId,
       type: type === 'QUARTERLY' ? 'QUARTERLY' : 'SIX_WEEK',
       reviewDate: new Date(reviewDate),
-      nextReviewDate: nextReviewDate ? new Date(nextReviewDate) : null,
+      // Next review is 3 months on (for both the 6-week and quarterly reviews);
+      // fall back to computing it if the client didn't send one.
+      nextReviewDate: nextReviewDate ? new Date(nextReviewDate) : addMonthsUtc(new Date(reviewDate), 3),
       assessorName: assessorName || null,
       answers: answers ? JSON.stringify(answers) : '{}',
       otherInfo: otherInfo || null,

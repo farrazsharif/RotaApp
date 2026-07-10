@@ -44,7 +44,7 @@ function Overview() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-500">Carers are spot-checked every {data.intervalWeeks} weeks.</p>
+        <p className="text-sm text-gray-500">Carers are spot-checked every {data.intervalMonths} months.</p>
         <button className="btn-primary btn" onClick={() => setNewFor('any')}>+ New spot check</button>
       </div>
 

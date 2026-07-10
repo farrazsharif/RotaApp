@@ -5,10 +5,17 @@ import { Role } from '../constants';
 
 // How often each active carer should be spot-checked. Constant for Phase 1;
 // can move to an org setting later.
-const INTERVAL_WEEKS = 12;
+const INTERVAL_MONTHS = 3;
 // A review/risk assessment counts as "due" once it's within this many days.
 const SOON_DAYS = 30;
 const DAY = 86_400_000;
+
+// Adds whole months to a date (month-accurate, not a 30-day approximation).
+function addMonths(d: Date, months: number): Date {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + months);
+  return x;
+}
 
 // Counts "No" answers in a stored spot-check, as a rough concern indicator.
 function countConcerns(answersJson: string): number {
@@ -31,7 +38,6 @@ const spotCheckSelect = {
 export async function supervisionSummary(_req: AuthRequest, res: Response) {
   const now = new Date();
   const soon = new Date(now.getTime() + SOON_DAYS * DAY);
-  const intervalMs = INTERVAL_WEEKS * 7 * DAY;
 
   const [reviews, carePlans, carers, checks, recent] = await Promise.all([
     prisma.review.findMany({
@@ -58,14 +64,16 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
   const spotItems = carers
     .map((c) => {
       const last = lastByCarer.get(c.id) ?? null;
-      const due = !last || now.getTime() - last.getTime() >= intervalMs;
-      return { carerId: c.id, carerName: `${c.firstName} ${c.lastName}`, lastCheck: last, due };
+      // Next check is due 3 months after the last one (or now, if never checked).
+      const nextDue = last ? addMonths(last, INTERVAL_MONTHS) : null;
+      const due = !nextDue || nextDue <= now;
+      return { carerId: c.id, carerName: `${c.firstName} ${c.lastName}`, lastCheck: last, nextDue, due };
     })
     .filter((x) => x.due)
     .sort((a, b) => (a.lastCheck?.getTime() ?? 0) - (b.lastCheck?.getTime() ?? 0));
 
   res.json({
-    intervalWeeks: INTERVAL_WEEKS,
+    intervalMonths: INTERVAL_MONTHS,
     spotChecks: { dueCount: spotItems.length, items: spotItems },
     reviews: {
       dueCount: reviews.length,

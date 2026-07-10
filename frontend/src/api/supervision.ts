@@ -3,8 +3,8 @@ import api from '../lib/axios';
 export type YesNoNa = 'YES' | 'NO' | 'NA' | '';
 
 export interface SupervisionSummary {
-  intervalWeeks: number;
-  spotChecks: { dueCount: number; items: { carerId: string; carerName: string; lastCheck: string | null; due: boolean }[] };
+  intervalMonths: number;
+  spotChecks: { dueCount: number; items: { carerId: string; carerName: string; lastCheck: string | null; nextDue: string | null; due: boolean }[] };
   reviews: { dueCount: number; items: { id: string; serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };
   risk: { dueCount: number; items: { serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };
   recentSpotChecks: { id: string; carerName: string; date: string; concerns: number }[];
