@@ -50,7 +50,7 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
       select: { serviceUserId: true, reviewDate: true, serviceUser: { select: { firstName: true, lastName: true } } },
       orderBy: { reviewDate: 'asc' },
     }),
-    prisma.user.findMany({ where: { active: true, role: Role.EMPLOYEE }, select: { id: true, firstName: true, lastName: true } }),
+    prisma.user.findMany({ where: { active: true, role: { notIn: [Role.ADMIN, Role.FAMILY_MEMBER] } }, select: { id: true, firstName: true, lastName: true } }),
     prisma.spotCheck.findMany({ select: { id: true, carerId: true, date: true, observerName: true, answers: true }, orderBy: { date: 'desc' } }),
   ]);
 

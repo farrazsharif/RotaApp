@@ -22,7 +22,10 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
   const readOnly = !!viewId;
 
   const { data: existing } = useQuery({ queryKey: ['spot-check', viewId], queryFn: () => supervisionApi.getSpotCheck(viewId!), enabled: readOnly });
-  const { data: carers = [] } = useQuery({ queryKey: ['users', 'carers'], queryFn: () => usersApi.list({ role: 'EMPLOYEE', active: true }), enabled: !readOnly });
+  // All active staff except admins (carers, managers, coordinators, field
+  // supervisors) — anyone who might do visits and be spot-checked.
+  const { data: staff = [] } = useQuery({ queryKey: ['users', 'spot-check-staff'], queryFn: () => usersApi.list({ active: true }), enabled: !readOnly });
+  const carers = staff.filter((u) => u.role !== 'ADMIN');
   const { data: serviceUsers = [] } = useQuery({ queryKey: ['service-users', 'active'], queryFn: () => serviceUsersApi.list({ active: true }), enabled: !readOnly });
 
   const [carerId, setCarerId] = useState(initialCarerId || '');
