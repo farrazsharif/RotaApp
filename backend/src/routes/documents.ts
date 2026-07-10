@@ -1,13 +1,19 @@
 import { Router, Request, Response, NextFunction, RequestHandler } from 'express';
 import multer from 'multer';
-import { authenticate } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
+import { runWithCompany } from '../lib/tenantContext';
 import { documentConfig, listDocuments, uploadDocument, downloadDocument, deleteDocument } from '../controllers/documentController';
 
-// Express 4 doesn't forward errors thrown from an async handler, which would
-// leave the request hanging (e.g. if an R2 call fails). This forwards any
-// rejection to the error handler so the client always gets a response.
-const wrap = (fn: RequestHandler): RequestHandler => (req, res, next) =>
-  Promise.resolve(fn(req, res, next)).catch(next);
+// Runs a handler inside the caller's company (tenant) scope and forwards any
+// async rejection to the error handler. Re-establishing the scope matters for
+// the upload route: multer parses the body on a stream event that runs outside
+// the async-local tenant context set at auth, which would otherwise leave the
+// document write unscoped (and Express 4 wouldn't surface the thrown error).
+const scoped = (fn: RequestHandler): RequestHandler => (req, res, next) => {
+  const companyId = (req as AuthRequest).user?.companyId;
+  const run = () => Promise.resolve(fn(req, res, next)).catch(next);
+  return companyId ? runWithCompany(companyId, run) : run();
+};
 
 // Files are held in memory just long enough to stream to R2. 20MB covers
 // scanned certificates and multi-page PDFs.
@@ -30,9 +36,9 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/config', documentConfig);
-router.get('/', wrap(listDocuments));
-router.post('/', uploadSingle, wrap(uploadDocument));
-router.get('/:id/download', wrap(downloadDocument));
-router.delete('/:id', wrap(deleteDocument));
+router.get('/', scoped(listDocuments));
+router.post('/', uploadSingle, scoped(uploadDocument));
+router.get('/:id/download', scoped(downloadDocument));
+router.delete('/:id', scoped(deleteDocument));
 
 export default router;
