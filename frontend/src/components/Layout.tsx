@@ -1,9 +1,10 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { PermissionKey } from '../types';
 import NotificationBell from './NotificationBell';
 import ClockWidget from './ClockWidget';
+import OfficeNotes from './OfficeNotes';
 import { useState } from 'react';
 
 const navItems: { to: string; label: string; icon: string; exact?: boolean; managerOnly?: boolean; capability?: PermissionKey; platformOnly?: boolean }[] = [
@@ -28,6 +29,7 @@ export default function Layout() {
   const { user, logout, isManager } = useAuth();
   const { can } = usePermissions();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   function handleLogout() {
@@ -113,10 +115,13 @@ export default function Layout() {
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <Outlet />
-        </main>
+        {/* Page content + office-notes rail (dashboard only, office staff) */}
+        <div className="flex-1 flex min-h-0">
+          <main className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
+            <Outlet />
+          </main>
+          {location.pathname === '/' && isManager && <OfficeNotes />}
+        </div>
       </div>
     </div>
   );
