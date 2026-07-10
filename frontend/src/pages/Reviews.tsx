@@ -46,10 +46,27 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   }
   const overdueReviews = [...latestPerUser.values()].filter(isOverdue);
 
+  // The single review most in need of doing — most overdue first, then soonest
+  // upcoming. Its follow-up is always a quarterly (the 6-week is a one-off at
+  // the start of the care package).
+  const nextDueReview = [...latestPerUser.values()]
+    .filter((r) => r.nextReviewDate)
+    .sort((a, b) => new Date(a.nextReviewDate!).getTime() - new Date(b.nextReviewDate!).getTime())[0] || null;
+
   const startNewReview = () => {
     const su = serviceUsers.find((s) => s.id === newForUserId);
     if (!su) return;
     setModal({ serviceUserId: su.id, serviceUserName: `${su.firstName} ${su.lastName}`, reviewType: newType, editReview: null });
+  };
+
+  const reviewNextDue = () => {
+    if (!nextDueReview?.serviceUser) return;
+    setModal({
+      serviceUserId: nextDueReview.serviceUserId,
+      serviceUserName: `${nextDueReview.serviceUser.firstName} ${nextDueReview.serviceUser.lastName}`,
+      reviewType: 'QUARTERLY',
+      editReview: null,
+    });
   };
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
@@ -71,6 +88,16 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
             className="input w-64"
           />
           {isManager && (
+            <button
+              className="btn-primary btn whitespace-nowrap"
+              disabled={!nextDueReview}
+              onClick={reviewNextDue}
+              title={nextDueReview?.serviceUser ? `Next due: ${nextDueReview.serviceUser.firstName} ${nextDueReview.serviceUser.lastName}` : 'No reviews due'}
+            >
+              Review now
+            </button>
+          )}
+          {isManager && (
             <div className="flex gap-2">
               <select value={newForUserId} onChange={(e) => setNewForUserId(e.target.value)} className="input">
                 <option value="">Select service user…</option>
@@ -82,7 +109,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                 <option value="SIX_WEEK">6-Week</option>
                 <option value="QUARTERLY">Quarterly</option>
               </select>
-              <button className="btn-primary btn whitespace-nowrap" disabled={!newForUserId} onClick={startNewReview}>
+              <button className="btn-secondary btn whitespace-nowrap" disabled={!newForUserId} onClick={startNewReview}>
                 + New Review
               </button>
             </div>
