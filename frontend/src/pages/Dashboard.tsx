@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { reportsApi } from '../api/reports';
 import { shiftsApi } from '../api/shifts';
 import { clockApi } from '../api/clock';
+import { supervisionApi } from '../api/supervision';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { format, startOfWeek, endOfWeek, formatDistanceToNow } from 'date-fns';
@@ -55,6 +56,8 @@ export default function Dashboard() {
   const weekEnd = format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
   const { data: stats } = useQuery({ queryKey: ['dashboard-stats'], queryFn: reportsApi.dashboard, enabled: isManager });
+
+  const { data: supervision } = useQuery({ queryKey: ['supervision-summary'], queryFn: supervisionApi.summary, enabled: can('manage_supervision') });
 
   const { data: myShifts = [] } = useQuery({
     queryKey: ['shifts', 'my', weekStart, weekEnd],
@@ -120,6 +123,21 @@ export default function Dashboard() {
           <Kpi label="Active carers" value={stats.totalEmployees} sub={<span className="text-gray-500">{activeClockRecords.length} on call now</span>} to="/users" />
           <Kpi label="Pending time off" value={stats.pendingTimeOff} to="/time-off" />
         </div>
+      )}
+
+      {/* Supervision summary */}
+      {can('manage_supervision') && supervision && (
+        <Link to="/supervision" className="card block hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Supervision</h2>
+            <span className="text-sm text-blue-600">Open →</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mt-3">
+            <div><p className="text-2xl font-bold text-red-600">{supervision.risk.items.filter((i) => i.overdue).length}</p><p className="text-xs text-gray-500">Risk overdue</p></div>
+            <div><p className="text-2xl font-bold text-amber-600">{supervision.reviews.dueCount}</p><p className="text-xs text-gray-500">Reviews due</p></div>
+            <div><p className="text-2xl font-bold text-blue-600">{supervision.spotChecks.dueCount}</p><p className="text-xs text-gray-500">Spot checks due</p></div>
+          </div>
+        </Link>
       )}
 
       {/* Live ops + coverage */}

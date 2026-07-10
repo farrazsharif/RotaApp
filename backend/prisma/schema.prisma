@@ -74,6 +74,7 @@ model User {
   familyLinks        FamilyLink[]
   trainings          Training[]
   importantDates     ImportantDate[]
+  spotChecks         SpotCheck[]         @relation("SpotCheckCarer")
   customRole         CustomRole?         @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   // Sites this user is scoped to / belongs to. Empty = org-wide (no restriction).
   sites              Site[]              @relation("UserSites")
@@ -169,6 +170,7 @@ model ServiceUser {
   fundingArrangements FundingArrangement[]
   invoiceLines        InvoiceLine[]
   statusChanges       ServiceUserStatusChange[]
+  spotChecks          SpotCheck[]
 
   @@index([companyId])
 }
@@ -325,6 +327,32 @@ model Review {
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
 
+  @@index([companyId])
+}
+
+// A field-supervisor spot check: observing a carer on a visit against a
+// checklist, with general comments and the observer's signature. Answers are
+// JSON keyed by item id: { itemId: { answer: "YES"|"NO"|"NA", comment } }.
+model SpotCheck {
+  companyId         String? // tenant scope (app-enforced via Prisma extension)
+  id                String   @id @default(cuid())
+  carerId           String
+  serviceUserId     String?
+  date              DateTime
+  time              String?
+  location          String?
+  answers           String   @default("{}")
+  generalComments   String?
+  observerId        String?
+  observerName      String?
+  observerSignature String? // drawn signature as a data URL
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  carer       User         @relation("SpotCheckCarer", fields: [carerId], references: [id], onDelete: Cascade)
+  serviceUser ServiceUser? @relation(fields: [serviceUserId], references: [id], onDelete: SetNull)
+
+  @@index([carerId, date])
   @@index([companyId])
 }
 

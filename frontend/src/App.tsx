@@ -19,7 +19,9 @@ import CallLogs from './pages/CallLogs';
 import Emar from './pages/Emar';
 import CarePlans from './pages/CarePlans';
 import Reviews from './pages/Reviews';
+import Supervision from './pages/Supervision';
 import ServicePlans from './pages/ServicePlans';
+import { usePermissions } from './hooks/usePermissions';
 import Finances from './pages/Finances';
 import Settings from './pages/Settings';
 import Billing from './pages/Billing';
@@ -54,7 +56,11 @@ function PlatformRoute({ children }: { children: React.ReactNode }) {
 // gets the normal company dashboard.
 function Home() {
   const { user } = useAuth();
+  const { can } = usePermissions();
   if (user?.platformAdmin) return <Navigate to="/platform" replace />;
+  // Field supervisors (supervision, but not full scheduling) land on their
+  // supervision dashboard; coordinators/admins keep the ops dashboard.
+  if (can('manage_supervision') && !can('manage_schedule')) return <Navigate to="/supervision" replace />;
   return <Dashboard />;
 }
 
@@ -85,6 +91,7 @@ function AppRoutes() {
         <Route path="emar" element={<Emar />} />
         <Route path="care-plans" element={<CarePlans />} />
         <Route path="reviews" element={<Reviews />} />
+        <Route path="supervision" element={<Supervision />} />
         <Route path="service-plans" element={<ServicePlans />} />
         <Route path="time-off" element={<ManagerRoute><TimeOff /></ManagerRoute>} />
         <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />

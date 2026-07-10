@@ -16,6 +16,7 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; mana
   { to: '/service-plans', label: 'Service Plans', icon: '🗂️', capability: 'manage_service_users' },
   { to: '/call-logs', label: 'Call Logs', icon: '📝', capability: 'manage_service_users' },
   { to: '/emar', label: 'eMAR', icon: '💊', capability: 'manage_medications' },
+  { to: '/supervision', label: 'Supervision', icon: '✅', capability: 'manage_supervision' },
   { to: '/time-off', label: 'Time Off', icon: '🏖️', capability: 'manage_time_off' },
   { to: '/attendance', label: 'Attendance', icon: '⏱️', capability: 'manage_schedule' },
   { to: '/reports', label: 'Reports', icon: '📊', capability: 'view_reports' },

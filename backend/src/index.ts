@@ -39,6 +39,8 @@ import paymentRoutes from './routes/payments';
 import billingRoutes from './routes/billing';
 import platformRoutes from './routes/platform';
 import documentRoutes from './routes/documents';
+import supervisionRoutes from './routes/supervision';
+import { backfillAllCompanyRoles } from './lib/defaultRoles';
 import { handleWebhook } from './controllers/billingController';
 import { startShiftReminders } from './lib/shiftReminders';
 
@@ -127,6 +129,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/supervision', supervisionRoutes);
 
 app.use(errorHandler);
 
@@ -136,6 +139,7 @@ server.listen(PORT, () => {
   const transport = process.env.BREVO_API_KEY ? 'Brevo API (HTTPS)' : process.env.SMTP_HOST ? 'SMTP' : 'console (no email configured)';
   console.log(`Email transport: ${transport}`);
   startShiftReminders();
+  backfillAllCompanyRoles(prisma).catch((e) => console.error('Role backfill failed:', e));
 });
 
 // Safety net: keep the server alive if a controller's promise rejects without

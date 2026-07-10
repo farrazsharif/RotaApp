@@ -7,6 +7,7 @@ import { getTenant } from '../lib/tenantContext';
 export type PermissionKey =
   | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
+  | 'manage_supervision'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
   | 'manage_billing'
   | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data' | 'view_audit_log';
@@ -32,6 +33,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'manage_service_users',  label: 'Manage service users, care & service plans', group: 'Care', default: AM },
   { key: 'manage_reviews',        label: 'Create & edit reviews',            group: 'Care',      default: AM },
   { key: 'manage_medications',    label: 'Manage medications (eMAR)',        group: 'Care',      default: AM },
+  { key: 'manage_supervision',    label: 'Spot checks & supervision dashboard', group: 'Care',   default: AM },
   { key: 'edit_call_logs',        label: 'Edit & delete call logs',          group: 'Care',      default: A },
 
   { key: 'manage_schedule',       label: 'Create & edit shifts, edit clock records', group: 'Scheduling', default: AM },
