@@ -45,14 +45,15 @@ export async function deleteObject(key: string): Promise<void> {
   await getClient().send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
 }
 
-// A short-lived link the browser can use to download the file straight from R2
-// (so file bytes never stream back through our server). The content-disposition
-// makes the browser save it under the original name.
-export async function getDownloadUrl(key: string, fileName: string): Promise<string> {
+// A short-lived link the browser can use to fetch the file straight from R2
+// (so file bytes never stream back through our server). `inline` renders it in
+// the browser (View); otherwise it's saved under the original name (Download).
+export async function getDownloadUrl(key: string, fileName: string, inline = false): Promise<string> {
+  const disposition = inline ? 'inline' : 'attachment';
   const cmd = new GetObjectCommand({
     Bucket: R2_BUCKET,
     Key: key,
-    ResponseContentDisposition: `attachment; filename="${fileName.replace(/["\\]/g, '')}"`,
+    ResponseContentDisposition: `${disposition}; filename="${fileName.replace(/["\\]/g, '')}"`,
   });
   return getSignedUrl(getClient(), cmd, { expiresIn: 300 });
 }

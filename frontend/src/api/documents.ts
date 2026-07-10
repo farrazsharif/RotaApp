@@ -28,6 +28,7 @@ export const documentsApi = {
       .post<DocumentMeta>('/documents', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
       .then((r) => r.data);
   },
-  downloadUrl: (id: string) => api.get<{ url: string }>(`/documents/${id}/download`).then((r) => r.data.url),
+  downloadUrl: (id: string, inline = false) =>
+    api.get<{ url: string }>(`/documents/${id}/download`, { params: inline ? { inline: '1' } : {} }).then((r) => r.data.url),
   remove: (id: string) => api.delete(`/documents/${id}`).then((r) => r.data),
 };

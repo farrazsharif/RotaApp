@@ -55,6 +55,16 @@ export default function DocumentsTab({ ownerType, ownerId, canManage }: { ownerT
     } catch { setError('Could not open that file.'); }
   }
 
+  async function view(doc: DocumentMeta) {
+    // Open the tab synchronously (inside the click) so pop-up blockers allow it,
+    // then point it at the signed URL once we have it.
+    const win = window.open('', '_blank', 'noopener');
+    try {
+      const url = await documentsApi.downloadUrl(doc.id, true);
+      if (win) win.location.href = url; else window.open(url, '_blank', 'noopener');
+    } catch { win?.close(); setError('Could not open that file.'); }
+  }
+
   const notConfigured = config && !config.configured;
 
   return (
@@ -94,7 +104,8 @@ export default function DocumentsTab({ ownerType, ownerId, canManage }: { ownerT
                   <td className="p-2.5 text-gray-600 whitespace-nowrap">{fmtSize(d.size)}</td>
                   <td className="p-2.5 text-gray-600 whitespace-nowrap">{format(new Date(d.createdAt), 'dd MMM yyyy')}</td>
                   <td className="p-2.5 text-right whitespace-nowrap">
-                    <button className="text-blue-600 text-xs hover:underline" onClick={() => download(d)}>Download</button>
+                    <button className="text-blue-600 text-xs hover:underline" onClick={() => view(d)}>View</button>
+                    <button className="ml-3 text-blue-600 text-xs hover:underline" onClick={() => download(d)}>Download</button>
                     {canManage && (
                       confirmDeleteId === d.id ? (
                         <span className="ml-3 inline-flex items-center gap-2">

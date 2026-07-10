@@ -107,7 +107,7 @@ export async function downloadDocument(req: AuthRequest, res: Response) {
   if (!storageConfigured()) {
     return res.status(503).json({ error: 'Document storage is not set up yet.' });
   }
-  const url = await getDownloadUrl(doc.storageKey, doc.fileName);
+  const url = await getDownloadUrl(doc.storageKey, doc.fileName, req.query.inline === '1');
   res.json({ url });
 }
 
