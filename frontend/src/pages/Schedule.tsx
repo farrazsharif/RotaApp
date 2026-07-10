@@ -95,8 +95,8 @@ export default function Schedule() {
   const [search, setSearch] = useState('');
   const [assignFilter, setAssignFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
-  const [confirmPublishAll, setConfirmPublishAll] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pubMenuOpen, setPubMenuOpen] = useState(false);
 
   const [mode, setMode] = useState<'calendar' | 'carer'>('calendar');
   const [viewKey, setViewKey] = useState<ViewKey>('week');
@@ -156,6 +156,11 @@ export default function Schedule() {
 
   const draftShown = activeShifts.filter((s) => !s.published && !needsStaff(s));
   const draftUnassignedShown = activeShifts.filter((s) => !s.published && needsStaff(s)).length;
+  // Ready drafts falling in the week the calendar is centred on — lets managers
+  // publish just this week without publishing the whole loaded range.
+  const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
+  const weekEnd = addDays(weekStart, 7);
+  const draftThisWeek = draftShown.filter((s) => { const d = new Date(s.date); return d >= weekStart && d < weekEnd; });
 
   // Visible date range for the current view (drives the summary + carer grid).
   const range = useMemo(() => {
@@ -352,17 +357,17 @@ export default function Schedule() {
       {/* Row 2: search + filters + actions (managers) */}
       {isManager && (
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client or carer…" className="input w-56 text-sm" />
-            <div className="flex gap-1.5">
+            <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden divide-x divide-gray-200">
               {([{ k: 'all', label: 'All' }, { k: 'assigned', label: 'Assigned' }, { k: 'unassigned', label: `Unassigned${unassignedCount ? ` · ${unassignedCount}` : ''}` }] as const).map((opt) => (
                 <button
                   key={opt.k}
                   onClick={() => setAssignFilter(opt.k)}
-                  className={`px-3 py-1.5 rounded-full text-sm border ${
+                  className={`px-3 py-1.5 text-sm transition-colors ${
                     assignFilter === opt.k
-                      ? opt.k === 'unassigned' ? 'bg-red-600 text-white border-red-600' : 'bg-blue-600 text-white border-blue-600'
-                      : `bg-white hover:bg-gray-50 ${opt.k === 'unassigned' && unassignedCount ? 'text-red-600 border-red-200' : 'text-gray-600 border-gray-200'}`
+                      ? opt.k === 'unassigned' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
+                      : `bg-white hover:bg-gray-50 ${opt.k === 'unassigned' && unassignedCount ? 'text-red-600' : 'text-gray-600'}`
                   }`}
                 >
                   {opt.label}
@@ -371,21 +376,38 @@ export default function Schedule() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn-secondary btn" disabled={draftShown.length === 0} onClick={() => { setConfirmPublishAll(true); setMenuOpen(false); }}>
-              Publish ready ({draftShown.length})
-            </button>
             <div className="relative">
               <button className="btn-secondary btn" onClick={() => setMenuOpen((o) => !o)} aria-label="More actions">⋯</button>
               {menuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
                   <div className="absolute right-0 mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 text-sm">
-                    <button className="w-full text-left px-3 py-2 hover:bg-gray-50 disabled:text-gray-300" disabled={draftShown.length === 0} onClick={() => { setConfirmPublishAll(true); setMenuOpen(false); }}>
-                      Publish ready ({draftShown.length})
-                    </button>
                     <button className="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 disabled:text-gray-300" disabled={activeShifts.length === 0} onClick={() => { setConfirmCancelAll(true); setMenuOpen(false); }}>
                       Cancel all shown ({activeShifts.length})
                     </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="relative">
+              <button className="btn-primary btn" disabled={draftShown.length === 0} onClick={() => setPubMenuOpen((o) => !o)}>
+                Publish <span className="ml-1 text-xs">▾</span>
+              </button>
+              {pubMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setPubMenuOpen(false)} />
+                  <div className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 text-sm">
+                    <p className="px-3 pt-1.5 pb-1 text-xs font-medium text-gray-400">Publish drafts to the carer app</p>
+                    <button className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 disabled:text-gray-300 disabled:hover:bg-transparent" disabled={draftThisWeek.length === 0 || publishAllMut.isPending} onClick={() => publishAllMut.mutate(draftThisWeek.map((s) => s.id), { onSettled: () => setPubMenuOpen(false) })}>
+                      <span>Publish this week</span><span className="text-gray-400">{draftThisWeek.length}</span>
+                    </button>
+                    <button className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 disabled:text-gray-300 disabled:hover:bg-transparent" disabled={draftShown.length === 0 || publishAllMut.isPending} onClick={() => publishAllMut.mutate(draftShown.map((s) => s.id), { onSettled: () => setPubMenuOpen(false) })}>
+                      <span>Publish all ready</span><span className="text-gray-400">{draftShown.length}</span>
+                    </button>
+                    {publishAllMut.isPending && <p className="px-3 py-2 text-xs text-gray-500">Publishing…</p>}
+                    {draftUnassignedShown > 0 && !publishAllMut.isPending && (
+                      <p className="px-3 py-2 mt-1 border-t border-gray-100 text-xs text-amber-600">{draftUnassignedShown} more need a carer first</p>
+                    )}
                   </div>
                 </>
               )}
@@ -395,16 +417,6 @@ export default function Schedule() {
       )}
 
       {/* Confirm bars */}
-      {isManager && confirmPublishAll && (
-        <div className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-3 py-2">
-          <span className="text-sm text-green-800">Publish {draftShown.length} fully-assigned draft{draftShown.length === 1 ? '' : 's'} to the carer app?</span>
-          <button className="btn-primary btn btn-sm" disabled={publishAllMut.isPending} onClick={() => publishAllMut.mutate(draftShown.map((s) => s.id), { onSettled: () => setConfirmPublishAll(false) })}>
-            {publishAllMut.isPending ? 'Publishing…' : 'Yes, publish'}
-          </button>
-          <button className="btn-secondary btn btn-sm" onClick={() => setConfirmPublishAll(false)}>No</button>
-          {draftUnassignedShown > 0 && <span className="text-xs text-amber-600 font-medium ml-1">{draftUnassignedShown} more need a carer first</span>}
-        </div>
-      )}
       {isManager && confirmCancelAll && (
         <div className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2">
           <span className="text-sm text-red-800">Cancel all {activeShifts.length} shown shift{activeShifts.length === 1 ? '' : 's'}? This can't be undone.</span>
