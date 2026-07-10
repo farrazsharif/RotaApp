@@ -148,7 +148,7 @@ function SpotChecks() {
                     </td>
                     <td className="px-4 py-3 text-gray-600">{r.observerName || '—'}</td>
                     <td className="px-4 py-3 text-right">
-                      {confirmDelete === r.lastCheckId ? (
+                      {confirmDelete && confirmDelete === r.lastCheckId ? (
                         <span className="flex items-center gap-2 justify-end">
                           <span className="text-xs text-red-700">Delete last?</span>
                           <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(r.lastCheckId!)}>Yes</button>
