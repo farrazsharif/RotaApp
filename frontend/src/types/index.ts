@@ -1,4 +1,7 @@
 export type Role = 'ADMIN' | 'MANAGER' | 'EMPLOYEE' | 'FAMILY_MEMBER';
+// User-facing label for a base role. The EMPLOYEE base type is shown as "Carer"
+// (the role value stays EMPLOYEE in code and the API).
+export const roleLabel = (role: Role): string => (role === 'EMPLOYEE' ? 'Carer' : role);
 export type ShiftStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'SWAPPED';
 export type TimeOffType = 'VACATION' | 'SICK' | 'PERSONAL' | 'OTHER';
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

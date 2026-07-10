@@ -114,7 +114,7 @@ export default function Reports() {
   const schedGrandTotal = filteredScheduled.reduce((s, r) => s + r.total, 0);
 
   function exportScheduledCsv() {
-    const lines = [['Employee', 'Hours'].join(',')];
+    const lines = [['Carer', 'Hours'].join(',')];
     for (const row of filteredScheduled) lines.push([row.name, row.total].join(','));
     lines.push(['Total', (Math.round(schedGrandTotal * 100) / 100).toFixed(2)].join(','));
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -164,9 +164,9 @@ export default function Reports() {
               </select>
             </div>
             <div>
-              <label className="label">Employee Filter</label>
+              <label className="label">Carer Filter</label>
               <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="input">
-                <option value="">Select Employees</option>
+                <option value="">Select Carers</option>
                 {employees.map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
               </select>
             </div>
@@ -211,7 +211,7 @@ export default function Reports() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Employee</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Clock Records</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Total Hours</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Est. Pay</th>
@@ -256,7 +256,7 @@ export default function Reports() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Employee</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Hours</th>
                   </tr>
                 </thead>
@@ -288,7 +288,7 @@ export default function Reports() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Employee</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Position</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Service User</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
@@ -336,7 +336,7 @@ export default function Reports() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Employee</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Week Starting</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Regular (40h)</th>
                     <th className="text-right px-4 py-3 font-medium text-gray-600">Overtime</th>

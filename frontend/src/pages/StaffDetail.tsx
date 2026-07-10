@@ -5,7 +5,7 @@ import { usersApi } from '../api/users';
 import { trainingApi, TrainingData } from '../api/training';
 import { importantDatesApi, ImportantDateData } from '../api/importantDates';
 import { useAuth } from '../contexts/AuthContext';
-import { Role, Training, ImportantDate, FitForWork, YesNo, User } from '../types';
+import { Role, Training, ImportantDate, FitForWork, YesNo, User, roleLabel } from '../types';
 import { format } from 'date-fns';
 import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
@@ -97,7 +97,7 @@ export default function StaffDetail() {
               <h1 className="text-2xl font-bold text-gray-900">{user.firstName} {user.lastName}</h1>
               <p className="text-sm text-gray-500">{user.email}{user.phone && ` · ${user.phone}`}</p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className={roleBadge[user.role]}>{user.customRole?.name || user.role}</span>
+                <span className={roleBadge[user.role]}>{user.customRole?.name || roleLabel(user.role)}</span>
                 <span className={statusInfo(user).cls}>{statusInfo(user).label}</span>
                 <span className="badge-blue badge">£{user.hourlyRate.toFixed(2)}/hr</span>
                 {user.sites && user.sites.length > 0
@@ -140,7 +140,7 @@ export default function StaffDetail() {
           <div className="card space-y-3">
             <h2 className="font-semibold text-gray-900">Job</h2>
             <div className="grid grid-cols-2 gap-4">
-              <div><p className="text-xs text-gray-400">Role</p><p className="text-sm text-gray-800">{user.role}</p></div>
+              <div><p className="text-xs text-gray-400">Role</p><p className="text-sm text-gray-800">{user.customRole?.name || roleLabel(user.role)}</p></div>
               <div><p className="text-xs text-gray-400">Hourly Rate</p><p className="text-sm text-gray-800">£{user.hourlyRate.toFixed(2)}</p></div>
               <div><p className="text-xs text-gray-400">Status</p><p className="text-sm text-gray-800">{statusInfo(user).label}</p></div>
               <div><p className="text-xs text-gray-400">Joined</p><p className="text-sm text-gray-800">{format(new Date(user.createdAt), 'dd MMM yyyy')}</p></div>

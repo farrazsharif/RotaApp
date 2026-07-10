@@ -59,7 +59,7 @@ export default function Attendance() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {isManager && <th className="text-left px-4 py-3 font-medium text-gray-600">Employee</th>}
+                {isManager && <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>}
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Clock In</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Clock Out</th>

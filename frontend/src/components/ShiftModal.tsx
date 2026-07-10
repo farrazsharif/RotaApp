@@ -345,7 +345,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
           </div>
 
           <div>
-            <label className="label">Carers (Employees)</label>
+            <label className="label">Carers</label>
             {!readOnly && (
               <p className="text-xs text-gray-500 mb-2">{assignedIds.length} of {cover} slot{cover > 1 ? 's' : ''} filled — leave unchecked to assign later.</p>
             )}
@@ -808,7 +808,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
             {/* Right: employee assignment */}
             <div className="w-1/2 p-6 space-y-4 overflow-y-auto">
               <div>
-                <h3 className="font-semibold text-gray-900">Employee Assignment</h3>
+                <h3 className="font-semibold text-gray-900">Carer Assignment</h3>
                 <p className="text-xs text-gray-500">{assignedIds.length} of {cover} slot{cover > 1 ? 's' : ''} filled</p>
               </div>
 

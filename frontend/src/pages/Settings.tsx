@@ -211,7 +211,7 @@ function CustomRolesManager() {
             <div>
               <label className="label">Base Account Type</label>
               <select value={draft.baseType} onChange={(e) => setDraft({ ...draft, baseType: e.target.value as Role })} className="input">
-                <option value="EMPLOYEE">Employee (carer app)</option>
+                <option value="EMPLOYEE">Carer (carer app)</option>
                 <option value="MANAGER">Manager (office app)</option>
                 <option value="ADMIN">Admin (office app)</option>
                 <option value="FAMILY_MEMBER">Family (family portal)</option>
@@ -254,7 +254,7 @@ function CustomRolesManager() {
 const MATRIX_ROLES: { key: Role; label: string }[] = [
   { key: 'ADMIN', label: 'Admin' },
   { key: 'MANAGER', label: 'Manager' },
-  { key: 'EMPLOYEE', label: 'Employee' },
+  { key: 'EMPLOYEE', label: 'Carer' },
   { key: 'FAMILY_MEMBER', label: 'Family' },
 ];
 
@@ -599,7 +599,7 @@ function StaffDefaultsTab() {
         <div>
           <label className="label">Default Role</label>
           <select value={s.defaultRole} onChange={(e) => set({ defaultRole: e.target.value as Role })} className="input">
-            <option value="EMPLOYEE">Employee</option>
+            <option value="EMPLOYEE">Carer</option>
             <option value="MANAGER">Manager</option>
           </select>
         </div>

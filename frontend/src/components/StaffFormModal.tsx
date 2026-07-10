@@ -159,7 +159,7 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
               className="input"
             >
               <optgroup label="Built-in">
-                <option value="base:EMPLOYEE">Employee</option>
+                <option value="base:EMPLOYEE">Carer</option>
                 <option value="base:MANAGER">Manager</option>
                 {isAdmin && <option value="base:ADMIN">Admin</option>}
               </optgroup>

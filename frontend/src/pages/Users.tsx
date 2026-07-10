@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { usePermissions } from '../hooks/usePermissions';
-import { User, Role } from '../types';
+import { User, Role, roleLabel } from '../types';
 import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
 
@@ -61,7 +61,7 @@ export default function Users() {
         <h1 className="text-2xl font-bold text-gray-900">Staff</h1>
         <div className="flex gap-3">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="input w-48" />
-          {can('manage_staff') && <button className="btn-primary btn" onClick={() => setShowModal(true)}>+ Add Employee</button>}
+          {can('manage_staff') && <button className="btn-primary btn" onClick={() => setShowModal(true)}>+ Add Staff</button>}
         </div>
       </div>
 
@@ -88,7 +88,7 @@ export default function Users() {
                 </td>
                 <td className="px-4 py-3 text-gray-600">{u.email}</td>
                 <td className="px-4 py-3">
-                  <span className={roleBadge[u.role]}>{u.customRole?.name || u.role}</span>
+                  <span className={roleBadge[u.role]}>{u.customRole?.name || roleLabel(u.role)}</span>
                 </td>
                 <td className="px-4 py-3 text-right text-gray-600">£{u.hourlyRate.toFixed(2)}</td>
                 <td className="px-4 py-3">
