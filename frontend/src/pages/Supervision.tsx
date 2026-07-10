@@ -97,15 +97,25 @@ function SpotChecks() {
           <p className="text-sm text-gray-400">Everyone's up to date.</p>
         ) : (
           <div className="space-y-2">
-            {data.spotChecks.items.map((c) => (
-              <div key={c.carerId} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{c.carerName}</p>
-                  <p className="text-xs text-gray-500">{c.lastCheck ? `Last checked ${differenceInWeeks(new Date(), new Date(c.lastCheck))} weeks ago` : 'Never checked'}</p>
+            {data.spotChecks.items.map((c) => {
+              const overdays = c.nextDue ? differenceInCalendarDays(new Date(), new Date(c.nextDue)) : null;
+              const chip = overdays === null ? 'Due now' : overdays > 0 ? `Overdue ${overdays}d` : 'Due today';
+              return (
+                <div key={c.carerId} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{c.carerName}</p>
+                    <p className="text-xs text-gray-500">
+                      {c.lastCheck ? `Last checked ${differenceInWeeks(new Date(), new Date(c.lastCheck))} weeks ago` : 'Never checked'}
+                      {c.nextDue && ` · was due ${format(new Date(c.nextDue), 'dd MMM yyyy')}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-xs px-2 py-1 rounded-full bg-red-50 text-red-600">{chip}</span>
+                    <button className="btn-secondary btn btn-sm" onClick={() => setNewFor(c.carerId)}>Spot check</button>
+                  </div>
                 </div>
-                <button className="btn-secondary btn btn-sm" onClick={() => setNewFor(c.carerId)}>Spot check</button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -118,7 +128,7 @@ function SpotChecks() {
           <div className="divide-y">
             {data.recentSpotChecks.map((r) => (
               <button key={r.id} onClick={() => setViewId(r.id)} className="w-full flex items-center justify-between gap-3 py-2.5 text-left hover:bg-gray-50 px-1 -mx-1 rounded">
-                <div><p className="text-sm font-medium text-gray-900">{r.carerName}</p><p className="text-xs text-gray-500">{format(new Date(r.date), 'dd MMM yyyy')}</p></div>
+                <div><p className="text-sm font-medium text-gray-900">{r.carerName}</p><p className="text-xs text-gray-500">{format(new Date(r.date), 'dd MMM yyyy')} · next due {format(new Date(r.nextDue), 'dd MMM yyyy')}</p></div>
                 <span className={`text-xs px-2 py-1 rounded-full ${r.concerns > 0 ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'}`}>{r.concerns > 0 ? `${r.concerns} concern${r.concerns === 1 ? '' : 's'}` : 'No concerns'}</span>
               </button>
             ))}

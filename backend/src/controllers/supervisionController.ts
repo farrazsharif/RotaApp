@@ -83,7 +83,7 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
       dueCount: carePlans.length,
       items: carePlans.map((c) => ({ serviceUserId: c.serviceUserId, serviceUserName: `${c.serviceUser.firstName} ${c.serviceUser.lastName}`, dueDate: c.reviewDate, overdue: !!c.reviewDate && c.reviewDate < now })),
     },
-    recentSpotChecks: recent.map((r) => ({ id: r.id, carerName: `${r.carer.firstName} ${r.carer.lastName}`, date: r.date, concerns: countConcerns(r.answers) })),
+    recentSpotChecks: recent.map((r) => ({ id: r.id, carerName: `${r.carer.firstName} ${r.carer.lastName}`, date: r.date, nextDue: addMonths(r.date, INTERVAL_MONTHS), concerns: countConcerns(r.answers) })),
   });
 }
 

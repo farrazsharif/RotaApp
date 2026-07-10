@@ -7,7 +7,7 @@ export interface SupervisionSummary {
   spotChecks: { dueCount: number; items: { carerId: string; carerName: string; lastCheck: string | null; nextDue: string | null; due: boolean }[] };
   reviews: { dueCount: number; items: { id: string; serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };
   risk: { dueCount: number; items: { serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };
-  recentSpotChecks: { id: string; carerName: string; date: string; concerns: number }[];
+  recentSpotChecks: { id: string; carerName: string; date: string; nextDue: string; concerns: number }[];
 }
 
 export interface SpotCheck {
