@@ -39,7 +39,7 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
   const now = new Date();
   const soon = new Date(now.getTime() + SOON_DAYS * DAY);
 
-  const [reviews, carePlans, carers, checks, recent] = await Promise.all([
+  const [reviews, carePlans, carers, checks] = await Promise.all([
     prisma.review.findMany({
       where: { nextReviewDate: { not: null, lte: soon } },
       select: { id: true, serviceUserId: true, nextReviewDate: true, serviceUser: { select: { firstName: true, lastName: true } } },
@@ -51,30 +51,39 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
       orderBy: { reviewDate: 'asc' },
     }),
     prisma.user.findMany({ where: { active: true, role: Role.EMPLOYEE }, select: { id: true, firstName: true, lastName: true } }),
-    prisma.spotCheck.findMany({ select: { carerId: true, date: true }, orderBy: { date: 'desc' } }),
-    prisma.spotCheck.findMany({
-      orderBy: { date: 'desc' }, take: 6,
-      select: { id: true, date: true, answers: true, carer: { select: { firstName: true, lastName: true } } },
-    }),
+    prisma.spotCheck.findMany({ select: { id: true, carerId: true, date: true, observerName: true, answers: true }, orderBy: { date: 'desc' } }),
   ]);
 
-  // Latest spot check per carer, then flag those overdue (or never checked).
-  const lastByCarer = new Map<string, Date>();
-  for (const c of checks) if (!lastByCarer.has(c.carerId)) lastByCarer.set(c.carerId, c.date);
-  const spotItems = carers
+  // Latest spot check per carer (checks are newest-first, so first wins).
+  const latestByCarer = new Map<string, { id: string; date: Date; observerName: string | null; concerns: number }>();
+  for (const c of checks) {
+    if (!latestByCarer.has(c.carerId)) latestByCarer.set(c.carerId, { id: c.id, date: c.date, observerName: c.observerName, concerns: countConcerns(c.answers) });
+  }
+  // One row per active carer: their last check, auto next-due date, and status.
+  const spotRows = carers
     .map((c) => {
-      const last = lastByCarer.get(c.id) ?? null;
-      // Next check is due 3 months after the last one (or now, if never checked).
-      const nextDue = last ? addMonths(last, INTERVAL_MONTHS) : null;
+      const last = latestByCarer.get(c.id) ?? null;
+      const nextDue = last ? addMonths(last.date, INTERVAL_MONTHS) : null;
       const due = !nextDue || nextDue <= now;
-      return { carerId: c.id, carerName: `${c.firstName} ${c.lastName}`, lastCheck: last, nextDue, due };
+      return {
+        carerId: c.id,
+        carerName: `${c.firstName} ${c.lastName}`,
+        lastCheck: last?.date ?? null,
+        lastCheckId: last?.id ?? null,
+        observerName: last?.observerName ?? null,
+        concerns: last?.concerns ?? null,
+        nextDue,
+        due,
+      };
     })
-    .filter((x) => x.due)
-    .sort((a, b) => (a.lastCheck?.getTime() ?? 0) - (b.lastCheck?.getTime() ?? 0));
+    .sort((a, b) => {
+      if (a.due !== b.due) return a.due ? -1 : 1; // due first
+      return (a.nextDue?.getTime() ?? 0) - (b.nextDue?.getTime() ?? 0); // then soonest next-due
+    });
 
   res.json({
     intervalMonths: INTERVAL_MONTHS,
-    spotChecks: { dueCount: spotItems.length, items: spotItems },
+    spotChecks: { dueCount: spotRows.filter((r) => r.due).length, rows: spotRows },
     reviews: {
       dueCount: reviews.length,
       items: reviews.map((r) => ({ id: r.id, serviceUserId: r.serviceUserId, serviceUserName: `${r.serviceUser.firstName} ${r.serviceUser.lastName}`, dueDate: r.nextReviewDate, overdue: !!r.nextReviewDate && r.nextReviewDate < now })),
@@ -83,7 +92,6 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
       dueCount: carePlans.length,
       items: carePlans.map((c) => ({ serviceUserId: c.serviceUserId, serviceUserName: `${c.serviceUser.firstName} ${c.serviceUser.lastName}`, dueDate: c.reviewDate, overdue: !!c.reviewDate && c.reviewDate < now })),
     },
-    recentSpotChecks: recent.map((r) => ({ id: r.id, carerName: `${r.carer.firstName} ${r.carer.lastName}`, date: r.date, nextDue: addMonths(r.date, INTERVAL_MONTHS), concerns: countConcerns(r.answers) })),
   });
 }
 

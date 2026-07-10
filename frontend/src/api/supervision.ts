@@ -2,12 +2,22 @@ import api from '../lib/axios';
 
 export type YesNoNa = 'YES' | 'NO' | 'NA' | '';
 
+export interface SpotCheckRow {
+  carerId: string;
+  carerName: string;
+  lastCheck: string | null;
+  lastCheckId: string | null;
+  observerName: string | null;
+  concerns: number | null;
+  nextDue: string | null;
+  due: boolean;
+}
+
 export interface SupervisionSummary {
   intervalMonths: number;
-  spotChecks: { dueCount: number; items: { carerId: string; carerName: string; lastCheck: string | null; nextDue: string | null; due: boolean }[] };
+  spotChecks: { dueCount: number; rows: SpotCheckRow[] };
   reviews: { dueCount: number; items: { id: string; serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };
   risk: { dueCount: number; items: { serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };
-  recentSpotChecks: { id: string; carerName: string; date: string; nextDue: string; concerns: number }[];
 }
 
 export interface SpotCheck {
