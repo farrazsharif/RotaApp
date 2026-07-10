@@ -7,7 +7,7 @@ import { Review, ReviewType } from '../types';
 import { format } from 'date-fns';
 import ReviewFormModal from '../components/ReviewFormModal';
 
-export default function Reviews() {
+export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   const { isManager } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -57,11 +57,13 @@ export default function Reviews() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reviews</h1>
-          <p className="text-sm text-gray-500">6-week review after service start, then quarterly reviews</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
+        {!embedded && (
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Reviews</h1>
+            <p className="text-sm text-gray-500">6-week review after service start, then quarterly reviews</p>
+          </div>
+        )}
+        <div className={`flex flex-wrap gap-3 ${embedded ? 'ml-auto' : ''}`}>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}

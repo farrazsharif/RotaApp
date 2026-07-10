@@ -19,8 +19,8 @@ export const DEFAULT_ROLES: { name: string; baseType: string; permissions: strin
     name: 'Field Supervisor',
     baseType: 'MANAGER',
     // Care-focused oversight: service users, care & service plans (incl. risk
-    // assessments), eMAR, and spot checks / the supervision dashboard.
-    permissions: ['manage_service_users', 'manage_medications', 'manage_supervision'],
+    // assessments), reviews, eMAR, and spot checks / the supervision dashboard.
+    permissions: ['manage_service_users', 'manage_medications', 'manage_reviews', 'manage_supervision'],
   },
 ];
 
