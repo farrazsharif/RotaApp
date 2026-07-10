@@ -5,6 +5,7 @@ import { reportsApi } from '../api/reports';
 import { shiftsApi } from '../api/shifts';
 import { clockApi } from '../api/clock';
 import { supervisionApi } from '../api/supervision';
+import OfficeNotes from '../components/OfficeNotes';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { format, startOfWeek, endOfWeek, formatDistanceToNow } from 'date-fns';
@@ -139,6 +140,9 @@ export default function Dashboard() {
           </div>
         </Link>
       )}
+
+      {/* Office notes — shared daily updates for admins/managers */}
+      {isManager && <OfficeNotes />}
 
       {/* Live ops + coverage */}
       {isManager && (

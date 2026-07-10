@@ -356,6 +356,19 @@ model SpotCheck {
   @@index([companyId])
 }
 
+// A shared office log — short daily updates about staff, service users and
+// office activities, written by admins/managers and shown on the dashboard.
+model OfficeNote {
+  companyId  String? // tenant scope (app-enforced via Prisma extension)
+  id         String   @id @default(cuid())
+  body       String
+  authorId   String?
+  authorName String?
+  createdAt  DateTime @default(now())
+
+  @@index([companyId])
+}
+
 // Training course attended by a staff member, e.g. "First Aid", with an
 // optional expiry so managers can see at a glance who needs renewal.
 model Training {
