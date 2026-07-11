@@ -33,6 +33,18 @@ const WEEKDAYS = [
 ];
 const ALL_DAYS = WEEKDAYS.map((d) => d.value);
 
+function StatusBadge({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`ml-auto shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+        active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'
+      }`}
+    >
+      {active ? 'Active' : 'Inactive'}
+    </span>
+  );
+}
+
 export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const qc = useQueryClient();
   const { isManager } = useAuth();
@@ -88,7 +100,8 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [visitNameCustomOpen, setVisitNameCustomOpen] = useState(false);
 
-  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: () => usersApi.list({ active: true }) });
+  // Include inactive staff too so they can still be assigned; each row shows an Active/Inactive badge.
+  const { data: users = [] } = useQuery({ queryKey: ['users', 'all'], queryFn: () => usersApi.list() });
   const { data: serviceUsers = [] } = useQuery({ queryKey: ['service-users', ''], queryFn: () => serviceUsersApi.list() });
 
   useEffect(() => {
@@ -367,6 +380,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                     <label key={u.id} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-1.5 cursor-pointer hover:bg-gray-50">
                       <input type="checkbox" checked onChange={() => removeCarer(u.id)} className="h-4 w-4 accent-blue-600" />
                       <span className="text-sm text-gray-800">{u.firstName} {u.lastName}</span>
+                      <StatusBadge active={u.active} />
                     </label>
                   ))}
                 </div>
@@ -384,6 +398,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                     >
                       <input type="checkbox" checked={false} disabled={fullyAssigned} onChange={() => addCarer(u.id)} className="h-4 w-4 accent-blue-600" />
                       <span className="text-sm text-gray-800">{u.firstName} {u.lastName}</span>
+                      <StatusBadge active={u.active} />
                     </label>
                   ))}
                   {availableUsers.length === 0 && <p className="text-sm text-gray-400">No matching employees.</p>}
@@ -893,6 +908,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                           className="h-4 w-4 accent-blue-600"
                         />
                         <span className="text-sm text-gray-800">{u.firstName} {u.lastName}</span>
+                      <StatusBadge active={u.active} />
                       </label>
                     ))}
                   </div>
@@ -920,6 +936,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                         className="h-4 w-4 accent-blue-600"
                       />
                       <span className="text-sm text-gray-800">{u.firstName} {u.lastName}</span>
+                      <StatusBadge active={u.active} />
                     </label>
                   ))}
                   {availableUsers.length === 0 && <p className="text-sm text-gray-400">No matching employees.</p>}
