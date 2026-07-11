@@ -197,9 +197,12 @@ export default function ServiceUserForm() {
           <div>
             <label className="label">Date of Birth *</label>
             <input type="date" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} className="input" />
-            {ageFromDob(form.dateOfBirth) !== null && (
-              <p className="mt-1 text-xs text-gray-500">Age: <span className="font-medium text-gray-700">{ageFromDob(form.dateOfBirth)} years</span></p>
-            )}
+          </div>
+          <div>
+            <label className="label">Age</label>
+            <div className="input bg-gray-50 text-gray-600 flex items-center">
+              {ageFromDob(form.dateOfBirth) !== null ? `${ageFromDob(form.dateOfBirth)} years` : '—'}
+            </div>
           </div>
           <div>
             <label className="label">NHS Number</label>
