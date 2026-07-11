@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
 import HospitalIcon from '../components/HospitalIcon';
 import { Shift, ServiceUserStatus } from '../types';
-import { format, startOfDay, startOfWeek, startOfMonth, endOfMonth, addDays } from 'date-fns';
+import { format, startOfDay, startOfWeek, startOfMonth, endOfMonth, addDays, addMonths } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
 const STATUS_ICON: Record<ServiceUserStatus, string> = {
@@ -134,8 +134,13 @@ export default function Schedule() {
   };
   const needsStaff = (s: Shift) => missingCarers(s) > 0 && !patientInactive(s);
 
+  // Simple 3-month cap: permanent visits still generate 12 months of shifts in
+  // the database, but the schedule only surfaces visits up to ~3 months ahead so
+  // the calendar doesn't fill up with far-future rows. Past shifts stay visible.
+  const futureHorizon = useMemo(() => addMonths(startOfDay(new Date()), 3), []);
+
   const term = search.trim().toLowerCase();
-  const notCancelled = shifts.filter((s) => s.status !== 'CANCELLED');
+  const notCancelled = shifts.filter((s) => s.status !== 'CANCELLED' && new Date(s.date) < futureHorizon);
   const unassignedCount = notCancelled.filter(needsStaff).length;
 
   const activeShifts = notCancelled
@@ -171,6 +176,9 @@ export default function Schedule() {
     return { start, end: addDays(start, 7 * weeks) };
   }, [anchor, viewKey]);
 
+  // True once the visible range reaches the 3-month cap — blocks paging further ahead.
+  const atFutureCap = range.end > futureHorizon;
+
   const rangeShifts = useMemo(
     () => activeShifts.filter((s) => { const d = new Date(s.date); return d >= range.start && d < range.end; }),
     [activeShifts, range],
@@ -203,13 +211,16 @@ export default function Schedule() {
     if (api && mode === 'calendar') api.changeView(FC_VIEW[viewKey], anchor);
   }, [viewKey, anchor, mode]);
 
-  const shiftBy = (dir: number) => setAnchor((a) => {
-    const d = new Date(a);
-    if (viewKey === 'day') d.setDate(d.getDate() + dir);
-    else if (viewKey === 'month') d.setMonth(d.getMonth() + dir);
-    else d.setDate(d.getDate() + dir * 7 * (viewKey === 'week' ? 1 : viewKey === '2week' ? 2 : 4));
-    return d;
-  });
+  const shiftBy = (dir: number) => {
+    if (dir > 0 && atFutureCap) return;
+    setAnchor((a) => {
+      const d = new Date(a);
+      if (viewKey === 'day') d.setDate(d.getDate() + dir);
+      else if (viewKey === 'month') d.setMonth(d.getMonth() + dir);
+      else d.setDate(d.getDate() + dir * 7 * (viewKey === 'week' ? 1 : viewKey === '2week' ? 2 : 4));
+      return d;
+    });
+  };
 
   const openShift = (s: Shift) => { setSelectedShift(s); setSelectedDate(undefined); setModalOpen(true); };
 
@@ -320,7 +331,7 @@ export default function Schedule() {
         <div className="flex items-center gap-2">
           <div className="flex">
             <button className="btn-secondary btn btn-sm rounded-r-none" onClick={() => shiftBy(-1)} aria-label="Previous">‹</button>
-            <button className="btn-secondary btn btn-sm rounded-l-none border-l-0" onClick={() => shiftBy(1)} aria-label="Next">›</button>
+            <button className="btn-secondary btn btn-sm rounded-l-none border-l-0 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => shiftBy(1)} disabled={atFutureCap} title={atFutureCap ? 'The schedule only shows up to 3 months ahead' : undefined} aria-label="Next">›</button>
           </div>
           <button className="btn-secondary btn btn-sm" onClick={() => setAnchor(new Date())}>Today</button>
           <span className="font-semibold text-gray-800 ml-1">{title}</span>
