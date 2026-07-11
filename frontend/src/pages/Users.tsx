@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { usePermissions } from '../hooks/usePermissions';
 import { User, Role, roleLabel } from '../types';
@@ -23,30 +23,13 @@ export function statusInfo(u: { active: boolean; pendingSetup?: boolean }) {
 export default function Users() {
   const navigate = useNavigate();
   const { can } = usePermissions();
-  const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [resentId, setResentId] = useState<string | null>(null);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users', 'all'],
     queryFn: () => usersApi.list(),
-  });
-
-  const deactivateMut = useMutation({
-    mutationFn: (id: string) => usersApi.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
-  });
-
-  const reactivateMut = useMutation({
-    mutationFn: (id: string) => usersApi.reactivate(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => usersApi.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setConfirmDelete(null); },
   });
 
   const resendMut = useMutation({
@@ -100,45 +83,16 @@ export default function Users() {
                   {(() => { const s = statusInfo(u); return <span className={s.cls}>{s.label}</span>; })()}
                 </td>
                 <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                  {confirmDelete === u.id ? (
-                    <div className="flex gap-2 justify-end items-center">
-                      <span className="text-xs text-red-700">Delete permanently?</span>
-                      <button
-                        className="btn-danger btn btn-sm"
-                        disabled={deleteMut.isPending}
-                        onClick={() => deleteMut.mutate(u.id)}
-                      >
-                        {deleteMut.isPending ? 'Deleting…' : 'Yes'}
-                      </button>
-                      <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 justify-end items-center">
-                      <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate(`/users/${u.id}`)}>View →</button>
-                      {can('manage_staff') && u.pendingSetup && (
-                        resentId === u.id
-                          ? <span className="text-xs text-green-700">Invite sent ✓</span>
-                          : <button className="btn-secondary btn btn-sm" disabled={resendMut.isPending} onClick={() => resendMut.mutate(u.id)}>
-                              {resendMut.isPending ? 'Sending…' : 'Resend invite'}
-                            </button>
-                      )}
-                      {can('delete_staff') && u.active && (
-                        <button className="btn-secondary btn btn-sm" onClick={() => deactivateMut.mutate(u.id)}>
-                          Deactivate
-                        </button>
-                      )}
-                      {can('delete_staff') && !u.active && !u.pendingSetup && (
-                        <button className="btn-secondary btn btn-sm" disabled={reactivateMut.isPending} onClick={() => reactivateMut.mutate(u.id)}>
-                          {reactivateMut.isPending ? 'Activating…' : 'Activate'}
-                        </button>
-                      )}
-                      {can('delete_staff') && (
-                        <button className="btn-danger btn btn-sm" onClick={() => setConfirmDelete(u.id)}>
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex gap-2 justify-end items-center">
+                    <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate(`/users/${u.id}`)}>View →</button>
+                    {can('manage_staff') && u.pendingSetup && (
+                      resentId === u.id
+                        ? <span className="text-xs text-green-700">Invite sent ✓</span>
+                        : <button className="btn-secondary btn btn-sm" disabled={resendMut.isPending} onClick={() => resendMut.mutate(u.id)}>
+                            {resendMut.isPending ? 'Sending…' : 'Resend invite'}
+                          </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
