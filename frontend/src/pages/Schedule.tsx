@@ -134,10 +134,10 @@ export default function Schedule() {
   };
   const needsStaff = (s: Shift) => missingCarers(s) > 0 && !patientInactive(s);
 
-  // Simple 3-month cap: permanent visits still generate 12 months of shifts in
-  // the database, but the schedule only surfaces visits up to ~3 months ahead so
+  // Simple 2-month cap: permanent visits still generate 12 months of shifts in
+  // the database, but the schedule only surfaces visits up to ~2 months ahead so
   // the calendar doesn't fill up with far-future rows. Past shifts stay visible.
-  const futureHorizon = useMemo(() => addMonths(startOfDay(new Date()), 3), []);
+  const futureHorizon = useMemo(() => addMonths(startOfDay(new Date()), 2), []);
 
   const term = search.trim().toLowerCase();
   const notCancelled = shifts.filter((s) => s.status !== 'CANCELLED' && new Date(s.date) < futureHorizon);
@@ -331,7 +331,7 @@ export default function Schedule() {
         <div className="flex items-center gap-2">
           <div className="flex">
             <button className="btn-secondary btn btn-sm rounded-r-none" onClick={() => shiftBy(-1)} aria-label="Previous">‹</button>
-            <button className="btn-secondary btn btn-sm rounded-l-none border-l-0 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => shiftBy(1)} disabled={atFutureCap} title={atFutureCap ? 'The schedule only shows up to 3 months ahead' : undefined} aria-label="Next">›</button>
+            <button className="btn-secondary btn btn-sm rounded-l-none border-l-0 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => shiftBy(1)} disabled={atFutureCap} title={atFutureCap ? 'The schedule only shows up to 2 months ahead' : undefined} aria-label="Next">›</button>
           </div>
           <button className="btn-secondary btn btn-sm" onClick={() => setAnchor(new Date())}>Today</button>
           <span className="font-semibold text-gray-800 ml-1">{title}</span>
