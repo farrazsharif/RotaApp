@@ -44,6 +44,7 @@ import noteRoutes from './routes/notes';
 import { backfillAllCompanyRoles } from './lib/defaultRoles';
 import { normalizeVisitNames } from './lib/normalizeVisitNames';
 import { ensureServiceUserColumns } from './lib/ensureColumns';
+import { topUpPermanentSeries } from './lib/topUpPermanentSeries';
 import { handleWebhook } from './controllers/billingController';
 import { startShiftReminders } from './lib/shiftReminders';
 
@@ -144,8 +145,15 @@ server.listen(PORT, () => {
   console.log(`Email transport: ${transport}`);
   startShiftReminders();
   backfillAllCompanyRoles(prisma).catch((e) => console.error('Role backfill failed:', e));
-  ensureServiceUserColumns(prisma).catch((e) => console.error('ensureServiceUserColumns failed:', e));
   normalizeVisitNames(prisma).catch((e) => console.error('Visit-name normalisation failed:', e));
+  // Ensure the new columns exist first, then top up permanent recurring visits.
+  ensureServiceUserColumns(prisma)
+    .then(() => topUpPermanentSeries(prisma))
+    .catch((e) => console.error('Column guard / permanent top-up failed:', e));
+  // Keep permanent visits rolling forward while the server stays up.
+  setInterval(() => {
+    topUpPermanentSeries(prisma).catch((e) => console.error('Permanent top-up failed:', e));
+  }, 24 * 60 * 60 * 1000);
 });
 
 // Safety net: keep the server alive if a controller's promise rejects without

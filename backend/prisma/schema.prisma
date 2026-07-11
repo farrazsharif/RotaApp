@@ -459,6 +459,9 @@ model Shift {
   userId        String?
   serviceUserId String?
   seriesId      String?
+  // True for an open-ended ("Permanent") recurring series so the top-up job
+  // keeps generating future occurrences. Cleared when the series is stopped.
+  seriesPermanent Boolean @default(false)
   date          DateTime
   startTime     String
   endTime       String

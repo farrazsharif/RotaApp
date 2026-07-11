@@ -111,6 +111,7 @@ export async function createShift(req: AuthRequest, res: Response) {
     : {};
 
   const useRepeat = repeat && Array.isArray(repeat.daysOfWeek) && repeat.daysOfWeek.length > 0;
+  const permanent = !!(useRepeat && (repeat as Repeat).endType === 'permanent');
   const dates = useRepeat ? buildRecurringDates(date, repeat as Repeat) : [new Date(date)];
   const seriesId = useRepeat ? randomUUID() : null;
   const hasCoverCarers = Array.isArray(coverCarerIds) && coverCarerIds.filter(Boolean).length > 0;
@@ -124,7 +125,7 @@ export async function createShift(req: AuthRequest, res: Response) {
     // database is remote — hundreds of individual creates (e.g. a permanent
     // weekly repeat) can otherwise take tens of seconds.
     const result = await prisma.shift.createMany({
-      data: dates.map((d) => ({ ...baseData, seriesId, date: d })),
+      data: dates.map((d) => ({ ...baseData, seriesId, seriesPermanent: permanent, date: d })),
     });
     createdCount = result.count;
     shift = await prisma.shift.findFirst({
@@ -134,7 +135,7 @@ export async function createShift(req: AuthRequest, res: Response) {
     });
   } else {
     const created = await prisma.$transaction(
-      dates.map((d) => prisma.shift.create({ data: { ...baseData, ...coverConnect, seriesId, date: d }, include: shiftInclude }))
+      dates.map((d) => prisma.shift.create({ data: { ...baseData, ...coverConnect, seriesId, seriesPermanent: permanent, date: d }, include: shiftInclude }))
     );
     createdCount = created.length;
     shift = created[0];
@@ -247,6 +248,12 @@ export async function deleteShift(req: AuthRequest, res: Response) {
   }
 
   await prisma.shift.updateMany({ where: { id: { in: idsToCancel } }, data: { status: 'CANCELLED' } });
+
+  // Cancelling the rest of a recurring series ends it — stop the permanent
+  // top-up so it doesn't regenerate the future occurrences we just removed.
+  if (shift.seriesId && scope === 'future') {
+    await prisma.shift.updateMany({ where: { seriesId: shift.seriesId }, data: { seriesPermanent: false } });
+  }
 
   if (shift.userId) {
     const count = idsToCancel.length;
