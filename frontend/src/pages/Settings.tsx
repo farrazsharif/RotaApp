@@ -514,7 +514,7 @@ function SitesTab({ isManager }: { isManager: boolean }) {
 
   return (
     <div className="card space-y-5 max-w-2xl">
-      <h2 className="font-semibold text-gray-900">Sites / Locations</h2>
+      <h2 className="font-semibold text-gray-900">Locations</h2>
 
       {isLoading ? (
         <p className="text-sm text-gray-400">Loading…</p>
@@ -552,7 +552,7 @@ function SitesTab({ isManager }: { isManager: boolean }) {
 
       {isManager && (
         <div className="border-t pt-4 space-y-3">
-          <h3 className="font-semibold text-gray-900">{editingId ? 'Edit Site' : 'Add Site'}</h3>
+          <h3 className="font-semibold text-gray-900">{editingId ? 'Edit Location' : 'Add Location'}</h3>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
           <div className="flex items-end gap-3">
             <div className="flex-1"><label className="label">Name *</label><input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="e.g. North Team" /></div>
@@ -562,7 +562,7 @@ function SitesTab({ isManager }: { isManager: boolean }) {
             {editingId && <button className="btn-secondary btn" onClick={reset}>Cancel Edit</button>}
             <div className="flex-1" />
             <button className="btn-primary btn" disabled={!name || saveMut.isPending} onClick={() => saveMut.mutate()}>
-              {saveMut.isPending ? 'Saving…' : editingId ? 'Save Changes' : 'Add Site'}
+              {saveMut.isPending ? 'Saving…' : editingId ? 'Save Changes' : 'Add Location'}
             </button>
           </div>
         </div>
