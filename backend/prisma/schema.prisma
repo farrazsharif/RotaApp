@@ -482,6 +482,7 @@ model Shift {
   invoiceLines InvoiceLine[]
 
   @@index([companyId])
+  @@index([companyId, date])
 }
 
 model CallLog {

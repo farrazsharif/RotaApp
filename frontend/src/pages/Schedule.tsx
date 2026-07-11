@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
 import HospitalIcon from '../components/HospitalIcon';
 import { Shift, ServiceUserStatus } from '../types';
-import { format, startOfDay, startOfWeek, startOfMonth, endOfMonth, addDays, addMonths } from 'date-fns';
+import { format, startOfDay, startOfWeek, startOfMonth, endOfMonth, addDays, addMonths, subMonths } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
 const STATUS_ICON: Record<ServiceUserStatus, string> = {
@@ -102,9 +102,24 @@ export default function Schedule() {
   const [viewKey, setViewKey] = useState<ViewKey>('week');
   const [anchor, setAnchor] = useState(new Date());
 
+  // Simple 2-month cap: permanent visits still generate 12 months of shifts in
+  // the database, but the schedule only surfaces visits up to ~2 months ahead so
+  // the calendar doesn't fill up with far-future rows. Past shifts stay visible.
+  const futureHorizon = useMemo(() => addMonths(startOfDay(new Date()), 2), []);
+
+  // Only fetch the shifts we can actually show: a window around the current
+  // anchor (±1 month buffer), never past the 2-month cap. This keeps the payload
+  // small even when permanent visits have generated a year of future shifts.
+  const fetchFrom = format(startOfMonth(subMonths(anchor, 1)), 'yyyy-MM-dd');
+  const fetchTo = format(
+    new Date(Math.min(futureHorizon.getTime(), endOfMonth(addMonths(anchor, 1)).getTime())),
+    'yyyy-MM-dd',
+  );
+
   const { data: shifts = [] } = useQuery({
-    queryKey: ['shifts'],
-    queryFn: () => shiftsApi.list({ userId: isManager ? undefined : user?.id }),
+    queryKey: ['shifts', fetchFrom, fetchTo, isManager ? 'all' : user?.id],
+    queryFn: () => shiftsApi.list({ startDate: fetchFrom, endDate: fetchTo, userId: isManager ? undefined : user?.id }),
+    placeholderData: (prev) => prev,
   });
   const { data: users = [] } = useQuery({
     queryKey: ['users'], queryFn: () => usersApi.list({ active: true }), enabled: isManager,
@@ -133,11 +148,6 @@ export default function Schedule() {
     return !!st && st !== 'ACTIVE';
   };
   const needsStaff = (s: Shift) => missingCarers(s) > 0 && !patientInactive(s);
-
-  // Simple 2-month cap: permanent visits still generate 12 months of shifts in
-  // the database, but the schedule only surfaces visits up to ~2 months ahead so
-  // the calendar doesn't fill up with far-future rows. Past shifts stay visible.
-  const futureHorizon = useMemo(() => addMonths(startOfDay(new Date()), 2), []);
 
   const term = search.trim().toLowerCase();
   const notCancelled = shifts.filter((s) => s.status !== 'CANCELLED' && new Date(s.date) < futureHorizon);
