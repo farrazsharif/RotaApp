@@ -160,7 +160,7 @@ export default function ServiceUserForm() {
             <input value={form.nhsNumber} onChange={(e) => setForm({ ...form, nhsNumber: e.target.value })} className="input" />
           </div>
           <div>
-            <label className="label">Remote Site</label>
+            <label className="label">Area</label>
             <select value={form.siteId} onChange={(e) => setForm({ ...form, siteId: e.target.value })} className="input">
               <option value="">No site assigned</option>
               {sites.map((s) => (
