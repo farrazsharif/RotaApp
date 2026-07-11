@@ -460,6 +460,16 @@ export default function Schedule() {
           missingCarers={missingCarers}
           onOpen={openShift}
         />
+      ) : mode === 'calendar' && viewKey === '4week' ? (
+        <DayColumns
+          days={rangeDays}
+          shifts={rangeShifts}
+          isManager={isManager}
+          needsStaff={needsStaff}
+          missingCarers={missingCarers}
+          onOpen={openShift}
+          onAdd={(dateStr) => { setSelectedShift(null); setSelectedDate(dateStr); setModalOpen(true); }}
+        />
       ) : (
         <div className="card p-0 overflow-hidden">
           <FullCalendar
@@ -516,6 +526,79 @@ function SummaryTile({ value, label, tone }: { value: number | string; label: st
     <div className="bg-white border border-gray-100 rounded-lg px-4 py-2.5">
       <div className={`text-xl font-bold ${c}`}>{value}</div>
       <div className="text-xs text-gray-500">{label}</div>
+    </div>
+  );
+}
+
+// A horizontal 4-week strip: one narrow column per day (28 across, scroll
+// sideways), each listing that day's visits as compact cards. Mirrors the
+// reference "day columns" layout so many days are visible without paging.
+function DayColumns({ days, shifts, isManager, needsStaff, missingCarers, onOpen, onAdd }: {
+  days: Date[];
+  shifts: Shift[];
+  isManager: boolean;
+  needsStaff: (s: Shift) => boolean;
+  missingCarers: (s: Shift) => number;
+  onOpen: (s: Shift) => void;
+  onAdd: (dateStr: string) => void;
+}) {
+  const dayKey = (d: Date | string) => format(new Date(d), 'yyyy-MM-dd');
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
+  const forDay = (d: Date) =>
+    shifts.filter((s) => dayKey(s.date) === dayKey(d)).sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  return (
+    <div className="card p-0 overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+      <div className="flex min-w-max">
+        {days.map((d) => {
+          const list = forDay(d);
+          const isToday = dayKey(d) === todayKey;
+          return (
+            <div key={dayKey(d)} className="w-[132px] shrink-0 border-r border-gray-100 last:border-r-0">
+              <div className={`sticky top-0 z-10 border-b px-2 py-1.5 text-center ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                <div className="text-[11px] font-semibold text-gray-700">{format(d, 'EEE')}</div>
+                <div className="text-[11px] text-gray-500">{format(d, 'dd MMM')}</div>
+              </div>
+              <div className="p-1 space-y-1">
+                {list.map((s) => {
+                  const unassigned = needsStaff(s);
+                  const color = s.serviceUser?.site?.color || '#3b82f6';
+                  const patient = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
+                  const carer = s.user ? `${s.user.firstName} ${s.user.lastName}` : null;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => onOpen(s)}
+                      className={`w-full text-left rounded px-1.5 py-1 text-[10px] leading-tight border ${
+                        unassigned ? 'border-dashed border-red-400 bg-red-50 text-red-800' : 'border-transparent text-gray-800'
+                      } ${!s.published ? 'opacity-95' : ''}`}
+                      style={unassigned ? undefined : { backgroundColor: `${color}22` }}
+                    >
+                      <div className="font-bold truncate">{formatTime12h(s.startTime)}</div>
+                      <div className="truncate">{unassigned && '⚠ '}{patient}</div>
+                      <div className="truncate opacity-80">
+                        {isManager
+                          ? (carer || (unassigned ? `needs ${missingCarers(s)}` : 'Unassigned'))
+                          : (s.visitName || 'Visit')}
+                        {!s.published && ' · draft'}
+                      </div>
+                    </button>
+                  );
+                })}
+                {isManager && (
+                  <button
+                    onClick={() => onAdd(dayKey(d))}
+                    className="w-full text-[10px] text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded py-0.5"
+                  >
+                    + add
+                  </button>
+                )}
+                {list.length === 0 && !isManager && <div className="text-[10px] text-gray-300 text-center py-2">—</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
