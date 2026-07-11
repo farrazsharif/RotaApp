@@ -161,8 +161,11 @@ export default function ServiceUserDetail() {
             <div>
             <h1 className="text-2xl font-bold text-gray-900">{su.firstName} {su.lastName}</h1>
             <p className="text-sm text-gray-500">
+              {su.preferredName && `“${su.preferredName}” · `}
               {su.dateOfBirth && `${differenceInYears(new Date(), new Date(su.dateOfBirth))} yrs · DOB ${format(new Date(su.dateOfBirth), 'dd MMM yyyy')}`}
               {su.nhsNumber && ` · NHS ${su.nhsNumber}`}
+              {su.gender && ` · ${su.gender}`}
+              {su.ethnicOrigin && ` · ${su.ethnicOrigin}`}
             </p>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {su.site && (

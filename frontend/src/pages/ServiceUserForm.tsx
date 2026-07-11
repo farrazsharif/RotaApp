@@ -12,6 +12,18 @@ type FormState = ServiceUserData & { preferredCaregiverIds: string[] };
 
 interface VisitRow { type: string; duration: number }
 
+const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
+
+// Standard ONS/NHS ethnicity categories, grouped for the dropdown.
+const ETHNIC_ORIGIN_GROUPS: { group: string; options: string[] }[] = [
+  { group: 'White', options: ['White British', 'White Irish', 'Gypsy or Irish Traveller', 'Roma', 'Any other White background'] },
+  { group: 'Mixed / multiple ethnic groups', options: ['White and Black Caribbean', 'White and Black African', 'White and Asian', 'Any other Mixed background'] },
+  { group: 'Asian / Asian British', options: ['Indian', 'Pakistani', 'Bangladeshi', 'Chinese', 'Any other Asian background'] },
+  { group: 'Black / African / Caribbean / Black British', options: ['African', 'Caribbean', 'Any other Black background'] },
+  { group: 'Other ethnic group', options: ['Arab', 'Any other ethnic group'] },
+];
+const ETHNIC_ORIGIN_VALUES = ETHNIC_ORIGIN_GROUPS.flatMap((g) => g.options).concat('Prefer not to say');
+
 const DURATIONS = [
   { value: 15, label: '15 mins' }, { value: 30, label: '30 mins' }, { value: 45, label: '45 mins' },
   { value: 60, label: '1 hour' }, { value: 90, label: '1.5 hours' }, { value: 120, label: '2 hours' },
@@ -170,8 +182,8 @@ export default function ServiceUserForm() {
           </div>
           <div>
             <label className="label">Gender</label>
-            <div className="flex items-center gap-5 h-[42px]">
-              {['Male', 'Female'].map((g) => (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 min-h-[42px]">
+              {GENDER_OPTIONS.map((g) => (
                 <label key={g} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                   <input type="radio" name="gender" checked={form.gender === g} onChange={() => setForm({ ...form, gender: g })} className="h-4 w-4 accent-blue-600" />
                   {g}
@@ -195,7 +207,18 @@ export default function ServiceUserForm() {
           </div>
           <div>
             <label className="label">Ethnic Origin</label>
-            <input value={form.ethnicOrigin || ''} onChange={(e) => setForm({ ...form, ethnicOrigin: e.target.value })} className="input" placeholder="e.g. British, Pakistani…" />
+            <select value={form.ethnicOrigin || ''} onChange={(e) => setForm({ ...form, ethnicOrigin: e.target.value })} className="input">
+              <option value="">Select…</option>
+              {form.ethnicOrigin && !ETHNIC_ORIGIN_VALUES.includes(form.ethnicOrigin) && (
+                <option value={form.ethnicOrigin}>{form.ethnicOrigin}</option>
+              )}
+              {ETHNIC_ORIGIN_GROUPS.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                </optgroup>
+              ))}
+              <option value="Prefer not to say">Prefer not to say</option>
+            </select>
           </div>
           <div>
             <label className="label">Area</label>
