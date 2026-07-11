@@ -317,19 +317,36 @@ export default function ServiceUserForm() {
           <p className="text-sm text-gray-400">No visits added. Click "Add Visit" to set the number of visits and their duration.</p>
         ) : (
           <div className="space-y-2">
-            {visits.map((row, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
-                <select value={row.type} onChange={(e) => updateVisit(i, { type: e.target.value })} className="input flex-1">
-                  {!VISIT_PRESETS.includes(row.type) && <option value={row.type}>{row.type}</option>}
-                  {VISIT_PRESETS.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <select value={row.duration} onChange={(e) => updateVisit(i, { duration: Number(e.target.value) })} className="input w-32">
-                  {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                </select>
-                <button type="button" onClick={() => removeVisit(i)} className="text-red-600 hover:text-red-700 text-lg px-1" title="Remove">×</button>
-              </div>
-            ))}
+            {visits.map((row, i) => {
+              // A visit whose name isn't one of the presets is a custom ("Other")
+              // call — show a free-text box so it can be typed or edited.
+              const custom = !VISIT_PRESETS.includes(row.type);
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
+                  <select
+                    value={custom ? '__other__' : row.type}
+                    onChange={(e) => updateVisit(i, { type: e.target.value === '__other__' ? '' : e.target.value })}
+                    className="input flex-1"
+                  >
+                    {VISIT_PRESETS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    <option value="__other__">Other…</option>
+                  </select>
+                  {custom && (
+                    <input
+                      value={row.type}
+                      onChange={(e) => updateVisit(i, { type: e.target.value })}
+                      placeholder="Enter a call name"
+                      className="input flex-1"
+                    />
+                  )}
+                  <select value={row.duration} onChange={(e) => updateVisit(i, { duration: Number(e.target.value) })} className="input w-32">
+                    {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                  </select>
+                  <button type="button" onClick={() => removeVisit(i)} className="text-red-600 hover:text-red-700 text-lg px-1" title="Remove">×</button>
+                </div>
+              );
+            })}
             <p className="text-xs text-gray-500">{visits.length} visit{visits.length > 1 ? 's' : ''} per day</p>
           </div>
         )}
