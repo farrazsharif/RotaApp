@@ -5,6 +5,7 @@ import { usersApi } from '../api/users';
 import { trainingApi, TrainingData } from '../api/training';
 import { importantDatesApi, ImportantDateData } from '../api/importantDates';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { Role, Training, ImportantDate, FitForWork, YesNo, User, roleLabel } from '../types';
 import { format } from 'date-fns';
 import StaffFormModal from '../components/StaffFormModal';
@@ -67,13 +68,26 @@ export default function StaffDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { isManager, isAdmin } = useAuth();
+  const { can } = usePermissions();
   const [tab, setTab] = useState<Tab>('Details');
   const [editOpen, setEditOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: user, isLoading, isError } = useQuery({
     queryKey: ['user', id],
     queryFn: () => usersApi.get(id),
     enabled: !!id,
+  });
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['users'] });
+    qc.invalidateQueries({ queryKey: ['user', id] });
+  };
+  const deactivateMut = useMutation({ mutationFn: () => usersApi.delete(id), onSuccess: invalidate });
+  const reactivateMut = useMutation({ mutationFn: () => usersApi.reactivate(id), onSuccess: invalidate });
+  const deleteMut = useMutation({
+    mutationFn: () => usersApi.remove(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); navigate('/users'); },
   });
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
@@ -85,6 +99,13 @@ export default function StaffDetail() {
       </div>
     );
   }
+
+  const statusValue = user.active ? 'active' : user.pendingSetup ? 'pending' : 'inactive';
+  const statusPending = deactivateMut.isPending || reactivateMut.isPending;
+  const changeStatus = (v: string) => {
+    if (v === 'active' && !user.active) reactivateMut.mutate();
+    else if (v === 'inactive' && user.active) deactivateMut.mutate();
+  };
 
   return (
     <div className="space-y-6">
@@ -108,7 +129,41 @@ export default function StaffDetail() {
               </div>
             </div>
           </div>
-          {isManager && <button className="btn-primary btn" onClick={() => setEditOpen(true)}>Edit Details</button>}
+          {isManager && (
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                {can('delete_staff') && (
+                  <select
+                    value={statusValue}
+                    disabled={statusPending}
+                    onChange={(e) => changeStatus(e.target.value)}
+                    title="Change staff status"
+                    className="input py-1.5 text-sm w-44"
+                  >
+                    <option value="active">🟢 Active</option>
+                    <option value="inactive">⚪ Deactivated</option>
+                    {statusValue === 'pending' && <option value="pending" disabled>⏳ Pending setup</option>}
+                  </select>
+                )}
+                <button className="btn-primary btn" onClick={() => setEditOpen(true)}>Edit Details</button>
+              </div>
+              {can('delete_staff') && (
+                confirmDelete ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-red-700">Delete permanently?</span>
+                    <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>
+                      {deleteMut.isPending ? 'Deleting…' : 'Yes, delete'}
+                    </button>
+                    <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(false)}>Cancel</button>
+                  </div>
+                ) : (
+                  <button className="text-red-600 text-sm font-medium hover:underline" onClick={() => setConfirmDelete(true)}>
+                    Delete staff
+                  </button>
+                )
+              )}
+            </div>
+          )}
         </div>
       </div>
 
