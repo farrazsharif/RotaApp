@@ -42,6 +42,7 @@ import documentRoutes from './routes/documents';
 import supervisionRoutes from './routes/supervision';
 import noteRoutes from './routes/notes';
 import { backfillAllCompanyRoles } from './lib/defaultRoles';
+import { normalizeVisitNames } from './lib/normalizeVisitNames';
 import { handleWebhook } from './controllers/billingController';
 import { startShiftReminders } from './lib/shiftReminders';
 
@@ -142,6 +143,7 @@ server.listen(PORT, () => {
   console.log(`Email transport: ${transport}`);
   startShiftReminders();
   backfillAllCompanyRoles(prisma).catch((e) => console.error('Role backfill failed:', e));
+  normalizeVisitNames(prisma).catch((e) => console.error('Visit-name normalisation failed:', e));
 });
 
 // Safety net: keep the server alive if a controller's promise rejects without
