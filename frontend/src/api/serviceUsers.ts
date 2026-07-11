@@ -40,7 +40,7 @@ export interface ServiceUserData {
   careNotes?: string;
   visitDuration?: number;
   visits?: string; // JSON array of { type, duration }
-  supportCategories?: string; // JSON array of Capacity Tracker category labels
+  supportCategories?: string; // JSON array of CQC PIR category labels
   preferredCaregiverIds?: string[];
   status?: ServiceUserStatus;
   // When set alongside a status change, the moment the new status takes effect

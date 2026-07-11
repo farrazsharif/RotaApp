@@ -1,4 +1,4 @@
-// Capacity Tracker support-reason categories. A service user can have several.
+// CQC PIR support-reason categories. A service user can have several.
 export const SUPPORT_CATEGORIES = [
   'Dementia',
   'People detained under the Mental Health Act',

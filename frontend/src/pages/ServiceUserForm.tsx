@@ -388,8 +388,8 @@ export default function ServiceUserForm() {
         </div>
       </Section>
 
-      <Section title="Support Categories (Capacity Tracker)">
-        <p className="text-xs text-gray-500 -mt-1 mb-1">Tick all that apply. Used for the Capacity Tracker summary in Reports.</p>
+      <Section title="Support Categories (CQC PIR)">
+        <p className="text-xs text-gray-500 -mt-1 mb-1">Tick all that apply. Used for the CQC PIR summary in Reports.</p>
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
           {SUPPORT_CATEGORIES.map((c) => (
             <label key={c} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">

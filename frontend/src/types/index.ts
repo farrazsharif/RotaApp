@@ -412,7 +412,7 @@ export interface ServiceUser {
   careNotes?: string;
   visitDuration: number;
   visits?: string; // JSON array of { type, duration }
-  supportCategories?: string; // JSON array of Capacity Tracker category labels
+  supportCategories?: string; // JSON array of CQC PIR category labels
   active: boolean;
   status: ServiceUserStatus;
   statusUpdatedAt?: string;

@@ -99,7 +99,7 @@ export default function Reports() {
     enabled: tab === 'capacity',
   });
 
-  // Capacity Tracker: number of active service users in each support category
+  // CQC PIR: number of active service users in each support category
   // (a person is counted in every category that applies).
   const categoryCounts = SUPPORT_CATEGORIES.map((category) => ({
     category,
@@ -118,7 +118,7 @@ export default function Reports() {
     { key: 'crib', label: 'Crib Sheet' },
     { key: 'overtime', label: 'Overtime' },
     { key: 'coverage', label: 'Shift Coverage' },
-    { key: 'capacity', label: 'Capacity Tracker' },
+    { key: 'capacity', label: 'CQC PIR' },
   ];
 
   const term = search.trim().toLowerCase();
@@ -223,7 +223,7 @@ export default function Reports() {
 
       {isLoading && <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>}
 
-      {/* Capacity Tracker — support-category counts for active service users */}
+      {/* CQC PIR — support-category counts for active service users */}
       {tab === 'capacity' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">

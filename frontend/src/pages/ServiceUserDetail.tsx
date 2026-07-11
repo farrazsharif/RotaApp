@@ -321,7 +321,7 @@ export default function ServiceUserDetail() {
           <Field label="Care Notes" value={su.careNotes} />
         </Section>
 
-        {/* Support categories (Capacity Tracker) */}
+        {/* Support categories (CQC PIR) */}
         <Section title="Support Categories">
           <div className="flex flex-wrap gap-1">
             {parseCategories(su.supportCategories).length === 0
