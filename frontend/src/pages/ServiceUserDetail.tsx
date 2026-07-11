@@ -241,6 +241,7 @@ export default function ServiceUserDetail() {
             <Field label="Phone" value={su.phone} />
             <Field label="Email" value={su.email} />
             <Field label="Key Safe" value={su.keySafe} />
+            <Field label="Meds Safe Code" value={su.medsSafeCode} />
           </div>
           {su.postcode && (
             <div className="mt-4">

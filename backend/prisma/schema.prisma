@@ -129,6 +129,7 @@ model ServiceUser {
   address                  String?
   postcode                 String?
   keySafe                  String?
+  medsSafeCode             String?
   phone                    String?
   email                    String?
   emergencyContactName     String?

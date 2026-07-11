@@ -386,6 +386,7 @@ export interface ServiceUser {
   address?: string;
   postcode?: string;
   keySafe?: string;
+  medsSafeCode?: string;
   phone?: string;
   email?: string;
   emergencyContactName?: string;

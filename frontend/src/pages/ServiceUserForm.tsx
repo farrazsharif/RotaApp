@@ -52,7 +52,7 @@ function ageFromDob(dob?: string): number | null {
 }
 
 const emptyForm: FormState = {
-  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '', keySafe: '',
+  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
   phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '',
   nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
@@ -93,7 +93,7 @@ export default function ServiceUserForm() {
       dateOfBirth: su.dateOfBirth ? format(new Date(su.dateOfBirth), 'yyyy-MM-dd') : '',
       photo: su.photo || '',
       siteId: su.siteId || '',
-      nhsNumber: su.nhsNumber || '', address: su.address || '', postcode: su.postcode || '', keySafe: su.keySafe || '',
+      nhsNumber: su.nhsNumber || '', address: su.address || '', postcode: su.postcode || '', keySafe: su.keySafe || '', medsSafeCode: su.medsSafeCode || '',
       phone: su.phone || '', email: su.email || '',
       emergencyContactName: su.emergencyContactName || '', emergencyContactPhone: su.emergencyContactPhone || '',
       emergencyContactMobile: su.emergencyContactMobile || '', emergencyContactAddress: su.emergencyContactAddress || '',
@@ -260,9 +260,15 @@ export default function ServiceUserForm() {
               <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" />
             </div>
           </div>
-          <div>
-            <label className="label">Key Safe</label>
-            <input value={form.keySafe || ''} onChange={(e) => setForm({ ...form, keySafe: e.target.value })} className="input" placeholder="Location and/or code" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Key Safe</label>
+              <input value={form.keySafe || ''} onChange={(e) => setForm({ ...form, keySafe: e.target.value })} className="input" placeholder="Location and/or code" />
+            </div>
+            <div>
+              <label className="label">Meds Safe Code</label>
+              <input value={form.medsSafeCode || ''} onChange={(e) => setForm({ ...form, medsSafeCode: e.target.value })} className="input" placeholder="Medication safe code" />
+            </div>
           </div>
         </div>
       </Section>
