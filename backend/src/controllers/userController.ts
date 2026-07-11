@@ -199,6 +199,13 @@ export async function deleteUser(req: AuthRequest, res: Response) {
   res.json({ message: 'User deactivated' });
 }
 
+export async function reactivateUser(req: AuthRequest, res: Response) {
+  if (!(await staffInScope(req.user, req.params.id))) return res.status(404).json({ error: 'User not found' });
+  const u = await prisma.user.update({ where: { id: req.params.id }, data: { active: true }, select: { firstName: true, lastName: true } });
+  await logAudit(req, 'STAFF_REACTIVATED', `${u.firstName} ${u.lastName}`);
+  res.json({ message: 'User reactivated' });
+}
+
 export async function permanentDeleteUser(req: AuthRequest, res: Response) {
   const id = req.params.id;
   if (id === req.user!.id) {

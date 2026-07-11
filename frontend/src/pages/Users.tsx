@@ -39,6 +39,11 @@ export default function Users() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 
+  const reactivateMut = useMutation({
+    mutationFn: (id: string) => usersApi.reactivate(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+
   const deleteMut = useMutation({
     mutationFn: (id: string) => usersApi.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); setConfirmDelete(null); },
@@ -120,6 +125,11 @@ export default function Users() {
                       {can('delete_staff') && u.active && (
                         <button className="btn-secondary btn btn-sm" onClick={() => deactivateMut.mutate(u.id)}>
                           Deactivate
+                        </button>
+                      )}
+                      {can('delete_staff') && !u.active && !u.pendingSetup && (
+                        <button className="btn-secondary btn btn-sm" disabled={reactivateMut.isPending} onClick={() => reactivateMut.mutate(u.id)}>
+                          {reactivateMut.isPending ? 'Activating…' : 'Activate'}
                         </button>
                       )}
                       {can('delete_staff') && (

@@ -14,5 +14,7 @@ export const usersApi = {
   resendInvite: (id: string) =>
     api.post<{ message: string; email?: string }>(`/users/${id}/resend-invite`, {}).then((r) => r.data),
   delete: (id: string) => api.delete(`/users/${id}`).then((r) => r.data),
+  reactivate: (id: string) =>
+    api.post<{ message: string }>(`/users/${id}/reactivate`, {}).then((r) => r.data),
   remove: (id: string) => api.delete(`/users/${id}/permanent`).then((r) => r.data),
 };
