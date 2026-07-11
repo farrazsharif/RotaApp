@@ -7,6 +7,7 @@ import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
 import { Shift } from '../types';
 import { format } from 'date-fns';
+import { VISIT_PRESETS } from '../lib/visits';
 
 interface Props {
   shift?: Shift | null;
@@ -26,7 +27,6 @@ interface FormValues {
   notes: string;
 }
 
-const VISIT_PRESETS = ['Morning Call', 'Lunch Call', 'Tea Call', 'Bed Call', 'Shopping', 'Cleaning', 'Domestic', 'Social'];
 const WEEKDAYS = [
   { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
   { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }, { value: 6, label: 'Sat' }, { value: 0, label: 'Sun' },

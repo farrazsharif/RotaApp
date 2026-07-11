@@ -6,12 +6,12 @@ import { usersApi } from '../api/users';
 import { sitesApi } from '../api/sites';
 import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
+import { VISIT_PRESETS } from '../lib/visits';
 
 type FormState = ServiceUserData & { preferredCaregiverIds: string[] };
 
 interface VisitRow { type: string; duration: number }
 
-const VISIT_TYPES = ['Morning', 'Lunch', 'Tea', 'Bed', 'Sitting Call', 'Cleaning Call'];
 const DURATIONS = [
   { value: 15, label: '15 mins' }, { value: 30, label: '30 mins' }, { value: 45, label: '45 mins' },
   { value: 60, label: '1 hour' }, { value: 90, label: '1.5 hours' }, { value: 120, label: '2 hours' },
@@ -102,7 +102,7 @@ export default function ServiceUserForm() {
   const createMut = useMutation({ mutationFn: () => serviceUsersApi.create(payload()), onSuccess: onSaved });
   const updateMut = useMutation({ mutationFn: () => serviceUsersApi.update(id!, payload()), onSuccess: onSaved });
 
-  const addVisit = () => setVisits((v) => [...v, { type: VISIT_TYPES[0], duration: 30 }]);
+  const addVisit = () => setVisits((v) => [...v, { type: VISIT_PRESETS[0], duration: 30 }]);
   const updateVisit = (i: number, patch: Partial<VisitRow>) => setVisits((v) => v.map((row, idx) => idx === i ? { ...row, ...patch } : row));
   const removeVisit = (i: number) => setVisits((v) => v.filter((_, idx) => idx !== i));
 
@@ -321,7 +321,8 @@ export default function ServiceUserForm() {
               <div key={i} className="flex items-center gap-2">
                 <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
                 <select value={row.type} onChange={(e) => updateVisit(i, { type: e.target.value })} className="input flex-1">
-                  {VISIT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {!VISIT_PRESETS.includes(row.type) && <option value={row.type}>{row.type}</option>}
+                  {VISIT_PRESETS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
                 <select value={row.duration} onChange={(e) => updateVisit(i, { duration: Number(e.target.value) })} className="input w-32">
                   {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
