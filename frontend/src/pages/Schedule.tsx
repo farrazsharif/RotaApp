@@ -268,7 +268,10 @@ export default function Schedule() {
     const showStatus = !!patientStatus && patientStatus !== 'ACTIVE';
     const statusIcon = showStatus ? STATUS_ICON[patientStatus!] : '';
 
-    const compact = arg.view.type.startsWith('timeGrid');
+    // Multi-week grids (2 wk / 4 wk / Month) pack many days in, so use the same
+    // compact two-line box as the time views to avoid tall, scroll-heavy cells.
+    const vt = arg.view.type;
+    const compact = vt.startsWith('timeGrid') || vt === 'dayGrid2' || vt === 'dayGrid4' || vt === 'dayGridMonth';
     if (compact) {
       return (
         <div className="px-0.5 overflow-hidden leading-tight">
