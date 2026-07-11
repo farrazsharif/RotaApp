@@ -526,7 +526,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                       </label>
                       <label className="flex items-center gap-2 text-sm">
                         <input type="radio" name="repeatEnd" checked={repeatEndType === 'permanent'} onChange={() => setRepeatEndType('permanent')} />
-                        Permanent (next 12 months)
+                        Permanent
                       </label>
                     </div>
                   </div>
