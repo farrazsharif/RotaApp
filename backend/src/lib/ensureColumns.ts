@@ -6,4 +6,6 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   for (const col of cols) {
     await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "${col}" TEXT`);
   }
+  // JSON array column — non-null with a default so existing rows stay valid.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "supportCategories" TEXT NOT NULL DEFAULT '[]'`);
 }

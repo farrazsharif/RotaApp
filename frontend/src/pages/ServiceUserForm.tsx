@@ -7,6 +7,7 @@ import { sitesApi } from '../api/sites';
 import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
 import { VISIT_PRESETS } from '../lib/visits';
+import { SUPPORT_CATEGORIES, parseCategories } from '../lib/supportCategories';
 
 type FormState = ServiceUserData & { preferredCaregiverIds: string[] };
 
@@ -84,6 +85,7 @@ export default function ServiceUserForm() {
 
   const [form, setForm] = useState<FormState>(emptyForm);
   const [visits, setVisits] = useState<VisitRow[]>([]);
+  const [supportCats, setSupportCats] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(!isEdit);
 
   if (isEdit && su && !hydrated) {
@@ -107,6 +109,7 @@ export default function ServiceUserForm() {
       preferredCaregiverIds: su.preferredCaregivers.map((c) => c.id),
     });
     setVisits(parseVisits(su.visits));
+    setSupportCats(parseCategories(su.supportCategories));
     setHydrated(true);
   }
 
@@ -123,7 +126,10 @@ export default function ServiceUserForm() {
     navigate(`/service-users/${saved.id}`);
   };
 
-  const payload = (): ServiceUserData => ({ ...form, visits: JSON.stringify(visits) });
+  const payload = (): ServiceUserData => ({ ...form, visits: JSON.stringify(visits), supportCategories: JSON.stringify(supportCats) });
+
+  const toggleCategory = (c: string) =>
+    setSupportCats((cats) => (cats.includes(c) ? cats.filter((x) => x !== c) : [...cats, c]));
   const createMut = useMutation({ mutationFn: () => serviceUsersApi.create(payload()), onSuccess: onSaved });
   const updateMut = useMutation({ mutationFn: () => serviceUsersApi.update(id!, payload()), onSuccess: onSaved });
 
@@ -379,6 +385,18 @@ export default function ServiceUserForm() {
         <div>
           <label className="label">Care Notes</label>
           <textarea value={form.careNotes} onChange={(e) => setForm({ ...form, careNotes: e.target.value })} rows={2} className="input resize-none" />
+        </div>
+      </Section>
+
+      <Section title="Support Categories (Capacity Tracker)">
+        <p className="text-xs text-gray-500 -mt-1 mb-1">Tick all that apply. Used for the Capacity Tracker summary in Reports.</p>
+        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+          {SUPPORT_CATEGORIES.map((c) => (
+            <label key={c} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={supportCats.includes(c)} onChange={() => toggleCategory(c)} className="h-4 w-4 accent-blue-600" />
+              {c}
+            </label>
+          ))}
         </div>
       </Section>
 

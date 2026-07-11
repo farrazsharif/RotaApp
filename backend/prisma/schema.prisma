@@ -155,6 +155,7 @@ model ServiceUser {
   careNotes                String?
   visitDuration            Int      @default(30)
   visits                   String   @default("[]") // JSON array of { type, duration }
+  supportCategories        String   @default("[]") // JSON array of Capacity Tracker category labels
   active                   Boolean  @default(true)
   status                   String   @default("ACTIVE") // ACTIVE, ON_HOLD, HOSPITALISED, DISCHARGED, DECEASED
   statusUpdatedAt          DateTime @default(now()) // when the current status took effect (mirrors the latest statusChanges entry)

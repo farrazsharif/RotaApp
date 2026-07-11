@@ -79,6 +79,13 @@ function buildData(body: Record<string, unknown>) {
     const raw = typeof body.visits === 'string' ? body.visits : JSON.stringify(body.visits);
     try { JSON.parse(raw); data.visits = raw; } catch { /* ignore invalid */ }
   }
+  if (body.supportCategories !== undefined) {
+    const raw = typeof body.supportCategories === 'string' ? body.supportCategories : JSON.stringify(body.supportCategories);
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) data.supportCategories = JSON.stringify(arr.filter((x) => typeof x === 'string'));
+    } catch { /* ignore invalid */ }
+  }
   if (body.active !== undefined) data.active = !!body.active;
   if (body.siteId !== undefined) data.siteId = body.siteId || null;
   if (body.status !== undefined && Object.values(ServiceUserStatus).includes(body.status as ServiceUserStatus)) {

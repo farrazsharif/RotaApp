@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { format, differenceInYears } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
+import { parseCategories } from '../lib/supportCategories';
 import CarePlanModal from '../components/CarePlanModal';
 import LikesDislikesModal from '../components/LikesDislikesModal';
 import { likesDislikesApi } from '../api/likesDislikes';
@@ -318,6 +319,17 @@ export default function ServiceUserDetail() {
             {!su.needsMedication && !su.needsMobility && !su.needsPersonalCare && <span className="text-sm text-gray-400">None recorded</span>}
           </div>
           <Field label="Care Notes" value={su.careNotes} />
+        </Section>
+
+        {/* Support categories (Capacity Tracker) */}
+        <Section title="Support Categories">
+          <div className="flex flex-wrap gap-1">
+            {parseCategories(su.supportCategories).length === 0
+              ? <span className="text-sm text-gray-400">None recorded</span>
+              : parseCategories(su.supportCategories).map((c) => (
+                  <span key={c} className="badge-blue badge">{c}</span>
+                ))}
+          </div>
         </Section>
 
         {/* Visits */}

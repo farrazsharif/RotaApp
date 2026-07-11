@@ -3,13 +3,15 @@ import { useQuery } from '@tanstack/react-query';
 import { reportsApi, CribSheetRow } from '../api/reports';
 import { sitesApi } from '../api/sites';
 import { usersApi } from '../api/users';
+import { serviceUsersApi } from '../api/serviceUsers';
+import { SUPPORT_CATEGORIES, parseCategories } from '../lib/supportCategories';
 import {
   format, startOfMonth, endOfMonth, parseISO,
   startOfWeek, endOfWeek, addWeeks, subWeeks, subMonths, addDays, subDays,
 } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
-type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage';
+type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity';
 
 const TIMELINE_PRESETS = [
   'Next Week', 'This Week', 'Last Week', 'Two Weeks Ago',
@@ -91,6 +93,23 @@ export default function Reports() {
     enabled: tab === 'crib',
   });
 
+  const { data: activeServiceUsers = [] } = useQuery({
+    queryKey: ['service-users', 'active'],
+    queryFn: () => serviceUsersApi.list({ active: true }),
+    enabled: tab === 'capacity',
+  });
+
+  // Capacity Tracker: number of active service users in each support category
+  // (a person is counted in every category that applies).
+  const categoryCounts = SUPPORT_CATEGORIES.map((category) => ({
+    category,
+    count: activeServiceUsers.filter((su) => parseCategories(su.supportCategories).includes(category)).length,
+  }));
+  const copyCapacity = () => {
+    const text = categoryCounts.map((r) => `${r.category}\t${r.count}`).join('\n');
+    navigator.clipboard?.writeText(text);
+  };
+
   const isLoading = loadingHours || loadingOT || loadingCov || loadingScheduled || loadingCrib;
 
   const tabs: { key: Tab; label: string }[] = [
@@ -99,6 +118,7 @@ export default function Reports() {
     { key: 'crib', label: 'Crib Sheet' },
     { key: 'overtime', label: 'Overtime' },
     { key: 'coverage', label: 'Shift Coverage' },
+    { key: 'capacity', label: 'Capacity Tracker' },
   ];
 
   const term = search.trim().toLowerCase();
@@ -130,7 +150,8 @@ export default function Reports() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
 
-      {/* Filters + Search */}
+      {/* Filters + Search — not relevant to the caseload-based Capacity tab */}
+      {tab !== 'capacity' && (
       <div className="card flex flex-wrap gap-4 items-end">
         <div>
           <label className="label">Timeline</label>
@@ -183,6 +204,7 @@ export default function Reports() {
           />
         </div>
       </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
@@ -200,6 +222,35 @@ export default function Reports() {
       </div>
 
       {isLoading && <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>}
+
+      {/* Capacity Tracker — support-category counts for active service users */}
+      {tab === 'capacity' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-gray-700">Active service users: {activeServiceUsers.length}</div>
+            <button onClick={copyCapacity} className="btn-secondary btn">Copy</button>
+          </div>
+          <div className="card p-0 overflow-hidden max-w-xl">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Category</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Count</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {categoryCounts.map((r) => (
+                  <tr key={r.category} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-gray-800">{r.category}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-blue-600">{r.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-gray-400">Counts include active service users only. A person is counted in every category that applies.</p>
+        </div>
+      )}
 
       {/* Hours Worked */}
       {tab === 'hours' && !loadingHours && (
