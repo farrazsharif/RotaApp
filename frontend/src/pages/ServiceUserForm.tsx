@@ -27,8 +27,20 @@ function parseVisits(json?: string): VisitRow[] {
   }
 }
 
+// Whole years between a date of birth and today, or null if not a valid date.
+function ageFromDob(dob?: string): number | null {
+  if (!dob) return null;
+  const d = new Date(dob);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age >= 0 && age < 130 ? age : null;
+}
+
 const emptyForm: FormState = {
-  firstName: '', lastName: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '',
+  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '',
   phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '',
   nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
@@ -65,6 +77,7 @@ export default function ServiceUserForm() {
   if (isEdit && su && !hydrated) {
     setForm({
       firstName: su.firstName, lastName: su.lastName,
+      preferredName: su.preferredName || '', gender: su.gender || '', ethnicOrigin: su.ethnicOrigin || '',
       dateOfBirth: su.dateOfBirth ? format(new Date(su.dateOfBirth), 'yyyy-MM-dd') : '',
       photo: su.photo || '',
       siteId: su.siteId || '',
@@ -152,12 +165,37 @@ export default function ServiceUserForm() {
             <input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className="input" />
           </div>
           <div>
+            <label className="label">Preferred Name</label>
+            <input value={form.preferredName || ''} onChange={(e) => setForm({ ...form, preferredName: e.target.value })} className="input" placeholder="What they like to be called" />
+          </div>
+          <div>
+            <label className="label">Gender</label>
+            <div className="flex items-center gap-5 h-[42px]">
+              {['Male', 'Female'].map((g) => (
+                <label key={g} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input type="radio" name="gender" checked={form.gender === g} onChange={() => setForm({ ...form, gender: g })} className="h-4 w-4 accent-blue-600" />
+                  {g}
+                </label>
+              ))}
+              {form.gender && (
+                <button type="button" onClick={() => setForm({ ...form, gender: '' })} className="text-xs text-gray-400 hover:text-gray-600">clear</button>
+              )}
+            </div>
+          </div>
+          <div>
             <label className="label">Date of Birth *</label>
             <input type="date" value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} className="input" />
+            {ageFromDob(form.dateOfBirth) !== null && (
+              <p className="mt-1 text-xs text-gray-500">Age: <span className="font-medium text-gray-700">{ageFromDob(form.dateOfBirth)} years</span></p>
+            )}
           </div>
           <div>
             <label className="label">NHS Number</label>
             <input value={form.nhsNumber} onChange={(e) => setForm({ ...form, nhsNumber: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="label">Ethnic Origin</label>
+            <input value={form.ethnicOrigin || ''} onChange={(e) => setForm({ ...form, ethnicOrigin: e.target.value })} className="input" placeholder="e.g. British, Pakistani…" />
           </div>
           <div>
             <label className="label">Area</label>

@@ -4,6 +4,9 @@ import { ServiceUser, ServiceUserStatus } from '../types';
 export interface ServiceUserData {
   firstName: string;
   lastName: string;
+  preferredName?: string;
+  gender?: string;
+  ethnicOrigin?: string;
   dateOfBirth: string;
   photo?: string;
   siteId?: string;

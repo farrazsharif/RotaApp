@@ -123,6 +123,9 @@ model ServiceUser {
   photo                    String? // profile picture as a base64 data URL
   siteId                   String?
   nhsNumber                String?
+  preferredName            String?
+  gender                   String?
+  ethnicOrigin             String?
   address                  String?
   postcode                 String?
   phone                    String?
