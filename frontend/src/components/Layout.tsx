@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { PermissionKey } from '../types';
 import NotificationBell from './NotificationBell';
-import ClockWidget from './ClockWidget';
 import OfficeNotes from './OfficeNotes';
 import { useState } from 'react';
 
@@ -110,7 +109,6 @@ export default function Layout() {
           </button>
           <div className="flex-1 lg:flex-none" />
           <div className="flex items-center gap-3">
-            <ClockWidget />
             <NotificationBell />
           </div>
         </header>
