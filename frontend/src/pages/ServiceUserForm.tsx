@@ -52,7 +52,7 @@ function ageFromDob(dob?: string): number | null {
 }
 
 const emptyForm: FormState = {
-  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '',
+  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '', keySafe: '',
   phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '',
   nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
@@ -93,7 +93,7 @@ export default function ServiceUserForm() {
       dateOfBirth: su.dateOfBirth ? format(new Date(su.dateOfBirth), 'yyyy-MM-dd') : '',
       photo: su.photo || '',
       siteId: su.siteId || '',
-      nhsNumber: su.nhsNumber || '', address: su.address || '', postcode: su.postcode || '',
+      nhsNumber: su.nhsNumber || '', address: su.address || '', postcode: su.postcode || '', keySafe: su.keySafe || '',
       phone: su.phone || '', email: su.email || '',
       emergencyContactName: su.emergencyContactName || '', emergencyContactPhone: su.emergencyContactPhone || '',
       emergencyContactMobile: su.emergencyContactMobile || '', emergencyContactAddress: su.emergencyContactAddress || '',
@@ -259,6 +259,10 @@ export default function ServiceUserForm() {
               <label className="label">Email</label>
               <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" />
             </div>
+          </div>
+          <div>
+            <label className="label">Key Safe</label>
+            <input value={form.keySafe || ''} onChange={(e) => setForm({ ...form, keySafe: e.target.value })} className="input" placeholder="Location and/or code" />
           </div>
         </div>
       </Section>

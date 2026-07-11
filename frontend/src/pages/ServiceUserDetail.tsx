@@ -240,6 +240,7 @@ export default function ServiceUserDetail() {
             <Field label="Postcode" value={su.postcode} />
             <Field label="Phone" value={su.phone} />
             <Field label="Email" value={su.email} />
+            <Field label="Key Safe" value={su.keySafe} />
           </div>
           {su.postcode && (
             <div className="mt-4">

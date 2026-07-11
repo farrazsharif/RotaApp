@@ -385,6 +385,7 @@ export interface ServiceUser {
   nhsNumber?: string;
   address?: string;
   postcode?: string;
+  keySafe?: string;
   phone?: string;
   email?: string;
   emergencyContactName?: string;

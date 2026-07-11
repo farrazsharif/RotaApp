@@ -61,7 +61,7 @@ function siteAllowed(req: AuthRequest, siteId: unknown): boolean {
 function buildData(body: Record<string, unknown>) {
   const data: Record<string, unknown> = {};
   const stringFields = [
-    'firstName', 'lastName', 'preferredName', 'gender', 'ethnicOrigin', 'nhsNumber', 'address', 'postcode', 'phone', 'email', 'photo',
+    'firstName', 'lastName', 'preferredName', 'gender', 'ethnicOrigin', 'nhsNumber', 'address', 'postcode', 'keySafe', 'phone', 'email', 'photo',
     'emergencyContactName', 'emergencyContactPhone', 'emergencyContactMobile', 'emergencyContactAddress', 'emergencyContactRelation',
     'nextOfKinName', 'nextOfKinPhone', 'nextOfKinMobile', 'nextOfKinAddress', 'nextOfKinRelation', 'careNotes',
     'gpName', 'gpPractice', 'gpPhone', 'gpAddress',
