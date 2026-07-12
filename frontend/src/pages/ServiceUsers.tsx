@@ -53,6 +53,14 @@ export default function ServiceUsers() {
 
   const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
 
+  // Unfiltered list purely for the summary tiles, so the counts always reflect
+  // everyone in care regardless of the active search/site/status filters.
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['service-users', 'counts'],
+    queryFn: () => serviceUsersApi.list(),
+  });
+  const statusCount = (s: ServiceUserStatus) => allUsers.filter((u) => u.status === s).length;
+
   const refreshSites = () => {
     qc.invalidateQueries({ queryKey: ['sites'] });
     qc.invalidateQueries({ queryKey: ['service-users'] });
@@ -107,6 +115,34 @@ export default function ServiceUsers() {
             <button className="btn-primary btn" onClick={() => navigate('/service-users/new')}>+ Add Service User</button>
           </div>
         )}
+      </div>
+
+      {/* Summary counts */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-gray-900">{allUsers.length}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Total</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-green-600">{statusCount('ACTIVE')}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Active</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-gray-600">{statusCount('ON_HOLD')}</div>
+          <div className="text-xs text-gray-500 mt-0.5">On Hold</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-amber-600">{statusCount('HOSPITALISED')}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Hospitalised</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-blue-600">{statusCount('DISCHARGED')}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Discharged</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-slate-500">{statusCount('DECEASED')}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Passed Away</div>
+        </div>
       </div>
 
       {/* Toolbar */}
