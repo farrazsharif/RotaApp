@@ -13,6 +13,8 @@ export interface Supervision {
   assessorSignature?: string | null;
   staffSignature?: string | null;
   createdAt: string;
+  updatedAt?: string;
+  user?: { firstName: string; lastName: string };
 }
 
 export interface SupervisionData {
@@ -28,7 +30,7 @@ export interface SupervisionData {
 }
 
 export const staffSupervisionApi = {
-  list: (userId: string) => api.get<Supervision[]>('/staff-supervision', { params: { userId } }).then((r) => r.data),
+  list: (userId?: string) => api.get<Supervision[]>('/staff-supervision', { params: userId ? { userId } : {} }).then((r) => r.data),
   get: (id: string) => api.get<Supervision>(`/staff-supervision/${id}`).then((r) => r.data),
   create: (data: SupervisionData) => api.post<Supervision>('/staff-supervision', data).then((r) => r.data),
   update: (id: string, data: Partial<SupervisionData>) => api.put<Supervision>(`/staff-supervision/${id}`, data).then((r) => r.data),

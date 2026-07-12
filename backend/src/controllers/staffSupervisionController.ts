@@ -30,7 +30,11 @@ export async function listSupervisions(req: AuthRequest, res: Response) {
   const { userId } = req.query;
   const where: Record<string, unknown> = {};
   if (userId) where.userId = String(userId);
-  const items = await prisma.supervision.findMany({ where, orderBy: { date: 'desc' } });
+  const items = await prisma.supervision.findMany({
+    where,
+    orderBy: { date: 'desc' },
+    include: { user: { select: { firstName: true, lastName: true } } },
+  });
   res.json(items);
 }
 
