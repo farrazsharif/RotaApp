@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { trainingApi, TrainingData } from '../api/training';
 import { importantDatesApi, ImportantDateData } from '../api/importantDates';
+import { staffSupervisionApi, Supervision, SupervisionData } from '../api/staffSupervision';
+import { SUPERVISION_QUESTIONS, SUPERVISION_OBSERVATIONS, parseMap } from '../lib/staffSupervision';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Role, Training, ImportantDate, FitForWork, YesNo, User, roleLabel } from '../types';
@@ -21,7 +23,7 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-const TABS = ['Details', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'Documents'] as const;
+const TABS = ['Details', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'Supervision', 'Documents'] as const;
 type Tab = typeof TABS[number];
 
 // The health-declaration checklist from the paper "Fit for Work Declaration".
@@ -209,6 +211,7 @@ export default function StaffDetail() {
       {tab === 'Important Dates' && <ImportantDatesTab userId={user.id} isManager={isManager} />}
       {tab === 'Emergency Contact' && <EmergencyContactTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'Fit for Work' && <FitForWorkTab userId={user.id} isManager={isManager} initial={user} />}
+      {tab === 'Supervision' && <SupervisionTab userId={user.id} staffName={`${user.firstName} ${user.lastName}`} isManager={isManager} />}
       {tab === 'Documents' && <DocumentsTab ownerType="USER" ownerId={user.id} canManage={isManager} />}
 
       {editOpen && <StaffFormModal editUser={user} onClose={() => setEditOpen(false)} />}
@@ -554,6 +557,190 @@ function YesNoRow({ label, value, ro, onChange }: { label: string; value: YesNo;
           <label className="flex items-center gap-1"><input type="radio" checked={value === 'YES'} onChange={() => onChange('YES')} /> Yes</label>
           <label className="flex items-center gap-1"><input type="radio" checked={value === 'NO'} onChange={() => onChange('NO')} /> No</label>
         </span>
+      )}
+    </div>
+  );
+}
+
+function SupervisionTab({ userId, staffName, isManager }: { userId: string; staffName: string; isManager: boolean }) {
+  const qc = useQueryClient();
+  const { data: records = [], isLoading } = useQuery({ queryKey: ['supervisions', userId], queryFn: () => staffSupervisionApi.list(userId) });
+
+  const emptyForm = () => ({
+    date: format(new Date(), 'yyyy-MM-dd'),
+    position: '',
+    answers: {} as Record<string, string>,
+    serviceUsers: '',
+    observations: {} as Record<string, string>,
+    assessorName: '',
+    assessorSignature: '',
+    staffSignature: '',
+  });
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyForm());
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const reset = () => { setForm(emptyForm()); setEditingId(null); setOpen(false); };
+
+  const saveMut = useMutation({
+    mutationFn: () => {
+      const payload: SupervisionData = {
+        userId,
+        date: form.date,
+        position: form.position || undefined,
+        answers: JSON.stringify(form.answers),
+        serviceUsers: form.serviceUsers || undefined,
+        observations: JSON.stringify(form.observations),
+        assessorName: form.assessorName || undefined,
+        assessorSignature: form.assessorSignature || undefined,
+        staffSignature: form.staffSignature || undefined,
+      };
+      return editingId ? staffSupervisionApi.update(editingId, payload) : staffSupervisionApi.create(payload);
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['supervisions', userId] }); reset(); },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => staffSupervisionApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['supervisions', userId] }); setConfirmDeleteId(null); },
+  });
+
+  function startEdit(s: Supervision) {
+    setEditingId(s.id);
+    setForm({
+      date: format(new Date(s.date), 'yyyy-MM-dd'),
+      position: s.position || '',
+      answers: parseMap(s.answers),
+      serviceUsers: s.serviceUsers || '',
+      observations: parseMap(s.observations),
+      assessorName: s.assessorName || '',
+      assessorSignature: s.assessorSignature || '',
+      staffSignature: s.staffSignature || '',
+    });
+    setOpen(true);
+  }
+
+  const setAnswer = (k: string, v: string) => setForm((f) => ({ ...f, answers: { ...f.answers, [k]: v } }));
+  const setObs = (k: string, v: string) => setForm((f) => ({ ...f, observations: { ...f.observations, [k]: v } }));
+
+  return (
+    <div className="card space-y-6">
+      {isLoading ? (
+        <div className="flex justify-center p-6"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>
+      ) : records.length === 0 ? (
+        <p className="text-sm text-gray-400">No supervisions recorded yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {records.map((s) => (
+            <div key={s.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <div>
+                <p className="text-sm font-medium text-gray-900">{format(new Date(s.date), 'dd MMM yyyy')}</p>
+                <p className="text-xs text-gray-500">{s.position || 'No position'}{s.assessorName ? ` · Assessor: ${s.assessorName}` : ''}</p>
+              </div>
+              {isManager && (
+                confirmDeleteId === s.id ? (
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs text-red-700">Delete?</span>
+                    <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(s.id)}>Yes</button>
+                    <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDeleteId(null)}>No</button>
+                  </span>
+                ) : (
+                  <span className="flex gap-2">
+                    <button className="text-blue-600 text-xs hover:underline" onClick={() => startEdit(s)}>Edit</button>
+                    <button className="text-red-600 text-xs hover:underline" onClick={() => setConfirmDeleteId(s.id)}>Delete</button>
+                  </span>
+                )
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isManager && !open && (
+        <button className="btn-primary btn" onClick={() => { setForm(emptyForm()); setEditingId(null); setOpen(true); }}>+ New Supervision</button>
+      )}
+
+      {isManager && open && (
+        <div className="border-t pt-5 space-y-5">
+          <h3 className="font-semibold text-gray-900">{editingId ? 'Edit Supervision' : 'New Supervision'}</h3>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="label">Staff Name</label>
+              <p className="text-sm text-gray-800 py-2">{staffName}</p>
+            </div>
+            <div>
+              <label className="label">Position</label>
+              <input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} className="input" placeholder="e.g. Carer" />
+            </div>
+            <div>
+              <label className="label">Date</label>
+              <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input" />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold text-gray-900 mb-1">Service Detail</p>
+            <div className="rounded-lg border border-gray-200 px-3">
+              {SUPERVISION_QUESTIONS.map((q) => (
+                <div key={q.key} className="flex items-center justify-between gap-3 border-b border-gray-100 py-1.5 last:border-b-0">
+                  <span className="text-sm text-gray-800">{q.label}</span>
+                  <span className="flex gap-3 flex-shrink-0 text-sm">
+                    <label className="flex items-center gap-1"><input type="radio" name={`sup-${q.key}`} checked={form.answers[q.key] === 'YES'} onChange={() => setAnswer(q.key, 'YES')} /> Yes</label>
+                    <label className="flex items-center gap-1"><input type="radio" name={`sup-${q.key}`} checked={form.answers[q.key] === 'NO'} onChange={() => setAnswer(q.key, 'NO')} /> No</label>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Service Users & Days Worked</label>
+            <textarea value={form.serviceUsers} onChange={(e) => setForm({ ...form, serviceUsers: e.target.value })} rows={3} className="input resize-none" placeholder="Client names and the days the staff member works" />
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-gray-900">Observations & Comments</p>
+            {SUPERVISION_OBSERVATIONS.map((o) => (
+              <div key={o.key}>
+                <label className="label">{o.label}</label>
+                <textarea value={form.observations[o.key] || ''} onChange={(e) => setObs(o.key, e.target.value)} rows={2} className="input resize-none text-sm" />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2 border-t pt-4">
+            <div className="space-y-2">
+              <div>
+                <label className="label">Assessor Name</label>
+                <input value={form.assessorName} onChange={(e) => setForm({ ...form, assessorName: e.target.value })} className="input" />
+              </div>
+              <div>
+                <label className="label">Assessor Signature</label>
+                <SignaturePad value={form.assessorSignature} ro={false} onChange={(dataUrl) => setForm((f) => ({ ...f, assessorSignature: dataUrl }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <label className="label">Staff Name</label>
+                <p className="text-sm text-gray-800 py-2">{staffName}</p>
+              </div>
+              <div>
+                <label className="label">Staff Signature</label>
+                <SignaturePad value={form.staffSignature} ro={false} onChange={(dataUrl) => setForm((f) => ({ ...f, staffSignature: dataUrl }))} />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button className="btn-secondary btn" onClick={reset}>Cancel</button>
+            <div className="flex-1" />
+            <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+              {saveMut.isPending ? 'Saving…' : editingId ? 'Save Changes' : 'Save Supervision'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

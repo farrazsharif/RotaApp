@@ -75,6 +75,7 @@ model User {
   trainings          Training[]
   importantDates     ImportantDate[]
   spotChecks         SpotCheck[]         @relation("SpotCheckCarer")
+  supervisions       Supervision[]       @relation("StaffSupervision")
   customRole         CustomRole?         @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   // Sites this user is scoped to / belongs to. Empty = org-wide (no restriction).
   sites              Site[]              @relation("UserSites")
@@ -487,6 +488,28 @@ model Shift {
 
   @@index([companyId])
   @@index([companyId, date])
+}
+
+// A staff supervision form (structured 1:1 review of a carer).
+model Supervision {
+  companyId         String? // tenant scope (app-enforced via Prisma extension)
+  id                String   @id @default(cuid())
+  userId            String // the staff member being supervised
+  date              DateTime
+  position          String?
+  answers           String   @default("{}") // service-detail yes/no questions
+  serviceUsers      String? // free text: client names + days worked
+  observations      String   @default("{}") // observation prompt -> comment
+  assessorName      String?
+  assessorSignature String? // drawn signature as a data URL
+  staffSignature    String? // drawn signature as a data URL
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation("StaffSupervision", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([userId, date])
 }
 
 model CallLog {
