@@ -255,6 +255,26 @@ export default function Schedule() {
     dropMut.mutate({ id: (arg.event.extendedProps.shift as Shift).id, date: arg.event.startStr });
   }, [isManager, dropMut]);
 
+  // Mark the first shift of each new site group within a day so we can draw a
+  // separator before it. Mirrors the "site rank, then start time" ordering the
+  // calendar itself uses.
+  const groupStartIds = useMemo(() => {
+    const set = new Set<string>();
+    const byDay = new Map<string, Shift[]>();
+    for (const s of activeShifts) {
+      const k = format(new Date(s.date), 'yyyy-MM-dd');
+      const list = byDay.get(k);
+      if (list) list.push(s); else byDay.set(k, [s]);
+    }
+    for (const list of byDay.values()) {
+      list.sort((a, b) => (siteRankOf(a) - siteRankOf(b)) || a.startTime.localeCompare(b.startTime));
+      for (let i = 1; i < list.length; i++) {
+        if (siteRankOf(list[i]) !== siteRankOf(list[i - 1])) set.add(list[i].id);
+      }
+    }
+    return set;
+  }, [activeShifts]);
+
   const events = activeShifts.map((s) => {
     const unassigned = needsStaff(s);
     const baseColor = s.serviceUser?.site?.color || userColor(s.userId, users);
@@ -274,6 +294,7 @@ export default function Schedule() {
         ...(unassigned ? ['unassigned-shift'] : []),
         ...(!s.published ? ['draft-shift'] : []),
         ...(isPastShift(s.date, s.endTime) ? ['past-shift'] : []),
+        ...(groupStartIds.has(s.id) ? ['site-group-start'] : []),
       ],
     };
   });
@@ -581,14 +602,15 @@ function DayColumns({ days, shifts, isManager, needsStaff, missingCarers, onOpen
                 <div className="text-[11px] text-gray-500">{format(d, 'dd MMM')}</div>
               </div>
               <div className="p-1 space-y-1">
-                {list.map((s) => {
+                {list.map((s, i) => {
                   const unassigned = needsStaff(s);
                   const color = s.serviceUser?.site?.color || '#3b82f6';
                   const patient = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
                   const carer = s.user ? `${s.user.firstName} ${s.user.lastName}` : null;
+                  const groupStart = i > 0 && siteRankOf(s) !== siteRankOf(list[i - 1]);
                   return (
+                    <div key={s.id} className={groupStart ? 'pt-2 mt-1 border-t-2 border-dashed border-gray-300' : ''}>
                     <button
-                      key={s.id}
                       onClick={() => onOpen(s)}
                       className={`w-full text-left rounded px-1.5 py-1 text-[10px] leading-tight border ${
                         unassigned ? 'border-dashed border-red-400 bg-red-50 text-red-800' : 'border-transparent text-gray-800'
@@ -604,6 +626,7 @@ function DayColumns({ days, shifts, isManager, needsStaff, missingCarers, onOpen
                         {!s.published && ' · draft'}
                       </div>
                     </button>
+                    </div>
                   );
                 })}
                 {isManager && (
