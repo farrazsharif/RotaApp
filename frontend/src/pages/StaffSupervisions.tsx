@@ -90,8 +90,8 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Staff</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Review Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Next Review</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Assessor</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Last Updated</th>
@@ -122,7 +122,7 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                     ) : (
                       <span className="flex gap-2 justify-end">
                         {isManager && isOverdue(s) && latestIds.has(s.id) && (
-                          <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: null })}>Supervise now</button>
+                          <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: null })}>Review now</button>
                         )}
                         <button className="btn-secondary btn btn-sm" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: s })}>
                           {isManager ? 'Open / Edit' : 'View'}
