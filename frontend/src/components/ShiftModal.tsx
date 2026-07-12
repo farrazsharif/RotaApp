@@ -348,6 +348,9 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
               <input type="time" {...register('endTime', { required: true })} className="input" />
             </div>
           </div>
+          {watchedStart && watchedEnd && (
+            <p className="text-sm text-gray-600 -mt-1">Duration: <span className="font-medium text-gray-800">{durationLabel(watchedStart, watchedEnd)}</span></p>
+          )}
 
           <div>
             <label className="label">Cover *</label>
