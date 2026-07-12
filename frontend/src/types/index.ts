@@ -257,6 +257,7 @@ export interface Site {
   id: string;
   name: string;
   color: string;
+  order?: number;
   _count?: { serviceUsers: number };
 }
 

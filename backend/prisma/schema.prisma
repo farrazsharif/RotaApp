@@ -107,6 +107,7 @@ model Site {
   id        String   @id @default(cuid())
   name      String   @unique
   color     String   @default("#3b82f6")
+  order     Int      @default(0) // display order on the schedule (lower = first)
   createdAt DateTime @default(now())
 
   serviceUsers ServiceUser[]

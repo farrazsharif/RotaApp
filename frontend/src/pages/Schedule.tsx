@@ -36,6 +36,15 @@ function isPastShift(date: string | Date, endTime: string): boolean {
   return end.getTime() <= Date.now();
 }
 
+// Display rank for a shift's site — drives the "group by site, then time"
+// ordering across the day-based schedule views. Sites are ranked by the manager-
+// set `order`; shifts with no site sort last.
+function siteRankOf(s: Shift): number {
+  const site = s.serviceUser?.site;
+  if (!site) return 1e9;
+  return site.order ?? 1e9 - 1;
+}
+
 // The exact start moment of a shift = its calendar date + its HH:mm start time.
 function shiftStartAt(shiftDate: string | Date, startTime: string): number {
   const d = new Date(shiftDate);
@@ -257,7 +266,7 @@ export default function Schedule() {
         : s.visitName || s.role || 'Shift',
       start: `${dateStr}T${s.startTime}:00`,
       end: `${dateStr}T${s.endTime}:00`,
-      extendedProps: { shift: s },
+      extendedProps: { shift: s, siteRank: siteRankOf(s) },
       backgroundColor: baseColor,
       borderColor: unassigned ? '#dc2626' : baseColor,
       textColor: '#000',
@@ -497,7 +506,7 @@ export default function Schedule() {
                   : format(arg.date, 'EEE dd-MM')
             }
             events={events}
-            eventOrder="start"
+            eventOrder="siteRank,start"
             dateClick={handleDateClick}
             eventClick={handleEventClick}
             eventDrop={handleEventDrop}
@@ -555,7 +564,9 @@ function DayColumns({ days, shifts, isManager, needsStaff, missingCarers, onOpen
   const dayKey = (d: Date | string) => format(new Date(d), 'yyyy-MM-dd');
   const todayKey = format(new Date(), 'yyyy-MM-dd');
   const forDay = (d: Date) =>
-    shifts.filter((s) => dayKey(s.date) === dayKey(d)).sort((a, b) => a.startTime.localeCompare(b.startTime));
+    shifts
+      .filter((s) => dayKey(s.date) === dayKey(d))
+      .sort((a, b) => (siteRankOf(a) - siteRankOf(b)) || a.startTime.localeCompare(b.startTime));
 
   return (
     <div className="card p-0 overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>

@@ -12,6 +12,9 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "seriesPermanent" BOOLEAN NOT NULL DEFAULT false`);
   // Date the person started receiving care (nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "serviceStartDate" TIMESTAMP(3)`);
+  // Site display order on the schedule (lower = first). "order" is a reserved
+  // word so it must stay double-quoted.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Site" ADD COLUMN IF NOT EXISTS "order" INTEGER NOT NULL DEFAULT 0`);
   // Supervision.nextReviewDate — the table is created by db push; guard the
   // column in case the table already existed from an earlier deploy.
   try {

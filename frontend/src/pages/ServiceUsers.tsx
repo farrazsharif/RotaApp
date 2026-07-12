@@ -70,6 +70,17 @@ export default function ServiceUsers() {
     mutationFn: (id: string) => sitesApi.delete(id),
     onSuccess: () => { refreshSites(); resetSiteForm(); },
   });
+  const reorderMut = useMutation({
+    mutationFn: (ids: string[]) => sitesApi.reorder(ids),
+    onSuccess: refreshSites,
+  });
+  const moveSite = (index: number, dir: -1 | 1) => {
+    const j = index + dir;
+    if (j < 0 || j >= sites.length) return;
+    const next = [...sites];
+    [next[index], next[j]] = [next[j], next[index]];
+    reorderMut.mutate(next.map((s) => s.id));
+  };
   const siteError = (createSiteMut.error || updateSiteMut.error) as { response?: { data?: { error?: string } } } | null;
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
@@ -289,8 +300,23 @@ export default function ServiceUsers() {
             <div className="p-6 space-y-5">
               {sites.length > 0 && (
                 <div className="space-y-2">
-                  {sites.map((s) => (
-                    <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg border">
+                  <p className="text-xs text-gray-500">Use ↑ / ↓ to set the order sites appear in on the schedule.</p>
+                  {sites.map((s, i) => (
+                    <div key={s.id} className="flex items-center gap-2 p-2 rounded-lg border">
+                      <div className="flex flex-col -my-1">
+                        <button
+                          className="text-gray-400 hover:text-gray-800 disabled:opacity-30 leading-none text-xs"
+                          disabled={i === 0 || reorderMut.isPending}
+                          onClick={() => moveSite(i, -1)}
+                          title="Move up"
+                        >▲</button>
+                        <button
+                          className="text-gray-400 hover:text-gray-800 disabled:opacity-30 leading-none text-xs"
+                          disabled={i === sites.length - 1 || reorderMut.isPending}
+                          onClick={() => moveSite(i, 1)}
+                          title="Move down"
+                        >▼</button>
+                      </div>
                       <span className="h-5 w-5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
                       <span className="flex-1 text-sm font-medium">{s.name}</span>
                       <span className="text-xs text-gray-400">{s._count?.serviceUsers ?? 0} patients</span>

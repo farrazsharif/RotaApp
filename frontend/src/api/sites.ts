@@ -7,5 +7,6 @@ export const sitesApi = {
     api.post<Site>('/sites', data).then((r) => r.data),
   update: (id: string, data: { name?: string; color?: string }) =>
     api.put<Site>(`/sites/${id}`, data).then((r) => r.data),
+  reorder: (ids: string[]) => api.put('/sites/reorder', { ids }).then((r) => r.data),
   delete: (id: string) => api.delete(`/sites/${id}`).then((r) => r.data),
 };
