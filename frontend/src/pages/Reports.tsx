@@ -7,7 +7,7 @@ import { serviceUsersApi } from '../api/serviceUsers';
 import { SUPPORT_CATEGORIES, parseCategories } from '../lib/supportCategories';
 import {
   format, startOfMonth, endOfMonth, parseISO,
-  startOfWeek, endOfWeek, addWeeks, subWeeks, subMonths, addDays, subDays,
+  startOfWeek, endOfWeek, addWeeks, subWeeks, subMonths, addDays, subDays, differenceInYears,
 } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
@@ -105,8 +105,32 @@ export default function Reports() {
     category,
     count: activeServiceUsers.filter((su) => parseCategories(su.supportCategories).includes(category)).length,
   }));
+  // CQC PIR: number of active service users in each age bracket, from DOB.
+  const AGE_BANDS: { label: string; min: number; max: number }[] = [
+    { label: '0 to 17 years', min: 0, max: 17 },
+    { label: '18 to 24 years', min: 18, max: 24 },
+    { label: '25 to 64 years', min: 25, max: 64 },
+    { label: '65 to 74 years', min: 65, max: 74 },
+    { label: '75 to 84 years', min: 75, max: 84 },
+    { label: '85 to 94 years', min: 85, max: 94 },
+    { label: '95 years and over', min: 95, max: Infinity },
+  ];
+  const ageOf = (dob?: string | null) => (dob ? differenceInYears(new Date(), new Date(dob)) : null);
+  const ageBandCounts = AGE_BANDS.map((b) => ({
+    label: b.label,
+    count: activeServiceUsers.filter((su) => {
+      const a = ageOf(su.dateOfBirth);
+      return a != null && a >= b.min && a <= b.max;
+    }).length,
+  }));
+  const unknownAgeCount = activeServiceUsers.filter((su) => ageOf(su.dateOfBirth) == null).length;
+
   const copyCapacity = () => {
-    const text = categoryCounts.map((r) => `${r.category}\t${r.count}`).join('\n');
+    const text = [
+      ...categoryCounts.map((r) => `${r.category}\t${r.count}`),
+      '',
+      ...ageBandCounts.map((r) => `${r.label}\t${r.count}`),
+    ].join('\n');
     navigator.clipboard?.writeText(text);
   };
 
@@ -249,6 +273,35 @@ export default function Reports() {
             </table>
           </div>
           <p className="text-xs text-gray-400">Counts include active service users only. A person is counted in every category that applies.</p>
+
+          <div className="pt-2">
+            <div className="text-sm font-semibold text-gray-700 mb-2">Age brackets</div>
+            <div className="card p-0 overflow-hidden max-w-xl">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Age bracket</th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-600">Count</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {ageBandCounts.map((r) => (
+                    <tr key={r.label} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-800">{r.label}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-blue-600">{r.count}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-50 font-bold">
+                    <td className="px-4 py-3">Total</td>
+                    <td className="px-4 py-3 text-right text-blue-700">{ageBandCounts.reduce((s, r) => s + r.count, 0)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {unknownAgeCount > 0 && (
+              <p className="text-xs text-amber-600 mt-2">{unknownAgeCount} active service user{unknownAgeCount > 1 ? 's have' : ' has'} no date of birth recorded and {unknownAgeCount > 1 ? 'are' : 'is'} not included in the age brackets.</p>
+            )}
+          </div>
         </div>
       )}
 
