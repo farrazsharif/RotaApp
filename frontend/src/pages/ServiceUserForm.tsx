@@ -53,7 +53,7 @@ function ageFromDob(dob?: string): number | null {
 }
 
 const emptyForm: FormState = {
-  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
+  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', serviceStartDate: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
   phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '',
   nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
@@ -93,6 +93,7 @@ export default function ServiceUserForm() {
       firstName: su.firstName, lastName: su.lastName,
       preferredName: su.preferredName || '', gender: su.gender || '', ethnicOrigin: su.ethnicOrigin || '',
       dateOfBirth: su.dateOfBirth ? format(new Date(su.dateOfBirth), 'yyyy-MM-dd') : '',
+      serviceStartDate: su.serviceStartDate ? format(new Date(su.serviceStartDate), 'yyyy-MM-dd') : '',
       photo: su.photo || '',
       siteId: su.siteId || '',
       nhsNumber: su.nhsNumber || '', address: su.address || '', postcode: su.postcode || '', keySafe: su.keySafe || '', medsSafeCode: su.medsSafeCode || '',
@@ -237,6 +238,10 @@ export default function ServiceUserForm() {
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="label">Service Start Date</label>
+            <input type="date" value={form.serviceStartDate || ''} onChange={(e) => setForm({ ...form, serviceStartDate: e.target.value })} className="input" />
           </div>
         </div>
       </Section>

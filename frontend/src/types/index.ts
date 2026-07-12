@@ -379,6 +379,7 @@ export interface ServiceUser {
   gender?: string;
   ethnicOrigin?: string;
   dateOfBirth: string;
+  serviceStartDate?: string;
   photo?: string;
   siteId?: string;
   site?: Site;

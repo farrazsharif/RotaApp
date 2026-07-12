@@ -8,6 +8,7 @@ export interface ServiceUserData {
   gender?: string;
   ethnicOrigin?: string;
   dateOfBirth: string;
+  serviceStartDate?: string;
   photo?: string;
   siteId?: string;
   nhsNumber?: string;

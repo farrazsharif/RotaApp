@@ -167,6 +167,7 @@ export default function ServiceUserDetail() {
               {su.nhsNumber && ` · NHS ${su.nhsNumber}`}
               {su.gender && ` · ${su.gender}`}
               {su.ethnicOrigin && ` · ${su.ethnicOrigin}`}
+              {su.serviceStartDate && ` · Started ${format(new Date(su.serviceStartDate), 'dd MMM yyyy')}`}
             </p>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {su.site && (

@@ -120,6 +120,7 @@ model ServiceUser {
   firstName                String
   lastName                 String
   dateOfBirth              DateTime
+  serviceStartDate         DateTime?
   photo                    String? // profile picture as a base64 data URL
   siteId                   String?
   nhsNumber                String?

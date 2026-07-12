@@ -71,6 +71,7 @@ function buildData(body: Record<string, unknown>) {
     if (body[f] !== undefined) data[f] = body[f] || null;
   }
   if (body.dateOfBirth !== undefined) data.dateOfBirth = new Date(body.dateOfBirth as string);
+  if (body.serviceStartDate !== undefined) data.serviceStartDate = body.serviceStartDate ? new Date(body.serviceStartDate as string) : null;
   if (body.needsMedication !== undefined) data.needsMedication = !!body.needsMedication;
   if (body.needsMobility !== undefined) data.needsMobility = !!body.needsMobility;
   if (body.needsPersonalCare !== undefined) data.needsPersonalCare = !!body.needsPersonalCare;
