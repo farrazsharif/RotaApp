@@ -53,7 +53,7 @@ function ageFromDob(dob?: string): number | null {
 }
 
 const emptyForm: FormState = {
-  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', serviceStartDate: '', photo: '', siteId: '', nhsNumber: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
+  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', serviceStartDate: '', photo: '', siteId: '', nhsNumber: '', packageId: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
   phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '',
   nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
@@ -96,7 +96,7 @@ export default function ServiceUserForm() {
       serviceStartDate: su.serviceStartDate ? format(new Date(su.serviceStartDate), 'yyyy-MM-dd') : '',
       photo: su.photo || '',
       siteId: su.siteId || '',
-      nhsNumber: su.nhsNumber || '', address: su.address || '', postcode: su.postcode || '', keySafe: su.keySafe || '', medsSafeCode: su.medsSafeCode || '',
+      nhsNumber: su.nhsNumber || '', packageId: su.packageId || '', address: su.address || '', postcode: su.postcode || '', keySafe: su.keySafe || '', medsSafeCode: su.medsSafeCode || '',
       phone: su.phone || '', email: su.email || '',
       emergencyContactName: su.emergencyContactName || '', emergencyContactPhone: su.emergencyContactPhone || '',
       emergencyContactMobile: su.emergencyContactMobile || '', emergencyContactAddress: su.emergencyContactAddress || '',
@@ -214,6 +214,10 @@ export default function ServiceUserForm() {
           <div>
             <label className="label">NHS Number</label>
             <input value={form.nhsNumber} onChange={(e) => setForm({ ...form, nhsNumber: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="label">Package ID</label>
+            <input value={form.packageId || ''} onChange={(e) => setForm({ ...form, packageId: e.target.value })} className="input" />
           </div>
           <div>
             <label className="label">Ethnic Origin</label>

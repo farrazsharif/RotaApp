@@ -385,6 +385,7 @@ export interface ServiceUser {
   siteId?: string;
   site?: Site;
   nhsNumber?: string;
+  packageId?: string;
   address?: string;
   postcode?: string;
   keySafe?: string;

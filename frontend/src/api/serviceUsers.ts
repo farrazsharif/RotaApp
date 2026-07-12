@@ -12,6 +12,7 @@ export interface ServiceUserData {
   photo?: string;
   siteId?: string;
   nhsNumber?: string;
+  packageId?: string;
   address?: string;
   postcode?: string;
   keySafe?: string;

@@ -171,6 +171,7 @@ export default function ServiceUserDetail() {
               {su.preferredName && `“${su.preferredName}” · `}
               {su.dateOfBirth && `${differenceInYears(new Date(), new Date(su.dateOfBirth))} yrs · DOB ${format(new Date(su.dateOfBirth), 'dd MMM yyyy')}`}
               {su.nhsNumber && ` · NHS ${su.nhsNumber}`}
+              {su.packageId && ` · Package ${su.packageId}`}
               {su.gender && ` · ${su.gender}`}
               {su.ethnicOrigin && ` · ${su.ethnicOrigin}`}
               {su.serviceStartDate && ` · Started ${format(new Date(su.serviceStartDate), 'dd MMM yyyy')}`}
