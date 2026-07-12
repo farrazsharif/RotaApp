@@ -102,7 +102,10 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
 
   // Include inactive staff too so they can still be assigned; each row shows an Active/Inactive badge.
   const { data: users = [] } = useQuery({ queryKey: ['users', 'all'], queryFn: () => usersApi.list() });
-  const { data: serviceUsers = [] } = useQuery({ queryKey: ['service-users', ''], queryFn: () => serviceUsersApi.list() });
+  const { data: serviceUsersRaw = [] } = useQuery({ queryKey: ['service-users', ''], queryFn: () => serviceUsersApi.list() });
+  const serviceUsers = [...serviceUsersRaw].sort((a, b) =>
+    `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' })
+  );
 
   useEffect(() => {
     setRepeatEnabled(false);
