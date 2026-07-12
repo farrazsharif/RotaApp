@@ -79,6 +79,7 @@ export default function ServiceUserDetail() {
   // set (or back-date) when it takes effect before it's applied.
   const [pendingStatus, setPendingStatus] = useState<ServiceUserStatus | null>(null);
   const [effectiveAt, setEffectiveAt] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: su, isLoading, isError } = useQuery({
     queryKey: ['service-user', id],
@@ -128,6 +129,11 @@ export default function ServiceUserDetail() {
       // cached shifts list also needs to refetch to pick up the new status.
       qc.invalidateQueries({ queryKey: ['shifts'] });
     },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: () => serviceUsersApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-users'] }); navigate('/service-users'); },
   });
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
@@ -513,6 +519,26 @@ export default function ServiceUserDetail() {
       </Section>
 
       <DocumentsTab ownerType="SERVICE_USER" ownerId={id} canManage={isManager} />
+
+      {isManager && (
+        <div className="card border-red-200 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-red-700">Delete Service User</h2>
+            <p className="text-sm text-gray-500">Permanently remove {su.firstName} {su.lastName} and their records. This cannot be undone.</p>
+          </div>
+          {confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-red-700">Are you sure?</span>
+              <button className="btn-danger btn" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>
+                {deleteMut.isPending ? 'Deleting…' : 'Yes, delete'}
+              </button>
+              <button className="btn-secondary btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
+            </div>
+          ) : (
+            <button className="btn-danger btn" onClick={() => setConfirmDelete(true)}>Delete Service User</button>
+          )}
+        </div>
+      )}
 
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
       {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}

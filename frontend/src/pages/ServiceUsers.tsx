@@ -38,7 +38,6 @@ export default function ServiceUsers() {
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('serviceUsersView') as 'grid' | 'list') || 'grid');
   const setViewMode = (v: 'grid' | 'list') => { setView(v); localStorage.setItem('serviceUsersView', v); };
   const [showSites, setShowSites] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [siteName, setSiteName] = useState('');
   const [siteColor, setSiteColor] = useState(SITE_COLORS[0]);
   const [editSiteId, setEditSiteId] = useState<string | null>(null);
@@ -53,11 +52,6 @@ export default function ServiceUsers() {
   });
 
   const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
-
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => serviceUsersApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-users'] }); setConfirmDelete(null); },
-  });
 
   const refreshSites = () => {
     qc.invalidateQueries({ queryKey: ['sites'] });
@@ -173,7 +167,7 @@ export default function ServiceUsers() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Visit</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-4 py-3 w-8" />
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -209,19 +203,7 @@ export default function ServiceUsers() {
                           {su.status === 'HOSPITALISED' ? <HospitalIcon /> : meta.icon} {meta.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        {isManager && (
-                          confirmDelete === su.id ? (
-                            <span className="flex items-center gap-2 justify-end">
-                              <span className="text-xs text-red-700">Delete?</span>
-                              <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(su.id)}>Yes</button>
-                              <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
-                            </span>
-                          ) : (
-                            <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(su.id)}>Delete</button>
-                          )
-                        )}
-                      </td>
+                      <td className="px-4 py-3 text-right text-gray-300 whitespace-nowrap">→</td>
                     </tr>
                   );
                 })}
@@ -289,22 +271,6 @@ export default function ServiceUsers() {
                 {/* Footer */}
                 <div className="flex items-center justify-between px-4 py-2.5 border-t bg-gray-50">
                   <span className="text-xs font-medium text-blue-600">View full record →</span>
-                  {isManager && (
-                    confirmDelete === su.id ? (
-                      <span className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <span className="text-xs text-red-700">Delete?</span>
-                        <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(su.id)}>Yes</button>
-                        <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
-                      </span>
-                    ) : (
-                      <button
-                        className="text-xs text-red-600 hover:underline"
-                        onClick={(e) => { e.stopPropagation(); setConfirmDelete(su.id); }}
-                      >
-                        Delete
-                      </button>
-                    )
-                  )}
                 </div>
               </div>
             );
