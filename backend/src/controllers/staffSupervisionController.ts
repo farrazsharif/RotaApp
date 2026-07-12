@@ -15,7 +15,12 @@ function buildData(body: Record<string, unknown>) {
   for (const f of ['position', 'serviceUsers', 'assessorName', 'assessorSignature', 'staffSignature']) {
     if (body[f] !== undefined) data[f] = body[f] || null;
   }
-  if (body.date !== undefined) data.date = new Date(body.date as string);
+  if (body.date !== undefined) {
+    const d = new Date(body.date as string);
+    data.date = d;
+    // Next supervision is due 3 months after this one.
+    data.nextReviewDate = new Date(d.getFullYear(), d.getMonth() + 3, d.getDate());
+  }
   if (body.answers !== undefined) data.answers = asJson(body.answers);
   if (body.observations !== undefined) data.observations = asJson(body.observations);
   return data;

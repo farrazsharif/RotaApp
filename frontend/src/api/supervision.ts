@@ -15,6 +15,7 @@ export interface SpotCheckRow {
 
 export interface SupervisionSummary {
   intervalMonths: number;
+  supervisions: { dueCount: number };
   spotChecks: { dueCount: number; rows: SpotCheckRow[] };
   reviews: { dueCount: number; items: { id: string; serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };
   risk: { dueCount: number; items: { serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };

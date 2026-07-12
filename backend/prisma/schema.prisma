@@ -496,6 +496,8 @@ model Supervision {
   id                String   @id @default(cuid())
   userId            String // the staff member being supervised
   date              DateTime
+  // Auto-set to date + 3 months; drives the "supervision due" reminder.
+  nextReviewDate    DateTime?
   position          String?
   answers           String   @default("{}") // service-detail yes/no questions
   serviceUsers      String? // free text: client names + days worked

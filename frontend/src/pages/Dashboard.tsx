@@ -132,10 +132,11 @@ export default function Dashboard() {
             <h2 className="font-semibold text-gray-900">Supervision</h2>
             <span className="text-sm text-blue-600">Open →</span>
           </div>
-          <div className="grid grid-cols-3 gap-3 mt-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
             <div><p className="text-2xl font-bold text-red-600">{supervision.risk.items.filter((i) => i.overdue).length}</p><p className="text-xs text-gray-500">Risk overdue</p></div>
             <div><p className="text-2xl font-bold text-amber-600">{supervision.reviews.dueCount}</p><p className="text-xs text-gray-500">Reviews due</p></div>
             <div><p className="text-2xl font-bold text-blue-600">{supervision.spotChecks.dueCount}</p><p className="text-xs text-gray-500">Spot checks due</p></div>
+            <div><p className="text-2xl font-bold text-purple-600">{supervision.supervisions.dueCount}</p><p className="text-xs text-gray-500">Supervisions due</p></div>
           </div>
         </Link>
       )}

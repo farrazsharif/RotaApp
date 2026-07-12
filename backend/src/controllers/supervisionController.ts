@@ -39,7 +39,7 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
   const now = new Date();
   const soon = new Date(now.getTime() + SOON_DAYS * DAY);
 
-  const [reviews, carePlans, carers, checks] = await Promise.all([
+  const [reviews, carePlans, carers, checks, supervisions] = await Promise.all([
     prisma.review.findMany({
       where: { nextReviewDate: { not: null, lte: soon } },
       select: { id: true, serviceUserId: true, nextReviewDate: true, serviceUser: { select: { firstName: true, lastName: true } } },
@@ -52,7 +52,14 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
     }),
     prisma.user.findMany({ where: { active: true, role: { notIn: [Role.ADMIN, Role.FAMILY_MEMBER] } }, select: { id: true, firstName: true, lastName: true } }),
     prisma.spotCheck.findMany({ select: { id: true, carerId: true, date: true, observerName: true, answers: true }, orderBy: { date: 'desc' } }),
+    prisma.supervision.findMany({ select: { userId: true, nextReviewDate: true, date: true }, orderBy: { date: 'desc' } }),
   ]);
+
+  // A staff member's supervision is "due" once their latest one's next-review
+  // date (auto-set to +3 months) has passed.
+  const latestSupByUser = new Map<string, Date | null>();
+  for (const s of supervisions) if (!latestSupByUser.has(s.userId)) latestSupByUser.set(s.userId, s.nextReviewDate);
+  const supervisionsDueCount = [...latestSupByUser.values()].filter((d) => !!d && d <= now).length;
 
   // Latest spot check per carer (checks are newest-first, so first wins).
   const latestByCarer = new Map<string, { id: string; date: Date; observerName: string | null; concerns: number }>();
@@ -83,6 +90,7 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
 
   res.json({
     intervalMonths: INTERVAL_MONTHS,
+    supervisions: { dueCount: supervisionsDueCount },
     spotChecks: { dueCount: spotRows.filter((r) => r.due).length, rows: spotRows },
     reviews: {
       dueCount: reviews.length,

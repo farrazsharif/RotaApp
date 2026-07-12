@@ -4,6 +4,7 @@ export interface Supervision {
   id: string;
   userId: string;
   date: string;
+  nextReviewDate?: string | null;
   position?: string | null;
   answers: string; // JSON: { [questionKey]: 'YES' | 'NO' }
   serviceUsers?: string | null;

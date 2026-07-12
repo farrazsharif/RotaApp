@@ -9,7 +9,7 @@ import { SUPERVISION_QUESTIONS, SUPERVISION_OBSERVATIONS, parseMap } from '../li
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Role, Training, ImportantDate, FitForWork, YesNo, User, roleLabel } from '../types';
-import { format } from 'date-fns';
+import { format, addMonths } from 'date-fns';
 import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
 import SignaturePad from '../components/SignaturePad';
@@ -632,11 +632,18 @@ function SupervisionTab({ userId, staffName, isManager }: { userId: string; staf
         <p className="text-sm text-gray-400">No supervisions recorded yet.</p>
       ) : (
         <div className="space-y-2">
-          {records.map((s) => (
+          {records.map((s) => {
+            const overdue = !!s.nextReviewDate && new Date(s.nextReviewDate) < new Date();
+            return (
             <div key={s.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
               <div>
                 <p className="text-sm font-medium text-gray-900">{format(new Date(s.date), 'dd MMM yyyy')}</p>
                 <p className="text-xs text-gray-500">{s.position || 'No position'}{s.assessorName ? ` · Assessor: ${s.assessorName}` : ''}</p>
+                {s.nextReviewDate && (
+                  <p className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                    Next due: {format(new Date(s.nextReviewDate), 'dd MMM yyyy')}{overdue ? ' · overdue' : ''}
+                  </p>
+                )}
               </div>
               {isManager && (
                 confirmDeleteId === s.id ? (
@@ -653,7 +660,8 @@ function SupervisionTab({ userId, staffName, isManager }: { userId: string; staf
                 )
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -677,6 +685,9 @@ function SupervisionTab({ userId, staffName, isManager }: { userId: string; staf
             <div>
               <label className="label">Date</label>
               <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input" />
+              {form.date && (
+                <p className="mt-1 text-xs text-gray-500">Next review: <span className="font-medium text-gray-700">{format(addMonths(new Date(form.date), 3), 'dd MMM yyyy')}</span></p>
+              )}
             </div>
           </div>
 
