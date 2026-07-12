@@ -27,19 +27,13 @@
   opacity: 0.6;
 }
 
-/* First call of a new site group in a day: add a gap + divider line above it so
-   sites read as visually separated blocks. */
+/* First call of a new site group in a day: leave a clear empty gap above it so
+   each site reads as its own separated block (the board is busy with dashed
+   outlines, so a line blends in — whitespace separates far more clearly).
+   Target the harness (the flow item) to get a reliable gap without margin
+   collapse. */
 .fc .fc-daygrid-event-harness:has(> .site-group-start) {
-  margin-top: 14px;
-  position: relative;
-}
-.fc .fc-daygrid-event-harness:has(> .site-group-start)::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  right: 2px;
-  top: -8px;
-  border-top: 2px dashed #94a3b8;
+  margin-top: 26px;
 }
 
 @layer components {

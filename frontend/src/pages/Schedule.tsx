@@ -609,7 +609,7 @@ function DayColumns({ days, shifts, isManager, needsStaff, missingCarers, onOpen
                   const carer = s.user ? `${s.user.firstName} ${s.user.lastName}` : null;
                   const groupStart = i > 0 && siteRankOf(s) !== siteRankOf(list[i - 1]);
                   return (
-                    <div key={s.id} className={groupStart ? 'pt-2 mt-1 border-t-2 border-dashed border-gray-300' : ''}>
+                    <div key={s.id} className={groupStart ? 'mt-5' : ''}>
                     <button
                       onClick={() => onOpen(s)}
                       className={`w-full text-left rounded px-1.5 py-1 text-[10px] leading-tight border ${
