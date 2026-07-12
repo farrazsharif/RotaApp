@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false, // registered manually in main.tsx so we can re-check on focus
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Caremid – Workforce Scheduling',
@@ -24,6 +25,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
         navigateFallbackDenylist: [/^\/api/],
       },
     }),
