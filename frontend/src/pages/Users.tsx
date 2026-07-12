@@ -41,6 +41,13 @@ export default function Users() {
     `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase())
   );
 
+  const counts = {
+    total: users.length,
+    active: users.filter((u) => u.active).length,
+    pending: users.filter((u) => !u.active && u.pendingSetup).length,
+    inactive: users.filter((u) => !u.active && !u.pendingSetup).length,
+  };
+
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
   return (
@@ -50,6 +57,25 @@ export default function Users() {
         <div className="flex gap-3">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="input w-48" />
           {can('manage_staff') && <button className="btn-primary btn" onClick={() => setShowModal(true)}>+ Add Staff</button>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-gray-900">{counts.total}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Total staff</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-green-600">{counts.active}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Active</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-amber-600">{counts.pending}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Pending setup</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-red-600">{counts.inactive}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Inactive</div>
         </div>
       </div>
 
