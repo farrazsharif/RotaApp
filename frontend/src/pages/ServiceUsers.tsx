@@ -35,6 +35,8 @@ export default function ServiceUsers() {
   const [search, setSearch] = useState('');
   const [filterSite, setFilterSite] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('serviceUsersView') as 'grid' | 'list') || 'grid');
+  const setViewMode = (v: 'grid' | 'list') => { setView(v); localStorage.setItem('serviceUsersView', v); };
   const [showSites, setShowSites] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [siteName, setSiteName] = useState('');
@@ -79,6 +81,10 @@ export default function ServiceUsers() {
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
   const hasFilters = !!(search || filterSite || filterStatus);
+
+  const sortedUsers = [...serviceUsers].sort((a, b) =>
+    `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' })
+  );
 
   return (
     <div className="space-y-5">
@@ -129,6 +135,22 @@ export default function ServiceUsers() {
             Clear
           </button>
         )}
+        <div className="ml-auto flex rounded-lg border border-gray-200 overflow-hidden">
+          <button
+            className={`px-3 py-2 text-sm ${view === 'grid' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            onClick={() => setViewMode('grid')}
+            title="Grid view"
+          >
+            ▦ Grid
+          </button>
+          <button
+            className={`px-3 py-2 text-sm border-l border-gray-200 ${view === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            onClick={() => setViewMode('list')}
+            title="List view"
+          >
+            ☰ List
+          </button>
+        </div>
       </div>
 
       {serviceUsers.length === 0 ? (
@@ -139,9 +161,77 @@ export default function ServiceUsers() {
             <button className="btn-primary btn mt-4" onClick={() => navigate('/service-users/new')}>+ Add your first service user</button>
           )}
         </div>
+      ) : view === 'list' ? (
+        <div className="card p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Site</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Address</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Visit</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {sortedUsers.map((su) => {
+                  const meta = STATUS_META[su.status] || STATUS_META.ACTIVE;
+                  return (
+                    <tr
+                      key={su.id}
+                      onClick={() => navigate(`/service-users/${su.id}`)}
+                      className="hover:bg-gray-50 cursor-pointer"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar photo={su.photo} firstName={su.firstName} lastName={su.lastName} size="sm" />
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900 truncate">{su.firstName} {su.lastName}</div>
+                            {su.dateOfBirth && <div className="text-xs text-gray-500">{differenceInYears(new Date(), new Date(su.dateOfBirth))} yrs</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {su.site ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: su.site.color }}>
+                            📍 {su.site.name}
+                          </span>
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{[su.address, su.postcode].filter(Boolean).join(', ') || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{su.phone || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{durationLabel(su.visitDuration)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${meta.className}`}>
+                          {su.status === 'HOSPITALISED' ? <HospitalIcon /> : meta.icon} {meta.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {isManager && (
+                          confirmDelete === su.id ? (
+                            <span className="flex items-center gap-2 justify-end">
+                              <span className="text-xs text-red-700">Delete?</span>
+                              <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(su.id)}>Yes</button>
+                              <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
+                            </span>
+                          ) : (
+                            <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(su.id)}>Delete</button>
+                          )
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {serviceUsers.map((su) => {
+          {sortedUsers.map((su) => {
             const meta = STATUS_META[su.status] || STATUS_META.ACTIVE;
             return (
               <div
