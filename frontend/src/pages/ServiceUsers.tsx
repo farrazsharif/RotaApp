@@ -49,6 +49,10 @@ export default function ServiceUsers() {
       siteId: filterSite || undefined,
       status: (filterStatus || undefined) as ServiceUserStatus | undefined,
     }),
+    // Keep the current results on screen while a new search/filter loads, so the
+    // page doesn't drop to the loading spinner on every keystroke (which was
+    // unmounting the search box and losing focus after each letter).
+    placeholderData: (prev) => prev,
   });
 
   const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
