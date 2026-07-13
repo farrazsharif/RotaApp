@@ -37,11 +37,11 @@ function presetRange(preset: TimelinePreset): { start: Date; end: Date } {
 
 export default function Reports() {
   const [tab, setTab] = useState<Tab>('scheduled');
-  const today = new Date();
-  const [startDate, setStartDate] = useState(format(startOfMonth(today), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState(format(endOfMonth(today), 'yyyy-MM-dd'));
+  const thisWeek = presetRange('This Week');
+  const [startDate, setStartDate] = useState(format(thisWeek.start, 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(thisWeek.end, 'yyyy-MM-dd'));
   const [search, setSearch] = useState('');
-  const [timeline, setTimeline] = useState<TimelinePreset | ''>('');
+  const [timeline, setTimeline] = useState<TimelinePreset | ''>('This Week');
   const [siteFilter, setSiteFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
@@ -184,7 +184,7 @@ export default function Reports() {
         <div>
           <label className="label">Timeline</label>
           <select value={timeline} onChange={(e) => applyTimeline(e.target.value)} className="input">
-            <option value="">Custom</option>
+            {timeline === '' && <option value="">Custom</option>}
             {TIMELINE_PRESETS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
