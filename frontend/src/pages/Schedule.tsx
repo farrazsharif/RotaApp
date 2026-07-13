@@ -343,12 +343,11 @@ export default function Schedule() {
       );
     }
     const carerText = assignedCarers(s) === 0
-      ? ''
+      ? 'Unassigned'
       : [s.user ? `${s.user.firstName} ${s.user.lastName}` : null, ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? [])].filter(Boolean).join(', ');
     const staffLine = [carerText, unassigned ? `needs ${missing} more` : ''].filter(Boolean).join(' · ');
     return (
-      <div className="p-0.5 overflow-hidden leading-tight relative">
-        {isManager && unassigned && <span className="unassigned-flag">Unassigned</span>}
+      <div className="p-0.5 overflow-hidden leading-tight">
         <p className="text-xs font-bold truncate">
           {showStatus && patientStatus === 'HOSPITALISED' && <HospitalIcon className="mr-1 align-middle" />}
           {statusIcon && <span title={STATUS_LABEL[patientStatus!]}>{statusIcon} </span>}
