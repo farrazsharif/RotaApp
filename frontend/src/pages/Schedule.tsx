@@ -125,7 +125,7 @@ export default function Schedule() {
     'yyyy-MM-dd',
   );
 
-  const { data: shifts = [] } = useQuery({
+  const { data: shifts = [], isLoading: shiftsLoading } = useQuery({
     queryKey: ['shifts', fetchFrom, fetchTo, isManager ? 'all' : user?.id],
     queryFn: () => shiftsApi.list({ startDate: fetchFrom, endDate: fetchTo, userId: isManager ? undefined : user?.id }),
     placeholderData: (prev) => prev,
@@ -375,6 +375,22 @@ export default function Schedule() {
   const VIEW_TABS: { k: ViewKey; label: string }[] = [
     { k: 'day', label: 'Day' }, { k: 'week', label: 'Week' }, { k: '2week', label: '2 wk' }, { k: '4week', label: '4 wk' }, { k: 'month', label: 'Month' },
   ];
+
+  // Full-page loading state on first open — the schedule pulls a lot of visits,
+  // so hold the page until they're all in rather than rendering it half-built.
+  // Date/view navigation keeps the previous data (placeholderData), so this only
+  // shows on the initial load.
+  if (shiftsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-40 text-center">
+        <div className="animate-spin h-12 w-12 border-4 border-gray-200 border-t-blue-600 rounded-full" />
+        <div>
+          <p className="text-lg font-semibold text-gray-800">Loading schedule…</p>
+          <p className="text-sm text-gray-500 mt-1">Please wait while we load all your visits.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
