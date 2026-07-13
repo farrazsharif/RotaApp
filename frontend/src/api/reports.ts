@@ -21,6 +21,12 @@ export interface LateCheckinRow {
   id: string; startTime: string; endTime: string; visitName: string | null;
   serviceUserName: string; serviceUserPhone: string | null; carers: string[]; minutesLate: number;
 }
+export interface EcmRow {
+  shiftId: string; date: string; serviceUser: string; site: string; carer: string; visitName: string | null;
+  scheduledStart: string; scheduledEnd: string; scheduledMins: number;
+  clockIn: string | null; clockOut: string | null; actualMins: number | null; variance: number | null;
+  status: 'attended' | 'no_clock_out' | 'not_attended'; short: boolean; ecmNote: string;
+}
 
 export const reportsApi = {
   dashboard: () => api.get<DashboardStats>('/reports/dashboard').then((r) => r.data),
@@ -36,4 +42,8 @@ export const reportsApi = {
   cribSheet: (params: { startDate: string; endDate: string }) =>
     api.get<CribSheetRow[]>('/reports/crib-sheet', { params }).then((r) => r.data),
   shiftRoles: () => api.get<string[]>('/reports/shift-roles').then((r) => r.data),
+  ecm: (params: { startDate: string; endDate: string; siteId?: string; userId?: string }) =>
+    api.get<EcmRow[]>('/reports/ecm', { params }).then((r) => r.data),
+  saveEcmNote: (shiftId: string, note: string) =>
+    api.post('/reports/ecm-note', { shiftId, note }).then((r) => r.data),
 };

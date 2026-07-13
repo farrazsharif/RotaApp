@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { reportsApi, CribSheetRow } from '../api/reports';
+import { reportsApi, CribSheetRow, EcmRow } from '../api/reports';
 import { sitesApi } from '../api/sites';
 import { usersApi } from '../api/users';
 import { serviceUsersApi } from '../api/serviceUsers';
@@ -11,7 +11,7 @@ import {
 } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
-type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity';
+type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm';
 
 const TIMELINE_PRESETS = [
   'Next Week', 'This Week', 'Last Week', 'Two Weeks Ago',
@@ -99,6 +99,15 @@ export default function Reports() {
     enabled: tab === 'capacity',
   });
 
+  const { data: ecmData = [], isLoading: loadingEcm } = useQuery({
+    queryKey: ['report-ecm', startDate, endDate, siteFilter, employeeFilter],
+    queryFn: () => reportsApi.ecm({ startDate, endDate, siteId: siteFilter || undefined, userId: employeeFilter || undefined }),
+    enabled: tab === 'ecm',
+  });
+  // Local edits to short-visit reasons, keyed by shiftId (shared across a shift's
+  // carer rows). Saved on blur; never touches the clock times.
+  const [ecmNotes, setEcmNotes] = useState<Record<string, string>>({});
+
   // CQC PIR: number of active service users in each support category
   // (a person is counted in every category that applies).
   const categoryCounts = SUPPORT_CATEGORIES.map((category) => ({
@@ -134,7 +143,7 @@ export default function Reports() {
     navigator.clipboard?.writeText(text);
   };
 
-  const isLoading = loadingHours || loadingOT || loadingCov || loadingScheduled || loadingCrib;
+  const isLoading = loadingHours || loadingOT || loadingCov || loadingScheduled || loadingCrib || loadingEcm;
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'scheduled', label: 'Hours Scheduled' },
@@ -142,6 +151,7 @@ export default function Reports() {
     { key: 'crib', label: 'Crib Sheet' },
     { key: 'overtime', label: 'Overtime' },
     { key: 'coverage', label: 'Shift Coverage' },
+    { key: 'ecm', label: 'ECM' },
     { key: 'capacity', label: 'CQC PIR' },
   ];
 
@@ -174,6 +184,27 @@ export default function Reports() {
     URL.revokeObjectURL(url);
   }
 
+  const filteredEcm = ecmData.filter((r) => !term || `${r.serviceUser} ${r.carer} ${r.site}`.toLowerCase().includes(term));
+  const noteFor = (r: EcmRow) => (r.shiftId in ecmNotes ? ecmNotes[r.shiftId] : r.ecmNote);
+  const ecmClock = (iso: string | null) => (iso ? format(new Date(iso), 'dd/MM/yyyy HH:mm') : '');
+  const STATUS_LABEL: Record<EcmRow['status'], string> = { attended: 'Attended', no_clock_out: 'No clock-out', not_attended: 'Not attended' };
+
+  function exportEcmCsv() {
+    const head = ['Date', 'Service User', 'Site', 'Carer', 'Visit', 'Scheduled Start', 'Scheduled End', 'Scheduled Mins', 'Clock In', 'Clock Out', 'Actual Mins', 'Variance Mins', 'Status', 'Reason'];
+    const esc = (v: string | number | null) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [head.join(',')];
+    for (const r of filteredEcm) {
+      lines.push([r.date, r.serviceUser, r.site, r.carer, r.visitName || '', `${r.date} ${r.scheduledStart}`, `${r.date} ${r.scheduledEnd}`, r.scheduledMins, ecmClock(r.clockIn), ecmClock(r.clockOut), r.actualMins ?? '', r.variance ?? '', STATUS_LABEL[r.status], noteFor(r)].map(esc).join(','));
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ecm_${startDate}_${endDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
@@ -196,7 +227,7 @@ export default function Reports() {
           <label className="label">End Date</label>
           <input type="date" value={endDate} onChange={(e) => { setTimeline(''); setEndDate(e.target.value); }} className="input" />
         </div>
-        {tab === 'scheduled' && (
+        {(tab === 'scheduled' || tab === 'ecm') && (
           <>
             <div>
               <label className="label">Location Filter</label>
@@ -205,13 +236,15 @@ export default function Reports() {
                 {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
-            <div>
-              <label className="label">Position Filter</label>
-              <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="input">
-                <option value="">Select Positions</option>
-                {shiftRoles.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
+            {tab === 'scheduled' && (
+              <div>
+                <label className="label">Position Filter</label>
+                <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="input">
+                  <option value="">Select Positions</option>
+                  {shiftRoles.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="label">Carer Filter</label>
               <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="input">
@@ -494,6 +527,68 @@ export default function Reports() {
                     </div>
                   </div>
                 ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ECM — Electronic Call Monitoring: scheduled vs actual (clocked) times */}
+      {tab === 'ecm' && !loadingEcm && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-gray-500 max-w-2xl">
+              Actual clocked times exactly as recorded. Short or missed visits are flagged — add a reason so the submission is documented. Times are never altered.
+            </p>
+            <button onClick={exportEcmCsv} disabled={filteredEcm.length === 0} className="btn-secondary btn">Export CSV</button>
+          </div>
+          {filteredEcm.length === 0 ? (
+            <div className="card text-center py-12 text-gray-400">{term ? 'No matching visits' : 'No visits in this period'}</div>
+          ) : (
+            <div className="card p-0 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-3 py-3 font-medium text-gray-600">Date</th>
+                    <th className="text-left px-3 py-3 font-medium text-gray-600">Service User</th>
+                    <th className="text-left px-3 py-3 font-medium text-gray-600">Site</th>
+                    <th className="text-left px-3 py-3 font-medium text-gray-600">Carer</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">Scheduled</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">Clock In</th>
+                    <th className="text-center px-3 py-3 font-medium text-gray-600">Clock Out</th>
+                    <th className="text-right px-3 py-3 font-medium text-gray-600">Actual</th>
+                    <th className="text-right px-3 py-3 font-medium text-gray-600">Variance</th>
+                    <th className="text-left px-3 py-3 font-medium text-gray-600">Reason (short/missed)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredEcm.map((r, i) => (
+                    <tr key={`${r.shiftId}-${i}`} className={`hover:bg-gray-50 ${r.status === 'not_attended' ? 'bg-red-50' : r.short ? 'bg-amber-50' : ''}`}>
+                      <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{format(parseISO(r.date), 'dd-MM-yyyy')}</td>
+                      <td className="px-3 py-2.5 font-medium text-gray-900">{r.serviceUser}</td>
+                      <td className="px-3 py-2.5 text-gray-600">{r.site}</td>
+                      <td className={`px-3 py-2.5 ${r.carer === 'Unassigned' ? 'text-red-600' : 'text-gray-800'}`}>{r.carer}</td>
+                      <td className="px-3 py-2.5 text-center text-gray-600 whitespace-nowrap">{formatTime12h(r.scheduledStart)}–{formatTime12h(r.scheduledEnd)}<div className="text-xs text-gray-400">{r.scheduledMins} mins</div></td>
+                      <td className="px-3 py-2.5 text-center text-gray-700 whitespace-nowrap">{r.clockIn ? format(parseISO(r.clockIn), 'h:mm a') : <span className="text-red-500">—</span>}</td>
+                      <td className="px-3 py-2.5 text-center text-gray-700 whitespace-nowrap">{r.clockOut ? format(parseISO(r.clockOut), 'h:mm a') : <span className="text-amber-600">—</span>}</td>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap">{r.actualMins != null ? `${r.actualMins} mins` : <span className="text-gray-300">—</span>}</td>
+                      <td className={`px-3 py-2.5 text-right whitespace-nowrap font-medium ${r.variance == null ? 'text-gray-300' : r.variance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {r.variance == null ? '—' : `${r.variance > 0 ? '+' : ''}${r.variance}`}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {(r.short || r.status !== 'attended') ? (
+                          <input
+                            value={noteFor(r)}
+                            onChange={(e) => setEcmNotes((p) => ({ ...p, [r.shiftId]: e.target.value }))}
+                            onBlur={(e) => reportsApi.saveEcmNote(r.shiftId, e.target.value)}
+                            placeholder="Reason…"
+                            className="w-44 border border-gray-300 rounded px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+                          />
+                        ) : <span className="text-gray-300 text-xs">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

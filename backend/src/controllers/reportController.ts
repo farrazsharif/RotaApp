@@ -281,6 +281,91 @@ export async function shiftRoles(req: AuthRequest, res: Response) {
   res.json(rows.map((r) => r.role).filter(Boolean).sort());
 }
 
+// Minutes between two HH:mm times (handles overnight).
+function minsBetween(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let mins = eh * 60 + em - (sh * 60 + sm);
+  if (mins < 0) mins += 24 * 60;
+  return mins;
+}
+
+// Electronic Call Monitoring: one row per carer-visit with scheduled vs actual
+// (clocked) times, so the record submitted to the council reflects what actually
+// happened. Short/missed visits are flagged for a documented reason (ecmNote) —
+// the times themselves are never altered.
+export async function ecmReport(req: AuthRequest, res: Response) {
+  const { startDate, endDate, siteId, userId } = req.query;
+  if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
+
+  const where: Record<string, unknown> = {
+    date: { gte: new Date(String(startDate)), lte: new Date(String(endDate)) },
+    status: { not: 'CANCELLED' },
+    ...relatedServiceUserScopeWhere(req.user),
+  };
+  if (siteId) where.serviceUser = { siteId: String(siteId) };
+  if (userId) where.OR = [{ userId: String(userId) }, { coverCarers: { some: { id: String(userId) } } }];
+
+  const shifts = await prisma.shift.findMany({
+    where,
+    include: {
+      user: { select: { id: true, firstName: true, lastName: true } },
+      coverCarers: { select: { id: true, firstName: true, lastName: true } },
+      serviceUser: { select: { firstName: true, lastName: true, site: { select: { name: true } } } },
+      clockRecords: { select: { userId: true, clockIn: true, clockOut: true } },
+    },
+    orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+  });
+
+  const rows = [];
+  for (const s of shifts) {
+    const scheduledMins = minsBetween(s.startTime, s.endTime);
+    const suName = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : '—';
+    const siteName = s.serviceUser?.site?.name ?? '—';
+    const carers = [...(s.user ? [s.user] : []), ...s.coverCarers];
+    const targets = carers.length > 0 ? carers : [{ id: 'unassigned', firstName: 'Unassigned', lastName: '' }];
+
+    for (const c of targets) {
+      if (userId && c.id !== String(userId)) continue;
+      const clock = s.clockRecords.find((cr) => cr.userId === c.id);
+      const clockIn = clock?.clockIn ? new Date(clock.clockIn) : null;
+      const clockOut = clock?.clockOut ? new Date(clock.clockOut) : null;
+      const actualMins = clockIn && clockOut ? Math.round((clockOut.getTime() - clockIn.getTime()) / 60000) : null;
+      const status = !clockIn ? 'not_attended' : !clockOut ? 'no_clock_out' : 'attended';
+      const variance = actualMins != null ? actualMins - scheduledMins : null;
+      const short = actualMins != null && (actualMins < 15 || variance! <= -10);
+      rows.push({
+        shiftId: s.id,
+        date: new Date(s.date).toISOString().slice(0, 10),
+        serviceUser: suName,
+        site: siteName,
+        carer: c.id === 'unassigned' ? 'Unassigned' : `${c.firstName} ${c.lastName}`.trim(),
+        visitName: s.visitName,
+        scheduledStart: s.startTime,
+        scheduledEnd: s.endTime,
+        scheduledMins,
+        clockIn: clockIn ? clockIn.toISOString() : null,
+        clockOut: clockOut ? clockOut.toISOString() : null,
+        actualMins,
+        variance,
+        status,
+        short,
+        ecmNote: s.ecmNote ?? '',
+      });
+    }
+  }
+
+  res.json(rows);
+}
+
+// Save the ECM reason/explanation for a visit. Never touches the clock times.
+export async function saveEcmNote(req: AuthRequest, res: Response) {
+  const { shiftId, note } = req.body as { shiftId?: string; note?: string };
+  if (!shiftId) return res.status(400).json({ error: 'shiftId required' });
+  await prisma.shift.update({ where: { id: shiftId }, data: { ecmNote: note || null } });
+  res.json({ message: 'ok' });
+}
+
 // The individual visits behind the dashboard "Late / missed check-ins" count:
 // today's assigned, still-scheduled visits whose start passed 15+ mins ago with
 // no clock-in yet.

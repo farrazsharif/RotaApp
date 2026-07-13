@@ -475,6 +475,7 @@ model Shift {
   cover         Int      @default(1)
   role          String?
   notes         String?
+  ecmNote       String?  // ECM: reason/explanation for a short or missed visit
   status        String   @default("SCHEDULED")
   // Defaults true at the DB level so pre-existing shifts stay visible to
   // carers; newly created shifts are explicitly set to false by the
