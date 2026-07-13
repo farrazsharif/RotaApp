@@ -301,10 +301,15 @@ export async function ecmReport(req: AuthRequest, res: Response) {
   const where: Record<string, unknown> = {
     date: { gte: new Date(String(startDate)), lte: new Date(String(endDate)) },
     status: { not: 'CANCELLED' },
+    // ECM only covers committed calls: published and assigned to a carer. This
+    // also keeps it fast by excluding the (often thousands of) unassigned drafts.
+    published: true,
     ...relatedServiceUserScopeWhere(req.user),
   };
   if (siteId) where.serviceUser = { siteId: String(siteId) };
-  if (userId) where.OR = [{ userId: String(userId) }, { coverCarers: { some: { id: String(userId) } } }];
+  where.OR = userId
+    ? [{ userId: String(userId) }, { coverCarers: { some: { id: String(userId) } } }]
+    : [{ userId: { not: null } }, { coverCarers: { some: {} } }];
 
   const shifts = await prisma.shift.findMany({
     where,
