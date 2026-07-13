@@ -14,6 +14,7 @@ type FormState = ServiceUserData & { preferredCaregiverIds: string[] };
 interface VisitRow { type: string; duration: number }
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const TITLE_OPTIONS = ['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Other'];
 
 // Standard ONS/NHS ethnicity categories, grouped for the dropdown.
 const ETHNIC_ORIGIN_GROUPS: { group: string; options: string[] }[] = [
@@ -53,7 +54,7 @@ function ageFromDob(dob?: string): number | null {
 }
 
 const emptyForm: FormState = {
-  firstName: '', lastName: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', serviceStartDate: '', photo: '', siteId: '', nhsNumber: '', packageId: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
+  firstName: '', lastName: '', title: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', serviceStartDate: '', photo: '', siteId: '', nhsNumber: '', packageId: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
   phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '',
   nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
@@ -90,7 +91,7 @@ export default function ServiceUserForm() {
 
   if (isEdit && su && !hydrated) {
     setForm({
-      firstName: su.firstName, lastName: su.lastName,
+      firstName: su.firstName, lastName: su.lastName, title: su.title || '',
       preferredName: su.preferredName || '', gender: su.gender || '', ethnicOrigin: su.ethnicOrigin || '',
       dateOfBirth: su.dateOfBirth ? format(new Date(su.dateOfBirth), 'yyyy-MM-dd') : '',
       serviceStartDate: su.serviceStartDate ? format(new Date(su.serviceStartDate), 'yyyy-MM-dd') : '',
@@ -175,6 +176,13 @@ export default function ServiceUserForm() {
           />
         </div>
         <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className="label">Title</label>
+            <select value={form.title || ''} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input w-48">
+              <option value="">—</option>
+              {TITLE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
           <div>
             <label className="label">First Name *</label>
             <input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="input" />

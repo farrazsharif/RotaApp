@@ -376,6 +376,7 @@ export interface ServiceUser {
   id: string;
   firstName: string;
   lastName: string;
+  title?: string;
   preferredName?: string;
   gender?: string;
   ethnicOrigin?: string;

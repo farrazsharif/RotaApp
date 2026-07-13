@@ -168,7 +168,7 @@ export default function ServiceUserDetail() {
           <div className="flex items-start gap-4">
             <Avatar photo={su.photo} firstName={su.firstName} lastName={su.lastName} size="lg" />
             <div>
-            <h1 className="text-2xl font-bold text-gray-900">{su.firstName} {su.lastName}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{su.title ? `${su.title} ` : ''}{su.firstName} {su.lastName}</h1>
             <p className="text-sm text-gray-500">
               {su.preferredName && `“${su.preferredName}” · `}
               {su.dateOfBirth && `${differenceInYears(new Date(), new Date(su.dateOfBirth))} yrs · DOB ${format(new Date(su.dateOfBirth), 'dd MMM yyyy')}`}

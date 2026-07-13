@@ -33,8 +33,6 @@ function parseGrab(json?: string): GrabData {
   try { return json ? JSON.parse(json) : {}; } catch { return {}; }
 }
 
-const TITLES = ['Mr', 'Mrs', 'Miss', 'Ms', 'Other'];
-
 function Row({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className="grid grid-cols-3 border-b border-gray-300 last:border-0">
@@ -111,17 +109,7 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
           <div>
             <h3 className="font-semibold text-gray-800 mb-1">Service User Information</h3>
             <div className="border border-gray-300 rounded-lg overflow-hidden">
-              <div className="grid grid-cols-3 border-b border-gray-300">
-                <div className="col-span-1 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 border-r border-gray-300">Title</div>
-                <div className="col-span-2 px-3 py-1.5">
-                  {canManage ? (
-                    <select value={g.title || ''} onChange={(e) => set('title', e.target.value)} className="border border-gray-300 rounded px-2 py-0.5 text-sm print:border-0">
-                      <option value="">—</option>
-                      {TITLES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  ) : <span className="text-sm">{g.title || '—'}</span>}
-                </div>
-              </div>
+              <Row label="Title" value={su.title} />
               <Row label="Forename" value={su.firstName} />
               <Row label="Surname" value={su.lastName} />
               <Row label="Preferred Name" value={su.preferredName} />
