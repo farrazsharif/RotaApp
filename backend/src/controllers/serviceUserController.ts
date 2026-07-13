@@ -167,6 +167,29 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
       await prisma.serviceUserStatusChange.create({
         data: { serviceUserId: req.params.id, status: String(data.status), effectiveAt, changedById: req.user?.id ?? null },
       });
+
+      // When a service user passes away, take their upcoming calls off the
+      // schedule automatically — cancel every not-already-cancelled shift that
+      // starts at or after the effective moment (calls earlier that day already
+      // happened, so they're left intact).
+      if (data.status === ServiceUserStatus.DECEASED) {
+        const dayStart = new Date(effectiveAt.getFullYear(), effectiveAt.getMonth(), effectiveAt.getDate(), 0, 0, 0);
+        const candidates = await prisma.shift.findMany({
+          where: { serviceUserId: req.params.id, status: { not: 'CANCELLED' }, date: { gte: dayStart } },
+          select: { id: true, date: true, startTime: true },
+        });
+        const toCancel = candidates
+          .filter((s) => {
+            const [h, m] = s.startTime.split(':').map(Number);
+            const d = new Date(s.date);
+            const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h || 0, m || 0, 0);
+            return start >= effectiveAt;
+          })
+          .map((s) => s.id);
+        if (toCancel.length > 0) {
+          await prisma.shift.updateMany({ where: { id: { in: toCancel } }, data: { status: 'CANCELLED' } });
+        }
+      }
     }
   }
 
