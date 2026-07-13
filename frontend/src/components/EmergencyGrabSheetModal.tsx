@@ -1,8 +1,19 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { serviceUsersApi } from '../api/serviceUsers';
+import { shiftsApi } from '../api/shifts';
 import { ServiceUser } from '../types';
-import { format, differenceInYears } from 'date-fns';
+import { format, differenceInYears, addDays } from 'date-fns';
+import { formatTime12h } from '../lib/time';
+
+// Minutes between two HH:mm times (handles overnight).
+function durationMins(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let mins = eh * 60 + em - (sh * 60 + sm);
+  if (mins < 0) mins += 24 * 60;
+  return mins;
+}
 
 // Grab-sheet-specific fields (everything else auto-fills from the record).
 interface GrabData {
@@ -45,8 +56,30 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
   });
 
   const age = su.dateOfBirth ? differenceInYears(new Date(), new Date(su.dateOfBirth)) : null;
-  let visits: { type: string; duration: number }[] = [];
-  try { visits = su.visits ? JSON.parse(su.visits) : []; } catch { visits = []; }
+
+  // Derive the agreed calls from the actual schedule: pull the next two weeks of
+  // this service user's shifts and collapse them to the distinct daily calls.
+  const from = format(new Date(), 'yyyy-MM-dd');
+  const to = format(addDays(new Date(), 13), 'yyyy-MM-dd');
+  const { data: shifts = [] } = useQuery({
+    queryKey: ['shifts', 'grab', su.id],
+    queryFn: () => shiftsApi.list({ serviceUserId: su.id, startDate: from, endDate: to }),
+  });
+  const activeShifts = shifts.filter((s) => s.status !== 'CANCELLED');
+  const slotMap = new Map<string, { visitName?: string; startTime: string; endTime: string }>();
+  const perDay = new Map<string, number>();
+  for (const s of activeShifts) {
+    const key = `${s.startTime}|${s.endTime}|${s.visitName || ''}`;
+    if (!slotMap.has(key)) slotMap.set(key, { visitName: s.visitName, startTime: s.startTime, endTime: s.endTime });
+    const day = String(s.date).slice(0, 10);
+    perDay.set(day, (perDay.get(day) ?? 0) + 1);
+  }
+  const slots = [...slotMap.values()].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  // "Calls a day" = the most common number of calls across days that have any.
+  const dayCounts = [...perDay.values()];
+  const modeCount = dayCounts.length
+    ? [...dayCounts].sort((a, b) => dayCounts.filter((x) => x === b).length - dayCounts.filter((x) => x === a).length)[0]
+    : 0;
 
   const field = (val: string | undefined, onChange: (v: string) => void, placeholder = '') =>
     canManage
@@ -141,17 +174,29 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
             </div>
           </div>
 
-          {/* Agreed Visits */}
+          {/* Agreed Visits — pulled from the schedule */}
           <div>
             <h3 className="font-semibold text-gray-800 mb-1">Agreed Visits</h3>
             <div className="border border-gray-300 rounded-lg overflow-hidden">
-              <Row label="No. of calls a day" value={visits.length ? `${visits.length} call${visits.length > 1 ? 's' : ''}` : undefined} />
-              <Row
-                label="Call durations"
-                value={visits.length
-                  ? visits.map((v) => `${v.type}: ${v.duration} mins`).join(' · ')
-                  : `${su.visitDuration} mins`}
-              />
+              <Row label="No. of calls a day" value={modeCount ? `${modeCount} call${modeCount > 1 ? 's' : ''} a day` : undefined} />
+              <div className="border-b border-gray-300">
+                <div className="bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">Calls (from the schedule)</div>
+                {slots.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-400">No scheduled calls found for the next two weeks.</div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y divide-gray-200">
+                      {slots.map((s, i) => (
+                        <tr key={i}>
+                          <td className="px-3 py-1.5 text-gray-800">{s.visitName || 'Call'}</td>
+                          <td className="px-3 py-1.5 text-gray-700 whitespace-nowrap">{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}</td>
+                          <td className="px-3 py-1.5 text-gray-500 text-right whitespace-nowrap">{durationMins(s.startTime, s.endTime)} mins</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
               <div className="grid grid-cols-3 border-b border-gray-300">
                 <div className="col-span-1 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 border-r border-gray-300">Time critical?</div>
                 <div className="col-span-2 px-3 py-1.5 text-sm">
@@ -167,8 +212,8 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
                 </div>
               </div>
               <div className="grid grid-cols-3">
-                <div className="col-span-1 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 border-r border-gray-300">Agreed times</div>
-                <div className="col-span-2 px-3 py-1.5">{field(g.agreedTimes, (v) => set('agreedTimes', v), 'e.g. Morning 10.00–10.45am, Lunch 1.15–2.00pm…')}</div>
+                <div className="col-span-1 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 border-r border-gray-300">Additional visit notes</div>
+                <div className="col-span-2 px-3 py-1.5">{field(g.agreedTimes, (v) => set('agreedTimes', v), 'Anything extra about the calls (optional)')}</div>
               </div>
             </div>
           </div>

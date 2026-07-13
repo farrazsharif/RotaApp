@@ -15,7 +15,7 @@ const shiftInclude = {
 };
 
 export async function listShifts(req: AuthRequest, res: Response) {
-  const { startDate, endDate, userId } = req.query;
+  const { startDate, endDate, userId, serviceUserId } = req.query;
   const where: Record<string, unknown> = {};
 
   if (req.user!.role === Role.EMPLOYEE) {
@@ -25,6 +25,8 @@ export async function listShifts(req: AuthRequest, res: Response) {
   } else if (userId) {
     where.userId = userId;
   }
+
+  if (serviceUserId) where.serviceUserId = String(serviceUserId);
 
   if (startDate || endDate) {
     where.date = {};

@@ -5,6 +5,7 @@ export interface ShiftFilters {
   startDate?: string;
   endDate?: string;
   userId?: string;
+  serviceUserId?: string;
 }
 
 export interface CreateShiftData {
