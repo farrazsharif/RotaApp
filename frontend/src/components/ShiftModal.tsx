@@ -214,23 +214,90 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); onClose(); },
   });
 
+  // Patch the cached schedule so an edit/assignment shows instantly, before the
+  // network round-trip finishes. Mirrors the backend's visit-identity matching
+  // for the wider scopes; the follow-up refetch reconciles any difference.
+  const optimisticAssign = (data: Partial<CreateShiftData>) => {
+    const au = users.find((u) => u.id === data.userId);
+    const assignedUser = au ? { id: au.id, firstName: au.firstName, lastName: au.lastName, email: au.email, role: au.role } : undefined;
+    const coverList = (data.coverCarerIds ?? [])
+      .map((id) => users.find((u) => u.id === id))
+      .filter((u): u is typeof users[number] => !!u)
+      .map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }));
+
+    const openedDate = new Date(shift!.date);
+    const vName = data.visitName ?? shift!.visitName ?? undefined;
+    const sTime = data.startTime ?? shift!.startTime;
+    const eTime = data.endTime ?? shift!.endTime;
+    const rl = (data.role ?? shift!.role) ?? undefined;
+    const from = assignFrom ? new Date(`${assignFrom}T00:00:00`) : openedDate;
+    const to = assignTo ? new Date(`${assignTo}T23:59:59`) : from;
+
+    const matchesSibling = (s: Shift) => {
+      if (assignScope === 'one' || s.id === shift!.id) return false;
+      if (s.serviceUserId !== shift!.serviceUserId) return false;
+      if ((s.visitName ?? undefined) !== vName || s.startTime !== sTime || s.endTime !== eTime) return false;
+      if ((s.role ?? undefined) !== rl) return false;
+      const d = new Date(s.date);
+      if (assignScope === 'range') return d >= from && d <= to;
+      if (d < openedDate) return false;
+      if (assignScope === 'days') return assignDays.includes(d.getDay());
+      return true; // future
+    };
+
+    const carerPatch = { userId: data.userId || undefined, user: assignedUser, coverCarers: coverList };
+    qc.setQueriesData<Shift[]>({ queryKey: ['shifts'] }, (old) =>
+      Array.isArray(old)
+        ? old.map((s) => {
+            if (s.id === shift!.id) {
+              return {
+                ...s, ...carerPatch,
+                cover: typeof data.cover === 'number' ? data.cover : s.cover,
+                visitName: data.visitName ?? s.visitName,
+                startTime: data.startTime ?? s.startTime,
+                endTime: data.endTime ?? s.endTime,
+                role: data.role ?? s.role,
+                notes: data.notes ?? s.notes,
+              };
+            }
+            return matchesSibling(s) ? { ...s, ...carerPatch } : s;
+          })
+        : old,
+    );
+  };
+
   const updateMut = useMutation({
-    mutationFn: async (data: Partial<CreateShiftData>) => {
-      await shiftsApi.update(shift!.id, data);
-      // Propagate the carer to the wider scope (weekdays / date range / all
-      // future) as a second call. Uses visit-identity matching on the backend.
-      if (assignScope !== 'one') {
-        await shiftsApi.assignCarer(shift!.id, {
-          userId: data.userId,
-          coverCarerIds: data.coverCarerIds,
-          scope: assignScope,
-          days: assignScope === 'days' ? assignDays : undefined,
-          fromDate: assignScope === 'range' ? assignFrom || undefined : undefined,
-          toDate: assignScope === 'range' ? assignTo || undefined : undefined,
-        });
+    mutationFn: async ({ data, publishAfter }: { data: Partial<CreateShiftData>; publishAfter: boolean }) => {
+      // Optimistic: reflect the change on the board and close the modal
+      // immediately, then save in the background — so saving feels instant even
+      // though the assignment fans out to many future shifts server-side.
+      await qc.cancelQueries({ queryKey: ['shifts'] });
+      const snapshots = qc.getQueriesData<Shift[]>({ queryKey: ['shifts'] });
+      optimisticAssign(data);
+      onClose();
+      try {
+        await shiftsApi.update(shift!.id, data);
+        // Propagate the carer to the wider scope (weekdays / date range / all
+        // future) via visit-identity matching on the backend.
+        if (assignScope !== 'one') {
+          await shiftsApi.assignCarer(shift!.id, {
+            userId: data.userId,
+            coverCarerIds: data.coverCarerIds,
+            scope: assignScope,
+            days: assignScope === 'days' ? assignDays : undefined,
+            fromDate: assignScope === 'range' ? assignFrom || undefined : undefined,
+            toDate: assignScope === 'range' ? assignTo || undefined : undefined,
+          });
+        }
+        if (publishAfter) await shiftsApi.publish(shift!.id);
+        qc.invalidateQueries({ queryKey: ['shifts'] });
+      } catch {
+        // Roll back to the pre-optimistic state and let the user retry.
+        snapshots.forEach(([key, prev]) => qc.setQueryData(key, prev));
+        qc.invalidateQueries({ queryKey: ['shifts'] });
+        alert('Could not save the shift — please try again.');
       }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); onClose(); },
   });
 
   const publishMut = useMutation({
@@ -274,7 +341,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
       };
     }
     if (shift) {
-      updateMut.mutate(data, publishAfter ? { onSuccess: () => publishMut.mutate(shift.id) } : undefined);
+      updateMut.mutate({ data, publishAfter });
     } else {
       createMut.mutate(data, publishAfter ? { onSuccess: (created) => publishMut.mutate(created.id) } : undefined);
     }
