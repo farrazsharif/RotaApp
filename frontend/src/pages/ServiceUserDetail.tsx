@@ -20,6 +20,7 @@ import EmarModal from '../components/EmarModal';
 import MarChartModal from '../components/MarChartModal';
 import CallLogsModal from '../components/CallLogsModal';
 import FamilyAccessModal from '../components/FamilyAccessModal';
+import EmergencyGrabSheetModal from '../components/EmergencyGrabSheetModal';
 import DocumentsTab from '../components/DocumentsTab';
 
 const durationLabel = (m: number) =>
@@ -75,6 +76,7 @@ export default function ServiceUserDetail() {
   const [marChartOpen, setMarChartOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
   const [familyAccessOpen, setFamilyAccessOpen] = useState(false);
+  const [grabSheetOpen, setGrabSheetOpen] = useState(false);
   // A status change the manager has selected but not yet confirmed — lets them
   // set (or back-date) when it takes effect before it's applied.
   const [pendingStatus, setPendingStatus] = useState<ServiceUserStatus | null>(null);
@@ -192,8 +194,10 @@ export default function ServiceUserDetail() {
             </div>
             </div>
           </div>
-          {isManager && (
-            <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2">
+            <button className="btn-secondary btn" onClick={() => setGrabSheetOpen(true)}>🚑 Grab Sheet</button>
+            {isManager && (
+              <>
               <div className="relative">
                 <select
                   value={pendingStatus ?? su.status}
@@ -236,8 +240,9 @@ export default function ServiceUserDetail() {
               </div>
               <button className="btn-secondary btn" onClick={() => setFamilyAccessOpen(true)}>Family Access</button>
               <button className="btn-primary btn" onClick={() => navigate(`/service-users/${id}/edit`)}>Edit Details</button>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -548,6 +553,7 @@ export default function ServiceUserDetail() {
       {marChartOpen && <MarChartModal serviceUser={su} onClose={() => setMarChartOpen(false)} />}
       {logsOpen && <CallLogsModal serviceUser={su} onClose={() => setLogsOpen(false)} />}
       {familyAccessOpen && <FamilyAccessModal serviceUser={su} onClose={() => setFamilyAccessOpen(false)} />}
+      {grabSheetOpen && <EmergencyGrabSheetModal serviceUser={su} canManage={isManager} onClose={() => setGrabSheetOpen(false)} />}
     </div>
   );
 }

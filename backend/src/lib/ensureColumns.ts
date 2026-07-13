@@ -2,7 +2,7 @@
 // make sure the newer columns exist. Uses ADD COLUMN IF NOT EXISTS so it's
 // idempotent and a no-op once the columns are present.
 export async function ensureServiceUserColumns(prisma: any): Promise<void> {
-  const cols = ['preferredName', 'gender', 'ethnicOrigin', 'keySafe', 'medsSafeCode', 'packageId'];
+  const cols = ['preferredName', 'gender', 'ethnicOrigin', 'keySafe', 'medsSafeCode', 'packageId', 'grabSheet'];
   for (const col of cols) {
     await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "${col}" TEXT`);
   }

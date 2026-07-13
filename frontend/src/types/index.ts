@@ -386,6 +386,7 @@ export interface ServiceUser {
   site?: Site;
   nhsNumber?: string;
   packageId?: string;
+  grabSheet?: string;
   address?: string;
   postcode?: string;
   keySafe?: string;

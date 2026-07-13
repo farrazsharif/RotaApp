@@ -71,6 +71,20 @@
   .badge-purple { @apply badge bg-purple-100 text-purple-800; }
 }
 
+/* Emergency Grab Sheet printing: show only the sheet, nothing else. */
+@media print {
+  body * { visibility: hidden !important; }
+  .grab-sheet-printable, .grab-sheet-printable * { visibility: visible !important; }
+  .grab-sheet-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 !important;
+  }
+  .no-print { display: none !important; }
+}
+
 /* FullCalendar customisation */
 .fc .fc-toolbar-title { @apply text-lg font-semibold text-gray-800; }
 .fc .fc-button { @apply btn btn-secondary btn-sm !important; }

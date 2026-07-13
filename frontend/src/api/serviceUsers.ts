@@ -13,6 +13,7 @@ export interface ServiceUserData {
   siteId?: string;
   nhsNumber?: string;
   packageId?: string;
+  grabSheet?: string;
   address?: string;
   postcode?: string;
   keySafe?: string;

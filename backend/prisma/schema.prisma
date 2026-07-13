@@ -127,6 +127,7 @@ model ServiceUser {
   siteId                   String?
   nhsNumber                String?
   packageId                String?
+  grabSheet                String? // Emergency Grab Sheet fields (JSON)
   preferredName            String?
   gender                   String?
   ethnicOrigin             String?
