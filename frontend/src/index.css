@@ -8,18 +8,26 @@
   }
 }
 
-/* Unassigned calls: keep the location background colour, flag with a bold red outline */
-.fc .unassigned-shift {
-  border-width: 2px !important;
-  border-color: #dc2626 !important;
-  box-shadow: 0 0 0 1px #dc2626;
+/* Unassigned calls: a small red corner flag instead of a heavy border, so the
+   board reads cleanly. The flag is injected in the event content. */
+.fc .fc-daygrid-event,
+.fc .fc-timegrid-event {
+  position: relative;
 }
-
-/* Draft (unpublished) calls: dashed border + faded fill, invisible to carers until published */
-/* Drafts keep their dashed red outline but are NOT dulled — only past calls
-   fade (via .past-shift), so upcoming unassigned drafts stay prominent. */
-.fc .draft-shift {
-  border-style: dashed !important;
+.fc .unassigned-flag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #dc2626;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+  padding: 0 5px;
+  border-top-right-radius: 4px;
+  border-bottom-left-radius: 6px;
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* Past calls: same colour as always, just dulled so today/upcoming calls stand out at a glance */

@@ -294,7 +294,7 @@ export default function Schedule() {
       end: `${dateStr}T${s.endTime}:00`,
       extendedProps: { shift: s, siteRank: siteRankOf(s) },
       backgroundColor: baseColor,
-      borderColor: unassigned ? '#dc2626' : baseColor,
+      borderColor: baseColor,
       textColor: '#000',
       classNames: [
         ...(unassigned ? ['unassigned-shift'] : []),
@@ -334,10 +334,14 @@ export default function Schedule() {
         </div>
       );
     }
+    const carerText = assignedCarers(s) === 0
+      ? ''
+      : [s.user ? `${s.user.firstName} ${s.user.lastName}` : null, ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? [])].filter(Boolean).join(', ');
+    const staffLine = [carerText, unassigned ? `needs ${missing} more` : ''].filter(Boolean).join(' · ');
     return (
-      <div className="p-0.5 overflow-hidden leading-tight">
+      <div className="p-0.5 overflow-hidden leading-tight relative">
+        {isManager && unassigned && <span className="unassigned-flag">Unassigned</span>}
         <p className="text-xs font-bold truncate">
-          {unassigned && <span title="Unassigned call">⚠ </span>}
           {showStatus && patientStatus === 'HOSPITALISED' && <HospitalIcon className="mr-1 align-middle" />}
           {statusIcon && <span title={STATUS_LABEL[patientStatus!]}>{statusIcon} </span>}
           {patient}
@@ -349,13 +353,8 @@ export default function Schedule() {
           <span className="font-bold">{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}</span>
           <span className="opacity-90"> · {formatDuration(s.startTime, s.endTime)}</span>
         </p>
-        {isManager && (
-          <p className={`text-[10px] truncate ${unassigned ? 'font-bold' : 'opacity-90'}`}>
-            {assignedCarers(s) === 0
-              ? 'Unassigned'
-              : [s.user ? `${s.user.firstName} ${s.user.lastName}` : null, ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? [])].filter(Boolean).join(', ')}
-            {unassigned && ` · needs ${missing} more`}
-          </p>
+        {isManager && staffLine && (
+          <p className={`text-[10px] truncate ${unassigned ? 'font-bold' : 'opacity-90'}`}>{staffLine}</p>
         )}
         {(s.visitName || s.cover > 1) && (
           <p className="text-[10px] font-semibold truncate">
