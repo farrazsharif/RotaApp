@@ -36,7 +36,7 @@ function presetRange(preset: TimelinePreset): { start: Date; end: Date } {
 }
 
 export default function Reports() {
-  const [tab, setTab] = useState<Tab>('hours');
+  const [tab, setTab] = useState<Tab>('scheduled');
   const today = new Date();
   const [startDate, setStartDate] = useState(format(startOfMonth(today), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(today), 'yyyy-MM-dd'));
@@ -137,8 +137,8 @@ export default function Reports() {
   const isLoading = loadingHours || loadingOT || loadingCov || loadingScheduled || loadingCrib;
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'hours', label: 'Hours Worked' },
     { key: 'scheduled', label: 'Hours Scheduled' },
+    { key: 'hours', label: 'Hours Worked' },
     { key: 'crib', label: 'Crib Sheet' },
     { key: 'overtime', label: 'Overtime' },
     { key: 'coverage', label: 'Shift Coverage' },
