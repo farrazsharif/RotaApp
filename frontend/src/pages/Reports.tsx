@@ -185,6 +185,15 @@ export default function Reports() {
   }
 
   const filteredEcm = ecmData.filter((r) => !term || `${r.serviceUser} ${r.carer} ${r.site}`.toLowerCase().includes(term));
+  const ecmSummary = {
+    visits: filteredEcm.length,
+    attended: filteredEcm.filter((r) => r.status === 'attended').length,
+    missed: filteredEcm.filter((r) => r.status === 'not_attended').length,
+    short: filteredEcm.filter((r) => r.short).length,
+    scheduledHrs: filteredEcm.reduce((s, r) => s + r.scheduledMins, 0) / 60,
+    actualHrs: filteredEcm.reduce((s, r) => s + (r.actualMins ?? 0), 0) / 60,
+  };
+  const ecmAttendancePct = ecmSummary.visits ? Math.round((ecmSummary.attended / ecmSummary.visits) * 100) : 0;
   const noteFor = (r: EcmRow) => (r.shiftId in ecmNotes ? ecmNotes[r.shiftId] : r.ecmNote);
   const ecmClock = (iso: string | null) => (iso ? format(new Date(iso), 'dd/MM/yyyy HH:mm') : '');
   const STATUS_LABEL: Record<EcmRow['status'], string> = { attended: 'Attended', no_clock_out: 'No clock-out', not_attended: 'Not attended' };
@@ -541,6 +550,18 @@ export default function Reports() {
             </p>
             <button onClick={exportEcmCsv} disabled={filteredEcm.length === 0} className="btn-secondary btn">Export CSV</button>
           </div>
+
+          {filteredEcm.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="card p-4"><div className="text-2xl font-bold text-gray-900">{ecmSummary.visits}</div><div className="text-xs text-gray-500 mt-0.5">Visits</div></div>
+              <div className="card p-4"><div className={`text-2xl font-bold ${ecmAttendancePct >= 95 ? 'text-green-600' : ecmAttendancePct >= 85 ? 'text-amber-600' : 'text-red-600'}`}>{ecmAttendancePct}%</div><div className="text-xs text-gray-500 mt-0.5">Attendance</div></div>
+              <div className="card p-4"><div className="text-2xl font-bold text-blue-600">{ecmSummary.scheduledHrs.toFixed(1)}h</div><div className="text-xs text-gray-500 mt-0.5">Scheduled hrs</div></div>
+              <div className="card p-4"><div className="text-2xl font-bold text-blue-600">{ecmSummary.actualHrs.toFixed(1)}h</div><div className="text-xs text-gray-500 mt-0.5">Actual hrs</div></div>
+              <div className="card p-4"><div className="text-2xl font-bold text-amber-600">{ecmSummary.short}</div><div className="text-xs text-gray-500 mt-0.5">Short visits</div></div>
+              <div className="card p-4"><div className="text-2xl font-bold text-red-600">{ecmSummary.missed}</div><div className="text-xs text-gray-500 mt-0.5">Missed</div></div>
+            </div>
+          )}
+
           {filteredEcm.length === 0 ? (
             <div className="card text-center py-12 text-gray-400">{term ? 'No matching visits' : 'No visits in this period'}</div>
           ) : (
