@@ -129,6 +129,12 @@ export default function Schedule() {
     queryKey: ['shifts', fetchFrom, fetchTo, isManager ? 'all' : user?.id],
     queryFn: () => shiftsApi.list({ startDate: fetchFrom, endDate: fetchTo, userId: isManager ? undefined : user?.id }),
     placeholderData: (prev) => prev,
+    // Live-sync backstop: the socket push can be dropped in production (Vercel
+    // doesn't reliably proxy the WebSocket to Render), which left another
+    // manager's changes invisible until a manual refresh. Poll every 20s while
+    // the tab is focused so the schedule stays current without a refresh.
+    refetchInterval: 20_000,
+    refetchOnWindowFocus: true,
   });
   const { data: users = [] } = useQuery({
     queryKey: ['users'], queryFn: () => usersApi.list({ active: true }), enabled: isManager,

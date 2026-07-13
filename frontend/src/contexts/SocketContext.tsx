@@ -44,7 +44,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!token) return;
 
-    const s = io('/', { auth: { token }, transports: ['websocket', 'polling'] });
+    // Polling first: in production the frontend is on Vercel and the backend on
+    // Render, and Vercel reliably proxies HTTP (polling) but not the WebSocket
+    // upgrade. Leading with polling lets the socket actually connect (then
+    // upgrade to WebSocket where possible) instead of failing the WS handshake.
+    const s = io('/', { auth: { token }, transports: ['polling', 'websocket'] });
     setSocket(s);
 
     s.on('notification', (n: Notification) => {
