@@ -155,12 +155,16 @@ export default function Reports() {
   );
   const filteredOvertime = overtimeData.filter((r) => !term || r.name.toLowerCase().includes(term));
 
-  const schedGrandTotal = filteredScheduled.reduce((s, r) => s + r.total, 0);
+  // Unassigned hours are shown separately and excluded from the carer total.
+  const schedAssigned = filteredScheduled.filter((r) => r.userId !== 'unassigned');
+  const schedUnassigned = filteredScheduled.filter((r) => r.userId === 'unassigned');
+  const schedGrandTotal = schedAssigned.reduce((s, r) => s + r.total, 0);
 
   function exportScheduledCsv() {
     const lines = [['Carer', 'Hours'].join(',')];
-    for (const row of filteredScheduled) lines.push([row.name, row.total].join(','));
+    for (const row of schedAssigned) lines.push([row.name, row.total].join(','));
     lines.push(['Total', (Math.round(schedGrandTotal * 100) / 100).toFixed(2)].join(','));
+    for (const row of schedUnassigned) lines.push([row.name, row.total].join(','));
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -365,16 +369,22 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredScheduled.map((row) => (
-                    <tr key={row.userId} className={`hover:bg-gray-50 ${row.userId === 'unassigned' ? 'bg-red-50' : ''}`}>
-                      <td className={`px-4 py-3 font-medium ${row.userId === 'unassigned' ? 'text-red-700' : ''}`}>{row.name}</td>
+                  {schedAssigned.map((row) => (
+                    <tr key={row.userId} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium">{row.name}</td>
                       <td className="px-4 py-3 text-right font-semibold text-blue-600">{row.total.toFixed(2)}</td>
                     </tr>
                   ))}
                   <tr className="bg-gray-50 font-bold">
-                    <td className="px-4 py-3">Total: ({filteredScheduled.length})</td>
+                    <td className="px-4 py-3">Total: ({schedAssigned.length})</td>
                     <td className="px-4 py-3 text-right text-blue-700">{(Math.round(schedGrandTotal * 100) / 100).toFixed(2)}</td>
                   </tr>
+                  {schedUnassigned.map((row) => (
+                    <tr key={row.userId} className="bg-red-50">
+                      <td className="px-4 py-3 font-medium text-red-700">{row.name}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-red-600">{row.total.toFixed(2)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
