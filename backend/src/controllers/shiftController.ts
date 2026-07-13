@@ -193,8 +193,7 @@ async function resolveVisitShiftIds(
 }
 
 export async function updateShift(req: AuthRequest, res: Response) {
-  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId,
-    assignScope, assignDays, assignFrom, assignTo } = req.body;
+  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId } = req.body;
 
   if (isScoped(req.user)) {
     const cur = await prisma.shift.findUnique({ where: { id: req.params.id }, select: { serviceUserId: true } });
@@ -247,38 +246,6 @@ export async function updateShift(req: AuthRequest, res: Response) {
     const afterIds = [shift.userId, ...shift.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
     const removedIds = beforeIds.filter((id) => !afterIds.includes(id));
     await notifyCarersRemoved(removedIds.map((carerId) => ({ carerId, shift })));
-  }
-
-  // Propagate the carer to the other future occurrences of this visit in the
-  // same request (rather than a second round-trip), keeping saving snappy. The
-  // primary carer goes to all matches in one query; cover carers, being a
-  // relation, are set per shift only when there are any.
-  if (assignScope && assignScope !== 'one') {
-    const dayList = Array.isArray(assignDays) ? assignDays.map(Number) : [];
-    const targetIds = (await resolveVisitShiftIds(shift, String(assignScope), dayList, assignFrom, assignTo))
-      .filter((id) => id !== shift.id);
-    if (targetIds.length > 0) {
-      // Capture who was on each shift first so displaced carers can be notified.
-      const beforeTargets = await prisma.shift.findMany({
-        where: { id: { in: targetIds } },
-        include: { coverCarers: { select: { id: true } } },
-      });
-      await prisma.shift.updateMany({ where: { id: { in: targetIds } }, data: { userId: shift.userId } });
-      const connectSet = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean).map((id: string) => ({ id })) : null;
-      if (connectSet && connectSet.length > 0) {
-        await prisma.$transaction(
-          targetIds.map((id) => prisma.shift.update({ where: { id }, data: { coverCarers: { set: connectSet } } })),
-        );
-      }
-      const newCoverIds = connectSet ? connectSet.map((c) => c.id) : null;
-      const removals = beforeTargets.flatMap((s) => {
-        const beforeIds = [s.userId, ...s.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
-        const afterCover = newCoverIds ?? s.coverCarers.map((c) => c.id);
-        const afterIds = [shift.userId, ...afterCover].filter(Boolean) as string[];
-        return beforeIds.filter((id) => !afterIds.includes(id)).map((carerId) => ({ carerId, shift: s }));
-      });
-      await notifyCarersRemoved(removals);
-    }
   }
 
   res.json(shift);
