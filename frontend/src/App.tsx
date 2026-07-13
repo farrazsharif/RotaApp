@@ -10,6 +10,7 @@ import Schedule from './pages/Schedule';
 import TimeOff from './pages/TimeOff';
 import Attendance from './pages/Attendance';
 import Reports from './pages/Reports';
+import LateCheckins from './pages/LateCheckins';
 import Users from './pages/Users';
 import StaffDetail from './pages/StaffDetail';
 import ServiceUsers from './pages/ServiceUsers';
@@ -96,6 +97,7 @@ function AppRoutes() {
         <Route path="time-off" element={<ManagerRoute><TimeOff /></ManagerRoute>} />
         <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />
         <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
+        <Route path="late-checkins" element={<ManagerRoute><LateCheckins /></ManagerRoute>} />
         <Route path="finances" element={<Finances />} />
         <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
         <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />

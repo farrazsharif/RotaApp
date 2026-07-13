@@ -281,6 +281,51 @@ export async function shiftRoles(req: AuthRequest, res: Response) {
   res.json(rows.map((r) => r.role).filter(Boolean).sort());
 }
 
+// The individual visits behind the dashboard "Late / missed check-ins" count:
+// today's assigned, still-scheduled visits whose start passed 15+ mins ago with
+// no clock-in yet.
+export async function lateCheckinsList(req: AuthRequest, res: Response) {
+  const now = new Date();
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const todayEnd = new Date(todayStart);
+  todayEnd.setUTCDate(todayEnd.getUTCDate() + 1);
+
+  const shifts = await prisma.shift.findMany({
+    where: { date: { gte: todayStart, lt: todayEnd }, status: 'SCHEDULED', userId: { not: null }, ...relatedServiceUserScopeWhere(req.user) },
+    include: {
+      user: { select: { firstName: true, lastName: true } },
+      coverCarers: { select: { firstName: true, lastName: true } },
+      serviceUser: { select: { firstName: true, lastName: true, phone: true } },
+      clockRecords: { select: { id: true } },
+    },
+    orderBy: { startTime: 'asc' },
+  });
+
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const rows = shifts
+    .filter((s) => {
+      if (s.clockRecords.length > 0) return false; // someone clocked in
+      const [h, m] = s.startTime.split(':').map(Number);
+      return nowMins - (h * 60 + m) >= 15;
+    })
+    .map((s) => {
+      const [h, m] = s.startTime.split(':').map(Number);
+      const carers = [s.user, ...s.coverCarers].filter(Boolean).map((c) => `${c!.firstName} ${c!.lastName}`);
+      return {
+        id: s.id,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        visitName: s.visitName,
+        serviceUserName: s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Unknown',
+        serviceUserPhone: s.serviceUser?.phone ?? null,
+        carers,
+        minutesLate: nowMins - (h * 60 + m),
+      };
+    });
+
+  res.json(rows);
+}
+
 export async function dashboardStats(req: AuthRequest, res: Response) {
   const now = new Date();
   // Anchor day maths to UTC — shift dates are stored at UTC midnight, so

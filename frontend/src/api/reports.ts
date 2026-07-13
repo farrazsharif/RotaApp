@@ -17,9 +17,14 @@ export interface CribSheetRow {
   employee: string; position: string; serviceUser: string; date: string;
   startTime: string; endTime: string; clockIn: string | null; clockOut: string | null; totalHours: number;
 }
+export interface LateCheckinRow {
+  id: string; startTime: string; endTime: string; visitName: string | null;
+  serviceUserName: string; serviceUserPhone: string | null; carers: string[]; minutesLate: number;
+}
 
 export const reportsApi = {
   dashboard: () => api.get<DashboardStats>('/reports/dashboard').then((r) => r.data),
+  lateCheckins: () => api.get<LateCheckinRow[]>('/reports/late-checkins').then((r) => r.data),
   hours: (params: { startDate: string; endDate: string; userId?: string }) =>
     api.get<HoursRow[]>('/reports/hours', { params }).then((r) => r.data),
   overtime: (params: { startDate: string; endDate: string }) =>
