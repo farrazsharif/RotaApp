@@ -17,12 +17,17 @@ export async function listServiceUsers(req: AuthRequest, res: Response) {
   if (status) where.status = String(status);
 
   if (search) {
-    const term = String(search);
-    where.OR = [
-      { firstName: { contains: term } },
-      { lastName: { contains: term } },
-      { postcode: { contains: term } },
-    ];
+    const term = String(search).trim();
+    // Case-insensitive so "adrienne" matches "Adrienne". Also split on spaces so
+    // a full name ("Adrienne Staines") matches across first + last name.
+    const parts = term.split(/\s+/).filter(Boolean);
+    where.AND = parts.map((p) => ({
+      OR: [
+        { firstName: { contains: p, mode: 'insensitive' } },
+        { lastName: { contains: p, mode: 'insensitive' } },
+        { postcode: { contains: p, mode: 'insensitive' } },
+      ],
+    }));
   }
 
   // Restrict to the caller's sites when scoped.
