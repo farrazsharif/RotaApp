@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { ServiceUserStatus } from '../constants';
 import { isScoped, serviceUserInScope } from '../lib/scope';
+import { emitToUser } from '../lib/socket';
+import { sendPushToUser } from '../lib/push';
 
 const include = {
   preferredCaregivers: { select: { id: true, firstName: true, lastName: true } },
@@ -149,7 +151,7 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
   if (data.status !== undefined) {
     const existing = await prisma.serviceUser.findUnique({
       where: { id: req.params.id },
-      select: { status: true, statusUpdatedAt: true, _count: { select: { statusChanges: true } } },
+      select: { status: true, statusUpdatedAt: true, firstName: true, lastName: true, _count: { select: { statusChanges: true } } },
     });
     if (existing && existing.status !== data.status) {
       // Effective moment defaults to now, but a manager may back-date it — e.g.
@@ -176,18 +178,36 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
         const dayStart = new Date(effectiveAt.getFullYear(), effectiveAt.getMonth(), effectiveAt.getDate(), 0, 0, 0);
         const candidates = await prisma.shift.findMany({
           where: { serviceUserId: req.params.id, status: { not: 'CANCELLED' }, date: { gte: dayStart } },
-          select: { id: true, date: true, startTime: true },
+          select: { id: true, date: true, startTime: true, userId: true, coverCarers: { select: { id: true } } },
         });
-        const toCancel = candidates
-          .filter((s) => {
-            const [h, m] = s.startTime.split(':').map(Number);
-            const d = new Date(s.date);
-            const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h || 0, m || 0, 0);
-            return start >= effectiveAt;
-          })
-          .map((s) => s.id);
-        if (toCancel.length > 0) {
-          await prisma.shift.updateMany({ where: { id: { in: toCancel } }, data: { status: 'CANCELLED' } });
+        const cancelled = candidates.filter((s) => {
+          const [h, m] = s.startTime.split(':').map(Number);
+          const d = new Date(s.date);
+          const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h || 0, m || 0, 0);
+          return start >= effectiveAt;
+        });
+        if (cancelled.length > 0) {
+          await prisma.shift.updateMany({ where: { id: { in: cancelled.map((s) => s.id) } }, data: { status: 'CANCELLED' } });
+
+          // Tell each affected carer their upcoming visits were cancelled — one
+          // grouped notification per carer rather than one per shift.
+          const perCarer = new Map<string, number>();
+          for (const s of cancelled) {
+            for (const carerId of [s.userId, ...s.coverCarers.map((c) => c.id)].filter(Boolean) as string[]) {
+              perCarer.set(carerId, (perCarer.get(carerId) ?? 0) + 1);
+            }
+          }
+          const patientName = existing ? `${existing.firstName} ${existing.lastName}` : 'a service user';
+          await Promise.all(
+            [...perCarer.entries()].map(async ([carerId, count]) => {
+              const message = `${count} upcoming visit${count > 1 ? 's' : ''} for ${patientName} ${count > 1 ? 'have' : 'has'} been cancelled.`;
+              const notification = await prisma.notification.create({
+                data: { userId: carerId, type: 'SHIFT_REMOVED', title: 'Visits Cancelled', message, data: JSON.stringify({ serviceUserId: req.params.id }) },
+              });
+              emitToUser(carerId, 'notification', notification);
+              await sendPushToUser(carerId, { title: 'Visits Cancelled', body: message });
+            }),
+          );
         }
       }
     }
