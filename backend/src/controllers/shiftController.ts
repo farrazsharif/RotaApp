@@ -286,20 +286,32 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
   if (!(await serviceUserInScope(req.user, shift.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
 
   let ids: string[] = [shift.id];
-  if (shift.seriesId && scope && scope !== 'one') {
+  if (scope && scope !== 'one') {
+    // Identify "the same recurring visit" by patient + visit name + times + role
+    // rather than the fragile hidden seriesId. Older or re-created visits can be
+    // split across several series, so seriesId matching would miss most future
+    // occurrences — matching the visit's identity catches them all.
+    const visitMatch = {
+      serviceUserId: shift.serviceUserId,
+      visitName: shift.visitName,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      role: shift.role,
+      status: { not: 'CANCELLED' as const },
+    };
     if (scope === 'range') {
-      // Cover period: every visit in the series between two dates (e.g. while
+      // Cover period: every occurrence of this visit between two dates (e.g. while
       // the regular carer is on holiday). Defaults to the opened shift's date.
       const from = fromDate ? new Date(`${fromDate}T00:00:00`) : shift.date;
       const to = toDate ? new Date(`${toDate}T23:59:59`) : from;
       const inRange = await prisma.shift.findMany({
-        where: { seriesId: shift.seriesId, date: { gte: from, lte: to }, status: { not: 'CANCELLED' } },
+        where: { ...visitMatch, date: { gte: from, lte: to } },
         select: { id: true },
       });
       ids = inRange.map((s) => s.id);
     } else {
       const later = await prisma.shift.findMany({
-        where: { seriesId: shift.seriesId, date: { gte: shift.date }, status: { not: 'CANCELLED' } },
+        where: { ...visitMatch, date: { gte: shift.date } },
         select: { id: true, date: true },
       });
       if (scope === 'future') {
