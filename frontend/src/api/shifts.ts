@@ -30,8 +30,17 @@ export const shiftsApi = {
     api.get<Shift[]>('/shifts', { params: filters }).then((r) => r.data),
   get: (id: string) => api.get<Shift>(`/shifts/${id}`).then((r) => r.data),
   create: (data: CreateShiftData) => api.post<Shift>('/shifts', data).then((r) => r.data),
-  update: (id: string, data: Partial<CreateShiftData> & { status?: string }) =>
-    api.put<Shift>(`/shifts/${id}`, data).then((r) => r.data),
+  update: (
+    id: string,
+    data: Partial<CreateShiftData> & {
+      status?: string;
+      // Optional series-wide carer propagation, handled in the same request.
+      assignScope?: 'one' | 'future' | 'days' | 'range';
+      assignDays?: number[];
+      assignFrom?: string;
+      assignTo?: string;
+    },
+  ) => api.put<Shift>(`/shifts/${id}`, data).then((r) => r.data),
   delete: (id: string, opts?: { scope?: 'one' | 'future' | 'days'; days?: number[] }) =>
     api
       .delete(`/shifts/${id}`, {

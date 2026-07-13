@@ -162,8 +162,39 @@ export async function createShift(req: AuthRequest, res: Response) {
   res.status(201).json({ ...shift, createdCount });
 }
 
+// Resolve which shifts a series-wide carer change should touch. Matches by the
+// visit's identity (patient + name + times + role) rather than the fragile
+// hidden seriesId, so old or split series still get every future occurrence.
+async function resolveVisitShiftIds(
+  shift: { serviceUserId: string | null; visitName: string | null; startTime: string; endTime: string; role: string | null; date: Date },
+  scope: string,
+  days: number[],
+  fromDate?: string,
+  toDate?: string,
+): Promise<string[]> {
+  const visitMatch = {
+    serviceUserId: shift.serviceUserId,
+    visitName: shift.visitName,
+    startTime: shift.startTime,
+    endTime: shift.endTime,
+    role: shift.role,
+    status: { not: 'CANCELLED' as const },
+  };
+  if (scope === 'range') {
+    const from = fromDate ? new Date(`${fromDate}T00:00:00`) : shift.date;
+    const to = toDate ? new Date(`${toDate}T23:59:59`) : from;
+    const inRange = await prisma.shift.findMany({ where: { ...visitMatch, date: { gte: from, lte: to } }, select: { id: true } });
+    return inRange.map((s) => s.id);
+  }
+  const later = await prisma.shift.findMany({ where: { ...visitMatch, date: { gte: shift.date } }, select: { id: true, date: true } });
+  if (scope === 'future') return later.map((s) => s.id);
+  if (scope === 'days') return later.filter((s) => days.includes(new Date(s.date).getDay())).map((s) => s.id);
+  return [];
+}
+
 export async function updateShift(req: AuthRequest, res: Response) {
-  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId } = req.body;
+  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId,
+    assignScope, assignDays, assignFrom, assignTo } = req.body;
 
   if (isScoped(req.user)) {
     const cur = await prisma.shift.findUnique({ where: { id: req.params.id }, select: { serviceUserId: true } });
@@ -216,6 +247,38 @@ export async function updateShift(req: AuthRequest, res: Response) {
     const afterIds = [shift.userId, ...shift.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
     const removedIds = beforeIds.filter((id) => !afterIds.includes(id));
     await notifyCarersRemoved(removedIds.map((carerId) => ({ carerId, shift })));
+  }
+
+  // Propagate the carer to the other future occurrences of this visit in the
+  // same request (rather than a second round-trip), keeping saving snappy. The
+  // primary carer goes to all matches in one query; cover carers, being a
+  // relation, are set per shift only when there are any.
+  if (assignScope && assignScope !== 'one') {
+    const dayList = Array.isArray(assignDays) ? assignDays.map(Number) : [];
+    const targetIds = (await resolveVisitShiftIds(shift, String(assignScope), dayList, assignFrom, assignTo))
+      .filter((id) => id !== shift.id);
+    if (targetIds.length > 0) {
+      // Capture who was on each shift first so displaced carers can be notified.
+      const beforeTargets = await prisma.shift.findMany({
+        where: { id: { in: targetIds } },
+        include: { coverCarers: { select: { id: true } } },
+      });
+      await prisma.shift.updateMany({ where: { id: { in: targetIds } }, data: { userId: shift.userId } });
+      const connectSet = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean).map((id: string) => ({ id })) : null;
+      if (connectSet && connectSet.length > 0) {
+        await prisma.$transaction(
+          targetIds.map((id) => prisma.shift.update({ where: { id }, data: { coverCarers: { set: connectSet } } })),
+        );
+      }
+      const newCoverIds = connectSet ? connectSet.map((c) => c.id) : null;
+      const removals = beforeTargets.flatMap((s) => {
+        const beforeIds = [s.userId, ...s.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
+        const afterCover = newCoverIds ?? s.coverCarers.map((c) => c.id);
+        const afterIds = [shift.userId, ...afterCover].filter(Boolean) as string[];
+        return beforeIds.filter((id) => !afterIds.includes(id)).map((carerId) => ({ carerId, shift: s }));
+      });
+      await notifyCarersRemoved(removals);
+    }
   }
 
   res.json(shift);
@@ -287,39 +350,7 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
 
   let ids: string[] = [shift.id];
   if (scope && scope !== 'one') {
-    // Identify "the same recurring visit" by patient + visit name + times + role
-    // rather than the fragile hidden seriesId. Older or re-created visits can be
-    // split across several series, so seriesId matching would miss most future
-    // occurrences — matching the visit's identity catches them all.
-    const visitMatch = {
-      serviceUserId: shift.serviceUserId,
-      visitName: shift.visitName,
-      startTime: shift.startTime,
-      endTime: shift.endTime,
-      role: shift.role,
-      status: { not: 'CANCELLED' as const },
-    };
-    if (scope === 'range') {
-      // Cover period: every occurrence of this visit between two dates (e.g. while
-      // the regular carer is on holiday). Defaults to the opened shift's date.
-      const from = fromDate ? new Date(`${fromDate}T00:00:00`) : shift.date;
-      const to = toDate ? new Date(`${toDate}T23:59:59`) : from;
-      const inRange = await prisma.shift.findMany({
-        where: { ...visitMatch, date: { gte: from, lte: to } },
-        select: { id: true },
-      });
-      ids = inRange.map((s) => s.id);
-    } else {
-      const later = await prisma.shift.findMany({
-        where: { ...visitMatch, date: { gte: shift.date } },
-        select: { id: true, date: true },
-      });
-      if (scope === 'future') {
-        ids = later.map((s) => s.id);
-      } else if (scope === 'days') {
-        ids = later.filter((s) => dayList.includes(new Date(s.date).getDay())).map((s) => s.id);
-      }
-    }
+    ids = await resolveVisitShiftIds(shift, scope, dayList, fromDate, toDate);
   }
 
   // Capture who's assigned on each touched shift before reassigning, so we

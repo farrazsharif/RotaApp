@@ -215,19 +215,21 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   });
 
   const updateMut = useMutation({
+    // One request: the detail edit plus (for a recurring visit) the series-wide
+    // carer propagation, so saving doesn't pay for two sequential round-trips.
     mutationFn: async (data: Partial<CreateShiftData>) => {
-      await shiftsApi.update(shift!.id, data);
-      // Propagate the carer to other shifts in the series when a wider scope is chosen
-      if (shift!.seriesId && assignScope !== 'one') {
-        await shiftsApi.assignCarer(shift!.id, {
-          userId: data.userId,
-          coverCarerIds: data.coverCarerIds,
-          scope: assignScope,
-          days: assignScope === 'days' ? assignDays : undefined,
-          fromDate: assignScope === 'range' ? assignFrom || undefined : undefined,
-          toDate: assignScope === 'range' ? assignTo || undefined : undefined,
-        });
-      }
+      const wider = !!(shift!.seriesId && assignScope !== 'one');
+      await shiftsApi.update(shift!.id, {
+        ...data,
+        ...(wider
+          ? {
+              assignScope,
+              assignDays: assignScope === 'days' ? assignDays : undefined,
+              assignFrom: assignScope === 'range' ? assignFrom || undefined : undefined,
+              assignTo: assignScope === 'range' ? assignTo || undefined : undefined,
+            }
+          : {}),
+      });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); onClose(); },
   });
