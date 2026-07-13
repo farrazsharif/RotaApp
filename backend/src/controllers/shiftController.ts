@@ -330,16 +330,27 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
     include: { coverCarers: { select: { id: true } } },
   });
 
-  if (Array.isArray(coverCarerIds)) {
-    // Cover carers are a relation, so set them per-shift (updateMany can't touch relations)
-    const connectSet = coverCarerIds.filter(Boolean).map((id) => ({ id }));
+  // Assign the primary carer to every matching shift in one query. This is the
+  // hot path when assigning to many future shifts (e.g. "certain weekdays") —
+  // updating them one-by-one in a transaction made saving take seconds.
+  await prisma.shift.updateMany({ where: { id: { in: ids } }, data: { userId: userId || null } });
+
+  // Cover carers are a many-to-many relation that updateMany can't touch, so
+  // they must be set per shift — but only where there's actually work to do, so
+  // the common single-cover assignment stays a single query.
+  const connectSet = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean).map((id) => ({ id })) : null;
+  if (connectSet && connectSet.length > 0) {
     await prisma.$transaction(
-      ids.map((id) =>
-        prisma.shift.update({ where: { id }, data: { userId: userId || null, coverCarers: { set: connectSet } } })
-      )
+      ids.map((id) => prisma.shift.update({ where: { id }, data: { coverCarers: { set: connectSet } } })),
     );
-  } else {
-    await prisma.shift.updateMany({ where: { id: { in: ids } }, data: { userId: userId || null } });
+  } else if (connectSet) {
+    // Explicitly clearing cover — only touch the shifts that currently have any.
+    const withCover = beforeShifts.filter((s) => s.coverCarers.length > 0).map((s) => s.id);
+    if (withCover.length > 0) {
+      await prisma.$transaction(
+        withCover.map((id) => prisma.shift.update({ where: { id }, data: { coverCarers: { set: [] } } })),
+      );
+    }
   }
 
   const removals = beforeShifts.flatMap((s) => {
