@@ -44,11 +44,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!token) return;
 
-    // Polling first: in production the frontend is on Vercel and the backend on
-    // Render, and Vercel reliably proxies HTTP (polling) but not the WebSocket
-    // upgrade. Leading with polling lets the socket actually connect (then
-    // upgrade to WebSocket where possible) instead of failing the WS handshake.
-    const s = io('/', { auth: { token }, transports: ['polling', 'websocket'] });
+    // Connect the socket straight to the backend in production. The frontend is
+    // on Vercel and the backend on Render; Vercel doesn't reliably proxy the
+    // WebSocket upgrade, so going through '/' dropped live updates. Talking to
+    // the backend host directly restores a real WebSocket. In dev, '/' uses the
+    // Vite proxy to the local backend. Override with VITE_SOCKET_URL if needed.
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
+      || (import.meta.env.PROD ? 'https://api.caremid.co.uk' : '/');
+    const s = io(SOCKET_URL, { auth: { token }, transports: ['websocket', 'polling'] });
     setSocket(s);
 
     s.on('notification', (n: Notification) => {

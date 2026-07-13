@@ -14,7 +14,12 @@ export default function LiveSync() {
     const token = localStorage.getItem('carer_token');
     if (!user || !token) return;
 
-    const s = io('/', { auth: { token }, transports: ['websocket', 'polling'] });
+    // Connect straight to the backend in production — Vercel doesn't reliably
+    // proxy the WebSocket upgrade to Render, which drops live updates. Dev uses
+    // '/' via the Vite proxy. Override with VITE_SOCKET_URL if needed.
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL
+      || (import.meta.env.PROD ? 'https://api.caremid.co.uk' : '/');
+    const s = io(SOCKET_URL, { auth: { token }, transports: ['websocket', 'polling'] });
     s.on('data:changed', () => { qc.invalidateQueries(); });
 
     return () => { s.disconnect(); };
