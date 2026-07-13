@@ -4,6 +4,26 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { Notification } from '../types';
 
+// Map the changed API resource (from the server's data:changed payload) to just
+// the React Query keys that depend on it, so an unrelated write (e.g. a clock-in)
+// no longer forces every open page to refetch its heavy queries (the schedule in
+// particular). Only the frequent/heavy resources are listed — anything not here
+// falls back to invalidating everything, so correctness is preserved.
+const RESOURCE_KEYS: Record<string, string[]> = {
+  shifts: ['shifts'],
+  'service-users': ['service-users', 'service-user', 'shifts'], // status/site show on shift cards
+  sites: ['sites', 'service-users', 'shifts'],
+  users: ['users'],
+  clock: ['clock-active'],
+  notifications: [], // notifications arrive live via the 'notification' event — no refetch needed
+};
+
+function resourceSegment(resource?: string): string | null {
+  if (!resource) return null;
+  const m = resource.replace(/^\/+/, '').match(/^api\/([^/]+)/);
+  return m ? m[1] : null;
+}
+
 interface SocketContextValue {
   socket: Socket | null;
   notifications: Notification[];
@@ -31,14 +51,46 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setNotifications((prev) => [n, ...prev]);
     });
 
-    // Another session in the same company saved a change. Invalidate every
-    // query so whatever this session currently has open refetches and shows the
-    // live data — no manual refresh, and it covers every screen automatically.
-    s.on('data:changed', () => {
-      qc.invalidateQueries();
+    // Coalesce bursts of change events (e.g. several managers editing at once, or
+    // a mutation whose own invalidation overlaps the socket echo) into a single
+    // invalidation pass ~300ms later.
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    let invalidateAll = false;
+    const pendingKeys = new Set<string>();
+
+    const flush = () => {
+      flushTimer = null;
+      if (invalidateAll) {
+        qc.invalidateQueries();
+      } else {
+        for (const key of pendingKeys) qc.invalidateQueries({ queryKey: [key] });
+      }
+      invalidateAll = false;
+      pendingKeys.clear();
+    };
+    const scheduleFlush = () => {
+      if (flushTimer) clearTimeout(flushTimer);
+      flushTimer = setTimeout(flush, 300);
+    };
+
+    // Another session in the same company saved a change. Refetch only the
+    // queries that depend on the changed resource so unrelated activity (a
+    // clock-in, a note) doesn't force heavy pages like the schedule to reload.
+    s.on('data:changed', (payload?: { resource?: string }) => {
+      const seg = resourceSegment(payload?.resource);
+      const mapped = seg != null ? RESOURCE_KEYS[seg] : undefined;
+      if (mapped === undefined) {
+        invalidateAll = true; // unmapped resource → safe fallback: refetch all
+      } else {
+        for (const key of mapped) pendingKeys.add(key);
+      }
+      scheduleFlush();
     });
 
-    return () => { s.disconnect(); };
+    return () => {
+      if (flushTimer) clearTimeout(flushTimer);
+      s.disconnect();
+    };
   }, [token, qc]);
 
   function addNotification(n: Notification) {
