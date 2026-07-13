@@ -37,9 +37,19 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
     const template = await prisma.shift.findFirst({
       where: { seriesId, status: { not: 'CANCELLED' } },
       orderBy: { date: 'desc' },
-      include: { coverCarers: { select: { id: true } } },
+      include: { coverCarers: { select: { id: true } }, serviceUser: { select: { status: true } } },
     });
     if (!template || !template.companyId) continue; // need a tenant to create under
+    // Don't keep generating future calls for someone who has passed away — and
+    // clear any future calls still on the schedule for them (covers people
+    // marked deceased before auto-cancel shipped).
+    if (template.serviceUser?.status === 'DECEASED') {
+      await prisma.shift.updateMany({
+        where: { seriesId, status: { not: 'CANCELLED' }, date: { gte: today } },
+        data: { status: 'CANCELLED' },
+      });
+      continue;
+    }
 
     // Every matching weekday strictly after the latest shift, up to the window.
     const dates: Date[] = [];

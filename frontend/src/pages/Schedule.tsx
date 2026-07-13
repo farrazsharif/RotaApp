@@ -165,7 +165,15 @@ export default function Schedule() {
   const needsStaff = (s: Shift) => missingCarers(s) > 0 && !patientInactive(s);
 
   const term = search.trim().toLowerCase();
-  const notCancelled = shifts.filter((s) => s.status !== 'CANCELLED' && new Date(s.date) < futureHorizon);
+  // Hide calls once a service user has passed away (resolved per shift, so calls
+  // from before they passed still show). Belt-and-braces alongside the backend
+  // auto-cancel — covers users marked deceased before that shipped, and any
+  // future shifts a background job may have regenerated.
+  const notCancelled = shifts.filter(
+    (s) => s.status !== 'CANCELLED'
+      && new Date(s.date) < futureHorizon
+      && statusAtShift(s.serviceUser, s.date, s.startTime) !== 'DECEASED',
+  );
   const unassignedCount = notCancelled.filter(needsStaff).length;
 
   const activeShifts = notCancelled
