@@ -356,7 +356,6 @@ export default function Schedule() {
             {[s.visitName, s.cover > 1 ? coverLabel(s.cover) : null].filter(Boolean).join(' · ')}
           </p>
         )}
-        {s.serviceUser?.site && <p className="text-[10px] opacity-90 truncate">{s.serviceUser.site.name}</p>}
       </div>
     );
   }
