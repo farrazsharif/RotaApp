@@ -20,7 +20,10 @@ export async function listShifts(req: AuthRequest, res: Response) {
   const where: Record<string, unknown> = {};
 
   if (req.user!.role === Role.EMPLOYEE) {
-    where.userId = req.user!.id;
+    // A carer's rota includes calls they're the primary carer on AND calls
+    // they cover (2nd/3rd carer on a double/triple-up call) — matching the
+    // Today screen. Without the cover match, cover calls silently went missing.
+    where.OR = [{ userId: req.user!.id }, { coverCarers: { some: { id: req.user!.id } } }];
     // Carers only ever see published shifts — drafts stay manager-only until published.
     where.published = true;
   } else if (userId) {
