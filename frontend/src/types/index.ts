@@ -178,10 +178,18 @@ export interface ClockRecord {
   createdAt: string;
 }
 
+export interface CallLogSignature {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  signedAt: string;
+}
+
 export interface CallLog {
   id: string;
   note: string;
   createdAt: string;
+  signedBy?: string | null; // JSON array of CallLogSignature
   user?: Pick<User, 'id' | 'firstName' | 'lastName'>;
   serviceUser?: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
   shift?: {

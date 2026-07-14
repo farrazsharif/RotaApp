@@ -3,9 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { callLogsApi } from '../api/callLogs';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
-import { CallLog } from '../types';
+import { CallLog, CallLogSignature } from '../types';
 import { format } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+
+// Parse the shared-log signatures (JSON) for double/triple-up calls.
+function signaturesFor(log: CallLog): CallLogSignature[] {
+  if (!log.signedBy) return [];
+  try { const v = JSON.parse(log.signedBy); return Array.isArray(v) ? v : []; } catch { return []; }
+}
 
 interface Group {
   id: string;
@@ -140,6 +146,11 @@ export default function CallLogs() {
             const txt = `Actual: clocked in ${format(new Date(ct.clockIn), 'h:mm a')}${ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'h:mm a')}` : ' (still clocked in)'}${dur ? ` · ${dur} on call` : ''}`;
             return `<div class="visit">${esc(txt)}</div>`;
           })()}
+          ${(() => {
+            const sigs = signaturesFor(l);
+            if (sigs.length < 2) return '';
+            return `<div class="visit">Signed by: ${esc(sigs.map((s) => `${s.firstName} ${s.lastName}`).join(', '))}</div>`;
+          })()}
           <div class="note">${esc(l.note)}</div>
         </div>
       `).join('')}
@@ -270,6 +281,20 @@ export default function CallLogs() {
                     {ct.clockOut ? ` – out ${format(new Date(ct.clockOut), 'h:mm a')}` : ' (still clocked in)'}
                     {dur ? ` · ${dur} on call` : ''}
                   </p>
+                );
+              })()}
+              {(() => {
+                const sigs = signaturesFor(log);
+                if (sigs.length < 2) return null;
+                return (
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-semibold text-gray-500">Signed by:</span>
+                    {sigs.map((s) => (
+                      <span key={s.userId} className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium" title={`Signed ${format(new Date(s.signedAt), 'dd MMM yyyy, h:mm a')}`}>
+                        {s.firstName} {s.lastName} ✓
+                      </span>
+                    ))}
+                  </div>
                 );
               })()}
               {editingId === log.id ? (
