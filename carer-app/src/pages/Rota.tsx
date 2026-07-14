@@ -48,9 +48,12 @@ export default function Rota() {
 
   const selectedCalls = callsForDay(selectedDate);
 
-  // Total scheduled hours for the selected day.
+  // Total scheduled hours for the selected day and the whole visible week.
+  const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);
   const dayMinutes = selectedCalls.reduce((sum, s) => sum + minutesBetween(s.startTime, s.endTime), 0);
-  const dayHours = (dayMinutes / 60).toFixed(dayMinutes % 60 === 0 ? 0 : 1);
+  const dayHours = fmtHours(dayMinutes);
+  const weekMinutes = days.reduce((sum, day) => sum + callsForDay(day).reduce((s, sh) => s + minutesBetween(sh.startTime, sh.endTime), 0), 0);
+  const weekHours = fmtHours(weekMinutes);
 
   // The next upcoming call, to badge with "Next".
   const nowMs = Date.now();
@@ -114,9 +117,18 @@ export default function Rota() {
       </div>
 
       {/* My Hours */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-3 mb-4 flex items-center justify-between">
-        <span className="flex items-center gap-2 font-semibold text-gray-800">📊 My Hours</span>
-        <span className="font-bold text-gray-700">{dayHours}h</span>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-3 mb-4">
+        <div className="flex items-center gap-2 font-semibold text-gray-800 mb-2">📊 My Hours</div>
+        <div className="flex gap-3">
+          <div className="flex-1 rounded-xl bg-gray-50 px-3 py-2 text-center">
+            <p className="text-xs text-gray-500">This day</p>
+            <p className="font-bold text-gray-800">{dayHours}h</p>
+          </div>
+          <div className="flex-1 rounded-xl bg-gray-50 px-3 py-2 text-center">
+            <p className="text-xs text-gray-500">This week</p>
+            <p className="font-bold text-gray-800">{weekHours}h</p>
+          </div>
+        </div>
       </div>
 
       {/* Selected day's calls */}
