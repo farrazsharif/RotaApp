@@ -122,12 +122,20 @@ export interface ClockRecord {
   clockOut?: string | null;
 }
 
+export interface CallLogSignature {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  signedAt: string;
+}
+
 export interface CallLog {
   id: string;
   shiftId?: string | null;
   serviceUserId: string;
   userId?: string | null;
   note: string;
+  signedBy?: string | null; // JSON array of CallLogSignature
   createdAt: string;
 }
 

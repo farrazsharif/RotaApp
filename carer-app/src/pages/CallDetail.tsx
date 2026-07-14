@@ -11,7 +11,7 @@ import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
-import type { MedAdminStatus } from '../types';
+import type { MedAdminStatus, CallLogSignature } from '../types';
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -59,6 +59,7 @@ export default function CallDetail() {
   const [showHandover, setShowHandover] = useState(false);
   const [handoverTo, setHandoverTo] = useState('');
   const [handoverReason, setHandoverReason] = useState('');
+  const [editingLog, setEditingLog] = useState(false);
 
   const { data: shift, isLoading } = useQuery({
     queryKey: ['shift', id],
@@ -84,11 +85,20 @@ export default function CallDetail() {
   const { data: callLogs = [] } = useQuery({
     queryKey: ['call-logs', shift?.serviceUserId],
     queryFn: () => callLogsApi.list(shift!.serviceUserId!),
-    enabled: clockedIn && !!shift?.serviceUserId,
+    enabled: !!shift?.serviceUserId,
   });
 
-  const hasLoggedThisVisit = clockedIn && !!clockStatus?.record &&
-    callLogs.some((l) => l.shiftId === shift?.id && new Date(l.createdAt) >= new Date(clockStatus.record!.clockIn));
+  // Shared call log: one log per visit that every carer on the call signs.
+  const sharedLog = callLogs.find((l) => l.shiftId === shift?.id);
+  const signatures: CallLogSignature[] = (() => {
+    if (!sharedLog?.signedBy) return [];
+    try { const v = JSON.parse(sharedLog.signedBy); return Array.isArray(v) ? v : []; } catch { return []; }
+  })();
+  const carerCount = shift?.cover && shift.cover > 1 ? shift.cover : 1;
+  const isSharedCall = carerCount > 1;
+  const iSigned = !!sharedLog && (sharedLog.userId === user?.id || signatures.some((s) => s.userId === user?.id));
+  // A carer can clock out once they've written or signed this visit's log.
+  const hasLoggedThisVisit = clockedIn && iSigned;
 
   const clockInMut = useMutation({
     mutationFn: () => clockApi.clockIn(id),
@@ -135,8 +145,18 @@ export default function CallDetail() {
       setNote('');
       setLogSent(true);
       setClockOutError(null);
+      setEditingLog(false);
       qc.invalidateQueries({ queryKey: ['call-logs', shift?.serviceUserId] });
       setTimeout(() => setLogSent(false), 2000);
+    },
+  });
+
+  // Co-carer signs the shared log the first carer wrote (no retyping).
+  const signMut = useMutation({
+    mutationFn: (logId: string) => callLogsApi.sign(logId),
+    onSuccess: () => {
+      setClockOutError(null);
+      qc.invalidateQueries({ queryKey: ['call-logs', shift?.serviceUserId] });
     },
   });
 
@@ -391,24 +411,95 @@ export default function CallDetail() {
 
         {/* Call log */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-          <h2 className="font-semibold text-gray-800 mb-2">
-            Call Log {clockedIn && !hasLoggedThisVisit && <span className="text-orange-600 text-xs font-bold">· Required before clocking out</span>}
+          <h2 className="font-semibold text-gray-800 mb-1 flex flex-wrap items-center gap-x-2">
+            {isSharedCall ? 'Shared Call Log' : 'Call Log'}
+            {clockedIn && !hasLoggedThisVisit && (
+              <span className="text-orange-600 text-xs font-bold">· {sharedLog ? 'Sign before clocking out' : 'Required before clocking out'}</span>
+            )}
           </h2>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder={done ? 'This call is locked — no further notes can be added.' : 'Write a note about this visit…'}
-            rows={3}
-            disabled={done}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400"
-          />
-          <button
-            onClick={() => logMut.mutate()}
-            disabled={done || !note.trim() || logMut.isPending}
-            className="mt-2 w-full bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40"
-          >
-            {logMut.isPending ? 'Saving…' : logSent ? 'Saved ✓' : 'Save Note'}
-          </button>
+          {isSharedCall && (
+            <p className="text-xs text-gray-400 mb-2">This call has {carerCount} carers — one note is shared, and everyone signs it.</p>
+          )}
+
+          {(!sharedLog || editingLog) && !done ? (
+            /* Write / edit the note */
+            <>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Write a note about this visit…"
+                rows={3}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => logMut.mutate()}
+                  disabled={!note.trim() || logMut.isPending}
+                  className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40"
+                >
+                  {logMut.isPending ? 'Saving…' : logSent ? 'Saved ✓' : isSharedCall ? 'Save & Sign' : 'Save Note'}
+                </button>
+                {editingLog && (
+                  <button
+                    onClick={() => { setEditingLog(false); setNote(''); }}
+                    className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+              {isSharedCall && editingLog && (
+                <p className="text-xs text-gray-400 mt-2">Changing the note asks the other carers to sign again.</p>
+              )}
+            </>
+          ) : sharedLog ? (
+            /* Read the shared note + sign */
+            <>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap bg-gray-50 rounded-lg p-3 border border-gray-100">{sharedLog.note}</p>
+
+              {isSharedCall && (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-gray-500 mb-1">Signed by {signatures.length} of {carerCount}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {signatures.map((s) => (
+                      <span key={s.userId} className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                        {s.firstName} {s.lastName} ✓
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!done && (
+                <>
+                  <div className="mt-3 flex gap-2">
+                    {!iSigned ? (
+                      <button
+                        onClick={() => signMut.mutate(sharedLog.id)}
+                        disabled={signMut.isPending || !clockedIn}
+                        className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold text-sm disabled:opacity-40"
+                      >
+                        {signMut.isPending ? 'Signing…' : 'Confirm & Sign'}
+                      </button>
+                    ) : (
+                      <span className="flex-1 text-sm font-semibold text-green-700 py-2.5">✓ You've signed this log</span>
+                    )}
+                    <button
+                      onClick={() => { setEditingLog(true); setNote(sharedLog.note); }}
+                      className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm"
+                    >
+                      Edit note
+                    </button>
+                  </div>
+                  {!iSigned && !clockedIn && (
+                    <p className="text-xs text-gray-400 mt-2">Clock in to sign this log.</p>
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-400">No call log was recorded for this visit.</p>
+          )}
         </div>
       </div>
     </Layout>

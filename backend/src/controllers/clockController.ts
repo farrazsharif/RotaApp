@@ -122,13 +122,23 @@ export async function clockOut(req: AuthRequest, res: Response) {
     });
   }
 
-  // Compulsory call log: must write a note for this visit before clocking out.
+  // Compulsory call log: the carer must have written OR signed the visit's log
+  // before clocking out. On double/triple-up calls the log is shared, so a
+  // co-carer signs the note the first carer wrote rather than writing their own.
   if (record.shiftId) {
-    const log = await prisma.callLog.findFirst({
-      where: { shiftId: record.shiftId, userId: req.user!.id, createdAt: { gte: record.clockIn } },
+    const logs = await prisma.callLog.findMany({
+      where: { shiftId: record.shiftId },
+      select: { userId: true, signedBy: true },
     });
-    if (!log) {
-      return res.status(400).json({ error: 'Write a call log entry before clocking out' });
+    const signed = logs.some((l) => {
+      if (l.userId === req.user!.id) return true;
+      try {
+        const sigs = JSON.parse(l.signedBy || '[]');
+        return Array.isArray(sigs) && sigs.some((s: { userId?: string }) => s?.userId === req.user!.id);
+      } catch { return false; }
+    });
+    if (!signed) {
+      return res.status(400).json({ error: 'Sign the call log before clocking out' });
     }
   }
 

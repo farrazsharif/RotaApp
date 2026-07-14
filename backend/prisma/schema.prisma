@@ -550,8 +550,12 @@ model CallLog {
   id            String   @id @default(cuid())
   shiftId       String?
   serviceUserId String
-  userId        String?
+  userId        String? // the carer who wrote (authored) the note
   note          String
+  // For double/triple-up calls: JSON array of carers who have signed this
+  // shared log — [{ userId, firstName, lastName, signedAt }]. The author is
+  // added on create; co-carers append when they confirm & sign.
+  signedBy      String?
   createdAt     DateTime @default(now())
 
   shift       Shift?      @relation(fields: [shiftId], references: [id], onDelete: SetNull)

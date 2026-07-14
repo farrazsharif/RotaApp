@@ -6,4 +6,5 @@ export const callLogsApi = {
     api.get<CallLog[]>('/call-logs', { params: serviceUserId ? { serviceUserId } : {} }).then((r) => r.data),
   create: (data: { serviceUserId: string; shiftId?: string; note: string }) =>
     api.post<CallLog>('/call-logs', data).then((r) => r.data),
+  sign: (id: string) => api.post<CallLog>(`/call-logs/${id}/sign`, {}).then((r) => r.data),
 };

@@ -12,6 +12,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "seriesPermanent" BOOLEAN NOT NULL DEFAULT false`);
   // ECM: manager's reason/explanation for a short or missed visit.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "ecmNote" TEXT`);
+  // Shared call-log signatures for double/triple-up calls (JSON array).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "CallLog" ADD COLUMN IF NOT EXISTS "signedBy" TEXT`);
   // Date the person started receiving care (nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "serviceStartDate" TIMESTAMP(3)`);
   // Site display order on the schedule (lower = first). "order" is a reserved

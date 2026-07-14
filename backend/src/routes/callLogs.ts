@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createCallLog, listCallLogs, updateCallLog, deleteCallLog } from '../controllers/callLogController';
+import { createCallLog, listCallLogs, updateCallLog, deleteCallLog, signCallLog } from '../controllers/callLogController';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { scopeServiceUserRef, scopeRecordById } from '../middleware/scope';
@@ -15,6 +15,7 @@ const byCallLog = scopeRecordById((id) =>
 
 router.get('/', listCallLogs);
 router.post('/', createCallLog);
+router.post('/:id/sign', byCallLog, signCallLog);
 router.put('/:id', byCallLog, requirePermission('edit_call_logs'), updateCallLog);
 router.delete('/:id', byCallLog, requirePermission('edit_call_logs'), deleteCallLog);
 
