@@ -33,3 +33,5 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+// deploy marker: force carerapp Vercel rebuild (revert to 2-week Rota)
