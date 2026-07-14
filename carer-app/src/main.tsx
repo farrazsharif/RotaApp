@@ -37,3 +37,4 @@ createRoot(document.getElementById('root')!).render(
 // deploy marker: force carerapp Vercel rebuild (revert to 2-week Rota)
 // redeploy trigger 20260714125530
 // webhook test 134036
+// deploy after carerapp git reconnect 142634
