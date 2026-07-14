@@ -16,6 +16,7 @@ export interface ServiceUserBrief {
   address?: string | null;
   postcode?: string | null;
   phone?: string | null;
+  site?: { id: string; name: string; color: string } | null;
 }
 
 export interface ServiceUser {
