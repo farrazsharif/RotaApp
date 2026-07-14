@@ -9,6 +9,7 @@ const statusBadge: Record<string, string> = {
   PENDING: 'badge-yellow',
   APPROVED: 'badge-green',
   REJECTED: 'badge-red',
+  CANCELLED: 'badge-gray',
 };
 
 const typeColors: Record<string, string> = {

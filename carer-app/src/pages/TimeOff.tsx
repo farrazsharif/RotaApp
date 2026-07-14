@@ -15,6 +15,7 @@ const STATUS_STYLES: Record<TimeOffRequest['status'], string> = {
   PENDING: 'bg-amber-100 text-amber-700',
   APPROVED: 'bg-green-100 text-green-700',
   REJECTED: 'bg-red-100 text-red-700',
+  CANCELLED: 'bg-gray-100 text-gray-500',
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -50,6 +51,12 @@ export default function TimeOff() {
   function submit() {
     if (endDate < startDate) { setError('End date cannot be before start date.'); return; }
     createMut.mutate();
+  }
+
+  function handleCancel(r: TimeOffRequest) {
+    if (r.status === 'APPROVED' &&
+      !window.confirm('Cancel this approved leave? Your calls for those dates may already have been covered by someone else — a manager will rebalance if needed.')) return;
+    cancelMut.mutate(r.id);
   }
 
   return (
@@ -126,13 +133,16 @@ export default function TimeOff() {
                     {format(new Date(r.startDate), 'EEE d MMM yyyy')} – {format(new Date(r.endDate), 'EEE d MMM yyyy')}
                   </p>
                   {r.reason && <p className="text-sm text-gray-500 mt-1 italic">“{r.reason}”</p>}
-                  {r.status === 'PENDING' && (
+                  {r.status === 'APPROVED' && (
+                    <p className="text-xs text-gray-400 mt-1">To postpone, cancel this and submit new dates above.</p>
+                  )}
+                  {(r.status === 'PENDING' || r.status === 'APPROVED') && (
                     <button
-                      onClick={() => cancelMut.mutate(r.id)}
+                      onClick={() => handleCancel(r)}
                       disabled={cancelMut.isPending}
                       className="mt-2 text-sm font-medium text-red-600 disabled:opacity-50"
                     >
-                      Cancel request
+                      {r.status === 'APPROVED' ? 'Cancel leave' : 'Cancel request'}
                     </button>
                   )}
                 </div>

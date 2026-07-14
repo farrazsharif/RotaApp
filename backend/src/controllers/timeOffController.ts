@@ -162,11 +162,34 @@ export async function updateTimeOff(req: AuthRequest, res: Response) {
 }
 
 export async function deleteTimeOff(req: AuthRequest, res: Response) {
-  const request = await prisma.timeOffRequest.findUnique({ where: { id: req.params.id } });
+  const request = await prisma.timeOffRequest.findUnique({ where: { id: req.params.id }, include: timeOffInclude });
   if (!request) return res.status(404).json({ error: 'Request not found' });
   if (request.userId !== req.user!.id) return res.status(403).json({ error: 'Not your request' });
-  if (request.status !== 'PENDING') return res.status(400).json({ error: 'Cannot delete actioned request' });
+  if (request.status === 'REJECTED') return res.status(400).json({ error: 'Cannot cancel a rejected request' });
+  if (request.status === 'CANCELLED') return res.status(400).json({ error: 'This request is already cancelled' });
 
-  await prisma.timeOffRequest.delete({ where: { id: req.params.id } });
-  res.json({ message: 'Request deleted' });
+  // A pending request never took effect — just remove it.
+  if (request.status === 'PENDING') {
+    await prisma.timeOffRequest.delete({ where: { id: req.params.id } });
+    return res.json({ message: 'Request withdrawn' });
+  }
+
+  // Approved leave: mark cancelled (keep the record for audit). We do NOT
+  // auto-reassign the calls that were freed when it was approved — a manager
+  // may already have covered them; they rebalance manually if needed.
+  await prisma.timeOffRequest.update({ where: { id: req.params.id }, data: { status: 'CANCELLED' } });
+
+  const carerName = `${request.user.firstName} ${request.user.lastName}`;
+  const range = `${new Date(request.startDate).toDateString()} – ${new Date(request.endDate).toDateString()}`;
+  const msg = `${carerName} cancelled approved leave (${range}). Calls freed earlier may need rebalancing.`;
+  const mgrs = await prisma.user.findMany({ where: { active: true, role: { in: ['ADMIN', 'MANAGER'] } }, select: { id: true } });
+  await Promise.all(mgrs.map(async (m) => {
+    const n = await prisma.notification.create({
+      data: { userId: m.id, type: 'TIME_OFF_CANCELLED', title: 'Leave Cancelled', message: msg, data: JSON.stringify({ requestId: request.id }) },
+    });
+    emitToUser(m.id, 'notification', n);
+    await sendPushToUser(m.id, { title: 'Leave Cancelled', body: msg, url: '/time-off' });
+  }));
+
+  res.json({ message: 'Approved leave cancelled', status: 'CANCELLED' });
 }

@@ -1,7 +1,7 @@
 import api from '../lib/axios';
 
 export type TimeOffType = 'VACATION' | 'SICK' | 'PERSONAL' | 'OTHER';
-export type TimeOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type TimeOffStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 export interface TimeOffRequest {
   id: string;
