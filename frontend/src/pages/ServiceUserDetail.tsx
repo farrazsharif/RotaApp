@@ -184,7 +184,7 @@ export default function ServiceUserDetail() {
                   📍 {su.site.name}
                 </span>
               )}
-              <span className="badge-blue badge">Visit {durationLabel(su.visitDuration)}</span>
+              <span className="badge-blue badge">{visits.length || 1} visit{(visits.length || 1) > 1 ? 's' : ''}/day</span>
               {su.needsMedication && <span className="badge-red badge">Medication</span>}
               {su.needsMobility && <span className="badge-yellow badge">Mobility</span>}
               {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
