@@ -1,12 +1,29 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { relatedServiceUserScopeWhere } from '../lib/scope';
 
 // Editable text fields on the care plan.
 const TEXT_FIELDS = [
   'tasksMorning', 'tasksLunch', 'tasksTea', 'tasksBed',
   'numberOfCarers', 'carePackageInfo', 'otherNotes',
 ] as const;
+
+// Lightweight index for the Care Plans list page: which clients have a plan
+// and when it was created / last updated. Site-scoped for scoped users.
+export async function listCarePlans(req: AuthRequest, res: Response) {
+  const plans = await prisma.carePlan.findMany({
+    where: { ...relatedServiceUserScopeWhere(req.user) },
+    select: { serviceUserId: true, createdAt: true, updatedAt: true },
+  });
+  res.json(plans);
+}
+
+export async function deleteCarePlan(req: AuthRequest, res: Response) {
+  const { serviceUserId } = req.params;
+  await prisma.carePlan.deleteMany({ where: { serviceUserId } });
+  res.json({ ok: true });
+}
 
 export async function getCarePlan(req: AuthRequest, res: Response) {
   const { serviceUserId } = req.params;
