@@ -11,6 +11,7 @@ export interface PersonalServicePlan {
 
 export interface ServicePlanSummary {
   serviceUserId: string;
+  createdAt: string;
   updatedAt: string;
 }
 

@@ -75,7 +75,7 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
     ).length;
   }, [values]);
 
-  const printPlan = () => printServicePlan(serviceUser, values);
+  const printPlan = () => printServicePlan(serviceUser, values, { createdAt: plan?.createdAt, updatedAt: plan?.updatedAt });
 
   function renderItem(section: PspSection, item: PspItem, idx: number) {
     const key = itemKey(section.id, idx);

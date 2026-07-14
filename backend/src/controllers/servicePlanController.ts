@@ -8,7 +8,7 @@ import { relatedServiceUserScopeWhere } from '../lib/scope';
 export async function listServicePlans(req: AuthRequest, res: Response) {
   const plans = await prisma.personalServicePlan.findMany({
     where: { ...relatedServiceUserScopeWhere(req.user) },
-    select: { serviceUserId: true, updatedAt: true },
+    select: { serviceUserId: true, createdAt: true, updatedAt: true },
   });
   res.json(plans);
 }

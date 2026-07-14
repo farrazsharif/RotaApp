@@ -15,9 +15,17 @@ type EquipVal = {
   make: string; model: string; serviceNo: string; lastService: string; nextDue: string;
 };
 
+interface PrintOpts {
+  // false = readable view only (no auto print dialog). Default true.
+  autoPrint?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // Opens a printable window for a service user's Personal Service Plan.
-// Shared by the plan modal and the Service Plans list (direct print).
-export function printServicePlan(serviceUser: ServiceUser, values: Record<string, unknown>) {
+// Shared by the plan modal, "Open" (readable view) and "Print" on the list.
+export function printServicePlan(serviceUser: ServiceUser, values: Record<string, unknown>, opts: PrintOpts = {}) {
+  const autoPrint = opts.autoPrint !== false;
   const yn = (key: string): YnVal => (values[key] as YnVal) || { v: '', comment: '', action: '' };
   const chk = (key: string): CheckVal => (values[key] as CheckVal) || { checked: false, comment: '' };
   const cap = (key: string): CapVal => (values[key] as CapVal) || { independent: false, supervise: false, staff: '', aid: '' };
@@ -110,13 +118,22 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
       .item-row b.blank { color: #999; }
       .note { font-size: 10px; color: #666; margin-top: 2px; }
       .sig { max-height: 50px; border: 1px solid #ccc; margin: 4px 0; }
-      @media print { body { margin: 0; } .section { page-break-inside: auto; } }
+      .toolbar { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ddd; padding: 8px 0 10px; margin-bottom: 12px; display: flex; gap: 8px; }
+      .toolbar button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid #2563eb; background: #2563eb; color: #fff; cursor: pointer; }
+      .toolbar button.secondary { background: #fff; color: #374151; border-color: #d1d5db; }
+      @media print { body { margin: 0; } .section { page-break-inside: auto; } .no-print { display: none !important; } }
     </style></head><body>
+    <div class="toolbar no-print">
+      <button onclick="window.print()">🖨 Print</button>
+      <button class="secondary" onclick="window.close()">Close</button>
+    </div>
     <h1>Personal Service Plan</h1>
     <div class="sub">
       ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}
       ${serviceUser.dateOfBirth ? ` · DOB ${esc(format(new Date(serviceUser.dateOfBirth), 'dd MMM yyyy'))}` : ''}
       ${serviceUser.nhsNumber ? ` · NHS ${esc(serviceUser.nhsNumber)}` : ''}
+      ${opts.createdAt ? ` · Created ${esc(format(new Date(opts.createdAt), 'dd MMM yyyy'))}` : ''}
+      ${opts.updatedAt ? ` · Last updated ${esc(format(new Date(opts.updatedAt), 'dd MMM yyyy, h:mm a'))}` : ''}
       · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}
     </div>
     ${sectionsHtml}
@@ -127,5 +144,5 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
   w.document.write(html);
   w.document.close();
   w.focus();
-  setTimeout(() => w.print(), 300);
+  if (autoPrint) setTimeout(() => w.print(), 300);
 }

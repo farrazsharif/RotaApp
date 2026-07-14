@@ -13,7 +13,7 @@ export default function ServicePlans() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [openFor, setOpenFor] = useState<ServiceUser | null>(null);
-  const [printing, setPrinting] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const { data: serviceUsers = [], isLoading } = useQuery({
     queryKey: ['service-users', 'active'],
@@ -24,7 +24,7 @@ export default function ServicePlans() {
     queryKey: ['service-plans', 'summary'],
     queryFn: () => servicePlansApi.list(),
   });
-  const planMap = new Map(planSummary.map((p) => [p.serviceUserId, p.updatedAt]));
+  const planMap = new Map(planSummary.map((p) => [p.serviceUserId, p]));
 
   const deleteMut = useMutation({
     mutationFn: (serviceUserId: string) => servicePlansApi.remove(serviceUserId),
@@ -34,16 +34,16 @@ export default function ServicePlans() {
     },
   });
 
-  // Print straight from the row: fetch the saved plan, then open the print view.
-  async function handlePrint(su: ServiceUser) {
-    setPrinting(su.id);
+  // Open the saved plan as a readable view (autoPrint) or send straight to print.
+  async function openPlanView(su: ServiceUser, autoPrint: boolean) {
+    setBusy(su.id);
     try {
       const plan = await servicePlansApi.get(su.id);
       let values: Record<string, unknown> = {};
       if (plan?.data) { try { values = JSON.parse(plan.data); } catch { values = {}; } }
-      printServicePlan(su, values);
+      printServicePlan(su, values, { autoPrint, createdAt: plan?.createdAt, updatedAt: plan?.updatedAt });
     } finally {
-      setPrinting(null);
+      setBusy(null);
     }
   }
 
@@ -62,7 +62,7 @@ export default function ServicePlans() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Personal Service Plans</h1>
-          <p className="text-sm text-gray-500">Click a client to view or edit their personal service plan</p>
+          <p className="text-sm text-gray-500">Open a client to view their plan, or edit it</p>
         </div>
         <input
           value={search}
@@ -87,17 +87,18 @@ export default function ServicePlans() {
             </thead>
             <tbody className="divide-y">
               {filtered.map((su) => {
-                const updatedAt = planMap.get(su.id);
-                const hasPlan = updatedAt !== undefined;
+                const plan = planMap.get(su.id);
+                const hasPlan = plan !== undefined;
                 return (
                   <tr key={su.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{su.firstName} {su.lastName}</td>
                     <td className="px-4 py-3 text-gray-500">{su.site?.name || '—'}</td>
                     <td className="px-4 py-3">
                       {hasPlan ? (
-                        <span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2.5 py-0.5 text-xs font-medium">
-                          Updated {format(new Date(updatedAt!), 'dd MMM yyyy')}
-                        </span>
+                        <div className="text-xs leading-5">
+                          <div className="text-gray-500">Created {format(new Date(plan!.createdAt), 'dd MMM yyyy')}</div>
+                          <div className="text-green-700 font-medium">Updated {format(new Date(plan!.updatedAt), 'dd MMM yyyy, h:mm a')}</div>
+                        </div>
                       ) : (
                         <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-500 px-2.5 py-0.5 text-xs font-medium">
                           Not started
@@ -119,13 +120,22 @@ export default function ServicePlans() {
                           )
                         ) : (
                           <>
-                            <button className="btn-secondary btn btn-sm" onClick={() => setOpenFor(su)}>Open</button>
                             <button
                               className="btn-secondary btn btn-sm"
-                              disabled={printing === su.id}
-                              onClick={() => handlePrint(su)}
+                              disabled={busy === su.id}
+                              onClick={() => openPlanView(su, false)}
                             >
-                              {printing === su.id ? '…' : '🖨 Print'}
+                              {busy === su.id ? '…' : 'Open'}
+                            </button>
+                            {isManager && (
+                              <button className="btn-secondary btn btn-sm" onClick={() => setOpenFor(su)}>Edit</button>
+                            )}
+                            <button
+                              className="btn-secondary btn btn-sm"
+                              disabled={busy === su.id}
+                              onClick={() => openPlanView(su, true)}
+                            >
+                              🖨 Print
                             </button>
                             {isManager && (
                               <button
