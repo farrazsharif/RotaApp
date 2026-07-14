@@ -48,6 +48,11 @@ export default function Rota() {
 
   const selectedCalls = callsForDay(selectedDate);
 
+  // Every day in the visible week that has calls, grouped for the agenda list.
+  const weekGroups = days
+    .map((day) => ({ day, calls: callsForDay(day) }))
+    .filter((g) => g.calls.length > 0);
+
   // Total scheduled hours for the selected day and the whole visible week.
   const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);
   const dayMinutes = selectedCalls.reduce((sum, s) => sum + minutesBetween(s.startTime, s.endTime), 0);
@@ -131,24 +136,33 @@ export default function Rota() {
         </div>
       </div>
 
-      {/* Selected day's calls */}
+      {/* This week's calls, grouped by day */}
       {isLoading ? (
         <p className="text-center text-gray-400 py-8">Loading rota…</p>
-      ) : selectedCalls.length === 0 ? (
+      ) : weekGroups.length === 0 ? (
         <div className="text-center text-gray-400 py-16">
           <p className="text-4xl mb-2">🗒️</p>
-          <p>No calls on {format(selectedDate, 'EEE d MMM')}.</p>
+          <p>No calls this week.</p>
         </div>
       ) : (
-        <div className="space-y-2.5">
-          {selectedCalls.map((s) => (
-            <RotaCard
-              key={s.id}
-              shift={s}
-              done={isCallDone(s, userId)}
-              isNext={s.id === nextCallId}
-              onClick={() => navigate(`/call/${s.id}`)}
-            />
+        <div className="space-y-4">
+          {weekGroups.map(({ day, calls }) => (
+            <div key={day.toISOString()}>
+              <p className={`text-sm font-bold mb-1.5 px-1 ${isSameDay(day, selectedDate) ? 'text-blue-600' : 'text-gray-500'}`}>
+                {isToday(day) ? 'Today · ' : ''}{format(day, 'EEEE d MMM')}
+              </p>
+              <div className="space-y-2.5">
+                {calls.map((s) => (
+                  <RotaCard
+                    key={s.id}
+                    shift={s}
+                    done={isCallDone(s, userId)}
+                    isNext={s.id === nextCallId}
+                    onClick={() => navigate(`/call/${s.id}`)}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
