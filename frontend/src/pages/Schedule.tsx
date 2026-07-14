@@ -393,8 +393,8 @@ export default function Schedule() {
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
+    <div className="space-y-3">
+      <h1 className="text-xl font-bold text-gray-900">Schedule</h1>
 
       {/* Row 1: navigation + view + add */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -510,7 +510,7 @@ export default function Schedule() {
 
       {/* Summary strip */}
       {isManager && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           <SummaryTile value={summary.total} label="Visits in view" />
           <SummaryTile value={summary.unassigned} label="Unassigned" tone={summary.unassigned ? 'danger' : undefined} />
           <SummaryTile value={summary.drafts} label="Drafts, not published" tone={summary.drafts ? 'warning' : undefined} />
@@ -590,9 +590,9 @@ export default function Schedule() {
 function SummaryTile({ value, label, tone }: { value: number | string; label: string; tone?: 'danger' | 'warning' | 'success' }) {
   const c = tone === 'danger' ? 'text-red-600' : tone === 'warning' ? 'text-amber-600' : tone === 'success' ? 'text-green-600' : 'text-gray-900';
   return (
-    <div className="bg-white border border-gray-100 rounded-lg px-4 py-2.5">
-      <div className={`text-xl font-bold ${c}`}>{value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+    <div className="bg-white border border-gray-100 rounded-lg px-3 py-1.5 flex items-baseline gap-2">
+      <div className={`text-lg font-bold leading-none ${c}`}>{value}</div>
+      <div className="text-xs text-gray-500 leading-tight">{label}</div>
     </div>
   );
 }
