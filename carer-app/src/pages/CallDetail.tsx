@@ -7,6 +7,7 @@ import { shiftDetailApi } from '../api/shiftDetail';
 import { clockApi } from '../api/clock';
 import { callLogsApi } from '../api/callLogs';
 import { medicationsApi } from '../api/medications';
+import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
@@ -55,6 +56,9 @@ export default function CallDetail() {
   const [note, setNote] = useState('');
   const [clockOutError, setClockOutError] = useState<{ message: string; pendingMeds: string[] } | null>(null);
   const [logSent, setLogSent] = useState(false);
+  const [showHandover, setShowHandover] = useState(false);
+  const [handoverTo, setHandoverTo] = useState('');
+  const [handoverReason, setHandoverReason] = useState('');
 
   const { data: shift, isLoading } = useQuery({
     queryKey: ['shift', id],
@@ -134,6 +138,35 @@ export default function CallDetail() {
       qc.invalidateQueries({ queryKey: ['call-logs', shift?.serviceUserId] });
       setTimeout(() => setLogSent(false), 2000);
     },
+  });
+
+  // --- Handover (ask another carer to cover this call) ---
+  const { data: myHandovers } = useQuery({
+    queryKey: ['my-handovers'],
+    queryFn: handoversApi.mine,
+    refetchInterval: 60000,
+  });
+  const outgoing = myHandovers?.outgoing.find((h) => h.shiftId === id);
+
+  const { data: eligible = [] } = useQuery({
+    queryKey: ['handover-eligible', id],
+    queryFn: () => handoversApi.eligible(id!),
+    enabled: showHandover && !!id,
+  });
+
+  const requestHandoverMut = useMutation({
+    mutationFn: () => handoversApi.request(id!, handoverTo, handoverReason.trim()),
+    onSuccess: () => {
+      setShowHandover(false);
+      setHandoverTo('');
+      setHandoverReason('');
+      qc.invalidateQueries({ queryKey: ['my-handovers'] });
+    },
+  });
+
+  const cancelHandoverMut = useMutation({
+    mutationFn: (hid: string) => handoversApi.cancel(hid),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['my-handovers'] }),
   });
 
   if (isLoading || !shift) {
@@ -227,6 +260,88 @@ export default function CallDetail() {
                     {clockOutError.pendingMeds.map((m) => <li key={m}>{m}</li>)}
                   </ul>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Hand over this call to another carer */}
+        {!done && !clockedIn && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+            {outgoing && outgoing.status === 'PENDING' ? (
+              <div>
+                <p className="text-sm font-semibold text-amber-700">🤝 Cover requested</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Waiting for <span className="font-medium">{outgoing.toUser.firstName} {outgoing.toUser.lastName}</span> to accept.
+                </p>
+                <button
+                  onClick={() => cancelHandoverMut.mutate(outgoing.id)}
+                  disabled={cancelHandoverMut.isPending}
+                  className="mt-2 text-sm font-medium text-red-600 disabled:opacity-50"
+                >
+                  Cancel request
+                </button>
+              </div>
+            ) : outgoing && outgoing.status === 'ACCEPTED' ? (
+              <p className="text-sm font-semibold text-green-700">
+                ✓ {outgoing.toUser.firstName} {outgoing.toUser.lastName} is now covering this call.
+              </p>
+            ) : outgoing && outgoing.status === 'DECLINED' ? (
+              <div>
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">{outgoing.toUser.firstName} {outgoing.toUser.lastName}</span> declined. You can ask someone else.
+                </p>
+                <button onClick={() => setShowHandover(true)} className="mt-2 text-sm font-semibold text-blue-600">
+                  Ask another carer
+                </button>
+              </div>
+            ) : !showHandover ? (
+              <button onClick={() => setShowHandover(true)} className="w-full text-left">
+                <p className="font-semibold text-gray-800">🤝 Hand over this call</p>
+                <p className="text-sm text-gray-500 mt-0.5">Off sick or can't attend? Ask another carer to cover.</p>
+              </button>
+            ) : (
+              <div>
+                <p className="font-semibold text-gray-800 mb-2">Hand over this call</p>
+                <label className="block text-sm text-gray-600 mb-1">Cover carer</label>
+                <select
+                  value={handoverTo}
+                  onChange={(e) => setHandoverTo(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-3"
+                >
+                  <option value="">Select a carer…</option>
+                  {eligible.map((c) => (
+                    <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                  ))}
+                </select>
+                <label className="block text-sm text-gray-600 mb-1">Reason (optional)</label>
+                <textarea
+                  value={handoverReason}
+                  onChange={(e) => setHandoverReason(e.target.value)}
+                  placeholder="e.g. off sick"
+                  rows={2}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-3"
+                />
+                {requestHandoverMut.isError && (
+                  <p className="text-sm text-red-600 mb-2">
+                    {(requestHandoverMut.error as any)?.response?.data?.error || 'Could not send request.'}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => requestHandoverMut.mutate()}
+                    disabled={!handoverTo || requestHandoverMut.isPending}
+                    className="flex-1 rounded-xl bg-blue-600 py-2.5 font-bold text-white disabled:opacity-40"
+                  >
+                    {requestHandoverMut.isPending ? 'Sending…' : 'Send request'}
+                  </button>
+                  <button
+                    onClick={() => { setShowHandover(false); setHandoverTo(''); setHandoverReason(''); }}
+                    className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
           </div>

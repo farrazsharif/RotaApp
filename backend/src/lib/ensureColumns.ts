@@ -22,4 +22,25 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(`ALTER TABLE "Supervision" ADD COLUMN IF NOT EXISTS "nextReviewDate" TIMESTAMP(3)`);
   } catch { /* table not created yet on this deploy; db push adds it with the column */ }
+
+  // ShiftHandover — carer-to-carer cover requests. This deploy doesn't run
+  // `prisma db push`, so create the table (and its indexes) directly. No DB-level
+  // foreign keys: Prisma resolves relations via the scalar columns, and skipping
+  // the constraints keeps this create order-independent and idempotent.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "ShiftHandover" (
+      "id"          TEXT PRIMARY KEY,
+      "companyId"   TEXT,
+      "shiftId"     TEXT NOT NULL,
+      "fromUserId"  TEXT NOT NULL,
+      "toUserId"    TEXT NOT NULL,
+      "reason"      TEXT,
+      "status"      TEXT NOT NULL DEFAULT 'PENDING',
+      "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "respondedAt" TIMESTAMP(3)
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftHandover_companyId_idx" ON "ShiftHandover"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftHandover_toUserId_status_idx" ON "ShiftHandover"("toUserId", "status")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftHandover_shiftId_idx" ON "ShiftHandover"("shiftId")`);
 }

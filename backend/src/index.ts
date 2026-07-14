@@ -42,6 +42,7 @@ import platformRoutes from './routes/platform';
 import documentRoutes from './routes/documents';
 import supervisionRoutes from './routes/supervision';
 import noteRoutes from './routes/notes';
+import handoverRoutes from './routes/handovers';
 import { backfillAllCompanyRoles } from './lib/defaultRoles';
 import { normalizeVisitNames } from './lib/normalizeVisitNames';
 import { ensureServiceUserColumns } from './lib/ensureColumns';
@@ -137,6 +138,7 @@ app.use('/api/platform', platformRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/supervision', supervisionRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api/handovers', handoverRoutes);
 
 app.use(errorHandler);
 

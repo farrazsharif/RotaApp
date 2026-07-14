@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import Layout from '../components/Layout';
+import CoverRequests from '../components/CoverRequests';
 import { clockApi } from '../api/clock';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
@@ -34,6 +35,8 @@ export default function Today() {
 
   return (
     <Layout title={`Today · ${format(new Date(), 'EEE d MMM')}`}>
+      <CoverRequests />
+
       {isLoading && <p className="text-center text-gray-400 py-8">Loading your calls…</p>}
 
       {!isLoading && sorted.length === 0 && (

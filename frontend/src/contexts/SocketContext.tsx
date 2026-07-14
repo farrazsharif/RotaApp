@@ -15,6 +15,7 @@ const RESOURCE_KEYS: Record<string, string[]> = {
   sites: ['sites', 'service-users', 'shifts'],
   users: ['users'],
   clock: ['clock-active'],
+  handovers: ['handovers', 'shifts'], // a handover accept/revert reassigns a shift
   notifications: [], // notifications arrive live via the 'notification' event — no refetch needed
 };
 

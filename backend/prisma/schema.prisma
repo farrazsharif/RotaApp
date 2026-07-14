@@ -76,6 +76,8 @@ model User {
   importantDates     ImportantDate[]
   spotChecks         SpotCheck[]         @relation("SpotCheckCarer")
   supervisions       Supervision[]       @relation("StaffSupervision")
+  handoversSent      ShiftHandover[]     @relation("HandoverFrom")
+  handoversReceived  ShiftHandover[]     @relation("HandoverTo")
   customRole         CustomRole?         @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   // Sites this user is scoped to / belongs to. Empty = org-wide (no restriction).
   sites              Site[]              @relation("UserSites")
@@ -490,9 +492,33 @@ model Shift {
   clockRecords ClockRecord[]
   callLogs     CallLog[]
   invoiceLines InvoiceLine[]
+  handovers    ShiftHandover[]
 
   @@index([companyId])
   @@index([companyId, date])
+}
+
+// A carer-initiated request to hand a call over to another carer (e.g. off
+// sick out of hours). When accepted the shift is reassigned to the new carer
+// immediately so they can clock in; managers review afterwards and can revert.
+model ShiftHandover {
+  companyId   String? // tenant scope (app-enforced via Prisma extension)
+  id          String    @id @default(cuid())
+  shiftId     String
+  fromUserId  String // carer giving up the call
+  toUserId    String // carer asked to cover
+  reason      String?
+  status      String    @default("PENDING") // PENDING | ACCEPTED | DECLINED | CANCELLED | REVERTED
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  shift    Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  fromUser User  @relation("HandoverFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User  @relation("HandoverTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([toUserId, status])
+  @@index([shiftId])
 }
 
 // A staff supervision form (structured 1:1 review of a carer).
