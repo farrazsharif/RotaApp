@@ -1,6 +1,24 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { relatedServiceUserScopeWhere } from '../lib/scope';
+
+// Lightweight index for the Service Plans list page: which clients already have
+// a saved plan and when it was last updated. Site-scoped for scoped users.
+export async function listServicePlans(req: AuthRequest, res: Response) {
+  const plans = await prisma.personalServicePlan.findMany({
+    where: { ...relatedServiceUserScopeWhere(req.user) },
+    select: { serviceUserId: true, updatedAt: true },
+  });
+  res.json(plans);
+}
+
+export async function deleteServicePlan(req: AuthRequest, res: Response) {
+  const { serviceUserId } = req.params;
+  // deleteMany so it's a no-op (not a 404) if no plan was ever started.
+  await prisma.personalServicePlan.deleteMany({ where: { serviceUserId } });
+  res.json({ ok: true });
+}
 
 export async function getServicePlan(req: AuthRequest, res: Response) {
   const { serviceUserId } = req.params;
