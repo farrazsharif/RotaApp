@@ -85,7 +85,9 @@ app.use(cors({
 // mounted before the JSON body parser.
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleWebhook);
 
-app.use(express.json());
+// Raised from the 100kb default: bulk actions (e.g. "publish all") can post a
+// large array of shift ids, and photo/signature data URLs can be sizeable.
+app.use(express.json({ limit: '10mb' }));
 
 // Broadcast every successful write to the acting company's open sessions, so
 // all managers/staff see live data without refreshing. Mounted before the

@@ -103,6 +103,7 @@ export default function Schedule() {
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
   const [search, setSearch] = useState('');
   const [assignFilter, setAssignFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+  const [pubResult, setPubResult] = useState<string | null>(null);
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pubMenuOpen, setPubMenuOpen] = useState(false);
@@ -150,7 +151,16 @@ export default function Schedule() {
   });
   const publishAllMut = useMutation({
     mutationFn: (ids: string[]) => shiftsApi.publishBulk(ids),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['shifts'] });
+      setPubResult(
+        data.count > 0
+          ? `Published ${data.count}${data.skipped ? ` · ${data.skipped} skipped (need a carer)` : ''}`
+          : `Nothing published${data.skipped ? ` · ${data.skipped} still need a carer` : ''}`,
+      );
+      setTimeout(() => setPubResult(null), 6000);
+    },
+    onError: () => { setPubResult('Publish failed — please retry'); setTimeout(() => setPubResult(null), 6000); },
   });
 
   const assignedCarers = (s: Shift) => (s.userId ? 1 : 0) + (s.coverCarers?.length ?? 0);
@@ -192,8 +202,13 @@ export default function Schedule() {
       return names.some((n) => n.toLowerCase().includes(term));
     });
 
-  const draftShown = activeShifts.filter((s) => !s.published && !needsStaff(s));
-  const draftUnassignedShown = activeShifts.filter((s) => !s.published && needsStaff(s)).length;
+  // Only fully-staffed drafts can be published (the backend skips any shift
+  // that still needs a carer), so the "ready" set must match that exactly —
+  // otherwise the count never clears. missingCarers === 0 == backend's
+  // isFullyAssigned. Under-staffed drafts are counted separately as "need a
+  // carer first".
+  const draftShown = activeShifts.filter((s) => !s.published && missingCarers(s) === 0);
+  const draftUnassignedShown = activeShifts.filter((s) => !s.published && missingCarers(s) > 0).length;
   // Ready drafts falling in the week the calendar is centred on — lets managers
   // publish just this week without publishing the whole loaded range.
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
@@ -471,9 +486,12 @@ export default function Schedule() {
               )}
             </div>
             <div className="relative">
-              <button className="btn-primary btn" disabled={draftShown.length === 0} onClick={() => setPubMenuOpen((o) => !o)}>
+              <button className="btn-primary btn" disabled={draftShown.length === 0 && !publishAllMut.isPending} onClick={() => setPubMenuOpen((o) => !o)}>
                 Publish <span className="ml-1 text-xs">▾</span>
               </button>
+              {pubResult && !pubMenuOpen && (
+                <div className="absolute right-0 mt-1 w-64 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 z-20 shadow-lg">{pubResult}</div>
+              )}
               {pubMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setPubMenuOpen(false)} />
