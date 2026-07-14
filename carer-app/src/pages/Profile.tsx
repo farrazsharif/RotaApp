@@ -23,6 +23,14 @@ export default function Profile() {
       </div>
 
       <button
+        onClick={() => navigate('/time-off')}
+        className="w-full mt-4 bg-white border border-gray-200 rounded-xl py-3.5 px-4 flex items-center justify-between shadow-sm"
+      >
+        <span className="flex items-center gap-2 font-semibold text-gray-800">🏖️ Time Off</span>
+        <span className="text-gray-400">›</span>
+      </button>
+
+      <button
         onClick={handleLogout}
         className="w-full mt-4 bg-white border border-red-200 text-red-600 rounded-xl py-3 font-semibold"
       >

@@ -10,6 +10,7 @@ import Rota from './pages/Rota';
 import CallDetail from './pages/CallDetail';
 import ServiceUserDetail from './pages/ServiceUserDetail';
 import Profile from './pages/Profile';
+import TimeOff from './pages/TimeOff';
 
 function PushRegistration() {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/call/:id" element={<ProtectedRoute><CallDetail /></ProtectedRoute>} />
           <Route path="/client/:id" element={<ProtectedRoute><ServiceUserDetail /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/time-off" element={<ProtectedRoute><TimeOff /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
