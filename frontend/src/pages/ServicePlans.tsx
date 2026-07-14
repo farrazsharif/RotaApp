@@ -55,6 +55,10 @@ export default function ServicePlans() {
   const term = search.trim().toLowerCase();
   const filtered = serviceUsers.filter((su) => !term || `${su.firstName} ${su.lastName}`.toLowerCase().includes(term));
 
+  const totalClients = serviceUsers.length;
+  const withPlan = serviceUsers.filter((su) => planMap.has(su.id)).length;
+  const missingPlan = totalClients - withPlan;
+
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
   return (
@@ -63,6 +67,11 @@ export default function ServicePlans() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Personal Service Plans</h1>
           <p className="text-sm text-gray-500">Open a client to view their plan, or edit it</p>
+          <p className="text-sm mt-1">
+            <span className="font-semibold text-green-700">{withPlan}</span>
+            <span className="text-gray-500"> of {totalClients} clients have a plan</span>
+            {missingPlan > 0 && <span className="text-gray-400"> · {missingPlan} not started</span>}
+          </p>
         </div>
         <input
           value={search}
