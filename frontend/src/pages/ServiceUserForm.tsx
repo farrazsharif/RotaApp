@@ -430,6 +430,9 @@ export default function ServiceUserForm() {
               // A visit whose name isn't one of the presets is a custom ("Other")
               // call — show a free-text box so it can be typed or edited.
               const custom = !VISIT_PRESETS.includes(row.type);
+              // Likewise a duration that isn't one of the presets is entered
+              // manually — reveal a minutes input for it.
+              const durationCustom = !DURATIONS.some((d) => d.value === row.duration);
               return (
                 <div key={i} className="flex items-center gap-2">
                   <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
@@ -449,9 +452,27 @@ export default function ServiceUserForm() {
                       className="input flex-1"
                     />
                   )}
-                  <select value={row.duration} onChange={(e) => updateVisit(i, { duration: Number(e.target.value) })} className="input w-32">
+                  <select
+                    value={durationCustom ? '__custom__' : String(row.duration)}
+                    onChange={(e) => updateVisit(i, { duration: e.target.value === '__custom__' ? 0 : Number(e.target.value) })}
+                    className="input w-32"
+                  >
                     {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                    <option value="__custom__">Custom…</option>
                   </select>
+                  {durationCustom && (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={1}
+                        value={row.duration || ''}
+                        onChange={(e) => updateVisit(i, { duration: Number(e.target.value) || 0 })}
+                        placeholder="mins"
+                        className="input w-20"
+                      />
+                      <span className="text-xs text-gray-400">min</span>
+                    </div>
+                  )}
                   <button type="button" onClick={() => removeVisit(i)} className="text-red-600 hover:text-red-700 text-lg px-1" title="Remove">×</button>
                 </div>
               );
