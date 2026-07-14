@@ -6,6 +6,7 @@ import { Role } from '../constants';
 import { emitToUser } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
 import { isScoped, serviceUserInScope, relatedServiceUserScopeWhere } from '../lib/scope';
+import { runWithCompany } from '../lib/tenantContext';
 
 const shiftInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
@@ -530,7 +531,16 @@ export async function publishBulkShifts(req: AuthRequest, res: Response) {
     ? await prisma.shift.updateMany({ where: { id: { in: publishableIds } }, data: { published: true } })
     : { count: 0 };
 
-  await notifyShiftsPublished(publishable);
+  // Respond as soon as the shifts are published. Fan-out of in-app + push
+  // notifications (a network round-trip per carer subscription) runs in the
+  // background so a big "publish all" doesn't leave the button spinning —
+  // carers' apps already refetch live via the data:changed broadcast. Re-wrap
+  // in the tenant context so the background Prisma writes stay company-scoped.
+  if (publishable.length) {
+    const companyId = req.user!.companyId;
+    const run = () => notifyShiftsPublished(publishable).catch((e) => console.error('Publish notifications failed:', e));
+    if (companyId) runWithCompany(companyId, run); else run();
+  }
 
   res.json({ message: 'Published', count: result.count, skipped });
 }
