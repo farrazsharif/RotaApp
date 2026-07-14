@@ -261,7 +261,7 @@ export default function ServiceUserForm() {
       <Section title="Contact & Address">
         <div className="space-y-4">
           <div>
-            <label className="label">Postcode</label>
+            <label className="label">Postcode *</label>
             <input
               value={form.postcode}
               onChange={(e) => setForm({ ...form, postcode: e.target.value })}
@@ -486,7 +486,7 @@ export default function ServiceUserForm() {
         <button className="btn-secondary btn" onClick={() => navigate(backTo)}>Cancel</button>
         <button
           className="btn-primary btn"
-          disabled={!form.firstName || !form.lastName || !form.dateOfBirth || createMut.isPending || updateMut.isPending}
+          disabled={!form.firstName || !form.lastName || !form.dateOfBirth || !form.postcode?.trim() || createMut.isPending || updateMut.isPending}
           onClick={() => isEdit ? updateMut.mutate() : createMut.mutate()}
         >
           {createMut.isPending || updateMut.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Service User'}
