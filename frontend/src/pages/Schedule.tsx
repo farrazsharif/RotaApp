@@ -108,7 +108,7 @@ export default function Schedule() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [pubMenuOpen, setPubMenuOpen] = useState(false);
 
-  const [mode, setMode] = useState<'calendar' | 'carer'>('calendar');
+  const [mode, setMode] = useState<'calendar' | 'carer' | 'list'>('calendar');
   const [viewKey, setViewKey] = useState<ViewKey>('week');
   const [anchor, setAnchor] = useState(new Date());
 
@@ -433,9 +433,16 @@ export default function Schedule() {
               </button>
             ))}
           </div>
+          <button
+            onClick={() => setMode((m) => (m === 'list' ? 'calendar' : 'list'))}
+            className={`btn btn-sm ${mode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
+            title="List view"
+          >
+            List
+          </button>
           {isManager && (
             <button
-              onClick={() => setMode((m) => (m === 'calendar' ? 'carer' : 'calendar'))}
+              onClick={() => setMode((m) => (m === 'carer' ? 'calendar' : 'carer'))}
               className={`btn btn-sm ${mode === 'carer' ? 'btn-primary' : 'btn-secondary'}`}
               title="Toggle carer timeline"
             >
@@ -536,7 +543,17 @@ export default function Schedule() {
         </div>
       )}
 
-      {mode === 'carer' && isManager ? (
+      {mode === 'list' ? (
+        <ListView
+          days={rangeDays}
+          shifts={rangeShifts}
+          isManager={isManager}
+          needsStaff={needsStaff}
+          missingCarers={missingCarers}
+          onOpen={openShift}
+          onAdd={(dateStr) => { setSelectedShift(null); setSelectedDate(dateStr); setModalOpen(true); }}
+        />
+      ) : mode === 'carer' && isManager ? (
         <CarerTimeline
           users={users}
           days={rangeDays}
@@ -688,6 +705,110 @@ function DayColumns({ days, shifts, isManager, needsStaff, missingCarers, onOpen
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Agenda-style list: each day grouped with the shift's site/time, the carers
+// working it, and the visit — plus a per-day hours total.
+function ListView({ days, shifts, isManager, needsStaff, missingCarers, onOpen, onAdd }: {
+  days: Date[];
+  shifts: Shift[];
+  isManager: boolean;
+  needsStaff: (s: Shift) => boolean;
+  missingCarers: (s: Shift) => number;
+  onOpen: (s: Shift) => void;
+  onAdd: (dateStr: string) => void;
+}) {
+  const dayKey = (d: Date | string) => format(new Date(d), 'yyyy-MM-dd');
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
+  const shiftMins = (s: Shift) => {
+    const [sh, sm] = s.startTime.split(':').map(Number);
+    const [eh, em] = s.endTime.split(':').map(Number);
+    return Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
+  };
+  const durLabel = (mins: number) => {
+    const h = Math.floor(mins / 60); const m = mins % 60;
+    return m ? `${h}h ${m}m` : `${h}h`;
+  };
+  const forDay = (d: Date) =>
+    shifts
+      .filter((s) => dayKey(s.date) === dayKey(d))
+      .sort((a, b) => (siteRankOf(a) - siteRankOf(b)) || a.startTime.localeCompare(b.startTime));
+
+  return (
+    <div className="card p-0 overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+      <div className="sticky top-0 z-10 hidden md:grid grid-cols-[1.2fr_1.4fr_1.4fr] gap-4 px-4 py-2 bg-white border-b text-xs font-medium text-gray-500">
+        <span>Shift</span><span>Who's Working</span><span>Visit</span>
+      </div>
+      {days.map((d) => {
+        const list = forDay(d);
+        const totalMins = list.reduce((a, s) => a + shiftMins(s), 0);
+        const isToday = dayKey(d) === todayKey;
+        return (
+          <div key={dayKey(d)} className="border-b last:border-b-0">
+            {/* Day header */}
+            <div className={`flex items-center justify-between px-4 py-2 border-b ${isToday ? 'bg-blue-50' : 'bg-gray-50'}`}>
+              <div className="flex items-center gap-3">
+                <span className="text-xl font-bold text-gray-800 w-7 text-center">{format(d, 'd')}</span>
+                <div className="leading-tight">
+                  <p className="font-semibold text-gray-800">{format(d, 'EEEE')}</p>
+                  <p className="text-xs text-gray-400">{format(d, 'MMM yyyy')}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500 tabular-nums">⏱ {(totalMins / 60).toFixed(2)}</span>
+                {isManager && (
+                  <button onClick={() => onAdd(dayKey(d))} className="text-blue-600 text-xl leading-none px-1 hover:text-blue-700" title="Add shift">+</button>
+                )}
+              </div>
+            </div>
+
+            {/* Shifts */}
+            {list.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-gray-300">No shifts</p>
+            ) : (
+              list.map((s) => {
+                const unassigned = needsStaff(s);
+                const color = s.serviceUser?.site?.color || '#3b82f6';
+                const site = s.serviceUser?.site?.name;
+                const client = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No client';
+                const carers = [
+                  s.user ? `${s.user.firstName} ${s.user.lastName}` : null,
+                  ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? []),
+                ].filter(Boolean) as string[];
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => onOpen(s)}
+                    className="w-full text-left grid grid-cols-1 md:grid-cols-[1.2fr_1.4fr_1.4fr] gap-1.5 md:gap-4 px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 items-start"
+                  >
+                    {/* Shift: colour bar + site/role + time */}
+                    <div className="flex gap-2">
+                      <span className="w-1 rounded self-stretch shrink-0" style={{ backgroundColor: unassigned ? '#dc2626' : color }} />
+                      <div className="min-w-0">
+                        {site && <p className="text-sm font-medium" style={{ color }}>{site}{s.role ? ` · ${s.role}` : ''}</p>}
+                        <p className="text-sm text-gray-700">{formatTime12h(s.startTime)} – {formatTime12h(s.endTime)} · {durLabel(shiftMins(s))}</p>
+                        {!s.published && <span className="inline-block text-[10px] font-bold text-amber-600 bg-amber-50 px-1 rounded mt-0.5">DRAFT</span>}
+                      </div>
+                    </div>
+                    {/* Who's working */}
+                    <div className="text-sm min-w-0">
+                      {carers.length > 0
+                        ? carers.map((c, i) => <p key={i} className="text-gray-700 truncate">{c}</p>)
+                        : <p className={unassigned ? 'text-red-600 font-medium' : 'text-gray-400'}>{unassigned ? `Unassigned · needs ${missingCarers(s)}` : 'Unassigned'}</p>}
+                    </div>
+                    {/* Visit */}
+                    <div className="text-sm text-gray-800 min-w-0">
+                      {client}{s.visitName ? ` ${s.visitName}` : ''}{s.cover > 1 ? ` ×${s.cover}` : ''}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
