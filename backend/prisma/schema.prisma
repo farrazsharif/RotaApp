@@ -274,6 +274,26 @@ model ServicePlanTemplate {
   updatedAt   DateTime @updatedAt
 }
 
+// An immutable, signed snapshot of a Personal Service Plan for the audit trail
+// (CQC). Captures BOTH the questions (template) and the answers exactly as they
+// were at sign-off, so a past version always prints as it was signed even after
+// the template is later changed. Never edited or deleted.
+model ServicePlanVersion {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  serviceUserId String
+  sections      String   // JSON snapshot of the template (questions) at sign-off
+  data          String   // JSON snapshot of the answers at sign-off
+  label         String?  // review label, e.g. "6-week review", "Annual review"
+  signedByName  String?  // typed signatory (assessor / client / representative)
+  createdById   String?
+  createdByName String
+  createdAt     DateTime @default(now())
+
+  @@index([companyId])
+  @@index([serviceUserId])
+}
+
 model CarePlan {
   companyId       String? // tenant scope (app-enforced via Prisma extension)
   id              String    @id @default(cuid())

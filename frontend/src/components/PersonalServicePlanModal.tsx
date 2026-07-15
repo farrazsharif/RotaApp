@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { servicePlansApi } from '../api/servicePlans';
 import { servicePlanTemplateApi } from '../api/servicePlanTemplate';
+import { servicePlanVersionsApi } from '../api/servicePlanVersions';
+import ServicePlanHistory from './ServicePlanHistory';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser } from '../types';
 import { defaultTemplateSections, keyForItem, PspItem, PspSection } from '../lib/servicePlanSchema';
@@ -32,6 +34,9 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [activeSection, setActiveSection] = useState('');
+  const [panel, setPanel] = useState<'none' | 'history' | 'finalise'>('none');
+  const [finaliseLabel, setFinaliseLabel] = useState('');
+  const [finaliseSignatory, setFinaliseSignatory] = useState('');
 
   const { data: plan, isLoading } = useQuery({
     queryKey: ['service-plan', serviceUser.id],
@@ -53,6 +58,27 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
   const saveMut = useMutation({
     mutationFn: () => servicePlansApi.save(serviceUser.id, values),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['service-plan', serviceUser.id] }),
+  });
+
+  // Finalise: save the current answers, then freeze an immutable signed snapshot
+  // (questions + answers) as the audit record.
+  const finaliseMut = useMutation({
+    mutationFn: async () => {
+      await servicePlansApi.save(serviceUser.id, values);
+      return servicePlanVersionsApi.create({
+        serviceUserId: serviceUser.id,
+        sections,
+        data: values,
+        label: finaliseLabel.trim() || undefined,
+        signedByName: finaliseSignatory.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      setFinaliseLabel(''); setFinaliseSignatory('');
+      qc.invalidateQueries({ queryKey: ['service-plan', serviceUser.id] });
+      qc.invalidateQueries({ queryKey: ['service-plan-versions', serviceUser.id] });
+      setPanel('history');
+    },
   });
 
   const set = (key: string, val: unknown) => setValues((v) => ({ ...v, [key]: val }));
@@ -355,9 +381,47 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
           </div>
         )}
 
+        {/* History / Finalise panel */}
+        {panel !== 'none' && (
+          <div className="border-t bg-gray-50 px-5 py-4 max-h-64 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-gray-900">{panel === 'history' ? 'Signed versions (audit trail)' : 'Finalise & sign off'}</h3>
+              <button onClick={() => setPanel('none')} className="text-gray-400 hover:text-gray-600 text-sm">Close ×</button>
+            </div>
+            {panel === 'history' ? (
+              <ServicePlanHistory serviceUser={serviceUser} />
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">This locks an immutable copy of the current questions and answers as a signed record. The live plan stays editable.</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Review label</label>
+                    <input value={finaliseLabel} onChange={(e) => setFinaliseLabel(e.target.value)} className="input text-sm" placeholder="e.g. 6-week review, Annual review" />
+                  </div>
+                  <div>
+                    <label className="label">Signatory name (optional)</label>
+                    <input value={finaliseSignatory} onChange={(e) => setFinaliseSignatory(e.target.value)} className="input text-sm" placeholder="Client / representative / assessor" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="btn-primary btn btn-sm" disabled={finaliseMut.isPending} onClick={() => finaliseMut.mutate()}>
+                    {finaliseMut.isPending ? 'Finalising…' : '🔒 Finalise & lock version'}
+                  </button>
+                  <button className="btn-secondary btn btn-sm" onClick={() => setPanel('none')}>Cancel</button>
+                  {finaliseMut.isError && <span className="text-sm text-red-600 self-center">Failed — try again</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-3 p-4 border-t">
           {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
+          <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 History</button>
+          {isManager && (
+            <button onClick={() => setPanel((p) => (p === 'finalise' ? 'none' : 'finalise'))} className="btn-secondary btn">🔒 Finalise &amp; Sign</button>
+          )}
           <div className="flex-1" />
           <button onClick={printPlan} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>

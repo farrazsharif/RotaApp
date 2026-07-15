@@ -111,4 +111,22 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
     )
   `);
   await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "ServicePlanTemplate_companyId_key" ON "ServicePlanTemplate"("companyId")`);
+
+  // ServicePlanVersion — immutable signed snapshots (CQC audit trail).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "ServicePlanVersion" (
+      "id"            TEXT PRIMARY KEY,
+      "companyId"     TEXT,
+      "serviceUserId" TEXT NOT NULL,
+      "sections"      TEXT NOT NULL,
+      "data"          TEXT NOT NULL,
+      "label"         TEXT,
+      "signedByName"  TEXT,
+      "createdById"   TEXT,
+      "createdByName" TEXT NOT NULL,
+      "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServicePlanVersion_companyId_idx" ON "ServicePlanVersion"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServicePlanVersion_serviceUserId_idx" ON "ServicePlanVersion"("serviceUserId")`);
 }

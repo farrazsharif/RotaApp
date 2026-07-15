@@ -9,12 +9,14 @@ import { printServicePlan } from '../lib/servicePlanPrint';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser } from '../types';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
+import ServicePlanHistory from '../components/ServicePlanHistory';
 
 export default function ServicePlans() {
   const { isManager } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [openFor, setOpenFor] = useState<ServiceUser | null>(null);
+  const [historyFor, setHistoryFor] = useState<ServiceUser | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const { data: serviceUsers = [], isLoading } = useQuery({
@@ -149,6 +151,7 @@ export default function ServicePlans() {
                             >
                               🖨 Print
                             </button>
+                            <button className="btn-secondary btn btn-sm" onClick={() => setHistoryFor(su)} title="Signed versions (audit trail)">🕘 History</button>
                             {isManager && (
                               <button
                                 className="btn btn-sm border border-red-200 text-red-600 hover:bg-red-50"
@@ -172,6 +175,23 @@ export default function ServicePlans() {
       )}
 
       {openFor && <PersonalServicePlanModal serviceUser={openFor} onClose={() => setOpenFor(null)} />}
+
+      {historyFor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setHistoryFor(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b">
+              <div>
+                <h2 className="text-lg font-semibold">Signed versions — {historyFor.firstName} {historyFor.lastName}</h2>
+                <p className="text-xs text-gray-500">Immutable audit trail of finalised service plans</p>
+              </div>
+              <button onClick={() => setHistoryFor(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              <ServicePlanHistory serviceUser={historyFor} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -22,6 +22,8 @@ interface PrintOpts {
   updatedAt?: string;
   // The template to render; defaults to the built-in default when omitted.
   sections?: PspSection[];
+  // When printing a signed snapshot, show an audit banner marking it immutable.
+  signed?: { label?: string | null; signedByName?: string | null; signedOn: string; signedBy: string };
 }
 
 // Opens a printable window for a service user's Personal Service Plan.
@@ -110,6 +112,7 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
       body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 12px; }
       h1 { font-size: 20px; margin: 0 0 2px; }
       .sub { color: #555; font-size: 12px; margin-bottom: 16px; }
+      .signed-banner { background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; font-size: 11px; padding: 8px 10px; border-radius: 6px; margin: 8px 0 10px; line-height: 1.5; }
       .section { page-break-inside: avoid; margin-bottom: 14px; }
       h2 { font-size: 14px; margin: 0 0 6px; background: #f3f3f3; padding: 5px 8px; }
       .intro { font-size: 11px; color: #555; margin: 0 0 6px; }
@@ -131,6 +134,10 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
       <button class="secondary" onclick="window.close()">Close</button>
     </div>
     <h1>Personal Service Plan</h1>
+    ${opts.signed ? `<div class="signed-banner">
+      🔒 Signed version — immutable audit record${opts.signed.label ? ` · ${esc(opts.signed.label)}` : ''}<br/>
+      Signed off ${esc(format(new Date(opts.signed.signedOn), 'dd MMM yyyy, h:mm a'))} by ${esc(opts.signed.signedBy)}${opts.signed.signedByName ? ` · Signatory: ${esc(opts.signed.signedByName)}` : ''}
+    </div>` : ''}
     <div class="sub">
       ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}
       ${serviceUser.dateOfBirth ? ` · DOB ${esc(format(new Date(serviceUser.dateOfBirth), 'dd MMM yyyy'))}` : ''}

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { logAudit } from '../lib/audit';
 
 // GET /api/service-plan-template — the company's saved template, or null when
 // none has been customised yet (the frontend then uses the built-in default).
@@ -25,6 +26,8 @@ export async function saveServicePlanTemplate(req: AuthRequest, res: Response) {
     ? await prisma.servicePlanTemplate.update({ where: { id: existing.id }, data: { sections: serialised, updatedById: req.user!.id } })
     : await prisma.servicePlanTemplate.create({ data: { sections: serialised, updatedById: req.user!.id } });
 
+  await logAudit(req, 'SERVICE_PLAN_TEMPLATE_UPDATED', 'Service plan template', `${sections.length} sections saved`);
+
   let parsed: unknown = sections;
   try { parsed = JSON.parse(saved.sections); } catch { /* keep as-is */ }
   res.json({ sections: parsed, updatedAt: saved.updatedAt });
@@ -32,8 +35,9 @@ export async function saveServicePlanTemplate(req: AuthRequest, res: Response) {
 
 // DELETE /api/service-plan-template — reset to the built-in default (removes the
 // company's customisation so the frontend falls back to the default template).
-export async function resetServicePlanTemplate(_req: AuthRequest, res: Response) {
+export async function resetServicePlanTemplate(req: AuthRequest, res: Response) {
   const existing = await prisma.servicePlanTemplate.findFirst();
   if (existing) await prisma.servicePlanTemplate.delete({ where: { id: existing.id } });
+  await logAudit(req, 'SERVICE_PLAN_TEMPLATE_UPDATED', 'Service plan template', 'Reset to default');
   res.json({ sections: null });
 }
