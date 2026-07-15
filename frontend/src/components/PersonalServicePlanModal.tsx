@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { servicePlansApi } from '../api/servicePlans';
+import { servicePlanTemplateApi } from '../api/servicePlanTemplate';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser } from '../types';
-import { PSP_SECTIONS, itemKey, PspItem, PspSection } from '../lib/servicePlanSchema';
+import { defaultTemplateSections, keyForItem, PspItem, PspSection } from '../lib/servicePlanSchema';
 import { printServicePlan } from '../lib/servicePlanPrint';
 import { format } from 'date-fns';
 
@@ -30,12 +31,16 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
   const ro = !isManager;
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, unknown>>({});
-  const [activeSection, setActiveSection] = useState(PSP_SECTIONS[0].id);
+  const [activeSection, setActiveSection] = useState('');
 
   const { data: plan, isLoading } = useQuery({
     queryKey: ['service-plan', serviceUser.id],
     queryFn: () => servicePlansApi.get(serviceUser.id),
   });
+
+  // The company's question template (falls back to the built-in default).
+  const { data: tpl } = useQuery({ queryKey: ['service-plan-template'], queryFn: servicePlanTemplateApi.get });
+  const sections = useMemo<PspSection[]>(() => (tpl?.sections?.length ? tpl.sections : defaultTemplateSections()), [tpl]);
 
   useEffect(() => {
     if (plan?.data) {
@@ -64,21 +69,21 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
 
   // progress: how many sections have at least one answered item
   const completed = useMemo(() => {
-    return PSP_SECTIONS.filter((s) =>
-      s.items.some((_, i) => {
-        const v = values[itemKey(s.id, i)];
+    return sections.filter((s) =>
+      s.items.some((item, i) => {
+        const v = values[keyForItem(item, s.id, i)];
         if (!v) return false;
         if (typeof v === 'string') return v.trim() !== '';
         if (typeof v === 'object') return Object.values(v as Record<string, unknown>).some((x) => x === true || (typeof x === 'string' && x.trim() !== ''));
         return false;
       })
     ).length;
-  }, [values]);
+  }, [values, sections]);
 
-  const printPlan = () => printServicePlan(serviceUser, values, { createdAt: plan?.createdAt, updatedAt: plan?.updatedAt });
+  const printPlan = () => printServicePlan(serviceUser, values, { createdAt: plan?.createdAt, updatedAt: plan?.updatedAt, sections });
 
   function renderItem(section: PspSection, item: PspItem, idx: number) {
-    const key = itemKey(section.id, idx);
+    const key = keyForItem(item, section.id, idx);
     const type = item.type || 'yn';
 
     if (type === 'yn') {
@@ -296,7 +301,7 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
     );
   }
 
-  const current = PSP_SECTIONS.find((s) => s.id === activeSection)!;
+  const current = sections.find((s) => s.id === activeSection) ?? sections[0];
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -306,7 +311,7 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
             <h2 className="text-lg font-semibold">Personal Service Plan — {serviceUser.firstName} {serviceUser.lastName}</h2>
             <p className="text-xs text-gray-500">
               {plan ? `Last updated ${format(new Date(plan.updatedAt), 'dd MMM yyyy, h:mm a')}` : 'Not started'}
-              {` · ${completed}/${PSP_SECTIONS.length} sections started`}
+              {` · ${completed}/${sections.length} sections started`}
               {ro && ' · read-only'}
             </p>
           </div>
@@ -319,12 +324,12 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
           <div className="flex-1 flex min-h-0">
             {/* Section nav */}
             <nav className="w-56 shrink-0 border-r overflow-y-auto p-2 hidden md:block">
-              {PSP_SECTIONS.map((s) => (
+              {sections.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setActiveSection(s.id)}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    activeSection === s.id ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                    current?.id === s.id ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
                   {s.title}
@@ -335,16 +340,16 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
             {/* Section content */}
             <div className="flex-1 overflow-y-auto p-6">
               {/* mobile section picker */}
-              <select className="input mb-4 md:hidden" value={activeSection} onChange={(e) => setActiveSection(e.target.value)}>
-                {PSP_SECTIONS.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+              <select className="input mb-4 md:hidden" value={current?.id ?? ''} onChange={(e) => setActiveSection(e.target.value)}>
+                {sections.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
               </select>
 
-              <h3 className="text-xl font-bold text-gray-900">{current.title}</h3>
-              {current.intro && <p className="text-sm text-gray-500 mt-1">{current.intro}</p>}
-              {current.note && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2">{current.note}</p>}
+              <h3 className="text-xl font-bold text-gray-900">{current?.title}</h3>
+              {current?.intro && <p className="text-sm text-gray-500 mt-1">{current.intro}</p>}
+              {current?.note && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2">{current.note}</p>}
 
               <div className="mt-4">
-                {current.items.map((item, i) => renderItem(current, item, i))}
+                {current?.items.map((item, i) => renderItem(current, item, i))}
               </div>
             </div>
           </div>

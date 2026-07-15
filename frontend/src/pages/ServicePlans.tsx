@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { servicePlansApi } from '../api/servicePlans';
+import { servicePlanTemplateApi } from '../api/servicePlanTemplate';
+import { defaultTemplateSections } from '../lib/servicePlanSchema';
 import { printServicePlan } from '../lib/servicePlanPrint';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser } from '../types';
@@ -38,10 +40,11 @@ export default function ServicePlans() {
   async function openPlanView(su: ServiceUser, autoPrint: boolean) {
     setBusy(su.id);
     try {
-      const plan = await servicePlansApi.get(su.id);
+      const [plan, tpl] = await Promise.all([servicePlansApi.get(su.id), servicePlanTemplateApi.get().catch(() => null)]);
       let values: Record<string, unknown> = {};
       if (plan?.data) { try { values = JSON.parse(plan.data); } catch { values = {}; } }
-      printServicePlan(su, values, { autoPrint, createdAt: plan?.createdAt, updatedAt: plan?.updatedAt });
+      const sections = tpl?.sections?.length ? tpl.sections : defaultTemplateSections();
+      printServicePlan(su, values, { autoPrint, createdAt: plan?.createdAt, updatedAt: plan?.updatedAt, sections });
     } finally {
       setBusy(null);
     }

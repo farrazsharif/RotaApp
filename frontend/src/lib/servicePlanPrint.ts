@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { ServiceUser } from '../types';
-import { PSP_SECTIONS, itemKey, PspItem, PspSection } from './servicePlanSchema';
+import { defaultTemplateSections, keyForItem, PspItem, PspSection } from './servicePlanSchema';
 
 type YnVal = { v: '' | 'YES' | 'NO'; comment: string; action?: string };
 type CheckVal = { checked: boolean; comment: string };
@@ -20,6 +20,8 @@ interface PrintOpts {
   autoPrint?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  // The template to render; defaults to the built-in default when omitted.
+  sections?: PspSection[];
 }
 
 // Opens a printable window for a service user's Personal Service Plan.
@@ -39,7 +41,7 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
   const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
 
   function itemHtml(section: PspSection, item: PspItem, idx: number): string {
-    const key = itemKey(section.id, idx);
+    const key = keyForItem(item, section.id, idx);
     const type = item.type || 'yn';
 
     if (type === 'yn') {
@@ -92,7 +94,8 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
     return `<div class="item"><div class="note">${esc(item.label)}</div><div class="item-row"><span>${esc(v || '—')}</span></div></div>`;
   }
 
-  const sectionsHtml = PSP_SECTIONS.map((s) => `
+  const templateSections = opts.sections?.length ? opts.sections : defaultTemplateSections();
+  const sectionsHtml = templateSections.map((s) => `
     <div class="section">
       <h2>${esc(s.title)}</h2>
       ${s.intro ? `<p class="intro">${esc(s.intro)}</p>` : ''}

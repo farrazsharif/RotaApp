@@ -45,6 +45,7 @@ import noteRoutes from './routes/notes';
 import handoverRoutes from './routes/handovers';
 import announcementRoutes from './routes/announcements';
 import runRoutes from './routes/runs';
+import servicePlanTemplateRoutes from './routes/servicePlanTemplate';
 import { backfillAllCompanyRoles } from './lib/defaultRoles';
 import { normalizeVisitNames } from './lib/normalizeVisitNames';
 import { ensureServiceUserColumns } from './lib/ensureColumns';
@@ -145,6 +146,7 @@ app.use('/api/notes', noteRoutes);
 app.use('/api/handovers', handoverRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/runs', runRoutes);
+app.use('/api/service-plan-template', servicePlanTemplateRoutes);
 
 app.use(errorHandler);
 

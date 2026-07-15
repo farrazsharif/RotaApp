@@ -29,6 +29,7 @@ import { usePermissions } from './hooks/usePermissions';
 import Finances from './pages/Finances';
 import Settings from './pages/Settings';
 import Billing from './pages/Billing';
+import ServicePlanTemplate from './pages/ServicePlanTemplate';
 import Platform from './pages/Platform';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -109,6 +110,7 @@ function AppRoutes() {
         <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
         <Route path="settings" element={<Settings />} />
         <Route path="settings/billing" element={<Billing />} />
+        <Route path="settings/service-plan-template" element={<ServicePlanTemplate />} />
         <Route path="platform" element={<PlatformRoute><Platform /></PlatformRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

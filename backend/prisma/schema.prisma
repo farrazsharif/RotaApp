@@ -261,6 +261,19 @@ model PersonalServicePlan {
   @@index([companyId])
 }
 
+// Per-company template for the Personal Service Plan assessment — the editable
+// list of sections and questions. One row per company; when absent the app
+// falls back to the built-in default template. Stored as JSON so the flexible
+// question shapes (and future additions) don't need schema changes.
+model ServicePlanTemplate {
+  companyId   String?  @unique // tenant scope (app-enforced via Prisma extension)
+  id          String   @id @default(cuid())
+  sections    String   @default("[]") // JSON array of { id, title, intro?, note?, action?, items: [...] }
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model CarePlan {
   companyId       String? // tenant scope (app-enforced via Prisma extension)
   id              String    @id @default(cuid())

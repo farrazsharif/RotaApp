@@ -35,9 +35,14 @@ export default function Settings() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         {can('manage_settings') && (
-          <Link to="/settings/billing" className="text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg px-3 py-1.5">
-            Billing &amp; subscription
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/settings/service-plan-template" className="text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg px-3 py-1.5">
+              Service plan template
+            </Link>
+            <Link to="/settings/billing" className="text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg px-3 py-1.5">
+              Billing &amp; subscription
+            </Link>
+          </div>
         )}
       </div>
 

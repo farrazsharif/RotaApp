@@ -98,4 +98,17 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   `);
   await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "_RunCarers_AB_unique" ON "_RunCarers"("A", "B")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "_RunCarers_B_index" ON "_RunCarers"("B")`);
+
+  // ServicePlanTemplate — per-company editable Personal Service Plan questions.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "ServicePlanTemplate" (
+      "id"          TEXT PRIMARY KEY,
+      "companyId"   TEXT,
+      "sections"    TEXT NOT NULL DEFAULT '[]',
+      "updatedById" TEXT,
+      "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "ServicePlanTemplate_companyId_key" ON "ServicePlanTemplate"("companyId")`);
 }

@@ -7,6 +7,7 @@ export type PspItemType =
   | 'signature' | 'mhEquipment' | 'equipment';
 
 export interface PspItem {
+  id?: string;              // stable key for stored answers (see defaultTemplate)
   label: string;
   type?: PspItemType;       // default 'yn'
   options?: string[];       // for 'choice'
@@ -311,6 +312,31 @@ export const PSP_SECTIONS: PspSection[] = [
 ];
 
 export const itemKey = (sectionId: string, idx: number) => `${sectionId}.${idx}`;
+
+// The editable, per-company template is just PspSection[]. When a company hasn't
+// customised anything we use the built-in default below.
+export type PspTemplate = PspSection[];
+
+// The answer key for an item: its stable id when present, else the legacy
+// positional key. Keeping the fallback means older stored answers still line up.
+export const keyForItem = (item: PspItem, sectionId: string, idx: number) => item.id ?? itemKey(sectionId, idx);
+
+// Build the default template with a STABLE id on every item. Crucially the id is
+// the item's current positional key (`section.index`), so existing saved plans —
+// which are keyed that way — map across with no data migration.
+export function defaultTemplateSections(): PspTemplate {
+  return PSP_SECTIONS.map((s) => ({
+    ...s,
+    items: s.items.map((item, i) => ({ ...item, id: item.id ?? itemKey(s.id, i) })),
+  }));
+}
+
+// Fresh ids for builder-added sections/questions. Prefixed so they can never
+// collide with the positional default ids (`section.index`).
+let _seq = 0;
+const uid = () => `${Date.now().toString(36)}${(_seq++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+export const newSectionId = () => `sec_${uid()}`;
+export const newItemId = () => `q_${uid()}`;
 
 // Value shapes per type:
 //  yn        -> { v: 'YES'|'NO'|'', comment: string, action?: string }
