@@ -131,9 +131,20 @@ function CallCard({ shift, highlighted, done, onClick }: { shift: Shift; highlig
         {isCancelled && <span className="text-xs font-bold">Cancelled</span>}
       </div>
       <p className="text-lg font-semibold mt-1">{name}</p>
-      {shift.visitName && (
-        <p className={`text-sm ${highlighted && !done ? 'text-blue-100' : 'text-gray-500'}`}>{shift.visitName}</p>
-      )}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {shift.visitName && (
+          <p className={`text-sm ${highlighted && !done ? 'text-blue-100' : 'text-gray-500'}`}>{shift.visitName}</p>
+        )}
+        {shift.run && (
+          <span
+            className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${highlighted && !done ? 'bg-white/20 text-white' : ''}`}
+            style={highlighted && !done ? undefined : { backgroundColor: `${shift.run.color || '#6b7280'}1a`, color: shift.run.color || '#374151' }}
+          >
+            {!(highlighted && !done) && <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: shift.run.color || '#6b7280' }} />}
+            {shift.run.name}
+          </span>
+        )}
+      </div>
       {su?.address && (
         <p className={`text-sm mt-1 ${highlighted && !done ? 'text-blue-100' : 'text-gray-400'}`}>
           📍 {su.address}{su.postcode ? `, ${su.postcode}` : ''}

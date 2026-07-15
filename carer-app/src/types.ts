@@ -110,6 +110,7 @@ export interface Shift {
   status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'SWAPPED';
   user?: User | null;
   coverCarers?: User[];
+  run?: { id: string; name: string; color?: string | null } | null;
   serviceUser?: ServiceUserBrief | null;
   clockRecords?: { id: string; userId: string; clockIn: string; clockOut: string | null }[];
 }

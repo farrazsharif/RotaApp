@@ -24,6 +24,7 @@ import Supervision from './pages/Supervision';
 import ServicePlans from './pages/ServicePlans';
 import Handovers from './pages/Handovers';
 import Announcements from './pages/Announcements';
+import Runs from './pages/Runs';
 import { usePermissions } from './hooks/usePermissions';
 import Finances from './pages/Finances';
 import Settings from './pages/Settings';
@@ -100,6 +101,7 @@ function AppRoutes() {
         <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />
         <Route path="handovers" element={<ManagerRoute><Handovers /></ManagerRoute>} />
         <Route path="announcements" element={<ManagerRoute><Announcements /></ManagerRoute>} />
+        <Route path="runs" element={<ManagerRoute><Runs /></ManagerRoute>} />
         <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
         <Route path="late-checkins" element={<ManagerRoute><LateCheckins /></ManagerRoute>} />
         <Route path="finances" element={<Finances />} />

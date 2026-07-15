@@ -103,7 +103,15 @@ function RotaRow({ shift, done, onClick }: { shift: Shift; done: boolean; onClic
     >
       <div>
         <p className="font-semibold text-gray-800 text-sm">{name}</p>
-        {shift.visitName && <p className="text-xs text-gray-400">{shift.visitName}</p>}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {shift.visitName && <p className="text-xs text-gray-400">{shift.visitName}</p>}
+          {shift.run && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${shift.run.color || '#6b7280'}1a`, color: shift.run.color || '#374151' }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: shift.run.color || '#6b7280' }} />
+              {shift.run.name}
+            </span>
+          )}
+        </div>
       </div>
       <div className="text-right">
         <p className="text-sm font-bold text-gray-700">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</p>

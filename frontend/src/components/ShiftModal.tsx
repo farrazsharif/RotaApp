@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { shiftsApi, CreateShiftData } from '../api/shifts';
 import { usersApi } from '../api/users';
+import { runsApi } from '../api/runs';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
 import { Shift } from '../types';
@@ -52,6 +53,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>();
   const cover = Number(watch('cover')) || 1;
   const [coverCarerIds, setCoverCarerIds] = useState<string[]>([]);
+  const [runId, setRunId] = useState<string>('');
   const watchedUserId = watch('userId');
   const watchedStart = watch('startTime');
   const watchedEnd = watch('endTime');
@@ -102,6 +104,8 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
 
   // Include inactive staff too so they can still be assigned; each row shows an Active/Inactive badge.
   const { data: users = [] } = useQuery({ queryKey: ['users', 'all'], queryFn: () => usersApi.list() });
+  // Runs are a manager-only concept; carers open the modal read-only.
+  const { data: runs = [] } = useQuery({ queryKey: ['runs'], queryFn: runsApi.list, enabled: isManager });
   const { data: serviceUsersRaw = [] } = useQuery({ queryKey: ['service-users', ''], queryFn: () => serviceUsersApi.list() });
   const serviceUsers = [...serviceUsersRaw].sort((a, b) =>
     `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' })
@@ -120,6 +124,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
     setAssignFrom(shift ? format(new Date(shift.date), 'yyyy-MM-dd') : '');
     setAssignTo('');
     setCoverCarerIds(shift?.coverCarers?.map((c) => c.id) ?? []);
+    setRunId(shift?.runId || '');
     if (shift) {
       reset({
         userId: shift.userId || '',
@@ -346,6 +351,8 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
       coverCarerIds: coverCarerIds.slice(0, Math.max(0, (Number(values.cover) || 1) - 1)).filter(Boolean),
       role: values.role || undefined,
       notes: values.notes || undefined,
+      // null (not undefined) so clearing the run actually removes it.
+      runId: runId || null,
     };
     if (!shift && repeatEnabled && repeatDays.length > 0) {
       data.repeat = {
@@ -551,6 +558,16 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
               </div>
             )}
           </div>
+
+          {!readOnly && runs.length > 0 && (
+            <div>
+              <label className="label">Run <span className="text-gray-400 font-normal">(optional)</span></label>
+              <select value={runId} onChange={(e) => setRunId(e.target.value)} className="input">
+                <option value="">No run</option>
+                {runs.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="label">Notes</label>
@@ -833,6 +850,16 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 <label className="label">Notes</label>
                 <textarea {...register('notes')} rows={2} className="input resize-none" />
               </div>
+
+              {runs.length > 0 && (
+                <div>
+                  <label className="label">Run</label>
+                  <select value={runId} onChange={(e) => setRunId(e.target.value)} className="input">
+                    <option value="">No run</option>
+                    {runs.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </div>
+              )}
 
               {!cancelOpen ? (
                 <button

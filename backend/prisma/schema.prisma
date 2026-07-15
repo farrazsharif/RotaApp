@@ -64,6 +64,7 @@ model User {
 
   shifts             Shift[]
   coverShifts        Shift[]             @relation("ShiftCoverCarers")
+  runs               Run[]               @relation("RunCarers")
   timeOffRequests    TimeOffRequest[]
   clockRecords       ClockRecord[]
   notifications      Notification[]
@@ -466,6 +467,7 @@ model Shift {
   id            String   @id @default(cuid())
   userId        String?
   serviceUserId String?
+  runId         String? // optional: the run (named round) this call belongs to
   seriesId      String?
   // True for an open-ended ("Permanent") recurring series so the top-up job
   // keeps generating future occurrences. Cleared when the series is stopped.
@@ -489,6 +491,7 @@ model Shift {
   user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   coverCarers  User[]        @relation("ShiftCoverCarers")
   serviceUser  ServiceUser?  @relation(fields: [serviceUserId], references: [id])
+  run          Run?          @relation(fields: [runId], references: [id])
   clockRecords ClockRecord[]
   callLogs     CallLog[]
   invoiceLines InvoiceLine[]
@@ -496,6 +499,27 @@ model Shift {
 
   @@index([companyId])
   @@index([companyId, date])
+  @@index([companyId, runId])
+}
+
+// A "run" (also called a round or route) is a named group of calls a carer or a
+// small team works through — e.g. "Run 1 – North", "Twilight". Runs are manual
+// named groups that recur every day: the same run keeps its default team, and
+// shifts tagged with runId are grouped under it on the schedule and carer app.
+model Run {
+  companyId String? // tenant scope (app-enforced via Prisma extension)
+  id        String   @id @default(cuid())
+  name      String
+  color     String?
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  carers User[]  @relation("RunCarers") // default team who work this run
+  shifts Shift[]
+
+  @@index([companyId])
 }
 
 // A carer-initiated request to hand a call over to another carer (e.g. off

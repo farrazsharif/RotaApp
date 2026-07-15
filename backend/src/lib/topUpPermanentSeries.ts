@@ -75,6 +75,7 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
       cover: template.cover,
       role: template.role,
       notes: template.notes,
+      runId: template.runId, // keep future occurrences in the same run
       status: 'SCHEDULED',
       published: template.published,
     };

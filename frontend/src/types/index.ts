@@ -125,6 +125,19 @@ export interface Shift {
   status: ShiftStatus;
   published: boolean;
   createdAt: string;
+  runId?: string | null;
+  run?: { id: string; name: string; color?: string | null } | null;
+}
+
+export interface Run {
+  id: string;
+  name: string;
+  color?: string | null;
+  order: number;
+  active: boolean;
+  carers: Pick<User, 'id' | 'firstName' | 'lastName'>[];
+  upcomingCount?: number;
+  createdAt?: string;
 }
 
 export type ReviewAnswer = 'YES' | 'NO' | 'NA' | '';

@@ -61,4 +61,33 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   `);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Announcement_companyId_idx" ON "Announcement"("companyId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Announcement_targetUserId_idx" ON "Announcement"("targetUserId")`);
+
+  // Run — a named group of calls (a round/route) worked by a default team.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Run" (
+      "id"        TEXT PRIMARY KEY,
+      "companyId" TEXT,
+      "name"      TEXT NOT NULL,
+      "color"     TEXT,
+      "order"     INTEGER NOT NULL DEFAULT 0,
+      "active"    BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Run_companyId_idx" ON "Run"("companyId")`);
+  // Tag on each shift for the run it belongs to (nullable — most calls have none).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "runId" TEXT`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Shift_companyId_runId_idx" ON "Shift"("companyId", "runId")`);
+  // Implicit many-to-many join for a run's default team (Prisma "_RunCarers":
+  // A = Run.id, B = User.id, alphabetical). Shape must match what Prisma expects
+  // for implicit m2m: an (A,B) unique index and an index on B.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "_RunCarers" (
+      "A" TEXT NOT NULL,
+      "B" TEXT NOT NULL
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "_RunCarers_AB_unique" ON "_RunCarers"("A", "B")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "_RunCarers_B_index" ON "_RunCarers"("B")`);
 }

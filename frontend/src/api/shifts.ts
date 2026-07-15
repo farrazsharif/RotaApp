@@ -19,6 +19,7 @@ export interface CreateShiftData {
   coverCarerIds?: string[];
   role?: string;
   notes?: string;
+  runId?: string | null;
   repeat?: {
     daysOfWeek: number[];
     endType: 'date' | 'permanent';

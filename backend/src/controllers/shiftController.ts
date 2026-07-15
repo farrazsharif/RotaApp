@@ -12,6 +12,7 @@ const shiftInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
   coverCarers: { select: { id: true, firstName: true, lastName: true } },
   serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true, status: true, statusUpdatedAt: true, statusChanges: { select: { status: true, effectiveAt: true }, orderBy: { effectiveAt: 'asc' as const } }, site: { select: { id: true, name: true, color: true, order: true } } } },
+  run: { select: { id: true, name: true, color: true } },
   clockRecords: { select: { id: true, userId: true, clockIn: true, clockOut: true } },
 };
 
@@ -92,7 +93,7 @@ function buildRecurringDates(startStr: string, repeat: Repeat): Date[] {
 }
 
 export async function createShift(req: AuthRequest, res: Response) {
-  const { userId, serviceUserId, date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, repeat } = req.body;
+  const { userId, serviceUserId, date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, repeat, runId } = req.body;
   if (!date || !startTime || !endTime) {
     return res.status(400).json({ error: 'date, startTime, endTime required' });
   }
@@ -112,6 +113,7 @@ export async function createShift(req: AuthRequest, res: Response) {
     cover: Number(cover) || 1,
     role: role || null,
     notes: notes || null,
+    runId: runId || null,
     // New shifts start as drafts — carers won't see them until a manager
     // explicitly publishes (see publishShift / publishBulkShifts below).
     published: false,
@@ -204,7 +206,7 @@ async function resolveVisitShiftIds(
 }
 
 export async function updateShift(req: AuthRequest, res: Response) {
-  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId } = req.body;
+  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId, runId } = req.body;
 
   if (isScoped(req.user)) {
     const cur = await prisma.shift.findUnique({ where: { id: req.params.id }, select: { serviceUserId: true } });
@@ -236,6 +238,7 @@ export async function updateShift(req: AuthRequest, res: Response) {
   if (role !== undefined) data.role = role;
   if (notes !== undefined) data.notes = notes;
   if (status !== undefined) data.status = status;
+  if (runId !== undefined) data.runId = runId || null;
 
   const shift = await prisma.shift.update({ where: { id: req.params.id }, data, include: shiftInclude });
 

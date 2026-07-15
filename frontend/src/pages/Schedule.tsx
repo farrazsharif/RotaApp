@@ -789,7 +789,15 @@ function ListView({ days, shifts, isManager, needsStaff, missingCarers, onOpen, 
                       <div className="min-w-0">
                         {site && <p className="text-sm font-medium" style={{ color }}>{site}{s.role ? ` · ${s.role}` : ''}</p>}
                         <p className="text-sm text-gray-700">{formatTime12h(s.startTime)} – {formatTime12h(s.endTime)} · {durLabel(shiftMins(s))}</p>
-                        {!s.published && <span className="inline-block text-[10px] font-bold text-amber-600 bg-amber-50 px-1 rounded mt-0.5">DRAFT</span>}
+                        <div className="flex items-center gap-1 mt-0.5">
+                          {!s.published && <span className="inline-block text-[10px] font-bold text-amber-600 bg-amber-50 px-1 rounded">DRAFT</span>}
+                          {s.run && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${s.run.color || '#6b7280'}1a`, color: s.run.color || '#374151' }}>
+                              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: s.run.color || '#6b7280' }} />
+                              {s.run.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {/* Who's working */}
