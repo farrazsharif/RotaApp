@@ -275,6 +275,8 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
       const snapshots = qc.getQueriesData<Shift[]>({ queryKey: ['shifts'] });
       optimisticAssign(data);
       onClose();
+
+      // 1) Save the edit/assignment. Only this step rolls back on failure.
       try {
         await shiftsApi.update(shift!.id, data);
         // Propagate the carer to the wider scope (weekdays / date range / all
@@ -289,14 +291,26 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
             toDate: assignScope === 'range' ? assignTo || undefined : undefined,
           });
         }
-        if (publishAfter) await shiftsApi.publish(shift!.id);
-        qc.invalidateQueries({ queryKey: ['shifts'] });
-      } catch {
-        // Roll back to the pre-optimistic state and let the user retry.
+      } catch (err) {
+        // Roll back to the pre-optimistic state and surface the real reason.
         snapshots.forEach(([key, prev]) => qc.setQueryData(key, prev));
         qc.invalidateQueries({ queryKey: ['shifts'] });
-        alert('Could not save the shift — please try again.');
+        const detail = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        alert(detail ? `Could not save the shift: ${detail}` : 'Could not save the shift — please try again.');
+        return;
       }
+
+      // 2) Optional publish. A publish rejection (e.g. the call still needs a
+      // carer) must NOT undo the save above — just tell the user why.
+      if (publishAfter) {
+        try {
+          await shiftsApi.publish(shift!.id);
+        } catch (err) {
+          const detail = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+          alert(detail ? `Saved, but not published: ${detail}` : 'Saved, but publishing failed — try Publish again.');
+        }
+      }
+      qc.invalidateQueries({ queryKey: ['shifts'] });
     },
   });
 
