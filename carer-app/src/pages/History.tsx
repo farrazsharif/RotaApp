@@ -21,7 +21,8 @@ export default function History() {
 
   const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const firstWeekStart = addWeeks(thisWeekStart, -3); // 3 weeks back
-  const lastWeekStart = addWeeks(thisWeekStart, 2);   // 2 weeks ahead
+  const lastWeekStart = addWeeks(thisWeekStart, 4);   // 4 weeks ahead
+  const WEEK_COUNT = 8;                               // 3 past + current + 4 ahead
 
   const [selected, setSelected] = useState<Set<string>>(() => new Set([weekKey(thisWeekStart)]));
   const toggle = (key: string) => setSelected((prev) => {
@@ -40,7 +41,7 @@ export default function History() {
     enabled: !!user,
   });
 
-  const weeks = Array.from({ length: 6 }, (_, i) => {
+  const weeks = Array.from({ length: WEEK_COUNT }, (_, i) => {
     const ws = addWeeks(firstWeekStart, i);
     const we = addDays(ws, 6);
     const mins = shifts
