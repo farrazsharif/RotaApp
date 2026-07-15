@@ -45,4 +45,20 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftHandover_companyId_idx" ON "ShiftHandover"("companyId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftHandover_toUserId_status_idx" ON "ShiftHandover"("toUserId", "status")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftHandover_shiftId_idx" ON "ShiftHandover"("shiftId")`);
+
+  // Announcement — manager messages to the carer app (broadcast or to one carer).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Announcement" (
+      "id"           TEXT PRIMARY KEY,
+      "companyId"    TEXT,
+      "title"        TEXT,
+      "body"         TEXT NOT NULL,
+      "authorId"     TEXT,
+      "authorName"   TEXT NOT NULL,
+      "targetUserId" TEXT,
+      "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Announcement_companyId_idx" ON "Announcement"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Announcement_targetUserId_idx" ON "Announcement"("targetUserId")`);
 }

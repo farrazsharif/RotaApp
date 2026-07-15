@@ -641,6 +641,22 @@ model Notification {
   @@index([companyId])
 }
 
+// A message posted by a manager to the carer app. targetUserId null = shown to
+// all carers; set = addressed to that one carer only.
+model Announcement {
+  companyId    String? // tenant scope (app-enforced via Prisma extension)
+  id           String   @id @default(cuid())
+  title        String?
+  body         String
+  authorId     String?
+  authorName   String
+  targetUserId String? // null = all carers; set = one carer
+  createdAt    DateTime @default(now())
+
+  @@index([companyId])
+  @@index([targetUserId])
+}
+
 // One-time link sent to a newly-created staff member so they can set
 // their own password instead of a manager choosing one for them.
 model PasswordSetupToken {

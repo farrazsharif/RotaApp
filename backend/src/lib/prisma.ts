@@ -10,7 +10,7 @@ const TENANT_MODELS = new Set([
   'MedAdministration', 'Shift', 'CallLog', 'TimeOffRequest', 'ClockRecord',
   'PushSubscription', 'ShiftReminder', 'Notification', 'PasswordSetupToken',
   'AuditLog', 'OrgSettings', 'Funder', 'FundingArrangement', 'BankHoliday',
-  'Invoice', 'Payment', 'InvoiceLine', 'SpotCheck', 'OfficeNote', 'ShiftHandover',
+  'Invoice', 'Payment', 'InvoiceLine', 'SpotCheck', 'OfficeNote', 'ShiftHandover', 'Announcement',
 ]);
 
 // Operations whose `where` (including unique-where in Prisma 5) we filter by

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import Layout from '../components/Layout';
 import CoverRequests from '../components/CoverRequests';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 import { clockApi } from '../api/clock';
 import { shiftsApi } from '../api/shifts';
 import { useAuth } from '../contexts/AuthContext';
@@ -70,6 +71,8 @@ export default function Today() {
 
   return (
     <Layout title={`Today · ${format(new Date(), 'EEE d MMM')}`} onRefresh={refresh} refreshing={refreshing}>
+      <AnnouncementBanner />
+
       {/* Hours summary */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="rounded-2xl bg-white border border-gray-200 shadow-sm px-4 py-3 text-center">
