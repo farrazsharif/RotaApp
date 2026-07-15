@@ -16,7 +16,9 @@ export default function Rota() {
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const weekEnd = addDays(weekStart, 13); // current + next week
+  // Current week + next 2 weeks, so there are always at least 2 weeks of
+  // upcoming shifts visible even late in the current week.
+  const weekEnd = addDays(weekStart, 20);
 
   async function refresh() {
     setRefreshing(true);
@@ -36,7 +38,7 @@ export default function Rota() {
     enabled: !!user,
   });
 
-  const days = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i));
+  const days = Array.from({ length: 21 }, (_, i) => addDays(weekStart, i));
 
   function callsForDay(day: Date) {
     return shifts
