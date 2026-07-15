@@ -19,10 +19,15 @@ export async function listShifts(req: AuthRequest, res: Response) {
   const { startDate, endDate, userId, serviceUserId } = req.query;
   const where: Record<string, unknown> = {};
 
-  if (req.user!.role === Role.EMPLOYEE) {
-    // A carer's rota includes calls they're the primary carer on AND calls
-    // they cover (2nd/3rd carer on a double/triple-up call) — matching the
-    // Today screen. Without the cover match, cover calls silently went missing.
+  // "My rota" = a carer viewing their own shifts (the carer app always passes
+  // its own userId). Trigger the carer view for EMPLOYEE role OR whenever the
+  // requested userId is the caller's own id — so carers with a custom role
+  // (whose role isn't the literal 'EMPLOYEE') still get their cover calls.
+  const viewingOwn = userId !== undefined && String(userId) === req.user!.id;
+  if (req.user!.role === Role.EMPLOYEE || viewingOwn) {
+    // Include calls they're the primary carer on AND calls they cover (2nd/3rd
+    // carer on a double/triple-up call) — matching the Today screen. Without the
+    // cover match, cover calls silently went missing.
     where.OR = [{ userId: req.user!.id }, { coverCarers: { some: { id: req.user!.id } } }];
     // Carers only ever see published shifts — drafts stay manager-only until published.
     where.published = true;
