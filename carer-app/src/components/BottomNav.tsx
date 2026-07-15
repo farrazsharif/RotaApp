@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 const items = [
   { to: '/', label: 'Today', icon: '📅' },
   { to: '/rota', label: 'Rota', icon: '🗒️' },
+  { to: '/history', label: 'History', icon: '📊' },
   { to: '/profile', label: 'Profile', icon: '👤' },
 ];
 

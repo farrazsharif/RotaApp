@@ -11,6 +11,7 @@ import CallDetail from './pages/CallDetail';
 import ServiceUserDetail from './pages/ServiceUserDetail';
 import Profile from './pages/Profile';
 import TimeOff from './pages/TimeOff';
+import History from './pages/History';
 
 function PushRegistration() {
   const { user } = useAuth();
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/set-password" element={<SetPassword />} />
           <Route path="/" element={<ProtectedRoute><Today /></ProtectedRoute>} />
           <Route path="/rota" element={<ProtectedRoute><Rota /></ProtectedRoute>} />
+          <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
           <Route path="/call/:id" element={<ProtectedRoute><CallDetail /></ProtectedRoute>} />
           <Route path="/client/:id" element={<ProtectedRoute><ServiceUserDetail /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
