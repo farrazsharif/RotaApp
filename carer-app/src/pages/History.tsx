@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, startOfWeek, addDays, addWeeks, isSameDay } from 'date-fns';
 import Layout from '../components/Layout';
-import { shiftsApi } from '../api/shifts';
+import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
@@ -22,7 +22,6 @@ export default function History() {
 
   const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const firstWeekStart = addWeeks(thisWeekStart, -3); // 3 weeks back
-  const lastWeekStart = addWeeks(thisWeekStart, 4);   // 4 weeks ahead
   const WEEK_COUNT = 8;                               // 3 past + current + 4 ahead
 
   const [selected, setSelected] = useState<Set<string>>(() => new Set([weekKey(thisWeekStart)]));
@@ -40,12 +39,7 @@ export default function History() {
   });
 
   const { data: shifts = [], isLoading } = useQuery({
-    queryKey: ['my-hours-shifts', user?.id],
-    queryFn: () => shiftsApi.list({
-      userId: user!.id,
-      startDate: format(addDays(firstWeekStart, -1), 'yyyy-MM-dd'),
-      endDate: format(addDays(lastWeekStart, 8), 'yyyy-MM-dd'),
-    }),
+    ...myShiftsQuery(user?.id ?? ''),
     enabled: !!user,
   });
 

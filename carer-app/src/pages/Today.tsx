@@ -6,7 +6,7 @@ import Layout from '../components/Layout';
 import CoverRequests from '../components/CoverRequests';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import { clockApi } from '../api/clock';
-import { shiftsApi } from '../api/shifts';
+import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
@@ -40,15 +40,10 @@ export default function Today() {
     refetchInterval: 60000,
   });
 
-  // This week's shifts (Mon–Sun) drive the Today / This-week hours totals.
+  // Shared shift query (also used by Rota / My Hours) drives the hours totals.
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const { data: weekShifts = [] } = useQuery({
-    queryKey: ['week-shifts', user?.id, format(weekStart, 'yyyy-MM-dd')],
-    queryFn: () => shiftsApi.list({
-      userId: user!.id,
-      startDate: format(addDays(weekStart, -1), 'yyyy-MM-dd'),
-      endDate: format(addDays(weekStart, 7), 'yyyy-MM-dd'),
-    }),
+    ...myShiftsQuery(user?.id ?? ''),
     enabled: !!user,
   });
 

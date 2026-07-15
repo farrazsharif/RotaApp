@@ -23,7 +23,17 @@ const updateSW = registerSW({
 })
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 10000 } },
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      // Treat data as fresh for a minute so switching tabs renders instantly
+      // from cache instead of spinner + refetch. Live changes still come through
+      // the socket (LiveSync invalidates), and each screen has a manual refresh.
+      staleTime: 60_000,
+      // Keep cached data for 30 min so returning to a screen is instant.
+      gcTime: 30 * 60_000,
+    },
+  },
 })
 
 createRoot(document.getElementById('root')!).render(

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfWeek, addDays, isSameDay, isToday } from 'date-fns';
 import Layout from '../components/Layout';
-import { shiftsApi } from '../api/shifts';
+import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
@@ -15,10 +15,9 @@ export default function Rota() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  // Current week + next 2 weeks (21 days) are rendered; the shared query loads a
+  // wider window so Today / My Hours share the same cache.
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  // Current week + next 2 weeks, so there are always at least 2 weeks of
-  // upcoming shifts visible even late in the current week.
-  const weekEnd = addDays(weekStart, 20);
 
   async function refresh() {
     setRefreshing(true);
@@ -26,15 +25,7 @@ export default function Rota() {
   }
 
   const { data: shifts = [], isLoading } = useQuery({
-    queryKey: ['rota', user?.id],
-    queryFn: () =>
-      // Widen by a day on each side to absorb local-vs-UTC date boundary drift;
-      // the per-day grouping below re-filters precisely with isSameDay.
-      shiftsApi.list({
-        userId: user!.id,
-        startDate: format(addDays(weekStart, -1), 'yyyy-MM-dd'),
-        endDate: format(addDays(weekEnd, 1), 'yyyy-MM-dd'),
-      }),
+    ...myShiftsQuery(user?.id ?? ''),
     enabled: !!user,
   });
 
