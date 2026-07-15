@@ -53,16 +53,19 @@ export const shiftsApi = {
       assignTo?: string;
     },
   ) => api.put<Shift>(`/shifts/${id}`, data).then((r) => r.data),
-  delete: (id: string, opts?: { scope?: 'one' | 'future' | 'days'; days?: number[] } & CancelBilling) =>
+  // hard: true permanently removes the shift (created-in-error); otherwise it's
+  // a cancellation that keeps a CANCELLED record with the billing choice.
+  delete: (id: string, opts?: { scope?: 'one' | 'future' | 'days'; days?: number[]; hard?: boolean } & CancelBilling) =>
     api
       .delete(`/shifts/${id}`, {
         params: {
           scope: opts?.scope,
           days: opts?.days && opts.days.length ? opts.days.join(',') : undefined,
-          billable: opts?.billable ? '1' : undefined,
-          chargeType: opts?.billable ? opts?.chargeType : undefined,
-          chargePercent: opts?.billable && opts?.chargeType === 'PERCENT' ? opts?.chargePercent : undefined,
-          chargeAmount: opts?.billable && opts?.chargeType === 'CUSTOM' ? opts?.chargeAmount : undefined,
+          hard: opts?.hard ? '1' : undefined,
+          billable: !opts?.hard && opts?.billable ? '1' : undefined,
+          chargeType: !opts?.hard && opts?.billable ? opts?.chargeType : undefined,
+          chargePercent: !opts?.hard && opts?.billable && opts?.chargeType === 'PERCENT' ? opts?.chargePercent : undefined,
+          chargeAmount: !opts?.hard && opts?.billable && opts?.chargeType === 'CUSTOM' ? opts?.chargeAmount : undefined,
           reason: opts?.reason || undefined,
         },
       })

@@ -313,6 +313,34 @@ export async function deleteShift(req: AuthRequest, res: Response) {
     }
   }
 
+  // Hard delete (?hard=1): the shift was created in error and should be removed
+  // entirely — distinct from cancelling, which keeps a CANCELLED record for
+  // audit/billing. Refuse if it's already invoiced; that must be cancelled.
+  const hard = req.query.hard === '1' || req.query.hard === 'true';
+  if (hard) {
+    const billed = await prisma.invoiceLine.count({ where: { sourceShiftId: { in: idsToCancel } } });
+    if (billed > 0) {
+      return res.status(400).json({ error: 'One or more of these visits are already on an invoice — cancel them instead of deleting.' });
+    }
+    // Reminder rows have no FK, so clear them explicitly. Handovers cascade;
+    // call/clock/invoice links are SetNull per the schema.
+    await prisma.shiftReminder.deleteMany({ where: { shiftId: { in: idsToCancel } } });
+    await prisma.shift.deleteMany({ where: { id: { in: idsToCancel } } });
+    if (shift.seriesId && scope === 'future') {
+      await prisma.shift.updateMany({ where: { seriesId: shift.seriesId }, data: { seriesPermanent: false } });
+    }
+    if (shift.userId) {
+      const count = idsToCancel.length;
+      const message = count > 1 ? `${count} of your shifts have been removed` : `Your shift on ${new Date(shift.date).toDateString()} has been removed`;
+      const notification = await prisma.notification.create({
+        data: { userId: shift.userId, type: 'SHIFT_REMOVED', title: count > 1 ? 'Shifts Removed' : 'Shift Removed', message, data: JSON.stringify({ shiftId: shift.id }) },
+      });
+      emitToUser(shift.userId, 'notification', notification);
+      await sendPushToUser(shift.userId, { title: notification.title, body: message });
+    }
+    return res.json({ message: 'Deleted', count: idsToCancel.length, deleted: true });
+  }
+
   await prisma.shift.updateMany({ where: { id: { in: idsToCancel } }, data: cancelBillingData(req.query as Record<string, unknown>) });
 
   // Cancelling the rest of a recurring series ends it — stop the permanent

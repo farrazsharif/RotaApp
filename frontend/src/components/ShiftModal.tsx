@@ -96,6 +96,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const [cancelScope, setCancelScope] = useState<'one' | 'future' | 'days'>('one');
   const [cancelDays, setCancelDays] = useState<number[]>([]);
   const [cancelBilling, setCancelBilling] = useState<CancelBillingValue>(emptyCancelBilling);
+  const [cancelMode, setCancelMode] = useState<'cancel' | 'delete'>('cancel');
 
   const [assignScope, setAssignScope] = useState<'one' | 'future' | 'days' | 'range'>('one');
   const [assignDays, setAssignDays] = useState<number[]>([]);
@@ -122,6 +123,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
     setCancelScope('one');
     setCancelDays([]);
     setCancelBilling(emptyCancelBilling);
+    setCancelMode('cancel');
     setAssignScope('one');
     setAssignDays([]);
     setAssignFrom(shift ? format(new Date(shift.date), 'yyyy-MM-dd') : '');
@@ -865,17 +867,30 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
               )}
 
               {!cancelOpen ? (
-                <button
-                  type="button"
-                  onClick={() => setCancelOpen(true)}
-                  disabled={deleteMut.isPending}
-                  className="flex items-center gap-2 text-sm font-medium text-red-600 hover:text-red-700"
-                >
-                  🗑 Delete Shift
-                </button>
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => { setCancelMode('cancel'); setCancelOpen(true); }}
+                    disabled={deleteMut.isPending}
+                    className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"
+                  >
+                    🚫 Cancel Shift
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setCancelMode('delete'); setCancelOpen(true); }}
+                    disabled={deleteMut.isPending}
+                    className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-red-700"
+                  >
+                    🗑 Delete Shift
+                  </button>
+                </div>
               ) : (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-3">
-                  <p className="text-sm font-medium text-red-800">Cancel this visit</p>
+                  <p className="text-sm font-medium text-red-800">{cancelMode === 'delete' ? 'Delete this shift' : 'Cancel this visit'}</p>
+                  {cancelMode === 'delete' && (
+                    <p className="text-xs text-red-700">Permanently removes {shift.seriesId && cancelScope !== 'one' ? 'these shifts' : 'this shift'} — use <span className="font-semibold">Cancel Shift</span> instead if the visit was scheduled but won't go ahead (it keeps a record and can still be billed).</p>
+                  )}
                   <div className="space-y-2 text-sm">
                     <label className="flex items-center gap-2">
                       <input type="radio" name="cancelScope" checked={cancelScope === 'one'} onChange={() => setCancelScope('one')} />
@@ -923,19 +938,32 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                       </>
                     )}
                   </div>
-                  <div className="rounded-md border border-red-200 bg-white p-2.5">
-                    <CancelBillingFields value={cancelBilling} onChange={setCancelBilling} />
-                  </div>
+                  {cancelMode === 'cancel' && (
+                    <div className="rounded-md border border-red-200 bg-white p-2.5">
+                      <CancelBillingFields value={cancelBilling} onChange={setCancelBilling} />
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setCancelOpen(false)} className="btn-secondary btn btn-sm">Back</button>
-                    <button
-                      type="button"
-                      disabled={deleteMut.isPending || (cancelScope === 'days' && cancelDays.length === 0)}
-                      onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined, ...toCancelBilling(cancelBilling) })}
-                      className="btn-danger btn btn-sm"
-                    >
-                      {deleteMut.isPending ? 'Cancelling…' : cancelBilling.billable ? 'Confirm Cancel (chargeable)' : 'Confirm Cancel'}
-                    </button>
+                    {cancelMode === 'delete' ? (
+                      <button
+                        type="button"
+                        disabled={deleteMut.isPending || (cancelScope === 'days' && cancelDays.length === 0)}
+                        onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined, hard: true })}
+                        className="btn-danger btn btn-sm"
+                      >
+                        {deleteMut.isPending ? 'Deleting…' : 'Delete Permanently'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={deleteMut.isPending || (cancelScope === 'days' && cancelDays.length === 0)}
+                        onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined, ...toCancelBilling(cancelBilling) })}
+                        className="btn-danger btn btn-sm"
+                      >
+                        {deleteMut.isPending ? 'Cancelling…' : cancelBilling.billable ? 'Confirm Cancel (chargeable)' : 'Confirm Cancel'}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
