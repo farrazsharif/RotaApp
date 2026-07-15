@@ -127,6 +127,12 @@ export interface Shift {
   createdAt: string;
   runId?: string | null;
   run?: { id: string; name: string; color?: string | null } | null;
+  cancelBillable?: boolean;
+  cancelChargeType?: 'FULL' | 'PERCENT' | 'CUSTOM' | null;
+  cancelChargePercent?: number | null;
+  cancelChargeAmount?: number | null;
+  cancelReason?: string | null;
+  cancelledAt?: string | null;
 }
 
 export interface Run {

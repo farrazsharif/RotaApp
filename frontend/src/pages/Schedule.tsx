@@ -6,10 +6,11 @@ import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
 import { EventClickArg, EventContentArg, EventDropArg } from '@fullcalendar/core';
 import enGbLocale from '@fullcalendar/core/locales/en-gb';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { shiftsApi } from '../api/shifts';
+import { shiftsApi, CancelBilling } from '../api/shifts';
 import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
+import { CancelBillingFields, CancelBillingValue, emptyCancelBilling, toCancelBilling } from '../components/CancelBillingFields';
 import HospitalIcon from '../components/HospitalIcon';
 import { Shift, ServiceUserStatus } from '../types';
 import { format, startOfDay, startOfWeek, startOfMonth, endOfMonth, addDays, addMonths, subMonths } from 'date-fns';
@@ -105,6 +106,7 @@ export default function Schedule() {
   const [assignFilter, setAssignFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
   const [pubResult, setPubResult] = useState<string | null>(null);
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
+  const [cancelAllBilling, setCancelAllBilling] = useState<CancelBillingValue>(emptyCancelBilling);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pubMenuOpen, setPubMenuOpen] = useState(false);
 
@@ -146,7 +148,7 @@ export default function Schedule() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
   });
   const cancelAllMut = useMutation({
-    mutationFn: (ids: string[]) => shiftsApi.cancelBulk(ids),
+    mutationFn: ({ ids, billing }: { ids: string[]; billing?: CancelBilling }) => shiftsApi.cancelBulk(ids, billing),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
   });
   const publishAllMut = useMutation({
@@ -524,12 +526,17 @@ export default function Schedule() {
 
       {/* Confirm bars */}
       {isManager && confirmCancelAll && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2">
-          <span className="text-sm text-red-800">Cancel all {activeShifts.length} shown shift{activeShifts.length === 1 ? '' : 's'}? This can't be undone.</span>
-          <button className="btn-danger btn btn-sm" disabled={cancelAllMut.isPending} onClick={() => cancelAllMut.mutate(activeShifts.map((s) => s.id), { onSettled: () => setConfirmCancelAll(false) })}>
-            {cancelAllMut.isPending ? 'Cancelling…' : 'Yes, cancel all'}
-          </button>
-          <button className="btn-secondary btn btn-sm" onClick={() => setConfirmCancelAll(false)}>No</button>
+        <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-3 space-y-3 max-w-lg">
+          <span className="text-sm text-red-800 font-medium">Cancel all {activeShifts.length} shown shift{activeShifts.length === 1 ? '' : 's'}? This can't be undone.</span>
+          <div className="rounded-md border border-red-200 bg-white p-2.5">
+            <CancelBillingFields value={cancelAllBilling} onChange={setCancelAllBilling} />
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="btn-danger btn btn-sm" disabled={cancelAllMut.isPending} onClick={() => cancelAllMut.mutate({ ids: activeShifts.map((s) => s.id), billing: toCancelBilling(cancelAllBilling) }, { onSettled: () => { setConfirmCancelAll(false); setCancelAllBilling(emptyCancelBilling); } })}>
+              {cancelAllMut.isPending ? 'Cancelling…' : cancelAllBilling.billable ? 'Yes, cancel all (chargeable)' : 'Yes, cancel all'}
+            </button>
+            <button className="btn-secondary btn btn-sm" onClick={() => setConfirmCancelAll(false)}>No</button>
+          </div>
         </div>
       )}
 

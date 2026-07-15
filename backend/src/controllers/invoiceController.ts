@@ -83,7 +83,11 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
     where: {
       serviceUserId: { in: suIds },
       date: { gte: start, lte: end },
-      status: { in: ['SCHEDULED', 'COMPLETED'] },
+      // Bill delivered/scheduled visits, plus cancellations flagged chargeable.
+      OR: [
+        { status: { in: ['SCHEDULED', 'COMPLETED'] } },
+        { status: 'CANCELLED', cancelBillable: true },
+      ],
       // Unbilled *for this funder*: a visit may already be billed to a
       // different funder under split funding, but never twice to the same one.
       invoiceLines: { none: { funderId } },
@@ -102,7 +106,7 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
 
     // Only this funder's share of the visit's carer-hours.
     const fullHours = durationHours(s.startTime, s.endTime) * (s.cover || 1);
-    const quantity = money(fullHours * (share / 100));
+    let quantity = money(fullHours * (share / 100));
 
     // Pick the rate for this visit's day type, falling back to the base rate.
     const day = s.date.getUTCDay(); // 0 = Sun … 6 = Sat
@@ -116,6 +120,24 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
       dayType = ' · Weekend';
     }
 
+    // Chargeable cancellation: adjust what's billed by the chosen charge type.
+    let cancelNote = '';
+    if (s.status === 'CANCELLED') {
+      const type = s.cancelChargeType || 'FULL';
+      if (type === 'CUSTOM') {
+        quantity = 1;
+        unitRate = money(s.cancelChargeAmount ?? 0);
+        dayType = '';
+        cancelNote = ' · Cancelled (charge)';
+      } else if (type === 'PERCENT') {
+        const pct = s.cancelChargePercent ?? 0;
+        quantity = money(quantity * (pct / 100));
+        cancelNote = ` · Cancelled (${pct}%)`;
+      } else {
+        cancelNote = ' · Cancelled (full charge)';
+      }
+    }
+
     const amount = money(quantity * unitRate);
     const name = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Service user';
     const cov = (s.cover || 1) > 1 ? ` (×${s.cover} carers)` : '';
@@ -125,7 +147,7 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
       serviceUserId: s.serviceUserId,
       sourceShiftId: s.id,
       date: s.date,
-      description: `${dateStr} · ${s.visitName || 'Visit'} · ${name}${cov}${dayType}${shareNote}`,
+      description: `${dateStr} · ${s.visitName || 'Visit'} · ${name}${cov}${dayType}${shareNote}${cancelNote}`,
       quantity,
       unitRate,
       amount,

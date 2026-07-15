@@ -265,6 +265,28 @@ export async function updateShift(req: AuthRequest, res: Response) {
   res.json(shift);
 }
 
+// Build the cancellation billing fields from a request (query for DELETE, body
+// for bulk POST). Non-chargeable by default so nothing bills by accident.
+function cancelBillingData(src: Record<string, unknown>): {
+  status: string; cancelledAt: Date; cancelBillable: boolean;
+  cancelChargeType: string | null; cancelChargePercent: number | null;
+  cancelChargeAmount: number | null; cancelReason: string | null;
+} {
+  const billable = src.billable === true || src.billable === '1' || src.billable === 'true';
+  const rawType = String(src.chargeType || 'FULL').toUpperCase();
+  const chargeType = billable ? (['FULL', 'PERCENT', 'CUSTOM'].includes(rawType) ? rawType : 'FULL') : null;
+  const reason = src.reason != null ? String(src.reason).trim() : '';
+  return {
+    status: 'CANCELLED',
+    cancelledAt: new Date(),
+    cancelBillable: billable,
+    cancelChargeType: chargeType,
+    cancelChargePercent: chargeType === 'PERCENT' ? Number(src.chargePercent) || 0 : null,
+    cancelChargeAmount: chargeType === 'CUSTOM' ? Number(src.chargeAmount) || 0 : null,
+    cancelReason: reason || null,
+  };
+}
+
 export async function deleteShift(req: AuthRequest, res: Response) {
   // scope: 'one' (default) | 'future' (this + later in series) | 'days' (matching weekdays from this date)
   const scope = String(req.query.scope || 'one');
@@ -291,7 +313,7 @@ export async function deleteShift(req: AuthRequest, res: Response) {
     }
   }
 
-  await prisma.shift.updateMany({ where: { id: { in: idsToCancel } }, data: { status: 'CANCELLED' } });
+  await prisma.shift.updateMany({ where: { id: { in: idsToCancel } }, data: cancelBillingData(req.query as Record<string, unknown>) });
 
   // Cancelling the rest of a recurring series ends it — stop the permanent
   // top-up so it doesn't regenerate the future occurrences we just removed.
@@ -405,7 +427,7 @@ export async function cancelBulkShifts(req: AuthRequest, res: Response) {
 
   const result = await prisma.shift.updateMany({
     where: { id: { in: ids }, status: { not: 'CANCELLED' }, ...relatedServiceUserScopeWhere(req.user) },
-    data: { status: 'CANCELLED' },
+    data: cancelBillingData(req.body as Record<string, unknown>),
   });
 
   res.json({ message: 'Cancelled', count: result.count });

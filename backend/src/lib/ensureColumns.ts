@@ -12,6 +12,14 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "seriesPermanent" BOOLEAN NOT NULL DEFAULT false`);
   // ECM: manager's reason/explanation for a short or missed visit.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "ecmNote" TEXT`);
+  // Cancellation billing — a cancelled visit can still be chargeable, with a
+  // reason captured for reporting.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "cancelBillable" BOOLEAN NOT NULL DEFAULT false`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "cancelChargeType" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "cancelChargePercent" DOUBLE PRECISION`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "cancelChargeAmount" DOUBLE PRECISION`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)`);
   // Shared call-log signatures for double/triple-up calls (JSON array).
   await prisma.$executeRawUnsafe(`ALTER TABLE "CallLog" ADD COLUMN IF NOT EXISTS "signedBy" TEXT`);
   // Date the person started receiving care (nullable).

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { shiftsApi, CreateShiftData } from '../api/shifts';
 import { usersApi } from '../api/users';
 import { runsApi } from '../api/runs';
+import { CancelBillingFields, CancelBillingValue, emptyCancelBilling, toCancelBilling } from './CancelBillingFields';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
 import { Shift } from '../types';
@@ -94,6 +95,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelScope, setCancelScope] = useState<'one' | 'future' | 'days'>('one');
   const [cancelDays, setCancelDays] = useState<number[]>([]);
+  const [cancelBilling, setCancelBilling] = useState<CancelBillingValue>(emptyCancelBilling);
 
   const [assignScope, setAssignScope] = useState<'one' | 'future' | 'days' | 'range'>('one');
   const [assignDays, setAssignDays] = useState<number[]>([]);
@@ -119,6 +121,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
     setCancelOpen(false);
     setCancelScope('one');
     setCancelDays([]);
+    setCancelBilling(emptyCancelBilling);
     setAssignScope('one');
     setAssignDays([]);
     setAssignFrom(shift ? format(new Date(shift.date), 'yyyy-MM-dd') : '');
@@ -325,7 +328,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (opts?: { scope?: 'one' | 'future' | 'days'; days?: number[] }) => shiftsApi.delete(shift!.id, opts),
+    mutationFn: (opts?: Parameters<typeof shiftsApi.delete>[1]) => shiftsApi.delete(shift!.id, opts),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); onClose(); },
   });
 
@@ -920,15 +923,18 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                       </>
                     )}
                   </div>
+                  <div className="rounded-md border border-red-200 bg-white p-2.5">
+                    <CancelBillingFields value={cancelBilling} onChange={setCancelBilling} />
+                  </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setCancelOpen(false)} className="btn-secondary btn btn-sm">Back</button>
                     <button
                       type="button"
                       disabled={deleteMut.isPending || (cancelScope === 'days' && cancelDays.length === 0)}
-                      onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined })}
+                      onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined, ...toCancelBilling(cancelBilling) })}
                       className="btn-danger btn btn-sm"
                     >
-                      {deleteMut.isPending ? 'Cancelling…' : 'Confirm Cancel'}
+                      {deleteMut.isPending ? 'Cancelling…' : cancelBilling.billable ? 'Confirm Cancel (chargeable)' : 'Confirm Cancel'}
                     </button>
                   </div>
                 </div>

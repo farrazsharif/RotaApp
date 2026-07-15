@@ -8,6 +8,16 @@ export interface ShiftFilters {
   serviceUserId?: string;
 }
 
+// Cancellation billing: a cancelled visit may still be chargeable, priced as
+// the full visit, a percentage of it, or a custom flat amount.
+export interface CancelBilling {
+  billable?: boolean;
+  chargeType?: 'FULL' | 'PERCENT' | 'CUSTOM';
+  chargePercent?: number;
+  chargeAmount?: number;
+  reason?: string;
+}
+
 export interface CreateShiftData {
   userId?: string | null;
   serviceUserId?: string;
@@ -43,19 +53,24 @@ export const shiftsApi = {
       assignTo?: string;
     },
   ) => api.put<Shift>(`/shifts/${id}`, data).then((r) => r.data),
-  delete: (id: string, opts?: { scope?: 'one' | 'future' | 'days'; days?: number[] }) =>
+  delete: (id: string, opts?: { scope?: 'one' | 'future' | 'days'; days?: number[] } & CancelBilling) =>
     api
       .delete(`/shifts/${id}`, {
         params: {
           scope: opts?.scope,
           days: opts?.days && opts.days.length ? opts.days.join(',') : undefined,
+          billable: opts?.billable ? '1' : undefined,
+          chargeType: opts?.billable ? opts?.chargeType : undefined,
+          chargePercent: opts?.billable && opts?.chargeType === 'PERCENT' ? opts?.chargePercent : undefined,
+          chargeAmount: opts?.billable && opts?.chargeType === 'CUSTOM' ? opts?.chargeAmount : undefined,
+          reason: opts?.reason || undefined,
         },
       })
       .then((r) => r.data),
   bulkCreate: (shifts: CreateShiftData[]) =>
     api.post<Shift[]>('/shifts/bulk', { shifts }).then((r) => r.data),
-  cancelBulk: (ids: string[]) =>
-    api.post<{ message: string; count: number }>('/shifts/cancel-bulk', { ids }).then((r) => r.data),
+  cancelBulk: (ids: string[], billing?: CancelBilling) =>
+    api.post<{ message: string; count: number }>('/shifts/cancel-bulk', { ids, ...(billing || {}) }).then((r) => r.data),
   publish: (id: string) => api.post<Shift>(`/shifts/${id}/publish`).then((r) => r.data),
   publishBulk: (ids: string[]) =>
     api.post<{ message: string; count: number; skipped: number }>('/shifts/publish-bulk', { ids }).then((r) => r.data),

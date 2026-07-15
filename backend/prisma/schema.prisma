@@ -481,6 +481,14 @@ model Shift {
   notes         String?
   ecmNote       String?  // ECM: reason/explanation for a short or missed visit
   status        String   @default("SCHEDULED")
+  // Cancellation billing: when a visit is cancelled it can still be chargeable
+  // (e.g. short-notice cancellation). cancelChargeType is FULL | PERCENT | CUSTOM.
+  cancelBillable      Boolean   @default(false)
+  cancelChargeType    String?
+  cancelChargePercent Float?
+  cancelChargeAmount  Float?
+  cancelReason        String?
+  cancelledAt         DateTime?
   // Defaults true at the DB level so pre-existing shifts stay visible to
   // carers; newly created shifts are explicitly set to false by the
   // controller until a manager publishes them.
