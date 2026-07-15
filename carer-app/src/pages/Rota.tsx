@@ -44,8 +44,31 @@ export default function Rota() {
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
   }
 
+  // Today / This-week scheduled hours (current Mon–Sun week).
+  const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const durMin = (s: Shift) => Math.max(0, toMin(s.endTime) - toMin(s.startTime));
+  const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);
+  const inWeek = shifts.filter((s) => {
+    const d = new Date(s.date);
+    return d >= weekStart && d < addDays(weekStart, 7) && s.status !== 'CANCELLED';
+  });
+  const weekMins = inWeek.reduce((sum, s) => sum + durMin(s), 0);
+  const todayMins = inWeek.filter((s) => isSameDay(new Date(s.date), new Date())).reduce((sum, s) => sum + durMin(s), 0);
+
   return (
     <Layout title="My Rota" onRefresh={refresh} refreshing={refreshing}>
+      {/* Hours summary */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="rounded-2xl bg-white border border-gray-200 shadow-sm px-4 py-3 text-center">
+          <p className="text-xs text-gray-500">Today</p>
+          <p className="text-xl font-bold text-gray-800">{fmtHours(todayMins)}h</p>
+        </div>
+        <div className="rounded-2xl bg-white border border-gray-200 shadow-sm px-4 py-3 text-center">
+          <p className="text-xs text-gray-500">This week</p>
+          <p className="text-xl font-bold text-gray-800">{fmtHours(weekMins)}h</p>
+        </div>
+      </div>
+
       {isLoading && <p className="text-center text-gray-400 py-8">Loading rota…</p>}
       {!isLoading && (
         <div className="space-y-4">
