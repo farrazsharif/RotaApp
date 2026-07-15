@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfWeek, addDays, isSameDay, isToday } from 'date-fns';
 import Layout from '../components/Layout';
@@ -12,8 +13,15 @@ export default function Rota() {
   const { user } = useAuth();
   const userId = user?.id;
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const weekEnd = addDays(weekStart, 13); // current + next week
+
+  async function refresh() {
+    setRefreshing(true);
+    try { await qc.invalidateQueries(); } finally { setRefreshing(false); }
+  }
 
   const { data: shifts = [], isLoading } = useQuery({
     queryKey: ['rota', user?.id],
@@ -37,7 +45,7 @@ export default function Rota() {
   }
 
   return (
-    <Layout title="My Rota">
+    <Layout title="My Rota" onRefresh={refresh} refreshing={refreshing}>
       {isLoading && <p className="text-center text-gray-400 py-8">Loading rota…</p>}
       {!isLoading && (
         <div className="space-y-4">

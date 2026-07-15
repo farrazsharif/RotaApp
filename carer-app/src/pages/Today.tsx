@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import Layout from '../components/Layout';
 import CoverRequests from '../components/CoverRequests';
 import { clockApi } from '../api/clock';
+import { shiftsApi } from '../api/shifts';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
@@ -19,14 +21,47 @@ function toMinutes(t: string) {
   return h * 60 + m;
 }
 
+function durationMins(s: Shift) {
+  return Math.max(0, toMinutes(s.endTime) - toMinutes(s.startTime));
+}
+
+const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);
+
 export default function Today() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
   const { data: calls = [], isLoading } = useQuery({
     queryKey: ['my-calls'],
     queryFn: () => clockApi.myCalls(),
     refetchInterval: 60000,
   });
+
+  // This week's shifts (Mon–Sun) drive the Today / This-week hours totals.
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const { data: weekShifts = [] } = useQuery({
+    queryKey: ['week-shifts', user?.id, format(weekStart, 'yyyy-MM-dd')],
+    queryFn: () => shiftsApi.list({
+      userId: user!.id,
+      startDate: format(addDays(weekStart, -1), 'yyyy-MM-dd'),
+      endDate: format(addDays(weekStart, 7), 'yyyy-MM-dd'),
+    }),
+    enabled: !!user,
+  });
+
+  const inWeek = weekShifts.filter((s) => {
+    const d = new Date(s.date);
+    return d >= weekStart && d < addDays(weekStart, 7) && s.status !== 'CANCELLED';
+  });
+  const weekMins = inWeek.reduce((sum, s) => sum + durationMins(s), 0);
+  const todayMins = inWeek.filter((s) => isSameDay(new Date(s.date), new Date())).reduce((sum, s) => sum + durationMins(s), 0);
+
+  async function refresh() {
+    setRefreshing(true);
+    try { await qc.invalidateQueries(); } finally { setRefreshing(false); }
+  }
 
   const sorted = [...calls].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
   const now = nowMinutes();
@@ -34,7 +69,19 @@ export default function Today() {
   const nextCall = pending.find((s) => toMinutes(s.endTime) >= now) || pending[0];
 
   return (
-    <Layout title={`Today · ${format(new Date(), 'EEE d MMM')}`}>
+    <Layout title={`Today · ${format(new Date(), 'EEE d MMM')}`} onRefresh={refresh} refreshing={refreshing}>
+      {/* Hours summary */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="rounded-2xl bg-white border border-gray-200 shadow-sm px-4 py-3 text-center">
+          <p className="text-xs text-gray-500">Today</p>
+          <p className="text-xl font-bold text-gray-800">{fmtHours(todayMins)}h</p>
+        </div>
+        <div className="rounded-2xl bg-white border border-gray-200 shadow-sm px-4 py-3 text-center">
+          <p className="text-xs text-gray-500">This week</p>
+          <p className="text-xl font-bold text-gray-800">{fmtHours(weekMins)}h</p>
+        </div>
+      </div>
+
       <CoverRequests />
 
       {isLoading && <p className="text-center text-gray-400 py-8">Loading your calls…</p>}
