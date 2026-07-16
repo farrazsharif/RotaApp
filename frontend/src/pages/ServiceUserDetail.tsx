@@ -379,6 +379,9 @@ export default function ServiceUserDetail() {
         </Section>
       </div>
 
+      {/* Office Notes */}
+      {isManager && <ServiceUserNotes serviceUserId={id} canManage={isManager} />}
+
       {/* Care Plan */}
       <Section
         title="Care Plan"
@@ -524,8 +527,6 @@ export default function ServiceUserDetail() {
           </div>
         )}
       </Section>
-
-      {isManager && <ServiceUserNotes serviceUserId={id} canManage={isManager} />}
 
       <DocumentsTab ownerType="SERVICE_USER" ownerId={id} canManage={isManager} />
 
