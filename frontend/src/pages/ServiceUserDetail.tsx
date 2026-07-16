@@ -22,6 +22,7 @@ import CallLogsModal from '../components/CallLogsModal';
 import FamilyAccessModal from '../components/FamilyAccessModal';
 import EmergencyGrabSheetModal from '../components/EmergencyGrabSheetModal';
 import DocumentsTab from '../components/DocumentsTab';
+import ServiceUserNotes from '../components/ServiceUserNotes';
 
 const durationLabel = (m: number) =>
   m >= 60 ? `${m / 60} hr${m > 60 ? 's' : ''}${m % 60 ? ` ${m % 60}m` : ''}` : `${m} mins`;
@@ -523,6 +524,8 @@ export default function ServiceUserDetail() {
           </div>
         )}
       </Section>
+
+      {isManager && <ServiceUserNotes serviceUserId={id} canManage={isManager} />}
 
       <DocumentsTab ownerType="SERVICE_USER" ownerId={id} canManage={isManager} />
 

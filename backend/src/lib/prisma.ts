@@ -11,7 +11,7 @@ const TENANT_MODELS = new Set([
   'PushSubscription', 'ShiftReminder', 'Notification', 'PasswordSetupToken',
   'AuditLog', 'OrgSettings', 'Funder', 'FundingArrangement', 'BankHoliday',
   'Invoice', 'Payment', 'InvoiceLine', 'SpotCheck', 'OfficeNote', 'ShiftHandover', 'Announcement', 'Run',
-  'ServicePlanTemplate', 'ServicePlanVersion',
+  'ServicePlanTemplate', 'ServicePlanVersion', 'ServiceUserNote',
 ]);
 
 // Operations whose `where` (including unique-where in Prisma 5) we filter by

@@ -294,6 +294,23 @@ model ServicePlanVersion {
   @@index([serviceUserId])
 }
 
+model ServiceUserNote {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  serviceUserId String
+  // GENERAL | COUNCIL | SOCIAL_WORK | SAFEGUARDING | CONTACT
+  category      String   @default("GENERAL")
+  body          String
+  pinned        Boolean  @default(false)
+  createdById   String?
+  createdByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([serviceUserId])
+}
+
 model CarePlan {
   companyId       String? // tenant scope (app-enforced via Prisma extension)
   id              String    @id @default(cuid())
