@@ -27,12 +27,24 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; mana
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
+const LAYOUT_KEY = 'caremid.layout';
+
 export default function Layout() {
   const { user, logout, isManager } = useAuth();
   const { can } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Opt-in new layout. Defaults to the current ("classic") layout, so nothing
+  // changes for anyone until they choose to try it — and switching back is
+  // instant (this flag lives only in the browser).
+  const [layout, setLayout] = useState<string>(() => localStorage.getItem(LAYOUT_KEY) || 'classic');
+
+  function setLayoutMode(mode: string) {
+    localStorage.setItem(LAYOUT_KEY, mode);
+    setLayout(mode);
+    setSidebarOpen(false);
+  }
 
   function handleLogout() {
     logout();
@@ -49,6 +61,107 @@ export default function Layout() {
     return true;
   });
 
+  const initials = `${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`;
+
+  // ---------------------------------------------------------------------------
+  // Option B — "focused command center": a slim icon rail that expands on hover
+  // so the content gets maximum width, and a top bar with the current page name.
+  // ---------------------------------------------------------------------------
+  if (layout === 'b') {
+    const pageTitle =
+      (navItems.find((i) => i.to === location.pathname)
+        || navItems.filter((i) => i.to !== '/').find((i) => location.pathname.startsWith(i.to)))?.label
+      || 'Dashboard';
+
+    return (
+      <div className="flex h-screen bg-gray-50">
+        {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+
+        {/* Slim rail: 64px on desktop, expands to 240px on hover; full drawer on mobile */}
+        <aside
+          className={`group fixed inset-y-0 left-0 z-30 bg-gray-900 text-white flex flex-col overflow-hidden
+            w-60 lg:w-16 lg:hover:w-60 transition-[width] duration-200
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+        >
+          <div className="h-16 flex items-center gap-3 px-[14px] shrink-0">
+            <span className="w-9 h-9 rounded-lg bg-blue-500 flex items-center justify-center text-lg shrink-0">🩺</span>
+            <span className="text-lg font-bold text-blue-300 whitespace-nowrap opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200">Caremid</span>
+          </div>
+
+          <nav className="flex-1 overflow-y-auto py-2">
+            {visibleNav.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.exact}
+                title={item.label}
+                onClick={() => setSidebarOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 h-11 px-[18px] text-sm font-medium transition-colors ${
+                    isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  }`
+                }
+              >
+                <span className="text-lg w-6 text-center shrink-0">{item.icon}</span>
+                <span className="whitespace-nowrap opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200">{item.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="border-t border-gray-800 p-2 shrink-0 space-y-1">
+            <div className="flex items-center gap-3 px-[10px] py-1.5">
+              <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-sm font-bold shrink-0">{initials}</div>
+              <div className="overflow-hidden opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200">
+                <p className="text-sm font-medium text-white truncate">{user?.firstName} {user?.lastName}</p>
+                <p className="text-xs text-gray-400 truncate">{user?.role}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setLayoutMode('classic')}
+              title="Switch back to the classic layout"
+              className="w-full flex items-center gap-3 h-9 px-[18px] rounded-lg text-sm text-gray-300 hover:bg-gray-800"
+            >
+              <span className="w-6 text-center shrink-0">↩</span>
+              <span className="whitespace-nowrap opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200">Classic layout</span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 h-9 px-[18px] rounded-lg text-sm text-gray-300 hover:bg-gray-800"
+            >
+              <span className="w-6 text-center shrink-0">⎋</span>
+              <span className="whitespace-nowrap opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200">Sign out</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* Main, offset by the slim rail so hover-expand overlays instead of shoving content */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden lg:ml-16">
+          <header className="h-16 bg-white border-b border-gray-200 flex items-center gap-3 px-4 lg:px-6 shrink-0">
+            <button className="lg:hidden p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button>
+            <div className="min-w-0">
+              <p className="text-[11px] leading-none text-gray-400">Caremid</p>
+              <h1 className="text-base font-semibold text-gray-900 truncate">{pageTitle}</h1>
+            </div>
+            <div className="flex items-center gap-3 ml-auto">
+              <NotificationBell />
+              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold" title={`${user?.firstName} ${user?.lastName}`}>{initials}</div>
+            </div>
+          </header>
+
+          <div className="flex-1 flex min-h-0">
+            <main className="flex-1 overflow-y-auto p-4 lg:p-6 min-w-0">
+              <Outlet />
+            </main>
+            {location.pathname === '/' && isManager && <OfficeNotes />}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Classic layout (default, unchanged) — full-width sidebar.
+  // ---------------------------------------------------------------------------
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Mobile overlay */}
@@ -94,6 +207,12 @@ export default function Layout() {
               <p className="text-xs text-gray-400 truncate">{user?.role}</p>
             </div>
           </div>
+          <button
+            onClick={() => setLayoutMode('b')}
+            className="w-full btn btn-secondary btn-sm text-blue-300 border-gray-600 hover:bg-gray-800 mb-2"
+          >
+            ✨ Try new layout
+          </button>
           <button onClick={handleLogout} className="w-full btn btn-secondary btn-sm text-gray-300 border-gray-600 hover:bg-gray-800">
             Sign out
           </button>
