@@ -13,7 +13,7 @@ import ShiftModal from '../components/ShiftModal';
 import { CancelBillingFields, CancelBillingValue, emptyCancelBilling, toCancelBilling } from '../components/CancelBillingFields';
 import HospitalIcon from '../components/HospitalIcon';
 import { Shift, ServiceUserStatus } from '../types';
-import { format, startOfDay, startOfWeek, startOfMonth, endOfMonth, addDays, addMonths, subMonths } from 'date-fns';
+import { format, startOfDay, startOfWeek, startOfMonth, endOfMonth, addDays, addMonths } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
 const STATUS_ICON: Record<ServiceUserStatus, string> = {
@@ -119,12 +119,25 @@ export default function Schedule() {
   // the calendar doesn't fill up with far-future rows. Past shifts stay visible.
   const futureHorizon = useMemo(() => addMonths(startOfDay(new Date()), 2), []);
 
-  // Only fetch the shifts we can actually show: a window around the current
-  // anchor (±1 month buffer), never past the 2-month cap. This keeps the payload
-  // small even when permanent visits have generated a year of future shifts.
-  const fetchFrom = format(startOfMonth(subMonths(anchor, 1)), 'yyyy-MM-dd');
+  // Visible date range for the current view (drives the calendar, the summary
+  // and — crucially — what we fetch).
+  const range = useMemo(() => {
+    if (viewKey === 'day') { const start = startOfDay(anchor); return { start, end: addDays(start, 1) }; }
+    if (viewKey === 'month') { const start = startOfMonth(anchor); return { start, end: addDays(endOfMonth(anchor), 1) }; }
+    const start = startOfWeek(anchor, { weekStartsOn: 1 });
+    const weeks = viewKey === 'week' ? 1 : viewKey === '2week' ? 2 : 4;
+    return { start, end: addDays(start, 7 * weeks) };
+  }, [anchor, viewKey]);
+
+  // Fetch ONLY the visible range (plus a week's buffer each side for smooth
+  // paging), capped at the 2-month future horizon. Previously this loaded a
+  // fixed ~3-month window regardless of the view, so on a large rota the browser
+  // held ~14k rows — which made loading, publishing, assigning and even
+  // rendering sluggish. Scoping to the view keeps the working set small and the
+  // whole schedule fast.
+  const fetchFrom = format(addDays(range.start, -7), 'yyyy-MM-dd');
   const fetchTo = format(
-    new Date(Math.min(futureHorizon.getTime(), endOfMonth(addMonths(anchor, 1)).getTime())),
+    new Date(Math.min(futureHorizon.getTime(), addDays(range.end, 7).getTime())),
     'yyyy-MM-dd',
   );
 
@@ -234,15 +247,6 @@ export default function Schedule() {
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
   const weekEnd = addDays(weekStart, 7);
   const draftThisWeek = draftShown.filter((s) => { const d = new Date(s.date); return d >= weekStart && d < weekEnd; });
-
-  // Visible date range for the current view (drives the summary + carer grid).
-  const range = useMemo(() => {
-    if (viewKey === 'day') { const start = startOfDay(anchor); return { start, end: addDays(start, 1) }; }
-    if (viewKey === 'month') { const start = startOfMonth(anchor); return { start, end: addDays(endOfMonth(anchor), 1) }; }
-    const start = startOfWeek(anchor, { weekStartsOn: 1 });
-    const weeks = viewKey === 'week' ? 1 : viewKey === '2week' ? 2 : 4;
-    return { start, end: addDays(start, 7 * weeks) };
-  }, [anchor, viewKey]);
 
   // True once the visible range reaches the 3-month cap — blocks paging further ahead.
   const atFutureCap = range.end > futureHorizon;
