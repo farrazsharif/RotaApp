@@ -64,6 +64,9 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
     if (assignedIds.includes(id) || assignedIds.length >= cover) return;
     if (!watchedUserId) setValue('userId', id);
     else setCoverCarerIds((prev) => [...prev, id].slice(0, Math.max(0, cover - 1)));
+    // Clear the search so the next carer can be typed straight away, instead of
+    // the picked name lingering in the box for the user to delete by hand.
+    setEmployeeSearch('');
   }
 
   function removeCarer(id: string) {
