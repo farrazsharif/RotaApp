@@ -16,6 +16,19 @@ const shiftInclude = {
   clockRecords: { select: { id: true, userId: true, clockIn: true, clockOut: true } },
 };
 
+// Apply a cover-carers change (connect or set) to many shifts without building
+// one giant transaction. The many-to-many relation can't be touched by
+// updateMany, so it must go per row — but hundreds of rows in a single
+// transaction over a remote DB is exactly what timed out. Chunking keeps each
+// transaction small and bounded.
+async function applyCoverCarersChunked(shiftIds: string[], data: Record<string, unknown>): Promise<void> {
+  const CHUNK = 40;
+  for (let i = 0; i < shiftIds.length; i += CHUNK) {
+    const slice = shiftIds.slice(i, i + CHUNK);
+    await prisma.$transaction(slice.map((id) => prisma.shift.update({ where: { id }, data })));
+  }
+}
+
 export async function listShifts(req: AuthRequest, res: Response) {
   const { startDate, endDate, userId, serviceUserId } = req.query;
   const where: Record<string, unknown> = {};
@@ -129,30 +142,34 @@ export async function createShift(req: AuthRequest, res: Response) {
   const seriesId = useRepeat ? randomUUID() : null;
   const hasCoverCarers = Array.isArray(coverCarerIds) && coverCarerIds.filter(Boolean).length > 0;
 
+  const t0 = Date.now();
   let shift;
   let createdCount: number;
 
-  if (dates.length > 1 && !hasCoverCarers) {
-    // Recurring visits with no specific cover carers to connect: one bulk
-    // INSERT instead of one round-trip per date. This matters a lot once the
-    // database is remote — hundreds of individual creates (e.g. a permanent
-    // weekly repeat) can otherwise take tens of seconds.
-    const result = await prisma.shift.createMany({
-      data: dates.map((d) => ({ ...baseData, seriesId, seriesPermanent: permanent, date: d })),
-    });
-    createdCount = result.count;
-    shift = await prisma.shift.findFirst({
-      where: { seriesId },
-      orderBy: { date: 'asc' },
+  if (dates.length === 1) {
+    // A single visit — one insert, with any cover carers connected inline.
+    shift = await prisma.shift.create({
+      data: { ...baseData, ...coverConnect, seriesId, seriesPermanent: permanent, date: dates[0] },
       include: shiftInclude,
     });
+    createdCount = 1;
   } else {
-    const created = await prisma.$transaction(
-      dates.map((d) => prisma.shift.create({ data: { ...baseData, ...coverConnect, seriesId, seriesPermanent: permanent, date: d }, include: shiftInclude }))
-    );
-    createdCount = created.length;
-    shift = created[0];
+    // Recurring series: bulk-INSERT every occurrence in one query (fast even for
+    // a 12-month permanent repeat), then attach cover carers separately in
+    // chunks. Doing this as hundreds of individual creates in a single
+    // transaction is what previously timed out and rolled the whole save back.
+    const ids = dates.map(() => randomUUID());
+    await prisma.shift.createMany({
+      data: dates.map((d, i) => ({ ...baseData, id: ids[i], seriesId, seriesPermanent: permanent, date: d })),
+    });
+    createdCount = ids.length;
+    if (hasCoverCarers) {
+      const connect = coverCarerIds.filter(Boolean).map((id: string) => ({ id }));
+      await applyCoverCarersChunked(ids, { coverCarers: { connect } });
+    }
+    shift = await prisma.shift.findFirst({ where: { seriesId }, orderBy: { date: 'asc' }, include: shiftInclude });
   }
+  if (createdCount > 20) console.log(`[shift] createShift count=${createdCount} cover=${hasCoverCarers} ms=${Date.now() - t0}`);
 
   // Notify the assigned carer, if one was set (a single summary notification for recurring visits)
   if (userId && shift) {
@@ -379,6 +396,7 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
   if (!(await serviceUserInScope(req.user, shift.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
 
+  const t0 = Date.now();
   let ids: string[] = [shift.id];
   if (scope && scope !== 'one') {
     ids = await resolveVisitShiftIds(shift, scope, dayList, fromDate, toDate);
@@ -399,20 +417,15 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
 
   // Cover carers are a many-to-many relation that updateMany can't touch, so
   // they must be set per shift — but only where there's actually work to do, so
-  // the common single-cover assignment stays a single query.
+  // the common single-cover assignment stays a single query. Chunked so a large
+  // series doesn't run as one oversized transaction that can time out.
   const connectSet = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean).map((id) => ({ id })) : null;
   if (connectSet && connectSet.length > 0) {
-    await prisma.$transaction(
-      ids.map((id) => prisma.shift.update({ where: { id }, data: { coverCarers: { set: connectSet } } })),
-    );
+    await applyCoverCarersChunked(ids, { coverCarers: { set: connectSet } });
   } else if (connectSet) {
     // Explicitly clearing cover — only touch the shifts that currently have any.
     const withCover = beforeShifts.filter((s) => s.coverCarers.length > 0).map((s) => s.id);
-    if (withCover.length > 0) {
-      await prisma.$transaction(
-        withCover.map((id) => prisma.shift.update({ where: { id }, data: { coverCarers: { set: [] } } })),
-      );
-    }
+    if (withCover.length > 0) await applyCoverCarersChunked(withCover, { coverCarers: { set: [] } });
   }
 
   const removals = beforeShifts.flatMap((s) => {
@@ -443,6 +456,7 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
     emitToUser(userId, 'notification', notification);
   }
 
+  if (ids.length > 20) console.log(`[shift] assignCarer scope=${scope} count=${ids.length} cover=${!!(connectSet && connectSet.length)} ms=${Date.now() - t0}`);
   res.json({ message: 'Assigned', count: ids.length });
 }
 

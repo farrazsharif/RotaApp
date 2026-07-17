@@ -7,10 +7,12 @@ const api = axios.create({
   // request after idle. Without a timeout, a slow/cold backend (or a
   // platform proxy that hangs waiting on it) leaves requests pending
   // forever with no error ever firing — buttons stuck on "Signing in…"
-  // with no way to recover. 60s covers a full cold start so the first
-  // action after idle succeeds instead of failing; keeping the instance
-  // warm (UptimeRobot pinging /health) avoids the wait entirely.
-  timeout: 60000,
+  // with no way to recover. 120s covers a full cold start PLUS a large
+  // series save (e.g. assigning a carer across a 12-month permanent rota);
+  // aborting those early rolled the optimistic UI back and looked like lost
+  // work. Keeping the instance warm (UptimeRobot pinging /health) avoids the
+  // cold-start wait entirely.
+  timeout: 120000,
 });
 
 api.interceptors.request.use((config) => {

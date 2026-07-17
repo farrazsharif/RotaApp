@@ -558,6 +558,11 @@ model Shift {
   @@index([companyId])
   @@index([companyId, date])
   @@index([companyId, runId])
+  // Series-wide carer changes match a visit by serviceUserId + date; without
+  // this a big rota is fully scanned on every assign (a save-timeout at scale).
+  @@index([companyId, serviceUserId, date])
+  // Series operations (stop/delete future, top-up grouping) filter by seriesId.
+  @@index([seriesId])
 }
 
 // A "run" (also called a round or route) is a named group of calls a carer or a

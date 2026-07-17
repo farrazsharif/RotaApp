@@ -147,4 +147,22 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   `);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceUserNote_companyId_idx" ON "ServiceUserNote"("companyId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceUserNote_serviceUserId_idx" ON "ServiceUserNote"("serviceUserId")`);
+
+  // Performance indexes for large Shift tables. Series-wide carer changes and
+  // series deletes match a visit by (company, serviceUser, date); series ops
+  // group/filter by seriesId. Without these, a big rota is fully scanned on
+  // every "assign to all future", which is what pushes those saves past the
+  // request timeout. Built CONCURRENTLY so the live table isn't write-locked
+  // while the index is created, and wrapped so any hiccup never blocks startup
+  // (a no-op on the next boot once the index exists).
+  for (const stmt of [
+    `CREATE INDEX CONCURRENTLY IF NOT EXISTS "Shift_companyId_serviceUserId_date_idx" ON "Shift"("companyId","serviceUserId","date")`,
+    `CREATE INDEX CONCURRENTLY IF NOT EXISTS "Shift_seriesId_idx" ON "Shift"("seriesId")`,
+  ]) {
+    try {
+      await prisma.$executeRawUnsafe(stmt);
+    } catch (e) {
+      console.error('Shift index guard skipped:', (e as Error).message);
+    }
+  }
 }
