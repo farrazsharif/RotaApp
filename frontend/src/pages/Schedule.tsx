@@ -153,8 +153,21 @@ export default function Schedule() {
   });
   const publishAllMut = useMutation({
     mutationFn: (ids: string[]) => shiftsApi.publishBulk(ids),
+    // Mark the published drafts in place instead of refetching the whole 2-3
+    // month window (thousands of rows) after every publish — that reload was
+    // what made "Publish" feel slow. Every id sent is already a fully-assigned
+    // draft (draftShown/draftThisWeek), so they all publish; the 20s poll
+    // reconciles anything unexpected. On error we roll back and refetch.
+    onMutate: async (ids: string[]) => {
+      await qc.cancelQueries({ queryKey: ['shifts'] });
+      const snapshots = qc.getQueriesData<Shift[]>({ queryKey: ['shifts'] });
+      const idSet = new Set(ids);
+      qc.setQueriesData<Shift[]>({ queryKey: ['shifts'] }, (old) =>
+        Array.isArray(old) ? old.map((s) => (idSet.has(s.id) ? { ...s, published: true } : s)) : old,
+      );
+      return { snapshots };
+    },
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ['shifts'] });
       setPubResult(
         data.count > 0
           ? `Published ${data.count}${data.skipped ? ` · ${data.skipped} skipped (need a carer)` : ''}`
@@ -162,7 +175,12 @@ export default function Schedule() {
       );
       setTimeout(() => setPubResult(null), 6000);
     },
-    onError: () => { setPubResult('Publish failed — please retry'); setTimeout(() => setPubResult(null), 6000); },
+    onError: (_e, _ids, ctx) => {
+      ctx?.snapshots.forEach(([key, prev]) => qc.setQueryData(key, prev));
+      qc.invalidateQueries({ queryKey: ['shifts'] });
+      setPubResult('Publish failed — please retry');
+      setTimeout(() => setPubResult(null), 6000);
+    },
   });
 
   const assignedCarers = (s: Shift) => (s.userId ? 1 : 0) + (s.coverCarers?.length ?? 0);
