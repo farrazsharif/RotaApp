@@ -155,14 +155,25 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // request timeout. Built CONCURRENTLY so the live table isn't write-locked
   // while the index is created, and wrapped so any hiccup never blocks startup
   // (a no-op on the next boot once the index exists).
-  for (const stmt of [
-    `CREATE INDEX CONCURRENTLY IF NOT EXISTS "Shift_companyId_serviceUserId_date_idx" ON "Shift"("companyId","serviceUserId","date")`,
-    `CREATE INDEX CONCURRENTLY IF NOT EXISTS "Shift_seriesId_idx" ON "Shift"("seriesId")`,
-  ]) {
+  const shiftIndexes: [string, string][] = [
+    ['Shift_companyId_serviceUserId_date_idx', `"companyId","serviceUserId","date"`],
+    ['Shift_seriesId_idx', `"seriesId"`],
+  ];
+  for (const [name, cols] of shiftIndexes) {
+    // Prefer CONCURRENTLY (no write-lock), but that fails through a connection
+    // pooler ("cannot run inside a transaction block") — and Neon's pooled
+    // endpoint would hit exactly that. Fall back to a plain CREATE INDEX, which
+    // works everywhere; on these table sizes the brief lock is negligible. The
+    // whole thing is guarded so a hiccup never blocks startup.
     try {
-      await prisma.$executeRawUnsafe(stmt);
-    } catch (e) {
-      console.error('Shift index guard skipped:', (e as Error).message);
+      await prisma.$executeRawUnsafe(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "${name}" ON "Shift"(${cols})`);
+    } catch {
+      try {
+        await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "${name}" ON "Shift"(${cols})`);
+        console.log(`Created Shift index ${name} (plain).`);
+      } catch (e) {
+        console.error(`Shift index ${name} guard skipped:`, (e as Error).message);
+      }
     }
   }
 }
