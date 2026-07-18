@@ -11,7 +11,7 @@ import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
-import type { MedAdminStatus, CallLogSignature } from '../types';
+import type { MedAdminStatus, CallLogSignature, ClockRecord } from '../types';
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -36,6 +36,58 @@ function LiveShiftTimer({ since }: { since: string }) {
     <div className="text-center py-1">
       <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Time on Shift</p>
       <p className="text-3xl font-bold text-green-700 tabular-nums">{formatElapsed(elapsed)}</p>
+    </div>
+  );
+}
+
+// Lets a carer correct the start time on their own record — for when they
+// started the visit (sometimes before the scheduled time) but forgot to clock
+// in, which would otherwise record a near-zero visit. One tap fills the
+// scheduled start; a manual time is also allowed.
+function AdjustStart({ record, scheduledStart, onSaved }: { record: ClockRecord; scheduledStart: string; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [val, setVal] = useState(() => format(new Date(record.clockIn), 'HH:mm'));
+  const [err, setErr] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: (iso: string) => clockApi.setStart(record.id, iso),
+    onSuccess: () => { setOpen(false); setErr(null); onSaved(); },
+    onError: (e: any) => setErr(e.response?.data?.error || 'Could not update the start time.'),
+  });
+
+  function save() {
+    if (!val) return;
+    const base = new Date(record.clockIn);
+    const [h, m] = val.split(':').map(Number);
+    base.setHours(h || 0, m || 0, 0, 0);
+    mut.mutate(base.toISOString());
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => { setVal(format(new Date(record.clockIn), 'HH:mm')); setErr(null); setOpen(true); }}
+        className="mt-2 text-sm font-medium text-blue-600"
+      >
+        🕑 Forgot to clock in? Adjust start time
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 border-t border-gray-100 pt-3 text-left">
+      <p className="text-xs font-semibold text-gray-500 mb-1.5">When did you actually start this visit?</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <input type="time" value={val} onChange={(e) => setVal(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        <button onClick={() => setVal(scheduledStart)} className="text-sm font-medium text-blue-600">Use scheduled ({formatTime12h(scheduledStart)})</button>
+      </div>
+      {err && <p className="text-xs text-red-600 mt-1.5">{err}</p>}
+      <div className="flex gap-2 mt-2.5">
+        <button onClick={save} disabled={mut.isPending || !val} className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold text-sm disabled:opacity-40">
+          {mut.isPending ? 'Saving…' : 'Save start time'}
+        </button>
+        <button onClick={() => setOpen(false)} className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm">Cancel</button>
+      </div>
     </div>
   );
 }
@@ -231,17 +283,33 @@ export default function CallDetail() {
         {/* Clock in/out */}
         {done ? (
           <div className="bg-green-50 border border-green-300 rounded-2xl p-4 text-center">
-            <p className="text-sm font-semibold text-green-700">✓ This call is complete. No further changes can be made.</p>
+            <p className="text-sm font-semibold text-green-700">✓ This call is complete.</p>
             {totalTimeSpent && (
               <div className="mt-2">
                 <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Time Spent</p>
                 <p className="text-2xl font-bold text-green-700 tabular-nums">{totalTimeSpent}</p>
               </div>
             )}
+            {myCompletedRecord && isToday(new Date(myCompletedRecord.clockIn)) && (
+              <AdjustStart
+                record={myCompletedRecord}
+                scheduledStart={shift.startTime}
+                onSaved={() => qc.invalidateQueries({ queryKey: ['shift', id] })}
+              />
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
             {clockedIn && clockStatus?.record && <LiveShiftTimer since={clockStatus.record.clockIn} />}
+            {clockedIn && clockStatus?.record && (
+              <div className="text-center">
+                <AdjustStart
+                  record={clockStatus.record}
+                  scheduledStart={shift.startTime}
+                  onSaved={() => qc.invalidateQueries({ queryKey: ['clock-status'] })}
+                />
+              </div>
+            )}
             {clockedInElsewhere ? (
               <p className="text-sm text-orange-600 font-medium">You're clocked in on another call. Clock out there first.</p>
             ) : clockedIn ? (

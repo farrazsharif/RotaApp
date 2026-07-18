@@ -201,6 +201,37 @@ export async function listClockRecords(req: AuthRequest, res: Response) {
   res.json(records);
 }
 
+// Carer self-service: set the actual start time on your OWN clock record — for
+// when you started the visit (sometimes before the scheduled time) but forgot
+// to clock in, so the recorded time would otherwise be far too short. Bounded
+// so it can't be after you clocked out or in the future, and not wildly early.
+export async function setClockStart(req: AuthRequest, res: Response) {
+  const { startTime } = req.body as { startTime?: string };
+  if (!startTime) return res.status(400).json({ error: 'startTime required' });
+
+  const record = await prisma.clockRecord.findUnique({ where: { id: req.params.id } });
+  if (!record || record.userId !== req.user!.id) return res.status(404).json({ error: 'Clock record not found' });
+
+  const newStart = new Date(startTime);
+  if (isNaN(newStart.getTime())) return res.status(400).json({ error: 'Invalid time' });
+
+  const upper = record.clockOut ?? new Date();
+  if (newStart.getTime() > upper.getTime()) {
+    return res.status(400).json({ error: record.clockOut ? 'Start time can’t be after you clocked out' : 'Start time can’t be in the future' });
+  }
+  // Catch date typos — a real forgotten clock-in is at most a shift-length ago.
+  if (upper.getTime() - newStart.getTime() > 24 * 60 * 60 * 1000) {
+    return res.status(400).json({ error: 'Start time is too far back' });
+  }
+
+  const updated = await prisma.clockRecord.update({
+    where: { id: record.id },
+    data: { clockIn: newStart },
+    include: { shift: { include: { serviceUser: { select: { id: true, firstName: true, lastName: true } } } } },
+  });
+  res.json(updated);
+}
+
 export async function updateClockRecord(req: AuthRequest, res: Response) {
   const { clockIn, clockOut } = req.body;
   const data: Record<string, unknown> = {};

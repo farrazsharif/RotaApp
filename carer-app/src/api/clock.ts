@@ -8,6 +8,9 @@ export const clockApi = {
   status: () => api.get<{ clockedIn: boolean; record: ClockRecord | null }>('/clock/status').then((r) => r.data),
   clockIn: (shiftId?: string) => api.post<ClockRecord>('/clock/in', shiftId ? { shiftId } : {}).then((r) => r.data),
   clockOut: () => api.post<ClockRecord>('/clock/out').then((r) => r.data),
+  // Correct the actual start time on your own record (forgot to clock in).
+  setStart: (recordId: string, startTime: string) =>
+    api.post<ClockRecord>(`/clock/records/${recordId}/start`, { startTime }).then((r) => r.data),
 };
 
 export interface ClockOutBlockedError {
