@@ -295,7 +295,7 @@ function minsBetween(start: string, end: string): number {
 // happened. Short/missed visits are flagged for a documented reason (ecmNote) —
 // the times themselves are never altered.
 export async function ecmReport(req: AuthRequest, res: Response) {
-  const { startDate, endDate, siteId, userId } = req.query;
+  const { startDate, endDate, siteId, userId, view } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
   const where: Record<string, unknown> = {
@@ -360,7 +360,16 @@ export async function ecmReport(req: AuthRequest, res: Response) {
     }
   }
 
-  res.json(rows);
+  // Optional view filter so big companies don't pull the whole visit list —
+  // 'missed' = no clock-in, 'recorded' = clocked in, 'short' = short visits.
+  const v = String(view || 'all');
+  const out =
+    v === 'missed' ? rows.filter((r) => r.status === 'not_attended')
+    : v === 'recorded' ? rows.filter((r) => r.status !== 'not_attended')
+    : v === 'short' ? rows.filter((r) => r.short)
+    : rows;
+
+  res.json(out);
 }
 
 // Save the ECM reason/explanation for a visit. Never touches the clock times.

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { reportsApi, CribSheetRow, EcmRow } from '../api/reports';
 import { sitesApi } from '../api/sites';
@@ -45,6 +45,10 @@ export default function Reports() {
   const [siteFilter, setSiteFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
+  // ECM loads on demand (not on tab open) so a big rota isn't fetched every
+  // time, and a view filter narrows to just missed/recorded/short.
+  const [ecmView, setEcmView] = useState('missed');
+  const [ecmRun, setEcmRun] = useState(false);
 
   function applyTimeline(preset: string) {
     setTimeline(preset as TimelinePreset);
@@ -100,10 +104,13 @@ export default function Reports() {
   });
 
   const { data: ecmData = [], isLoading: loadingEcm } = useQuery({
-    queryKey: ['report-ecm', startDate, endDate, siteFilter, employeeFilter],
-    queryFn: () => reportsApi.ecm({ startDate, endDate, siteId: siteFilter || undefined, userId: employeeFilter || undefined }),
-    enabled: tab === 'ecm',
+    queryKey: ['report-ecm', startDate, endDate, siteFilter, employeeFilter, ecmView],
+    queryFn: () => reportsApi.ecm({ startDate, endDate, siteId: siteFilter || undefined, userId: employeeFilter || undefined, view: ecmView }),
+    enabled: tab === 'ecm' && ecmRun,
   });
+  // Reset ECM to its empty state whenever you leave the tab, so re-opening it
+  // shows the "Run report" prompt instead of auto-fetching a big list.
+  useEffect(() => { if (tab !== 'ecm') setEcmRun(false); }, [tab]);
   // Local edits to short-visit reasons, keyed by shiftId (shared across a shift's
   // carer rows). Saved on blur; never touches the clock times.
   const [ecmNotes, setEcmNotes] = useState<Record<string, string>>({});
@@ -542,14 +549,28 @@ export default function Reports() {
       )}
 
       {/* ECM — Electronic Call Monitoring: scheduled vs actual (clocked) times */}
-      {tab === 'ecm' && !loadingEcm && (
+      {tab === 'ecm' && (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-gray-500 max-w-2xl">
               Actual clocked times exactly as recorded. Short or missed visits are flagged — add a reason so the submission is documented. Times are never altered.
             </p>
-            <button onClick={exportEcmCsv} disabled={filteredEcm.length === 0} className="btn-secondary btn">Export CSV</button>
+            <div className="flex items-center gap-2">
+              <select value={ecmView} onChange={(e) => setEcmView(e.target.value)} className="input w-40" title="Which visits to show">
+                <option value="missed">Missed visits</option>
+                <option value="recorded">Recorded (clocked)</option>
+                <option value="short">Short visits</option>
+                <option value="all">All visits</option>
+              </select>
+              <button onClick={() => setEcmRun(true)} className="btn-primary btn">{ecmRun ? 'Refresh' : 'Run report'}</button>
+              <button onClick={exportEcmCsv} disabled={!ecmRun || filteredEcm.length === 0} className="btn-secondary btn">Export CSV</button>
+            </div>
           </div>
+
+          {!ecmRun ? (
+            <div className="card text-center py-12 text-gray-400">Choose a view and date range above, then <span className="font-medium text-gray-600">Run report</span>.</div>
+          ) : loadingEcm ? null : (
+          <>
 
           {filteredEcm.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -611,6 +632,8 @@ export default function Reports() {
                 </tbody>
               </table>
             </div>
+          )}
+          </>
           )}
         </div>
       )}
