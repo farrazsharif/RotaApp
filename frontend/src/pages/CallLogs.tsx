@@ -198,9 +198,11 @@ export default function CallLogs() {
           <label className="label">Client (call)</label>
           <select value={serviceUserId} onChange={(e) => setServiceUserId(e.target.value)} className="input w-56">
             <option value="">All service users</option>
-            {serviceUsers.map((s) => (
-              <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
-            ))}
+            {[...serviceUsers]
+              .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' }))
+              .map((s) => (
+                <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+              ))}
           </select>
         </div>
         <div>
