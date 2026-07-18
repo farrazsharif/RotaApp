@@ -221,7 +221,6 @@ export default function Schedule() {
       && new Date(s.date) < futureHorizon
       && statusAtShift(s.serviceUser, s.date, s.startTime) !== 'DECEASED',
   );
-  const unassignedCount = notCancelled.filter(needsStaff).length;
 
   const activeShifts = notCancelled
     .filter((s) => {
@@ -268,6 +267,10 @@ export default function Schedule() {
     return { total, unassigned, drafts, coverage };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeShifts]);
+
+  // The "Unassigned" filter chip counts the current view (matching the summary
+  // tile), not the wider window that's loaded for smooth paging.
+  const unassignedCount = summary.unassigned;
 
   // What the Publish modal acts on: fully-staffed drafts in the visible timeline
   // are what actually get published; the rest are surfaced as counts.
