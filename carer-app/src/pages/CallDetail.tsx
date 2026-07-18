@@ -40,51 +40,75 @@ function LiveShiftTimer({ since }: { since: string }) {
   );
 }
 
-// Lets a carer correct the start time on their own record — for when they
-// started the visit (sometimes before the scheduled time) but forgot to clock
-// in, which would otherwise record a near-zero visit. One tap fills the
-// scheduled start; a manual time is also allowed.
-function AdjustStart({ record, scheduledStart, onSaved }: { record: ClockRecord; scheduledStart: string; onSaved: () => void }) {
+// Lets a carer correct the actual start (and, once clocked out, end) time on
+// their own record — for when they did the visit but forgot to clock in/out and
+// recorded it late, which would otherwise show the wrong duration. One tap fills
+// the scheduled time; a manual time is also allowed.
+function AdjustTimes({ record, scheduledStart, scheduledEnd, onSaved }: { record: ClockRecord; scheduledStart: string; scheduledEnd: string; onSaved: () => void }) {
+  const hasOut = !!record.clockOut;
   const [open, setOpen] = useState(false);
-  const [val, setVal] = useState(() => format(new Date(record.clockIn), 'HH:mm'));
+  const [startVal, setStartVal] = useState(() => format(new Date(record.clockIn), 'HH:mm'));
+  const [endVal, setEndVal] = useState(() => (record.clockOut ? format(new Date(record.clockOut), 'HH:mm') : ''));
   const [err, setErr] = useState<string | null>(null);
 
   const mut = useMutation({
-    mutationFn: (iso: string) => clockApi.setStart(record.id, iso),
+    mutationFn: (body: { startTime?: string; endTime?: string }) => clockApi.setTimes(record.id, body),
     onSuccess: () => { setOpen(false); setErr(null); onSaved(); },
-    onError: (e: any) => setErr(e.response?.data?.error || 'Could not update the start time.'),
+    onError: (e: any) => setErr(e.response?.data?.error || 'Could not update the times.'),
   });
 
-  function save() {
-    if (!val) return;
-    const base = new Date(record.clockIn);
-    const [h, m] = val.split(':').map(Number);
+  function toIso(hhmm: string, ref: string): string {
+    const base = new Date(ref);
+    const [h, m] = hhmm.split(':').map(Number);
     base.setHours(h || 0, m || 0, 0, 0);
-    mut.mutate(base.toISOString());
+    return base.toISOString();
+  }
+
+  function save() {
+    const body: { startTime?: string; endTime?: string } = {};
+    if (startVal) body.startTime = toIso(startVal, record.clockIn);
+    if (hasOut && endVal) body.endTime = toIso(endVal, record.clockOut!);
+    if (!body.startTime && !body.endTime) return;
+    mut.mutate(body);
+  }
+
+  function openEditor() {
+    setStartVal(format(new Date(record.clockIn), 'HH:mm'));
+    setEndVal(record.clockOut ? format(new Date(record.clockOut), 'HH:mm') : '');
+    setErr(null);
+    setOpen(true);
   }
 
   if (!open) {
     return (
-      <button
-        onClick={() => { setVal(format(new Date(record.clockIn), 'HH:mm')); setErr(null); setOpen(true); }}
-        className="mt-2 text-sm font-medium text-blue-600"
-      >
-        🕑 Forgot to clock in? Adjust start time
+      <button onClick={openEditor} className="mt-2 text-sm font-medium text-blue-600">
+        🕑 {hasOut ? 'Fix visit times' : 'Forgot to clock in? Adjust start time'}
       </button>
     );
   }
 
   return (
-    <div className="mt-3 border-t border-gray-100 pt-3 text-left">
-      <p className="text-xs font-semibold text-gray-500 mb-1.5">When did you actually start this visit?</p>
-      <div className="flex items-center gap-2 flex-wrap">
-        <input type="time" value={val} onChange={(e) => setVal(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-        <button onClick={() => setVal(scheduledStart)} className="text-sm font-medium text-blue-600">Use scheduled ({formatTime12h(scheduledStart)})</button>
+    <div className="mt-3 border-t border-gray-100 pt-3 text-left space-y-3">
+      <div>
+        <p className="text-xs font-semibold text-gray-500 mb-1.5">When did you actually start?</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input type="time" value={startVal} onChange={(e) => setStartVal(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <button onClick={() => setStartVal(scheduledStart)} className="text-sm font-medium text-blue-600">Use {formatTime12h(scheduledStart)}</button>
+        </div>
       </div>
-      {err && <p className="text-xs text-red-600 mt-1.5">{err}</p>}
-      <div className="flex gap-2 mt-2.5">
-        <button onClick={save} disabled={mut.isPending || !val} className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold text-sm disabled:opacity-40">
-          {mut.isPending ? 'Saving…' : 'Save start time'}
+      {hasOut && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 mb-1.5">When did you actually finish?</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input type="time" value={endVal} onChange={(e) => setEndVal(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+            <button onClick={() => setEndVal(scheduledEnd)} className="text-sm font-medium text-blue-600">Use {formatTime12h(scheduledEnd)}</button>
+          </div>
+        </div>
+      )}
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      <div className="flex gap-2">
+        <button onClick={save} disabled={mut.isPending} className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold text-sm disabled:opacity-40">
+          {mut.isPending ? 'Saving…' : hasOut ? 'Save times' : 'Save start time'}
         </button>
         <button onClick={() => setOpen(false)} className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm">Cancel</button>
       </div>
@@ -291,9 +315,10 @@ export default function CallDetail() {
               </div>
             )}
             {myCompletedRecord && isToday(new Date(myCompletedRecord.clockIn)) && (
-              <AdjustStart
+              <AdjustTimes
                 record={myCompletedRecord}
                 scheduledStart={shift.startTime}
+                scheduledEnd={shift.endTime}
                 onSaved={() => qc.invalidateQueries({ queryKey: ['shift', id] })}
               />
             )}
@@ -303,9 +328,10 @@ export default function CallDetail() {
             {clockedIn && clockStatus?.record && <LiveShiftTimer since={clockStatus.record.clockIn} />}
             {clockedIn && clockStatus?.record && (
               <div className="text-center">
-                <AdjustStart
+                <AdjustTimes
                   record={clockStatus.record}
                   scheduledStart={shift.startTime}
+                  scheduledEnd={shift.endTime}
                   onSaved={() => qc.invalidateQueries({ queryKey: ['clock-status'] })}
                 />
               </div>

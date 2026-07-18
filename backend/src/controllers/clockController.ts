@@ -201,32 +201,45 @@ export async function listClockRecords(req: AuthRequest, res: Response) {
   res.json(records);
 }
 
-// Carer self-service: set the actual start time on your OWN clock record — for
-// when you started the visit (sometimes before the scheduled time) but forgot
-// to clock in, so the recorded time would otherwise be far too short. Bounded
-// so it can't be after you clocked out or in the future, and not wildly early.
-export async function setClockStart(req: AuthRequest, res: Response) {
-  const { startTime } = req.body as { startTime?: string };
-  if (!startTime) return res.status(400).json({ error: 'startTime required' });
+// Carer self-service: correct the actual start and/or end time on your OWN
+// clock record — for when you did the visit but forgot to clock in/out and
+// recorded it late, so the times would otherwise be wrong (a 30-min visit
+// showing as 2 hours, etc.). Bounded so end is after start, nothing is in the
+// future, and the window isn't implausibly long.
+export async function setClockTimes(req: AuthRequest, res: Response) {
+  const { startTime, endTime } = req.body as { startTime?: string; endTime?: string };
+  if (!startTime && !endTime) return res.status(400).json({ error: 'startTime or endTime required' });
 
   const record = await prisma.clockRecord.findUnique({ where: { id: req.params.id } });
   if (!record || record.userId !== req.user!.id) return res.status(404).json({ error: 'Clock record not found' });
 
-  const newStart = new Date(startTime);
-  if (isNaN(newStart.getTime())) return res.status(400).json({ error: 'Invalid time' });
+  const now = Date.now();
+  let newIn = record.clockIn;
+  let newOut = record.clockOut ?? null;
 
-  const upper = record.clockOut ?? new Date();
-  if (newStart.getTime() > upper.getTime()) {
-    return res.status(400).json({ error: record.clockOut ? 'Start time can’t be after you clocked out' : 'Start time can’t be in the future' });
+  if (startTime) {
+    const d = new Date(startTime);
+    if (isNaN(d.getTime())) return res.status(400).json({ error: 'Invalid start time' });
+    newIn = d;
   }
-  // Catch date typos — a real forgotten clock-in is at most a shift-length ago.
-  if (upper.getTime() - newStart.getTime() > 24 * 60 * 60 * 1000) {
-    return res.status(400).json({ error: 'Start time is too far back' });
+  if (endTime) {
+    const d = new Date(endTime);
+    if (isNaN(d.getTime())) return res.status(400).json({ error: 'Invalid end time' });
+    newOut = d;
   }
+
+  if (newIn.getTime() > now) return res.status(400).json({ error: 'Start time can’t be in the future' });
+  if (newOut) {
+    if (newOut.getTime() > now) return res.status(400).json({ error: 'Clock-out time can’t be in the future' });
+    if (newOut.getTime() <= newIn.getTime()) return res.status(400).json({ error: 'Clock-out must be after the start time' });
+  }
+  // Catch date typos — a real forgotten visit is at most a shift-length ago.
+  const span = (newOut?.getTime() ?? now) - newIn.getTime();
+  if (span > 24 * 60 * 60 * 1000) return res.status(400).json({ error: 'Those times are too far apart' });
 
   const updated = await prisma.clockRecord.update({
     where: { id: record.id },
-    data: { clockIn: newStart },
+    data: { clockIn: newIn, ...(newOut ? { clockOut: newOut } : {}) },
     include: { shift: { include: { serviceUser: { select: { id: true, firstName: true, lastName: true } } } } },
   });
   res.json(updated);
