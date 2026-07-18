@@ -530,7 +530,10 @@ async function notifyCarersRemoved(removals: { carerId: string; shift: Notifiabl
 // the same carer into a single notification, so publishing a whole batch
 // of calls (e.g. "Publish All Shown") doesn't fire one notification per
 // shift per carer.
-async function notifyShiftsPublished(shifts: (NotifiableShift & { userId: string | null; coverCarers: { id: string }[] })[]) {
+async function notifyShiftsPublished(
+  shifts: (NotifiableShift & { userId: string | null; coverCarers: { id: string }[] })[],
+  customMessage?: string,
+) {
   const byCarer = new Map<string, NotifiableShift[]>();
   for (const shift of shifts) {
     const carerIds = [shift.userId, ...shift.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
@@ -542,26 +545,48 @@ async function notifyShiftsPublished(shifts: (NotifiableShift & { userId: string
 
   await Promise.all(
     [...byCarer.entries()].map(async ([carerId, carerShifts]) => {
-      const message =
+      const base =
         carerShifts.length > 1
           ? `${carerShifts.length} new shifts have been added to your rota`
           : `${singleShiftLine(carerShifts[0])} has been added to your rota`;
+      const message = customMessage ? `${base}\n\n${customMessage}` : base;
+      const title = carerShifts.length > 1 ? 'New Shifts on Your Rota' : 'New Shift on Your Rota';
       const notification = await prisma.notification.create({
         data: {
           userId: carerId,
           type: 'SHIFT_PUBLISHED',
-          title: carerShifts.length > 1 ? 'New Shifts on Your Rota' : 'New Shift on Your Rota',
+          title,
           message,
           data: JSON.stringify({ shiftIds: carerShifts.map((s) => s.id) }),
         },
       });
       emitToUser(carerId, 'notification', notification);
       await sendPushToUser(carerId, {
-        title: carerShifts.length > 1 ? 'New Shifts on Your Rota' : 'New Shift on Your Rota',
+        title,
         body: message,
         url: carerShifts.length === 1 ? `/call/${carerShifts[0].id}` : '/rota',
       });
     })
+  );
+}
+
+// Optionally tell the office (admins + managers) that a batch was published —
+// a single summary each, with any custom message the publisher added.
+async function notifyManagersPublished(count: number, customMessage?: string) {
+  const managers = await prisma.user.findMany({
+    where: { role: { in: [Role.ADMIN, Role.MANAGER] }, active: true },
+    select: { id: true },
+  });
+  const base = `${count} shift${count === 1 ? '' : 's'} published to the rota`;
+  const message = customMessage ? `${base}\n\n${customMessage}` : base;
+  await Promise.all(
+    managers.map(async (m) => {
+      const notification = await prisma.notification.create({
+        data: { userId: m.id, type: 'SHIFT_PUBLISHED', title: 'Schedule Published', message, data: '{}' },
+      });
+      emitToUser(m.id, 'notification', notification);
+      await sendPushToUser(m.id, { title: 'Schedule Published', body: message, url: '/schedule' });
+    }),
   );
 }
 
@@ -589,10 +614,14 @@ export async function publishShift(req: AuthRequest, res: Response) {
 // Shifts that aren't fully assigned are silently skipped rather than erroring,
 // since this is meant for "publish everything ready" bulk actions.
 export async function publishBulkShifts(req: AuthRequest, res: Response) {
-  const { ids } = req.body as { ids?: string[] };
+  // notify: 'none' (publish silently) | 'carers' (default) | 'all' (carers +
+  // office). message: an optional custom line added to each notification.
+  const { ids, notify, message } = req.body as { ids?: string[]; notify?: string; message?: string };
   if (!Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ error: 'ids array required' });
   }
+  const notifyMode = notify === 'none' || notify === 'all' ? notify : 'carers';
+  const customMessage = typeof message === 'string' && message.trim() ? message.trim().slice(0, 500) : undefined;
 
   const candidates = await prisma.shift.findMany({
     where: { id: { in: ids }, published: false, ...relatedServiceUserScopeWhere(req.user) },
@@ -611,9 +640,13 @@ export async function publishBulkShifts(req: AuthRequest, res: Response) {
   // background so a big "publish all" doesn't leave the button spinning —
   // carers' apps already refetch live via the data:changed broadcast. Re-wrap
   // in the tenant context so the background Prisma writes stay company-scoped.
-  if (publishable.length) {
+  if (publishable.length && notifyMode !== 'none') {
     const companyId = req.user!.companyId;
-    const run = () => notifyShiftsPublished(publishable).catch((e) => console.error('Publish notifications failed:', e));
+    const run = () =>
+      (async () => {
+        await notifyShiftsPublished(publishable, customMessage);
+        if (notifyMode === 'all') await notifyManagersPublished(publishable.length, customMessage);
+      })().catch((e) => console.error('Publish notifications failed:', e));
     if (companyId) runWithCompany(companyId, run); else run();
   }
 

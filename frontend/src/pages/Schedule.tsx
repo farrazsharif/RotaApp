@@ -10,6 +10,7 @@ import { shiftsApi, CancelBilling } from '../api/shifts';
 import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
+import PublishScheduleModal from '../components/PublishScheduleModal';
 import { CancelBillingFields, CancelBillingValue, emptyCancelBilling, toCancelBilling } from '../components/CancelBillingFields';
 import HospitalIcon from '../components/HospitalIcon';
 import { Shift, ServiceUserStatus } from '../types';
@@ -109,6 +110,7 @@ export default function Schedule() {
   const [cancelAllBilling, setCancelAllBilling] = useState<CancelBillingValue>(emptyCancelBilling);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pubMenuOpen, setPubMenuOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
 
   const [mode, setMode] = useState<'calendar' | 'carer' | 'list'>('calendar');
   const [viewKey, setViewKey] = useState<ViewKey>('week');
@@ -165,22 +167,24 @@ export default function Schedule() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
   });
   const publishAllMut = useMutation({
-    mutationFn: (ids: string[]) => shiftsApi.publishBulk(ids),
+    mutationFn: (v: { ids: string[]; notify: 'none' | 'carers' | 'all'; message: string }) =>
+      shiftsApi.publishBulk(v.ids, { notify: v.notify, message: v.message }),
     // Mark the published drafts in place instead of refetching the whole 2-3
     // month window (thousands of rows) after every publish — that reload was
     // what made "Publish" feel slow. Every id sent is already a fully-assigned
-    // draft (draftShown/draftThisWeek), so they all publish; the 20s poll
-    // reconciles anything unexpected. On error we roll back and refetch.
-    onMutate: async (ids: string[]) => {
+    // draft, so they all publish; the 20s poll reconciles anything unexpected.
+    // On error we roll back and refetch.
+    onMutate: async (v) => {
       await qc.cancelQueries({ queryKey: ['shifts'] });
       const snapshots = qc.getQueriesData<Shift[]>({ queryKey: ['shifts'] });
-      const idSet = new Set(ids);
+      const idSet = new Set(v.ids);
       qc.setQueriesData<Shift[]>({ queryKey: ['shifts'] }, (old) =>
         Array.isArray(old) ? old.map((s) => (idSet.has(s.id) ? { ...s, published: true } : s)) : old,
       );
       return { snapshots };
     },
     onSuccess: (data) => {
+      setPublishOpen(false);
       setPubResult(
         data.count > 0
           ? `Published ${data.count}${data.skipped ? ` · ${data.skipped} skipped (need a carer)` : ''}`
@@ -188,7 +192,7 @@ export default function Schedule() {
       );
       setTimeout(() => setPubResult(null), 6000);
     },
-    onError: (_e, _ids, ctx) => {
+    onError: (_e, _v, ctx) => {
       ctx?.snapshots.forEach(([key, prev]) => qc.setQueryData(key, prev));
       qc.invalidateQueries({ queryKey: ['shifts'] });
       setPubResult('Publish failed — please retry');
@@ -262,6 +266,34 @@ export default function Schedule() {
     const drafts = rangeShifts.filter((s) => !s.published).length;
     const coverage = total ? Math.round(((total - unassigned) / total) * 100) : 100;
     return { total, unassigned, drafts, coverage };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeShifts]);
+
+  // What the Publish modal acts on: fully-staffed drafts in the visible timeline
+  // are what actually get published; the rest are surfaced as counts.
+  const readyInRange = useMemo(() => rangeShifts.filter((s) => !s.published && missingCarers(s) === 0), [rangeShifts]);
+  const needsCarerInRange = useMemo(() => rangeShifts.filter((s) => !s.published && missingCarers(s) > 0).length, [rangeShifts]);
+  // Conflicts: the same carer booked on two overlapping visits within the view.
+  const conflictCount = useMemo(() => {
+    const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + (m || 0); };
+    const byCarer = new Map<string, { id: string; day: string; s: number; e: number }[]>();
+    for (const sh of rangeShifts) {
+      if (sh.status === 'CANCELLED') continue;
+      const carers = [sh.userId, ...(sh.coverCarers?.map((c) => c.id) ?? [])].filter(Boolean) as string[];
+      const day = new Date(sh.date).toISOString().slice(0, 10);
+      for (const c of carers) {
+        if (!byCarer.has(c)) byCarer.set(c, []);
+        byCarer.get(c)!.push({ id: sh.id, day, s: toMin(sh.startTime), e: toMin(sh.endTime) });
+      }
+    }
+    const clashing = new Set<string>();
+    for (const list of byCarer.values()) {
+      list.sort((a, b) => a.day.localeCompare(b.day) || a.s - b.s);
+      for (let i = 1; i < list.length; i++) {
+        if (list[i].day === list[i - 1].day && list[i].s < list[i - 1].e) { clashing.add(list[i].id); clashing.add(list[i - 1].id); }
+      }
+    }
+    return clashing.size;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeShifts]);
 
@@ -517,29 +549,11 @@ export default function Schedule() {
               )}
             </div>
             <div className="relative">
-              <button className="btn-primary btn" disabled={draftShown.length === 0 && !publishAllMut.isPending} onClick={() => setPubMenuOpen((o) => !o)}>
-                Publish <span className="ml-1 text-xs">▾</span>
+              <button className="btn-primary btn" disabled={readyInRange.length === 0 || publishAllMut.isPending} onClick={() => setPublishOpen(true)}>
+                Publish{readyInRange.length ? ` [${readyInRange.length}]` : ''}
               </button>
-              {pubResult && !pubMenuOpen && (
+              {pubResult && (
                 <div className="absolute right-0 mt-1 w-64 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 z-20 shadow-lg">{pubResult}</div>
-              )}
-              {pubMenuOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setPubMenuOpen(false)} />
-                  <div className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 text-sm">
-                    <p className="px-3 pt-1.5 pb-1 text-xs font-medium text-gray-400">Publish drafts to the carer app</p>
-                    <button className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 disabled:text-gray-300 disabled:hover:bg-transparent" disabled={draftThisWeek.length === 0 || publishAllMut.isPending} onClick={() => publishAllMut.mutate(draftThisWeek.map((s) => s.id), { onSettled: () => setPubMenuOpen(false) })}>
-                      <span>Publish this week</span><span className="text-gray-400">{draftThisWeek.length}</span>
-                    </button>
-                    <button className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 disabled:text-gray-300 disabled:hover:bg-transparent" disabled={draftShown.length === 0 || publishAllMut.isPending} onClick={() => publishAllMut.mutate(draftShown.map((s) => s.id), { onSettled: () => setPubMenuOpen(false) })}>
-                      <span>Publish all ready</span><span className="text-gray-400">{draftShown.length}</span>
-                    </button>
-                    {publishAllMut.isPending && <p className="px-3 py-2 text-xs text-gray-500">Publishing…</p>}
-                    {draftUnassignedShown > 0 && !publishAllMut.isPending && (
-                      <p className="px-3 py-2 mt-1 border-t border-gray-100 text-xs text-amber-600">{draftUnassignedShown} more need a carer first</p>
-                    )}
-                  </div>
-                </>
               )}
             </div>
           </div>
@@ -645,6 +659,18 @@ export default function Schedule() {
           shift={selectedShift}
           defaultDate={selectedDate}
           onClose={() => { setModalOpen(false); setSelectedShift(null); }}
+        />
+      )}
+
+      {publishOpen && (
+        <PublishScheduleModal
+          rangeLabel={`${format(range.start, 'dd-MM-yyyy')} – ${format(addDays(range.end, -1), 'dd-MM-yyyy')}`}
+          readyCount={readyInRange.length}
+          needsCarerCount={needsCarerInRange}
+          conflictCount={conflictCount}
+          isPending={publishAllMut.isPending}
+          onClose={() => setPublishOpen(false)}
+          onPublish={({ notify, message }) => publishAllMut.mutate({ ids: readyInRange.map((s) => s.id), notify, message })}
         />
       )}
     </div>

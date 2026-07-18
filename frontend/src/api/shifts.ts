@@ -75,8 +75,8 @@ export const shiftsApi = {
   cancelBulk: (ids: string[], billing?: CancelBilling) =>
     api.post<{ message: string; count: number }>('/shifts/cancel-bulk', { ids, ...(billing || {}) }).then((r) => r.data),
   publish: (id: string) => api.post<Shift>(`/shifts/${id}/publish`).then((r) => r.data),
-  publishBulk: (ids: string[]) =>
-    api.post<{ message: string; count: number; skipped: number }>('/shifts/publish-bulk', { ids }).then((r) => r.data),
+  publishBulk: (ids: string[], opts?: { notify?: 'none' | 'carers' | 'all'; message?: string }) =>
+    api.post<{ message: string; count: number; skipped: number }>('/shifts/publish-bulk', { ids, ...(opts || {}) }).then((r) => r.data),
   assignCarer: (id: string, body: { userId?: string | null; coverCarerIds?: string[]; scope?: 'one' | 'future' | 'days' | 'range'; days?: number[]; fromDate?: string; toDate?: string }) =>
     api.post<{ message: string; count: number }>(`/shifts/${id}/assign`, body).then((r) => r.data),
 };
