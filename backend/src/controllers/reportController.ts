@@ -17,12 +17,21 @@ function shiftHours(startTime: string, endTime: string) {
   return diff / 60;
 }
 
+// Inclusive [start, end] range from YYYY-MM-DD query params. Shift dates are
+// stored at local noon and clock records carry a real time-of-day, so the end
+// bound must span the WHOLE final day — using the bare date (midnight) drops
+// everything after 00:00 on the last day, silently losing that day's data.
+function dayRange(startDate: unknown, endDate: unknown) {
+  const s = String(startDate).slice(0, 10);
+  const e = String(endDate).slice(0, 10);
+  return { start: new Date(`${s}T00:00:00.000`), end: new Date(`${e}T23:59:59.999`) };
+}
+
 export async function hoursReport(req: AuthRequest, res: Response) {
   const { startDate, endDate, userId } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
-  const start = new Date(startDate as string);
-  const end = new Date(endDate as string);
+  const { start, end } = dayRange(startDate, endDate);
 
   const clockWhere: Record<string, unknown> = {
     clockIn: { gte: start, lte: end },
@@ -64,8 +73,7 @@ export async function overtimeReport(req: AuthRequest, res: Response) {
   const { startDate, endDate } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
-  const start = new Date(startDate as string);
-  const end = new Date(endDate as string);
+  const { start, end } = dayRange(startDate, endDate);
   const { overtimeThreshold } = await loadOrgSettings();
   const threshold = overtimeThreshold && overtimeThreshold > 0 ? overtimeThreshold : 40;
 
@@ -108,8 +116,7 @@ export async function coverageReport(req: AuthRequest, res: Response) {
   const { startDate, endDate } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
-  const start = new Date(startDate as string);
-  const end = new Date(endDate as string);
+  const { start, end } = dayRange(startDate, endDate);
 
   const shiftWhere: Record<string, unknown> = {
     date: { gte: start, lte: end },
@@ -148,8 +155,7 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
   const byClient = groupBy === 'client';
 
-  const start = new Date(startDate as string);
-  const end = new Date(endDate as string);
+  const { start, end } = dayRange(startDate, endDate);
 
   const where: Record<string, unknown> = { date: { gte: start, lte: end }, status: { not: 'CANCELLED' } };
   if (siteId) where.serviceUser = { siteId: siteId as string };
@@ -252,8 +258,7 @@ export async function cribSheetReport(req: AuthRequest, res: Response) {
   const { startDate, endDate } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
-  const start = new Date(startDate as string);
-  const end = new Date(endDate as string);
+  const { start, end } = dayRange(startDate, endDate);
 
   const shifts = await prisma.shift.findMany({
     where: { date: { gte: start, lte: end }, status: { not: 'CANCELLED' }, ...relatedServiceUserScopeWhere(req.user) },
