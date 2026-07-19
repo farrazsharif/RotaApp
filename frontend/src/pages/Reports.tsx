@@ -446,7 +446,7 @@ export default function Reports() {
             <div className={`card p-0 overflow-x-auto ${showRequired ? 'max-w-2xl' : 'max-w-md'}`}>
               {showRequired && (
                 <p className="text-xs text-gray-500 px-4 pt-3">
-                  "Required" = each patient's contracted weekly hours × {rangeWeeks % 1 === 0 ? rangeWeeks : rangeWeeks.toFixed(2)} week{rangeWeeks === 1 ? '' : 's'} in this range. A red difference means the rota is short of the care package.
+                  "Required" = each patient's contracted weekly hours × {rangeWeeks % 1 === 0 ? rangeWeeks : rangeWeeks.toFixed(2)} week{rangeWeeks === 1 ? '' : 's'} in this range. "Scheduled" is contact hours — a double-up visit counts once per carer, so it lines up with council-commissioned hours. A red difference means the rota is short of the care package.
                 </p>
               )}
               <table className="w-full text-sm">

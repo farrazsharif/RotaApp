@@ -199,13 +199,18 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
     const dow = (new Date(s.date).getDay() + 6) % 7; // 0 = Monday … 6 = Sunday
 
     if (byClient) {
-      // One row per patient — the visit's scheduled duration, counted once even
-      // for a double-up (the client still receives that one block of care).
+      // One row per patient, measured in CONTACT (carer) hours so it lines up
+      // with council-commissioned hours: a double-up visit counts once per carer
+      // on the call (two carers on a 1h visit = 2 contact hours). An unassigned
+      // visit still counts once so it isn't invisible. This matches how the
+      // By-carer view and councils both count double-ups.
       const id = s.serviceUserId ?? 'no-client';
       const name = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No client';
+      const carerCount = (s.user ? 1 : 0) + s.coverCarers.length;
+      const contactHours = hours * Math.max(1, carerCount);
       const row = ensure(id, name, 0);
-      row.days[dow] += hours;
-      row.total += hours;
+      row.days[dow] += contactHours;
+      row.total += contactHours;
       row.visits += 1;
       continue;
     }
