@@ -24,6 +24,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "CallLog" ADD COLUMN IF NOT EXISTS "signedBy" TEXT`);
   // Date the person started receiving care (nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "serviceStartDate" TIMESTAMP(3)`);
+  // Council-agreed hours of care per week (care package) — for the required-vs-scheduled report.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "contractedWeeklyHours" DOUBLE PRECISION`);
   // Site display order on the schedule (lower = first). "order" is a reserved
   // word so it must stay double-quoted.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Site" ADD COLUMN IF NOT EXISTS "order" INTEGER NOT NULL DEFAULT 0`);

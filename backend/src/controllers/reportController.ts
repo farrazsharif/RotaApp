@@ -169,12 +169,30 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
     orderBy: { date: 'asc' },
   });
 
-  type Row = { userId: string; name: string; hourlyRate: number; days: number[]; total: number; visits: number };
+  type Row = { userId: string; name: string; hourlyRate: number; days: number[]; total: number; visits: number; contracted: number | null };
   const rows: Record<string, Row> = {};
   const ensure = (id: string, name: string, hourlyRate: number): Row => {
-    if (!rows[id]) rows[id] = { userId: id, name, hourlyRate, days: [0, 0, 0, 0, 0, 0, 0], total: 0, visits: 0 };
+    if (!rows[id]) rows[id] = { userId: id, name, hourlyRate, days: [0, 0, 0, 0, 0, 0, 0], total: 0, visits: 0, contracted: null };
     return rows[id];
   };
+
+  // In By-patient mode, seed a row for every in-scope active patient (even those
+  // with no scheduled shifts in the range) and attach their contracted weekly
+  // hours, so under-provision — a package with hours but nothing on the rota —
+  // is visible rather than silently absent.
+  if (byClient) {
+    const suWhere: Record<string, unknown> = { active: true };
+    if (siteId) suWhere.siteId = siteId as string;
+    if (suScope.serviceUser && typeof suScope.serviceUser === 'object') Object.assign(suWhere, suScope.serviceUser);
+    const patients = await prisma.serviceUser.findMany({
+      where: suWhere,
+      select: { id: true, firstName: true, lastName: true, contractedWeeklyHours: true },
+    });
+    for (const p of patients) {
+      const row = ensure(p.id, `${p.firstName} ${p.lastName}`, 0);
+      row.contracted = p.contractedWeeklyHours ?? null;
+    }
+  }
 
   for (const s of shifts) {
     const hours = shiftHours(s.startTime, s.endTime);
@@ -210,6 +228,9 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
   }
 
   const result = Object.values(rows)
+    // In By-patient mode, drop patients that are pure noise (no scheduled hours
+    // and no contracted figure); keep anyone with either so under-provision shows.
+    .filter((r) => !byClient || r.total > 0 || r.contracted != null)
     .map((r) => ({
       ...r,
       days: r.days.map((h) => Math.round(h * 100) / 100),

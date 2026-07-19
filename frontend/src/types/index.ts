@@ -442,6 +442,7 @@ export interface ServiceUser {
   needsMobility: boolean;
   needsPersonalCare: boolean;
   careNotes?: string;
+  contractedWeeklyHours?: number | null;
   visitDuration: number;
   visits?: string; // JSON array of { type, duration }
   supportCategories?: string; // JSON array of CQC PIR category labels

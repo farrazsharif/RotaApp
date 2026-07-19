@@ -83,6 +83,10 @@ function buildData(body: Record<string, unknown>) {
   if (body.needsMobility !== undefined) data.needsMobility = !!body.needsMobility;
   if (body.needsPersonalCare !== undefined) data.needsPersonalCare = !!body.needsPersonalCare;
   if (body.visitDuration !== undefined) data.visitDuration = Number(body.visitDuration) || 30;
+  if (body.contractedWeeklyHours !== undefined) {
+    const n = Number(body.contractedWeeklyHours);
+    data.contractedWeeklyHours = body.contractedWeeklyHours === '' || body.contractedWeeklyHours === null || isNaN(n) ? null : n;
+  }
   if (body.visits !== undefined) {
     const raw = typeof body.visits === 'string' ? body.visits : JSON.stringify(body.visits);
     try { JSON.parse(raw); data.visits = raw; } catch { /* ignore invalid */ }

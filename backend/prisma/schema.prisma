@@ -162,6 +162,7 @@ model ServiceUser {
   needsMobility            Boolean  @default(false)
   needsPersonalCare        Boolean  @default(false)
   careNotes                String?
+  contractedWeeklyHours    Float? // council-agreed hours of care per week (care package); null = not set
   visitDuration            Int      @default(30)
   visits                   String   @default("[]") // JSON array of { type, duration }
   supportCategories        String   @default("[]") // JSON array of Capacity Tracker category labels

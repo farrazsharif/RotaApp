@@ -12,6 +12,7 @@ export interface CoverageDay {
 }
 export interface ScheduledHoursRow {
   userId: string; name: string; hourlyRate: number; days: number[]; total: number; visits: number; estPay: number;
+  contracted?: number | null; // By-patient mode only: council-agreed weekly hours
 }
 export interface CribSheetRow {
   employee: string; position: string; serviceUser: string; date: string;

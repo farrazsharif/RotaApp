@@ -60,6 +60,7 @@ const emptyForm: FormState = {
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
   pharmacyName: '', pharmacyPhone: '', pharmacyAddress: '',
   needsMedication: false, needsMobility: false, needsPersonalCare: false, careNotes: '',
+  contractedWeeklyHours: null,
   visitDuration: 30, preferredCaregiverIds: [],
 };
 
@@ -107,7 +108,7 @@ export default function ServiceUserForm() {
       gpName: su.gpName || '', gpPractice: su.gpPractice || '', gpPhone: su.gpPhone || '', gpAddress: su.gpAddress || '',
       pharmacyName: su.pharmacyName || '', pharmacyPhone: su.pharmacyPhone || '', pharmacyAddress: su.pharmacyAddress || '',
       needsMedication: su.needsMedication, needsMobility: su.needsMobility, needsPersonalCare: su.needsPersonalCare,
-      careNotes: su.careNotes || '', visitDuration: su.visitDuration,
+      careNotes: su.careNotes || '', contractedWeeklyHours: su.contractedWeeklyHours ?? null, visitDuration: su.visitDuration,
       preferredCaregiverIds: su.preferredCaregivers.map((c) => c.id),
     });
     setVisits(parseVisits(su.visits));
@@ -399,7 +400,20 @@ export default function ServiceUserForm() {
             Personal Care
           </label>
         </div>
-        <div>
+        <div className="mt-3">
+          <label className="label">Contracted weekly hours</label>
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            value={form.contractedWeeklyHours ?? ''}
+            onChange={(e) => setForm({ ...form, contractedWeeklyHours: e.target.value === '' ? null : Number(e.target.value) })}
+            className="input max-w-[10rem]"
+            placeholder="e.g. 10.5"
+          />
+          <p className="text-xs text-gray-500 mt-1">Council-agreed hours of care per week (care package). Used in Reports → Hours Scheduled → By patient to compare required vs. scheduled.</p>
+        </div>
+        <div className="mt-3">
           <label className="label">Care Notes</label>
           <textarea value={form.careNotes} onChange={(e) => setForm({ ...form, careNotes: e.target.value })} rows={2} className="input resize-none" />
         </div>

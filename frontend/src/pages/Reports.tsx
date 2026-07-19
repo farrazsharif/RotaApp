@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { reportsApi, CribSheetRow, EcmRow } from '../api/reports';
+import { reportsApi, CribSheetRow, EcmRow, ScheduledHoursRow } from '../api/reports';
 import { sitesApi } from '../api/sites';
 import { usersApi } from '../api/users';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { SUPPORT_CATEGORIES, parseCategories } from '../lib/supportCategories';
 import {
   format, startOfMonth, endOfMonth, parseISO,
-  startOfWeek, endOfWeek, addWeeks, subWeeks, subMonths, addDays, subDays, differenceInYears,
+  startOfWeek, endOfWeek, addWeeks, subWeeks, subMonths, addDays, subDays, differenceInYears, differenceInCalendarDays,
 } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
@@ -182,10 +182,32 @@ export default function Reports() {
   const schedUnassignedTotal = schedUnassigned.reduce((s, r) => s + r.total, 0);
   const schedAllTotal = schedGrandTotal + schedUnassignedTotal;
 
+  // By-patient "required vs scheduled": scale each patient's weekly contracted
+  // hours to the selected range (7-day range ×1, 14-day ×2, etc.). Only shown
+  // once at least one patient has a contracted figure set.
+  const rangeWeeks = Math.max(differenceInCalendarDays(parseISO(endDate), parseISO(startDate)) + 1, 1) / 7;
+  const showRequired = schedGroupBy === 'client' && filteredScheduled.some((r) => r.contracted != null);
+  const requiredFor = (r: ScheduledHoursRow) => (r.contracted != null ? Math.round(r.contracted * rangeWeeks * 100) / 100 : null);
+  const schedRequiredTotal = showRequired ? schedAssigned.reduce((s, r) => s + (requiredFor(r) ?? 0), 0) : 0;
+
   function exportScheduledCsv() {
-    const lines = [[schedGroupBy === 'client' ? 'Patient' : 'Carer', 'Hours'].join(',')];
-    for (const row of schedAssigned) lines.push([row.name, row.total].join(','));
-    lines.push(['Total', (Math.round(schedGrandTotal * 100) / 100).toFixed(2)].join(','));
+    const header = showRequired
+      ? ['Patient', 'Scheduled', 'Required', 'Difference']
+      : [schedGroupBy === 'client' ? 'Patient' : 'Carer', 'Hours'];
+    const lines = [header.join(',')];
+    for (const row of schedAssigned) {
+      if (showRequired) {
+        const req = requiredFor(row);
+        lines.push([row.name, row.total, req ?? '', req != null ? (Math.round((row.total - req) * 100) / 100) : ''].join(','));
+      } else {
+        lines.push([row.name, row.total].join(','));
+      }
+    }
+    if (showRequired) {
+      lines.push(['Total', (Math.round(schedGrandTotal * 100) / 100).toFixed(2), (Math.round(schedRequiredTotal * 100) / 100).toFixed(2), (Math.round((schedGrandTotal - schedRequiredTotal) * 100) / 100).toFixed(2)].join(','));
+    } else {
+      lines.push(['Total', (Math.round(schedGrandTotal * 100) / 100).toFixed(2)].join(','));
+    }
     for (const row of schedUnassigned) lines.push([row.name, row.total].join(','));
     if (schedUnassigned.length > 0) lines.push(['Total (assigned + unassigned)', (Math.round(schedAllTotal * 100) / 100).toFixed(2)].join(','));
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -421,35 +443,58 @@ export default function Reports() {
           {filteredScheduled.length === 0 ? (
             <div className="card text-center py-12 text-gray-400">{term ? 'No matches' : 'No scheduled shifts in this period'}</div>
           ) : (
-            <div className="card p-0 overflow-x-auto max-w-md">
+            <div className={`card p-0 overflow-x-auto ${showRequired ? 'max-w-2xl' : 'max-w-md'}`}>
+              {showRequired && (
+                <p className="text-xs text-gray-500 px-4 pt-3">
+                  "Required" = each patient's contracted weekly hours × {rangeWeeks % 1 === 0 ? rangeWeeks : rangeWeeks.toFixed(2)} week{rangeWeeks === 1 ? '' : 's'} in this range. A red difference means the rota is short of the care package.
+                </p>
+              )}
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium text-gray-600 w-2/3">{schedGroupBy === 'client' ? 'Patient' : 'Carer'}</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Hours</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Scheduled</th>
+                    {showRequired && <th className="text-left px-4 py-3 font-medium text-gray-600">Required</th>}
+                    {showRequired && <th className="text-left px-4 py-3 font-medium text-gray-600">+/-</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {schedAssigned.map((row) => (
-                    <tr key={row.userId} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium">{row.name}</td>
-                      <td className="px-4 py-3 font-semibold text-blue-600">{row.total.toFixed(2)}</td>
-                    </tr>
-                  ))}
+                  {schedAssigned.map((row) => {
+                    const req = showRequired ? requiredFor(row) : null;
+                    const diff = req != null ? Math.round((row.total - req) * 100) / 100 : null;
+                    const diffCls = diff == null ? '' : diff < -0.05 ? 'text-red-600' : diff > 0.05 ? 'text-amber-600' : 'text-green-600';
+                    return (
+                      <tr key={row.userId} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium">{row.name}</td>
+                        <td className="px-4 py-3 font-semibold text-blue-600">{row.total.toFixed(2)}</td>
+                        {showRequired && <td className="px-4 py-3 text-gray-700">{req != null ? req.toFixed(2) : '—'}</td>}
+                        {showRequired && <td className={`px-4 py-3 font-semibold ${diffCls}`}>{diff == null ? '—' : `${diff > 0 ? '+' : ''}${diff.toFixed(2)}`}</td>}
+                      </tr>
+                    );
+                  })}
                   <tr className="bg-gray-50 font-bold">
                     <td className="px-4 py-3">Total: ({schedAssigned.length})</td>
                     <td className="px-4 py-3 text-blue-700">{(Math.round(schedGrandTotal * 100) / 100).toFixed(2)}</td>
+                    {showRequired && <td className="px-4 py-3 text-gray-700">{(Math.round(schedRequiredTotal * 100) / 100).toFixed(2)}</td>}
+                    {showRequired && (() => {
+                      const d = Math.round((schedGrandTotal - schedRequiredTotal) * 100) / 100;
+                      return <td className={`px-4 py-3 ${d < -0.05 ? 'text-red-700' : d > 0.05 ? 'text-amber-700' : 'text-green-700'}`}>{d > 0 ? '+' : ''}{d.toFixed(2)}</td>;
+                    })()}
                   </tr>
                   {schedUnassigned.map((row) => (
                     <tr key={row.userId} className="bg-red-50">
                       <td className="px-4 py-3 font-medium text-red-700">{row.name}</td>
                       <td className="px-4 py-3 font-semibold text-red-600">{row.total.toFixed(2)}</td>
+                      {showRequired && <td className="px-4 py-3" />}
+                      {showRequired && <td className="px-4 py-3" />}
                     </tr>
                   ))}
                   {schedUnassigned.length > 0 && (
                     <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                       <td className="px-4 py-3">Total (assigned + unassigned)</td>
                       <td className="px-4 py-3 text-gray-900">{(Math.round(schedAllTotal * 100) / 100).toFixed(2)}</td>
+                      {showRequired && <td className="px-4 py-3" />}
+                      {showRequired && <td className="px-4 py-3" />}
                     </tr>
                   )}
                 </tbody>

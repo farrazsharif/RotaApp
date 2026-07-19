@@ -332,6 +332,7 @@ export default function ServiceUserDetail() {
             {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
             {!su.needsMedication && !su.needsMobility && !su.needsPersonalCare && <span className="text-sm text-gray-400">None recorded</span>}
           </div>
+          <Field label="Contracted weekly hours" value={su.contractedWeeklyHours != null ? `${su.contractedWeeklyHours} h/week` : undefined} />
           <Field label="Care Notes" value={su.careNotes} />
         </Section>
 
