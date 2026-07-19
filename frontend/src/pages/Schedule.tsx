@@ -149,9 +149,10 @@ export default function Schedule() {
     placeholderData: (prev) => prev,
     // Live-sync backstop: the socket push can be dropped in production (Vercel
     // doesn't reliably proxy the WebSocket to Render), which left another
-    // manager's changes invisible until a manual refresh. Poll every 20s while
-    // the tab is focused so the schedule stays current without a refresh.
-    refetchInterval: 20_000,
+    // manager's changes invisible until a manual refresh. Poll every 60s while
+    // the tab is focused so the schedule stays current without a refresh (kept
+    // modest to limit egress; refetchOnWindowFocus catches changes on return).
+    refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });
   const { data: users = [] } = useQuery({

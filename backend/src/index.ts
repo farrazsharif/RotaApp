@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import compression from 'compression';
 import { initSocket } from './lib/socket';
 import { errorHandler } from './middleware/errorHandler';
 import { broadcastChanges } from './middleware/broadcast';
@@ -85,6 +86,10 @@ app.use(cors({
   },
   credentials: true,
 }));
+
+// Gzip every response. API payloads are JSON (the schedule especially), which
+// compresses ~75-85% — a big cut in egress bandwidth for a small CPU cost.
+app.use(compression());
 
 // Stripe webhook must receive the RAW body for signature verification, so it is
 // mounted before the JSON body parser.
