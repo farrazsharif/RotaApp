@@ -31,6 +31,7 @@ import Settings from './pages/Settings';
 import Billing from './pages/Billing';
 import ServicePlanTemplate from './pages/ServicePlanTemplate';
 import Platform from './pages/Platform';
+import BusyOverlay from './components/BusyOverlay';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -123,6 +124,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <AppRoutes />
+        <BusyOverlay />
       </AuthProvider>
     </BrowserRouter>
   );
