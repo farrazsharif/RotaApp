@@ -87,6 +87,11 @@ export default function StaffDetail() {
   };
   const deactivateMut = useMutation({ mutationFn: () => usersApi.delete(id), onSuccess: invalidate });
   const reactivateMut = useMutation({ mutationFn: () => usersApi.reactivate(id), onSuccess: invalidate });
+  const [inviteResent, setInviteResent] = useState(false);
+  const resendMut = useMutation({
+    mutationFn: () => usersApi.resendInvite(id),
+    onSuccess: () => { setInviteResent(true); setTimeout(() => setInviteResent(false), 4000); },
+  });
   const deleteMut = useMutation({
     mutationFn: () => usersApi.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); navigate('/users'); },
@@ -146,6 +151,13 @@ export default function StaffDetail() {
                     <option value="inactive">⚪ Deactivated</option>
                     {statusValue === 'pending' && <option value="pending" disabled>⏳ Pending setup</option>}
                   </select>
+                )}
+                {can('manage_staff') && user.pendingSetup && (
+                  inviteResent
+                    ? <span className="text-sm text-green-700 font-medium">Invite sent ✓</span>
+                    : <button className="btn-secondary btn" disabled={resendMut.isPending} onClick={() => resendMut.mutate()}>
+                        {resendMut.isPending ? 'Sending…' : 'Resend invite'}
+                      </button>
                 )}
                 <button className="btn-primary btn" onClick={() => setEditOpen(true)}>Edit Details</button>
               </div>

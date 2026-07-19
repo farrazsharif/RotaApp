@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { usePermissions } from '../hooks/usePermissions';
 import { User, Role, roleLabel } from '../types';
@@ -25,16 +25,10 @@ export default function Users() {
   const { can } = usePermissions();
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
-  const [resentId, setResentId] = useState<string | null>(null);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users', 'all'],
     queryFn: () => usersApi.list(),
-  });
-
-  const resendMut = useMutation({
-    mutationFn: (id: string) => usersApi.resendInvite(id),
-    onSuccess: (_r, id) => { setResentId(id); setTimeout(() => setResentId((c) => (c === id ? null : c)), 4000); },
   });
 
   const filtered = users.filter((u) =>
@@ -109,16 +103,7 @@ export default function Users() {
                   {(() => { const s = statusInfo(u); return <span className={s.cls}>{s.label}</span>; })()}
                 </td>
                 <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex gap-2 justify-end items-center">
-                    <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate(`/users/${u.id}`)}>View →</button>
-                    {can('manage_staff') && u.pendingSetup && (
-                      resentId === u.id
-                        ? <span className="text-xs text-green-700">Invite sent ✓</span>
-                        : <button className="btn-secondary btn btn-sm" disabled={resendMut.isPending} onClick={() => resendMut.mutate(u.id)}>
-                            {resendMut.isPending ? 'Sending…' : 'Resend invite'}
-                          </button>
-                    )}
-                  </div>
+                  <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate(`/users/${u.id}`)}>View →</button>
                 </td>
               </tr>
             ))}
