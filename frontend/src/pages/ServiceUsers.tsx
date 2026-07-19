@@ -207,7 +207,7 @@ export default function ServiceUsers() {
           )}
         </div>
       ) : view === 'list' ? (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-x-auto">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">

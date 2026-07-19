@@ -313,7 +313,7 @@ export default function Reports() {
             <div className="text-sm font-semibold text-gray-700">Active service users: {activeServiceUsers.length}</div>
             <button onClick={copyCapacity} className="btn-secondary btn">Copy</button>
           </div>
-          <div className="card p-0 overflow-hidden max-w-xl">
+          <div className="card p-0 overflow-x-auto max-w-xl">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
@@ -335,7 +335,7 @@ export default function Reports() {
 
           <div className="pt-2">
             <div className="text-sm font-semibold text-gray-700 mb-2">Age brackets</div>
-            <div className="card p-0 overflow-hidden max-w-xl">
+            <div className="card p-0 overflow-x-auto max-w-xl">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
@@ -370,7 +370,7 @@ export default function Reports() {
           {filteredHours.length === 0 ? (
             <div className="card text-center py-12 text-gray-400">{term ? 'No matching employees' : 'No data for this period'}</div>
           ) : (
-            <div className="card p-0 overflow-hidden">
+            <div className="card p-0 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
@@ -421,7 +421,7 @@ export default function Reports() {
           {filteredScheduled.length === 0 ? (
             <div className="card text-center py-12 text-gray-400">{term ? 'No matches' : 'No scheduled shifts in this period'}</div>
           ) : (
-            <div className="card p-0 overflow-hidden max-w-md">
+            <div className="card p-0 overflow-x-auto max-w-md">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
@@ -513,7 +513,7 @@ export default function Reports() {
           {filteredOvertime.length === 0 ? (
             <div className="card text-center py-12 text-gray-400">{term ? 'No matching employees' : 'No overtime recorded in this period'}</div>
           ) : (
-            <div className="card p-0 overflow-hidden">
+            <div className="card p-0 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>

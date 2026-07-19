@@ -29,7 +29,7 @@ export default function LateCheckins() {
           <p className="text-gray-600 font-medium">No late or missed check-ins right now.</p>
         </div>
       ) : (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>

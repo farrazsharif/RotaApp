@@ -117,7 +117,7 @@ function SpotChecks() {
       {rows.length === 0 ? (
         <div className="card text-center py-12 text-gray-400"><p>No active carers to spot-check.</p></div>
       ) : (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>

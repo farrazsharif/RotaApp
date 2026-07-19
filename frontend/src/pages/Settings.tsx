@@ -99,7 +99,7 @@ function AuditLogTab() {
   const { data: logs = [], isLoading } = useQuery({ queryKey: ['audit'], queryFn: auditApi.list });
 
   return (
-    <div className="card p-0 overflow-hidden">
+    <div className="card p-0 overflow-x-auto">
       <div className="p-4 border-b">
         <h2 className="font-semibold text-gray-900">Audit Log</h2>
         <p className="text-sm text-gray-500">Recent sensitive changes — who did what and when.</p>

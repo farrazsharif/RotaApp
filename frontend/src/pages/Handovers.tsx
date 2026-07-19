@@ -53,7 +53,7 @@ export default function Handovers() {
       {handovers.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">No handovers in the last 14 days</div>
       ) : (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>

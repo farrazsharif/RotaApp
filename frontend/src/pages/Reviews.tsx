@@ -123,7 +123,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
           {isManager && !term && <p className="text-sm mt-1">Select a service user above and click "New Review" to get started.</p>}
         </div>
       ) : (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>

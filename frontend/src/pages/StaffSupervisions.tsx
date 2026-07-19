@@ -86,7 +86,7 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
           {isManager && !term && <p className="text-sm mt-1">Select a staff member above and click "New Supervision" to get started.</p>}
         </div>
       ) : (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>

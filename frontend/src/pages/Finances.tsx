@@ -128,7 +128,7 @@ function FundingManager() {
   arrangements.forEach((a) => { const l = bySu.get(a.serviceUserId) || []; l.push(a); bySu.set(a.serviceUserId, l); });
 
   return (
-    <div className="card p-0 overflow-hidden">
+    <div className="card p-0 overflow-x-auto">
       <div className="p-4 border-b">
         <h2 className="font-semibold text-gray-900">Service User Funding</h2>
         <p className="text-sm text-gray-500">Assign one or more funders and hourly charge rates to each service user. Add several funders to split a package.</p>
@@ -536,7 +536,7 @@ function InvoicesManager() {
         )}
       </div>
 
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <div className="p-4 border-b"><h2 className="font-semibold text-gray-900">Invoices</h2></div>
         {isLoading ? (
           <div className="p-6 text-sm text-gray-400">Loading…</div>
@@ -624,7 +624,7 @@ function AgedDebtManager() {
         </div>
       </div>
 
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         <div className="p-4 border-b"><h2 className="font-semibold text-gray-900">Outstanding invoices</h2></div>
         {isLoading ? (
           <div className="p-6 text-sm text-gray-400">Loading…</div>
