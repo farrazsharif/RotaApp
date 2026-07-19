@@ -176,12 +176,15 @@ export default function Reports() {
   const schedAssigned = filteredScheduled.filter((r) => r.userId !== 'unassigned');
   const schedUnassigned = filteredScheduled.filter((r) => r.userId === 'unassigned');
   const schedGrandTotal = schedAssigned.reduce((s, r) => s + r.total, 0);
+  const schedUnassignedTotal = schedUnassigned.reduce((s, r) => s + r.total, 0);
+  const schedAllTotal = schedGrandTotal + schedUnassignedTotal;
 
   function exportScheduledCsv() {
     const lines = [['Carer', 'Hours'].join(',')];
     for (const row of schedAssigned) lines.push([row.name, row.total].join(','));
     lines.push(['Total', (Math.round(schedGrandTotal * 100) / 100).toFixed(2)].join(','));
     for (const row of schedUnassigned) lines.push([row.name, row.total].join(','));
+    if (schedUnassigned.length > 0) lines.push(['Total (assigned + unassigned)', (Math.round(schedAllTotal * 100) / 100).toFixed(2)].join(','));
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -434,6 +437,12 @@ export default function Reports() {
                       <td className="px-4 py-3 text-right font-semibold text-red-600">{row.total.toFixed(2)}</td>
                     </tr>
                   ))}
+                  {schedUnassigned.length > 0 && (
+                    <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                      <td className="px-4 py-3">Total (assigned + unassigned)</td>
+                      <td className="px-4 py-3 text-right text-gray-900">{(Math.round(schedAllTotal * 100) / 100).toFixed(2)}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
