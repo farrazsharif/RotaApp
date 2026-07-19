@@ -144,8 +144,9 @@ export async function coverageReport(req: AuthRequest, res: Response) {
 
 // Hours Scheduled Crib Sheet — per-carer rostered hours by weekday (Mon–Sun) for the period.
 export async function scheduledHoursReport(req: AuthRequest, res: Response) {
-  const { startDate, endDate, siteId, role, userId } = req.query;
+  const { startDate, endDate, siteId, role, userId, groupBy } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
+  const byClient = groupBy === 'client';
 
   const start = new Date(startDate as string);
   const end = new Date(endDate as string);
@@ -163,6 +164,7 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
     include: {
       user: { select: { id: true, firstName: true, lastName: true, hourlyRate: true } },
       coverCarers: { select: { id: true, firstName: true, lastName: true, hourlyRate: true } },
+      serviceUser: { select: { id: true, firstName: true, lastName: true } },
     },
     orderBy: { date: 'asc' },
   });
@@ -177,6 +179,19 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
   for (const s of shifts) {
     const hours = shiftHours(s.startTime, s.endTime);
     const dow = (new Date(s.date).getDay() + 6) % 7; // 0 = Monday … 6 = Sunday
+
+    if (byClient) {
+      // One row per patient — the visit's scheduled duration, counted once even
+      // for a double-up (the client still receives that one block of care).
+      const id = s.serviceUserId ?? 'no-client';
+      const name = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No client';
+      const row = ensure(id, name, 0);
+      row.days[dow] += hours;
+      row.total += hours;
+      row.visits += 1;
+      continue;
+    }
+
     let carers = [
       ...(s.user ? [{ id: s.user.id, name: `${s.user.firstName} ${s.user.lastName}`, rate: s.user.hourlyRate }] : []),
       ...s.coverCarers.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, rate: c.hourlyRate })),

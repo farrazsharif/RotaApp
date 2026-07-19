@@ -49,6 +49,8 @@ export default function Reports() {
   // time, and a view filter narrows to just missed/recorded/short.
   const [ecmView, setEcmView] = useState('missed');
   const [ecmRun, setEcmRun] = useState(false);
+  // Hours Scheduled can group by carer (default) or by patient/client.
+  const [schedGroupBy, setSchedGroupBy] = useState<'carer' | 'client'>('carer');
 
   function applyTimeline(preset: string) {
     setTimeline(preset as TimelinePreset);
@@ -81,12 +83,13 @@ export default function Reports() {
   });
 
   const { data: scheduledData = [], isLoading: loadingScheduled } = useQuery({
-    queryKey: ['report-scheduled-hours', startDate, endDate, siteFilter, roleFilter, employeeFilter],
+    queryKey: ['report-scheduled-hours', startDate, endDate, siteFilter, roleFilter, employeeFilter, schedGroupBy],
     queryFn: () => reportsApi.scheduledHours({
       startDate, endDate,
       siteId: siteFilter || undefined,
       role: roleFilter || undefined,
       userId: employeeFilter || undefined,
+      groupBy: schedGroupBy,
     }),
     enabled: tab === 'scheduled',
   });
@@ -180,7 +183,7 @@ export default function Reports() {
   const schedAllTotal = schedGrandTotal + schedUnassignedTotal;
 
   function exportScheduledCsv() {
-    const lines = [['Carer', 'Hours'].join(',')];
+    const lines = [[schedGroupBy === 'client' ? 'Patient' : 'Carer', 'Hours'].join(',')];
     for (const row of schedAssigned) lines.push([row.name, row.total].join(','));
     lines.push(['Total', (Math.round(schedGrandTotal * 100) / 100).toFixed(2)].join(','));
     for (const row of schedUnassigned) lines.push([row.name, row.total].join(','));
@@ -405,18 +408,24 @@ export default function Reports() {
           <div className="text-sm font-semibold text-gray-700">
             Hours Scheduled Between: {format(parseISO(startDate), 'dd-MM-yyyy')} - {format(parseISO(endDate), 'dd-MM-yyyy')}
           </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => window.print()} className="btn-secondary btn">Print</button>
-            <button onClick={exportScheduledCsv} className="btn-secondary btn">Export</button>
+          <div className="flex flex-wrap justify-between items-center gap-2">
+            <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+              <button onClick={() => setSchedGroupBy('carer')} className={`px-3 py-1.5 ${schedGroupBy === 'carer' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>By carer</button>
+              <button onClick={() => setSchedGroupBy('client')} className={`px-3 py-1.5 border-l border-gray-200 ${schedGroupBy === 'client' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>By patient</button>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => window.print()} className="btn-secondary btn">Print</button>
+              <button onClick={exportScheduledCsv} className="btn-secondary btn">Export</button>
+            </div>
           </div>
           {filteredScheduled.length === 0 ? (
-            <div className="card text-center py-12 text-gray-400">{term ? 'No matching employees' : 'No scheduled shifts in this period'}</div>
+            <div className="card text-center py-12 text-gray-400">{term ? 'No matches' : 'No scheduled shifts in this period'}</div>
           ) : (
             <div className="card p-0 overflow-hidden max-w-md">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600 w-2/3">Carer</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 w-2/3">{schedGroupBy === 'client' ? 'Patient' : 'Carer'}</th>
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Hours</th>
                   </tr>
                 </thead>
