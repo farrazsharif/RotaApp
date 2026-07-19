@@ -223,7 +223,10 @@ async function resolveVisitShiftIds(
 }
 
 export async function updateShift(req: AuthRequest, res: Response) {
-  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId, runId } = req.body;
+  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId, runId,
+    assignScope, assignDays, assignFrom, assignTo } = req.body;
+  // Whether this edit should also apply to future occurrences of the same visit.
+  const propagate = assignScope === 'days' || assignScope === 'future' || assignScope === 'range';
 
   if (isScoped(req.user)) {
     const cur = await prisma.shift.findUnique({ where: { id: req.params.id }, select: { serviceUserId: true } });
@@ -237,9 +240,21 @@ export async function updateShift(req: AuthRequest, res: Response) {
   // which of them got taken off (this endpoint sets the full assignment
   // each save, so a removal is just "was there before, isn't there now").
   const touchesAssignment = userId !== undefined || Array.isArray(coverCarerIds);
-  const before = touchesAssignment
+  // The shift's current state — for removal notifications and, crucially, to
+  // match sibling visits by their ORIGINAL identity before this edit changes the
+  // time/name (matching after the update would find nothing).
+  const original = (touchesAssignment || propagate)
     ? await prisma.shift.findUnique({ where: { id: req.params.id }, include: { coverCarers: { select: { id: true } } } })
     : null;
+  const before = touchesAssignment ? original : null;
+
+  // Resolve future siblings (same visit) BEFORE the update, so a time/name/etc.
+  // change can apply across "certain weekdays" / "all future", not just this call.
+  let siblingIds: string[] = [];
+  if (propagate && original) {
+    const ids = await resolveVisitShiftIds(original, assignScope, Array.isArray(assignDays) ? assignDays.map(Number) : [], assignFrom, assignTo);
+    siblingIds = ids.filter((id) => id !== req.params.id);
+  }
 
   const data: Record<string, unknown> = {};
   if (date !== undefined) data.date = new Date(date);
@@ -258,6 +273,23 @@ export async function updateShift(req: AuthRequest, res: Response) {
   if (runId !== undefined) data.runId = runId || null;
 
   const shift = await prisma.shift.update({ where: { id: req.params.id }, data, include: shiftInclude });
+
+  // Apply the edited visit fields to the matched future siblings. The date stays
+  // per-occurrence, the patient/identity is fixed, and the carer is propagated
+  // separately by the assign step — so only the visit's own details roll forward.
+  if (siblingIds.length > 0) {
+    const sibData: Record<string, unknown> = {};
+    if (startTime !== undefined) sibData.startTime = startTime;
+    if (endTime !== undefined) sibData.endTime = endTime;
+    if (visitName !== undefined) sibData.visitName = visitName || null;
+    if (cover !== undefined) sibData.cover = Number(cover) || 1;
+    if (role !== undefined) sibData.role = role;
+    if (notes !== undefined) sibData.notes = notes;
+    if (runId !== undefined) sibData.runId = runId || null;
+    if (Object.keys(sibData).length > 0) {
+      await prisma.shift.updateMany({ where: { id: { in: siblingIds } }, data: sibData });
+    }
+  }
 
   if (shift.userId) {
     const notification = await prisma.notification.create({

@@ -291,7 +291,15 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
 
       // 1) Save the edit/assignment. Only this step rolls back on failure.
       try {
-        await shiftsApi.update(shift!.id, data);
+        // Pass the scope so the backend rolls the edited visit details (time,
+        // name, etc.) forward to future occurrences too — not just this call.
+        await shiftsApi.update(shift!.id, {
+          ...data,
+          assignScope,
+          assignDays: assignScope === 'days' ? assignDays : undefined,
+          assignFrom: assignScope === 'range' ? assignFrom || undefined : undefined,
+          assignTo: assignScope === 'range' ? assignTo || undefined : undefined,
+        });
         // Propagate the carer to the wider scope (weekdays / date range / all
         // future) via visit-identity matching on the backend.
         if (assignScope !== 'one') {
