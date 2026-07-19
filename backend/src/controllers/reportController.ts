@@ -293,7 +293,8 @@ function minsBetween(start: string, end: string): number {
 // Electronic Call Monitoring: one row per carer-visit with scheduled vs actual
 // (clocked) times, so the record submitted to the council reflects what actually
 // happened. Short/missed visits are flagged for a documented reason (ecmNote) —
-// the times themselves are never altered.
+// the times themselves are never altered. Supports an optional `view` filter
+// (missed/recorded/short/all) so large companies don't pull the whole list.
 export async function ecmReport(req: AuthRequest, res: Response) {
   const { startDate, endDate, siteId, userId, view } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
