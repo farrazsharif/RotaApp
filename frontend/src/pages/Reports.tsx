@@ -412,35 +412,35 @@ export default function Reports() {
           {filteredScheduled.length === 0 ? (
             <div className="card text-center py-12 text-gray-400">{term ? 'No matching employees' : 'No scheduled shifts in this period'}</div>
           ) : (
-            <div className="card p-0 overflow-hidden">
+            <div className="card p-0 overflow-hidden max-w-md">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
-                    <th className="text-right px-4 py-3 font-medium text-gray-600">Hours</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600 w-2/3">Carer</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Hours</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {schedAssigned.map((row) => (
                     <tr key={row.userId} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium">{row.name}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-blue-600">{row.total.toFixed(2)}</td>
+                      <td className="px-4 py-3 font-semibold text-blue-600">{row.total.toFixed(2)}</td>
                     </tr>
                   ))}
                   <tr className="bg-gray-50 font-bold">
                     <td className="px-4 py-3">Total: ({schedAssigned.length})</td>
-                    <td className="px-4 py-3 text-right text-blue-700">{(Math.round(schedGrandTotal * 100) / 100).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-blue-700">{(Math.round(schedGrandTotal * 100) / 100).toFixed(2)}</td>
                   </tr>
                   {schedUnassigned.map((row) => (
                     <tr key={row.userId} className="bg-red-50">
                       <td className="px-4 py-3 font-medium text-red-700">{row.name}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-red-600">{row.total.toFixed(2)}</td>
+                      <td className="px-4 py-3 font-semibold text-red-600">{row.total.toFixed(2)}</td>
                     </tr>
                   ))}
                   {schedUnassigned.length > 0 && (
                     <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                       <td className="px-4 py-3">Total (assigned + unassigned)</td>
-                      <td className="px-4 py-3 text-right text-gray-900">{(Math.round(schedAllTotal * 100) / 100).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-gray-900">{(Math.round(schedAllTotal * 100) / 100).toFixed(2)}</td>
                     </tr>
                   )}
                 </tbody>
