@@ -5,6 +5,7 @@ import { shiftsApi, CreateShiftData } from '../api/shifts';
 import { usersApi } from '../api/users';
 import { runsApi } from '../api/runs';
 import { CancelBillingFields, CancelBillingValue, emptyCancelBilling, toCancelBilling } from './CancelBillingFields';
+import UpdateSeriesModal from './UpdateSeriesModal';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
 import { Shift } from '../types';
@@ -100,6 +101,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const [cancelDays, setCancelDays] = useState<number[]>([]);
   const [cancelBilling, setCancelBilling] = useState<CancelBillingValue>(emptyCancelBilling);
   const [cancelMode, setCancelMode] = useState<'cancel' | 'delete'>('cancel');
+  const [seriesUpdateOpen, setSeriesUpdateOpen] = useState(false);
 
   const [assignScope, setAssignScope] = useState<'one' | 'future' | 'days' | 'range'>('one');
   const [assignDays, setAssignDays] = useState<number[]>([]);
@@ -824,6 +826,20 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 </div>
               )}
 
+              {shift.seriesId && (
+                <button
+                  type="button"
+                  onClick={() => setSeriesUpdateOpen(true)}
+                  className="w-full flex items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-left hover:bg-blue-100 transition-colors"
+                >
+                  <span className="text-sm">
+                    <span className="font-semibold text-blue-800">🔁 Update the whole recurring visit</span>
+                    <span className="block text-xs text-blue-700">Change the time (e.g. a council change), cover or details across future calls in one go.</span>
+                  </span>
+                  <span className="text-blue-600 text-lg shrink-0">→</span>
+                </button>
+              )}
+
               <div>
                 <label className="label">Service User (Patient) *</label>
                 <select {...register('serviceUserId', { required: true })} value={watch('serviceUserId') ?? ''} className="input">
@@ -1136,6 +1152,14 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
           </div>
         </form>
       </div>
+
+      {seriesUpdateOpen && shift && (
+        <UpdateSeriesModal
+          shift={shift}
+          onClose={() => setSeriesUpdateOpen(false)}
+          onDone={() => { setSeriesUpdateOpen(false); onClose(); }}
+        />
+      )}
     </div>
   );
 }
