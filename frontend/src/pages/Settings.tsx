@@ -93,6 +93,10 @@ const ACTION_LABEL: Record<string, string> = {
   ROLE_CREATED: 'Role created',
   ROLE_UPDATED: 'Role updated',
   ROLE_DELETED: 'Role deleted',
+  SERVICE_USER_CREATED: 'Service user added',
+  SERVICE_USER_UPDATED: 'Service user updated',
+  SERVICE_USER_DELETED: 'Service user deleted',
+  CLOCK_RECORD_EDITED: 'Clock time edited',
 };
 
 function AuditLogTab() {

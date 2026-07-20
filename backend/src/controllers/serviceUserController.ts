@@ -5,6 +5,29 @@ import { ServiceUserStatus } from '../constants';
 import { isScoped, serviceUserInScope } from '../lib/scope';
 import { emitToUser } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
+import { logAudit } from '../lib/audit';
+
+// Turn a camelCase field name into readable words for the audit details,
+// e.g. "emergencyContactPhone" → "emergency contact phone".
+const prettyField = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^\s/, '').toLowerCase();
+
+// The scalar fields that actually changed between the stored record and the
+// update payload, so the audit entry says what was edited (not every field the
+// form re-submitted). Relations and internally-derived fields are ignored.
+function changedFields(original: Record<string, unknown>, data: Record<string, unknown>): string[] {
+  const skip = new Set(['preferredCaregivers', 'statusUpdatedAt']);
+  const changed: string[] = [];
+  for (const key of Object.keys(data)) {
+    if (skip.has(key)) continue;
+    let a: unknown = original[key];
+    let b: unknown = data[key];
+    if (a instanceof Date) a = a.getTime();
+    if (b instanceof Date) b = b.getTime();
+    if (a === undefined) a = null;
+    if (a !== b) changed.push(key);
+  }
+  return changed;
+}
 
 const include = {
   preferredCaregivers: { select: { id: true, firstName: true, lastName: true } },
@@ -128,6 +151,7 @@ export async function createServiceUser(req: AuthRequest, res: Response) {
   }
 
   const user = await prisma.serviceUser.create({ data: data as never, include });
+  await logAudit(req, 'SERVICE_USER_CREATED', `${firstName} ${lastName}`, 'New service user added');
   res.status(201).json(user);
 }
 
@@ -217,7 +241,22 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
     }
   }
 
+  const original = await prisma.serviceUser.findUnique({ where: { id: req.params.id } });
   const user = await prisma.serviceUser.update({ where: { id: req.params.id }, data: data as never, include });
+
+  // Record what actually changed, so the audit log shows who edited which fields.
+  if (original) {
+    const changed = changedFields(original as unknown as Record<string, unknown>, data);
+    if (changed.length > 0) {
+      const statusChanged = changed.includes('status');
+      const others = changed.filter((k) => k !== 'status').map(prettyField);
+      const details = [
+        statusChanged ? `status → ${String(data.status)}` : null,
+        others.length ? `changed: ${others.join(', ')}` : null,
+      ].filter(Boolean).join('; ');
+      await logAudit(req, 'SERVICE_USER_UPDATED', `${original.firstName} ${original.lastName}`, details || 'updated');
+    }
+  }
   res.json(user);
 }
 
@@ -225,6 +264,8 @@ export async function deleteServiceUser(req: AuthRequest, res: Response) {
   if (!(await serviceUserInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'Service user not found' });
   }
+  const existing = await prisma.serviceUser.findUnique({ where: { id: req.params.id }, select: { firstName: true, lastName: true } });
   await prisma.serviceUser.delete({ where: { id: req.params.id } });
+  if (existing) await logAudit(req, 'SERVICE_USER_DELETED', `${existing.firstName} ${existing.lastName}`, 'Service user deleted');
   res.json({ message: 'Service user deleted' });
 }
