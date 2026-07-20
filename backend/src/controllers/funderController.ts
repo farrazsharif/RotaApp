@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { logAudit } from '../lib/audit';
 
 const FUNDER_TYPES = ['COUNCIL', 'PRIVATE', 'NHS_CHC'];
 
@@ -32,6 +33,7 @@ export async function createFunder(req: AuthRequest, res: Response) {
       notes: notes || null,
     },
   });
+  await logAudit(req, 'FUNDER_ADDED', funder.name);
   res.status(201).json(funder);
 }
 
@@ -53,6 +55,7 @@ export async function updateFunder(req: AuthRequest, res: Response) {
   if (notes !== undefined) data.notes = notes || null;
 
   const funder = await prisma.funder.update({ where: { id: req.params.id }, data });
+  await logAudit(req, 'FUNDER_UPDATED', funder.name);
   res.json(funder);
 }
 
@@ -63,6 +66,8 @@ export async function deleteFunder(req: AuthRequest, res: Response) {
       error: `This funder is still assigned to ${count} service user${count > 1 ? 's' : ''}. Remove those funding arrangements first.`,
     });
   }
+  const existing = await prisma.funder.findUnique({ where: { id: req.params.id }, select: { name: true } });
   await prisma.funder.delete({ where: { id: req.params.id } });
+  if (existing) await logAudit(req, 'FUNDER_DELETED', existing.name);
   res.json({ message: 'Funder deleted' });
 }

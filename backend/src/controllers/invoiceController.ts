@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { logAudit } from '../lib/audit';
 
 const VAT_RATE = 0.20;
 const money = (n: number) => Math.round(n * 100) / 100;
@@ -174,6 +175,7 @@ export async function generateInvoice(req: AuthRequest, res: Response) {
     },
     include: { funder: true, lines: { include: lineInclude, orderBy: { date: 'asc' } } },
   });
+  await logAudit(req, 'INVOICE_GENERATED', funder.name, `£${total.toFixed(2)} · ${periodStart} to ${periodEnd}`);
   res.status(201).json(invoice);
 }
 
@@ -210,16 +212,23 @@ export async function updateInvoice(req: AuthRequest, res: Response) {
     data,
     include: { funder: true, lines: { include: lineInclude, orderBy: { date: 'asc' } } },
   });
+  const label = updated.number || `${updated.funder.name} draft`;
+  if (status !== undefined && status !== invoice.status) {
+    await logAudit(req, 'INVOICE_STATUS_CHANGED', label, `${invoice.status} → ${status}`);
+  } else if (Object.keys(data).length > 0) {
+    await logAudit(req, 'INVOICE_UPDATED', label, `changed: ${Object.keys(data).join(', ')}`);
+  }
   res.json(updated);
 }
 
 export async function deleteInvoice(req: AuthRequest, res: Response) {
-  const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id } });
+  const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include: { funder: { select: { name: true } } } });
   if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
   if (invoice.status !== 'DRAFT' && invoice.status !== 'VOID') {
     return res.status(409).json({ error: 'Only draft or void invoices can be deleted. Void a sent invoice first.' });
   }
   // Cascade removes the lines, which frees their source visits for re-billing.
   await prisma.invoice.delete({ where: { id: req.params.id } });
+  await logAudit(req, 'INVOICE_DELETED', invoice.number || `${invoice.funder?.name ?? ''} draft`, `£${invoice.total.toFixed(2)}`);
   res.json({ message: 'Invoice deleted' });
 }

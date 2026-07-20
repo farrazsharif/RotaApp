@@ -97,6 +97,19 @@ const ACTION_LABEL: Record<string, string> = {
   SERVICE_USER_UPDATED: 'Service user updated',
   SERVICE_USER_DELETED: 'Service user deleted',
   CLOCK_RECORD_EDITED: 'Clock time edited',
+  MEDICATION_ADDED: 'Medication added',
+  MEDICATION_UPDATED: 'Medication updated',
+  MEDICATION_DISCONTINUED: 'Medication discontinued',
+  FUNDING_ADDED: 'Funding added',
+  FUNDING_UPDATED: 'Funding updated',
+  FUNDING_REMOVED: 'Funding removed',
+  FUNDER_ADDED: 'Funder added',
+  FUNDER_UPDATED: 'Funder updated',
+  FUNDER_DELETED: 'Funder deleted',
+  INVOICE_GENERATED: 'Invoice generated',
+  INVOICE_UPDATED: 'Invoice updated',
+  INVOICE_STATUS_CHANGED: 'Invoice status changed',
+  INVOICE_DELETED: 'Invoice deleted',
 };
 
 function AuditLogTab() {

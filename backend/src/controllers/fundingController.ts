@@ -2,6 +2,13 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
+import { logAudit } from '../lib/audit';
+
+async function patientName(serviceUserId: string | null | undefined): Promise<string> {
+  if (!serviceUserId) return 'a service user';
+  const su = await prisma.serviceUser.findUnique({ where: { id: serviceUserId }, select: { firstName: true, lastName: true } });
+  return su ? `${su.firstName} ${su.lastName}` : 'a service user';
+}
 
 // Funding arrangements link a service user to a funder + charge rate. Site
 // scoping is enforced by the route middleware (scopeServiceUserRef / by-id);
@@ -45,6 +52,7 @@ export async function createFunding(req: AuthRequest, res: Response) {
     },
     include: { funder: true },
   });
+  await logAudit(req, 'FUNDING_ADDED', await patientName(serviceUserId), `funder: ${arrangement.funder.name}`);
   res.status(201).json(arrangement);
 }
 
@@ -70,10 +78,16 @@ export async function updateFunding(req: AuthRequest, res: Response) {
     data,
     include: { funder: true },
   });
+  await logAudit(req, 'FUNDING_UPDATED', await patientName(arrangement.serviceUserId), `funder: ${arrangement.funder.name}`);
   res.json(arrangement);
 }
 
 export async function deleteFunding(req: AuthRequest, res: Response) {
+  const existing = await prisma.fundingArrangement.findUnique({
+    where: { id: req.params.id },
+    include: { funder: { select: { name: true } } },
+  });
   await prisma.fundingArrangement.delete({ where: { id: req.params.id } });
+  if (existing) await logAudit(req, 'FUNDING_REMOVED', await patientName(existing.serviceUserId), `funder: ${existing.funder?.name ?? '—'}`);
   res.json({ message: 'Funding arrangement removed' });
 }

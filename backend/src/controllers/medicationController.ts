@@ -3,6 +3,14 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { MedStatus } from '../constants';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
+import { logAudit } from '../lib/audit';
+
+// "for <patient name>" suffix for a medication audit entry, or undefined.
+async function forPatient(serviceUserId: string | null | undefined): Promise<string | undefined> {
+  if (!serviceUserId) return undefined;
+  const su = await prisma.serviceUser.findUnique({ where: { id: serviceUserId }, select: { firstName: true, lastName: true } });
+  return su ? `for ${su.firstName} ${su.lastName}` : undefined;
+}
 
 function parseTimes(input: unknown): string {
   if (Array.isArray(input)) return JSON.stringify(input.filter((t) => typeof t === 'string'));
@@ -52,6 +60,7 @@ export async function createMedication(req: AuthRequest, res: Response) {
       endDate: endDate ? new Date(endDate) : null,
     },
   });
+  await logAudit(req, 'MEDICATION_ADDED', name, await forPatient(serviceUserId));
   res.status(201).json(med);
 }
 
@@ -68,11 +77,14 @@ export async function updateMedication(req: AuthRequest, res: Response) {
   if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
   if (active !== undefined) data.active = !!active;
   const med = await prisma.medication.update({ where: { id: req.params.id }, data });
+  await logAudit(req, 'MEDICATION_UPDATED', med.name, await forPatient(med.serviceUserId));
   res.json(med);
 }
 
 export async function deleteMedication(req: AuthRequest, res: Response) {
+  const med = await prisma.medication.findUnique({ where: { id: req.params.id }, select: { name: true, serviceUserId: true } });
   await prisma.medication.update({ where: { id: req.params.id }, data: { active: false } });
+  if (med) await logAudit(req, 'MEDICATION_DISCONTINUED', med.name, await forPatient(med.serviceUserId));
   res.json({ message: 'Medication discontinued' });
 }
 
