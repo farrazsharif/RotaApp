@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
+import { logAudit } from '../lib/audit';
 
 // Editable text fields on the care plan.
 const TEXT_FIELDS = [
@@ -21,7 +22,9 @@ export async function listCarePlans(req: AuthRequest, res: Response) {
 
 export async function deleteCarePlan(req: AuthRequest, res: Response) {
   const { serviceUserId } = req.params;
-  await prisma.carePlan.deleteMany({ where: { serviceUserId } });
+  const su = await prisma.serviceUser.findUnique({ where: { id: serviceUserId }, select: { firstName: true, lastName: true } });
+  const { count } = await prisma.carePlan.deleteMany({ where: { serviceUserId } });
+  if (count > 0 && su) await logAudit(req, 'CARE_PLAN_DELETED', `${su.firstName} ${su.lastName}`);
   res.json({ ok: true });
 }
 
@@ -59,10 +62,12 @@ export async function upsertCarePlan(req: AuthRequest, res: Response) {
     }
   }
 
+  const before = await prisma.carePlan.findUnique({ where: { serviceUserId }, select: { serviceUserId: true } });
   const plan = await prisma.carePlan.upsert({
     where: { serviceUserId },
     create: { serviceUserId, ...data },
     update: data,
   });
+  await logAudit(req, before ? 'CARE_PLAN_UPDATED' : 'CARE_PLAN_CREATED', `${serviceUser.firstName} ${serviceUser.lastName}`);
   res.json(plan);
 }

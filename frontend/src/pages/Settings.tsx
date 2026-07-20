@@ -110,6 +110,14 @@ const ACTION_LABEL: Record<string, string> = {
   INVOICE_UPDATED: 'Invoice updated',
   INVOICE_STATUS_CHANGED: 'Invoice status changed',
   INVOICE_DELETED: 'Invoice deleted',
+  SITE_CREATED: 'Site added',
+  SITE_UPDATED: 'Site updated',
+  SITE_DELETED: 'Site deleted',
+  CARE_PLAN_CREATED: 'Care plan created',
+  CARE_PLAN_UPDATED: 'Care plan updated',
+  CARE_PLAN_DELETED: 'Care plan deleted',
+  SHIFTS_PUBLISHED_BULK: 'Rota published',
+  SHIFTS_CANCELLED_BULK: 'Visits cancelled (bulk)',
 };
 
 function AuditLogTab() {

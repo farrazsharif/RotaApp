@@ -7,6 +7,7 @@ import { emitToUser } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
 import { isScoped, serviceUserInScope, relatedServiceUserScopeWhere } from '../lib/scope';
 import { runWithCompany } from '../lib/tenantContext';
+import { logAudit } from '../lib/audit';
 
 const shiftInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
@@ -504,6 +505,9 @@ export async function cancelBulkShifts(req: AuthRequest, res: Response) {
     data: cancelBillingData(req.body as Record<string, unknown>),
   });
 
+  if (result.count > 0) {
+    await logAudit(req, 'SHIFTS_CANCELLED_BULK', `${result.count} visit${result.count > 1 ? 's' : ''}`, 'Bulk cancel');
+  }
   res.json({ message: 'Cancelled', count: result.count });
 }
 
@@ -682,6 +686,10 @@ export async function publishBulkShifts(req: AuthRequest, res: Response) {
     if (companyId) runWithCompany(companyId, run); else run();
   }
 
+  if (result.count > 0) {
+    const details = skipped > 0 ? `${skipped} skipped (not fully staffed)` : undefined;
+    await logAudit(req, 'SHIFTS_PUBLISHED_BULK', `${result.count} visit${result.count > 1 ? 's' : ''}`, details);
+  }
   res.json({ message: 'Published', count: result.count, skipped });
 }
 
