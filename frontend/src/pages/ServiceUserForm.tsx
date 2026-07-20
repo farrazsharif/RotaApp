@@ -24,6 +24,16 @@ const isEveryDay = (row: VisitRow) => !row.days || row.days.length === 0 || row.
 const effectiveDays = (row: VisitRow) => (row.days && row.days.length ? row.days : ALL_DAYS);
 const daysLabel = (row: VisitRow) => (isEveryDay(row) ? 'Every day' : effectiveDays(row).slice().sort((a, b) => a - b).map((d) => DAY_DEFS[d].full).join(', '));
 
+// Total weekly care hours implied by the visit template: each visit's duration
+// times how many days a week it runs (every-day = 7).
+function visitWeeklyHours(rows: VisitRow[]): number {
+  const mins = rows.reduce((sum, r) => {
+    const daysCount = isEveryDay(r) ? 7 : effectiveDays(r).length;
+    return sum + (Number(r.duration) || 0) * daysCount;
+  }, 0);
+  return Math.round((mins / 60) * 100) / 100;
+}
+
 const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Other'];
 
@@ -103,6 +113,9 @@ export default function ServiceUserForm() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [visits, setVisits] = useState<VisitRow[]>([]);
   const [supportCats, setSupportCats] = useState<string[]>([]);
+  // When true, contracted weekly hours track the visit template automatically;
+  // untick to enter a council figure that differs from the schedule.
+  const [autoContracted, setAutoContracted] = useState(true);
   const [hydrated, setHydrated] = useState(!isEdit);
 
   if (isEdit && su && !hydrated) {
@@ -126,8 +139,13 @@ export default function ServiceUserForm() {
       careNotes: su.careNotes || '', contractedWeeklyHours: su.contractedWeeklyHours ?? null, visitDuration: su.visitDuration,
       preferredCaregiverIds: su.preferredCaregivers.map((c) => c.id),
     });
-    setVisits(parseVisits(su.visits));
+    const loadedVisits = parseVisits(su.visits);
+    setVisits(loadedVisits);
     setSupportCats(parseCategories(su.supportCategories));
+    // Treat it as auto unless a manual figure was saved that differs from what
+    // the visits imply.
+    const computed = visitWeeklyHours(loadedVisits);
+    setAutoContracted(su.contractedWeeklyHours == null || Math.abs(su.contractedWeeklyHours - computed) < 0.01);
     setHydrated(true);
   }
 
@@ -144,7 +162,15 @@ export default function ServiceUserForm() {
     navigate(`/service-users/${saved.id}`);
   };
 
-  const payload = (): ServiceUserData => ({ ...form, visits: JSON.stringify(visits), supportCategories: JSON.stringify(supportCats) });
+  // Live weekly total from the visit template; also the saved contracted figure
+  // while "auto" is on.
+  const computedWeeklyHours = visitWeeklyHours(visits);
+  const payload = (): ServiceUserData => ({
+    ...form,
+    contractedWeeklyHours: autoContracted ? computedWeeklyHours : form.contractedWeeklyHours,
+    visits: JSON.stringify(visits),
+    supportCategories: JSON.stringify(supportCats),
+  });
 
   const toggleCategory = (c: string) =>
     setSupportCats((cats) => (cats.includes(c) ? cats.filter((x) => x !== c) : [...cats, c]));
@@ -423,19 +449,6 @@ export default function ServiceUserForm() {
           </label>
         </div>
         <div className="mt-3">
-          <label className="label">Contracted weekly hours</label>
-          <input
-            type="number"
-            min={0}
-            step={0.5}
-            value={form.contractedWeeklyHours ?? ''}
-            onChange={(e) => setForm({ ...form, contractedWeeklyHours: e.target.value === '' ? null : Number(e.target.value) })}
-            className="input max-w-[10rem]"
-            placeholder="e.g. 10.5"
-          />
-          <p className="text-xs text-gray-500 mt-1">Council-agreed hours of care per week (care package). Used in Reports → Hours Scheduled → By patient to compare required vs. scheduled.</p>
-        </div>
-        <div className="mt-3">
           <label className="label">Care Notes</label>
           <textarea value={form.careNotes} onChange={(e) => setForm({ ...form, careNotes: e.target.value })} rows={2} className="input resize-none" />
         </div>
@@ -545,6 +558,31 @@ export default function ServiceUserForm() {
                 </p>
               );
             })()}
+
+            {/* Contracted weekly hours — auto-calculated from the visits above. */}
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <label className="label">Contracted weekly hours</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="number"
+                  min={0}
+                  step={0.25}
+                  value={autoContracted ? computedWeeklyHours : (form.contractedWeeklyHours ?? '')}
+                  disabled={autoContracted}
+                  onChange={(e) => setForm({ ...form, contractedWeeklyHours: e.target.value === '' ? null : Number(e.target.value) })}
+                  className={`input max-w-[8rem] ${autoContracted ? 'bg-gray-100 text-gray-600' : ''}`}
+                  placeholder="e.g. 21.5"
+                />
+                <span className="text-sm text-gray-500">hours / week</span>
+              </div>
+              <label className="flex items-center gap-2 text-sm mt-2 text-gray-700">
+                <input type="checkbox" checked={autoContracted} onChange={(e) => setAutoContracted(e.target.checked)} className="h-4 w-4 accent-blue-600" />
+                Auto-calculate from visits ({computedWeeklyHours} h)
+              </label>
+              <p className="text-xs text-gray-500 mt-1">
+                Council-agreed hours of care per week. Auto-calculated from each visit's duration × days per week; untick to enter a different figure. Used in Reports → Hours Scheduled → By patient.
+              </p>
+            </div>
           </div>
         )}
       </Section>
