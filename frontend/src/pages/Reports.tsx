@@ -276,7 +276,7 @@ export default function Reports() {
         </div>
         {(tab === 'scheduled' || tab === 'ecm') && (
           <>
-            <div>
+            <div className="w-44">
               <label className="label">Location Filter</label>
               <MultiSelectDropdown
                 options={sites.map((s) => ({ value: s.id, label: s.name }))}
@@ -286,7 +286,7 @@ export default function Reports() {
               />
             </div>
             {tab === 'scheduled' && (
-              <div>
+              <div className="w-44">
                 <label className="label">Position Filter</label>
                 <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="input">
                   <option value="">Select Positions</option>
@@ -294,7 +294,7 @@ export default function Reports() {
                 </select>
               </div>
             )}
-            <div>
+            <div className="w-44">
               <label className="label">Carer Filter</label>
               <MultiSelectDropdown
                 options={employees.map((u) => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
@@ -305,13 +305,13 @@ export default function Reports() {
             </div>
           </>
         )}
-        <div className="flex-1 min-w-[220px]">
+        <div className="w-full sm:w-56">
           <label className="label">Search</label>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search employee or service user…"
+            placeholder="Search…"
             className="input w-full"
           />
         </div>
