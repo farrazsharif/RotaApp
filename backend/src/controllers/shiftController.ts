@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
-import { emitToUser } from '../lib/socket';
+import { emitToUser, emitToCompany } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
 import { isScoped, serviceUserInScope, relatedServiceUserScopeWhere } from '../lib/scope';
 import { runWithCompany } from '../lib/tenantContext';
@@ -166,7 +166,19 @@ export async function createShift(req: AuthRequest, res: Response) {
     createdCount = ids.length;
     if (hasCoverCarers) {
       const connect = coverCarerIds.filter(Boolean).map((id: string) => ({ id }));
-      await applyCoverCarersChunked(ids, { coverCarers: { connect } });
+      // Attach cover to the first occurrence synchronously (it's the shift we
+      // return), then fan the rest out in the background so a large double/triple
+      // cover permanent series doesn't hold the request open past the gateway
+      // timeout. Sessions reconcile via the data:changed broadcast when it ends.
+      await applyCoverCarersChunked([ids[0]], { coverCarers: { connect } });
+      const rest = ids.slice(1);
+      if (rest.length > 0) {
+        const companyId = req.user!.companyId;
+        const run = () => applyCoverCarersChunked(rest, { coverCarers: { connect } })
+          .then(() => { if (companyId) emitToCompany(companyId, 'data:changed', { resource: '/api/shifts' }); })
+          .catch((e) => console.error('createShift cover fan-out failed:', e));
+        if (companyId) runWithCompany(companyId, run); else run();
+      }
     }
     shift = await prisma.shift.findFirst({ where: { seriesId }, orderBy: { date: 'asc' }, include: shiftInclude });
   }
@@ -448,49 +460,65 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
   // updating them one-by-one in a transaction made saving take seconds.
   await prisma.shift.updateMany({ where: { id: { in: ids } }, data: { userId: userId || null } });
 
-  // Cover carers are a many-to-many relation that updateMany can't touch, so
-  // they must be set per shift — but only where there's actually work to do, so
-  // the common single-cover assignment stays a single query. Chunked so a large
-  // series doesn't run as one oversized transaction that can time out.
   const connectSet = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean).map((id) => ({ id })) : null;
+
+  // Set the OPENED shift's cover carers synchronously so the edited call is
+  // fully saved by the time we respond.
   if (connectSet && connectSet.length > 0) {
-    await applyCoverCarersChunked(ids, { coverCarers: { set: connectSet } });
-  } else if (connectSet) {
-    // Explicitly clearing cover — only touch the shifts that currently have any.
-    const withCover = beforeShifts.filter((s) => s.coverCarers.length > 0).map((s) => s.id);
-    if (withCover.length > 0) await applyCoverCarersChunked(withCover, { coverCarers: { set: [] } });
+    await applyCoverCarersChunked([shift.id], { coverCarers: { set: connectSet } });
   }
 
-  const removals = beforeShifts.flatMap((s) => {
-    const beforeIds = [s.userId, ...s.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
-    // Cover carers only change when coverCarerIds was actually supplied —
-    // otherwise they're untouched by the update above and shouldn't be
-    // treated as removed.
-    const afterCoverIds = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean) : s.coverCarers.map((c) => c.id);
-    const afterIds = [userId, ...afterCoverIds].filter(Boolean) as string[];
-    return beforeIds.filter((id) => !afterIds.includes(id)).map((carerId) => ({ carerId, shift: s }));
-  });
-  await notifyCarersRemoved(removals);
-
-  if (userId) {
-    const count = ids.length;
-    const notification = await prisma.notification.create({
-      data: {
-        userId,
-        type: 'SHIFT_ASSIGNED',
-        title: count > 1 ? 'Shifts Assigned' : 'Shift Assigned',
-        message:
-          count > 1
-            ? `You have been assigned to ${count} shifts`
-            : `You have been assigned to the shift on ${new Date(shift.date).toDateString()}`,
-        data: JSON.stringify({ shiftId: shift.id }),
-      },
-    });
-    emitToUser(userId, 'notification', notification);
-  }
-
-  if (ids.length > 20) console.log(`[shift] assignCarer scope=${scope} count=${ids.length} cover=${!!(connectSet && connectSet.length)} ms=${Date.now() - t0}`);
+  // Respond as soon as the assignment (and the opened shift's cover) is saved.
+  if (ids.length > 20) console.log(`[shift] assignCarer scope=${scope} count=${ids.length} cover=${!!(connectSet && connectSet.length)} primary-ms=${Date.now() - t0}`);
   res.json({ message: 'Assigned', count: ids.length });
+
+  // Fan the cover carers (a per-shift many-to-many that can't be done in a
+  // single query) out to the REST of the series in the background, so a large
+  // double/triple-cover "all future" assignment can't hold the request open
+  // past the gateway timeout. Every session refetches when it finishes via the
+  // data:changed broadcast, so the true state always reconciles. Re-wrap in the
+  // tenant context so the background writes stay company-scoped.
+  const siblingIds = ids.filter((sid) => sid !== shift.id);
+  const companyId = req.user!.companyId;
+  const runFanout = () =>
+    (async () => {
+      if (connectSet && connectSet.length > 0) {
+        if (siblingIds.length > 0) await applyCoverCarersChunked(siblingIds, { coverCarers: { set: connectSet } });
+      } else if (connectSet) {
+        // Explicitly clearing cover — only touch shifts that currently have any.
+        const withCover = beforeShifts.filter((s) => s.coverCarers.length > 0).map((s) => s.id);
+        if (withCover.length > 0) await applyCoverCarersChunked(withCover, { coverCarers: { set: [] } });
+      }
+
+      const removals = beforeShifts.flatMap((s) => {
+        const beforeIds = [s.userId, ...s.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
+        const afterCoverIds = Array.isArray(coverCarerIds) ? coverCarerIds.filter(Boolean) : s.coverCarers.map((c) => c.id);
+        const afterIds = [userId, ...afterCoverIds].filter(Boolean) as string[];
+        return beforeIds.filter((id) => !afterIds.includes(id)).map((carerId) => ({ carerId, shift: s }));
+      });
+      await notifyCarersRemoved(removals);
+
+      if (userId) {
+        const count = ids.length;
+        const notification = await prisma.notification.create({
+          data: {
+            userId,
+            type: 'SHIFT_ASSIGNED',
+            title: count > 1 ? 'Shifts Assigned' : 'Shift Assigned',
+            message: count > 1
+              ? `You have been assigned to ${count} shifts`
+              : `You have been assigned to the shift on ${new Date(shift.date).toDateString()}`,
+            data: JSON.stringify({ shiftId: shift.id }),
+          },
+        });
+        emitToUser(userId, 'notification', notification);
+      }
+      if (ids.length > 20) console.log(`[shift] assignCarer fan-out done count=${ids.length} total-ms=${Date.now() - t0}`);
+    })()
+      .then(() => { if (companyId) emitToCompany(companyId, 'data:changed', { resource: '/api/shifts' }); })
+      .catch((e) => console.error('assignCarer background fan-out failed:', e));
+
+  if (companyId) runWithCompany(companyId, runFanout); else runFanout();
 }
 
 // Cancel many shifts at once (e.g. everything currently shown on the schedule).
