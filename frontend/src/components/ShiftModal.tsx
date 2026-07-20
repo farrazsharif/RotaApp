@@ -519,7 +519,8 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
 
             {shift?.seriesId && (
               <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5 space-y-2 text-sm">
-                <p className="text-xs text-blue-800 font-medium">Recurring visit — apply carer to:</p>
+                <p className="text-xs text-blue-800 font-medium">Recurring visit — apply your changes to:</p>
+                <p className="text-[11px] text-blue-700 -mt-1">Updates the time and details you edited above (e.g. a council time change), not just the carer. Pick <span className="font-semibold">“All future shifts in this series”</span> to change every future call.</p>
                 <label className="flex items-center gap-2">
                   <input type="radio" name="assignScope" checked={assignScope === 'one'} onChange={() => setAssignScope('one')} />
                   This shift only
@@ -1001,7 +1002,8 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
 
               {shift.seriesId && (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5 space-y-2 text-sm">
-                  <p className="text-xs text-blue-800 font-medium">Recurring visit — apply changes to:</p>
+                  <p className="text-xs text-blue-800 font-medium">Recurring visit — apply your changes to:</p>
+                  <p className="text-[11px] text-blue-700 -mt-1">Updates the time and details you edited above (e.g. a council time change), not just the carer. Pick <span className="font-semibold">“All future shifts in this series”</span> to change every future call.</p>
                   <label className="flex items-center gap-2">
                     <input type="radio" name="assignScope" checked={assignScope === 'one'} onChange={() => setAssignScope('one')} />
                     This shift only
