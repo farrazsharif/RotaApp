@@ -14,10 +14,23 @@ export async function myCalls(req: AuthRequest, res: Response) {
 
   const calls = await prisma.shift.findMany({
     where: {
-      date: { gte: dayStart, lte: dayEnd },
       status: { not: 'CANCELLED' },
       published: true,
-      OR: [{ userId: req.user!.id }, { coverCarers: { some: { id: req.user!.id } } }],
+      // Must be one of the carer's own calls…
+      AND: [
+        { OR: [{ userId: req.user!.id }, { coverCarers: { some: { id: req.user!.id } } }] },
+        // …and either falls on the requested day, OR the carer is still clocked
+        // into it (open clock record). The second clause keeps an overnight shift
+        // (e.g. 19:00–07:00 dated yesterday) visible past midnight so the carer
+        // can always reach it to clock out — otherwise it vanishes at 00:00 while
+        // the clock-out is still pending.
+        {
+          OR: [
+            { date: { gte: dayStart, lte: dayEnd } },
+            { clockRecords: { some: { userId: req.user!.id, clockOut: null } } },
+          ],
+        },
+      ],
     },
     include: {
       serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true } },
