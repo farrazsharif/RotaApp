@@ -949,6 +949,11 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                       </>
                     )}
                   </div>
+                  {shift.seriesId && cancelScope === 'one' && (
+                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2">
+                      This is a <span className="font-semibold">repeating visit</span>. “This shift only” removes just this day — the other days keep repeating and are auto-maintained ~12 months ahead, so it’ll look like it came back. To stop it for good, choose <span className="font-semibold">“All future shifts in this series”</span>.
+                    </p>
+                  )}
                   {cancelMode === 'cancel' && (
                     <div className="rounded-md border border-red-200 bg-white p-2.5">
                       <CancelBillingFields value={cancelBilling} onChange={setCancelBilling} />
