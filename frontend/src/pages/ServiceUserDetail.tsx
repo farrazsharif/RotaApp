@@ -149,8 +149,10 @@ export default function ServiceUserDetail() {
     );
   }
 
-  let visits: { type: string; duration: number }[] = [];
+  let visits: { type: string; duration: number; days?: number[] }[] = [];
   try { visits = su?.visits ? JSON.parse(su.visits) : []; } catch { visits = []; }
+  // A visit with no days, or all seven, runs every day; otherwise only the named days.
+  const visitIsDaily = (v: { days?: number[] }) => !v.days || v.days.length === 0 || v.days.length === 7;
 
   const reviewOverdue = carePlan?.reviewDate ? new Date(carePlan.reviewDate) < new Date() : false;
   let carePlanSchedule: Record<string, Record<string, string>> = {};
@@ -356,12 +358,27 @@ export default function ServiceUserDetail() {
               <div className="space-y-1">
                 {visits.map((v, i) => (
                   <div key={i} className="flex items-center justify-between text-sm border-b last:border-0 py-1">
-                    <span className="text-gray-800">{v.type}</span>
+                    <span className="text-gray-800">
+                      {v.type}
+                      {!visitIsDaily(v) && (
+                        <span className="ml-2 text-xs font-medium text-blue-600">
+                          {v.days!.slice().sort((a, b) => a - b).map((d) => DAYS[d].slice(0, 3)).join(', ')}
+                        </span>
+                      )}
+                    </span>
                     <span className="text-gray-500">{durationLabel(v.duration)}</span>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-500 mt-1">{visits.length} visit{visits.length > 1 ? 's' : ''} per day</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {(() => {
+                  const daily = visits.filter(visitIsDaily).length;
+                  const partial = visits.length - daily;
+                  return partial === 0
+                    ? `${visits.length} visit${visits.length > 1 ? 's' : ''} every day`
+                    : `${daily} daily · ${partial} on selected days`;
+                })()}
+              </p>
             </>
           )}
         </Section>

@@ -11,7 +11,18 @@ import { SUPPORT_CATEGORIES, parseCategories } from '../lib/supportCategories';
 
 type FormState = ServiceUserData & { preferredCaregiverIds: string[] };
 
-interface VisitRow { type: string; duration: number }
+// days: weekday indices 0=Mon … 6=Sun this visit happens on. Omitted/empty/all
+// seven = every day (backward-compatible with older records that have no days).
+interface VisitRow { type: string; duration: number; days?: number[] }
+
+const DAY_DEFS = [
+  { i: 0, short: 'M', full: 'Mon' }, { i: 1, short: 'T', full: 'Tue' }, { i: 2, short: 'W', full: 'Wed' },
+  { i: 3, short: 'T', full: 'Thu' }, { i: 4, short: 'F', full: 'Fri' }, { i: 5, short: 'S', full: 'Sat' }, { i: 6, short: 'S', full: 'Sun' },
+];
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const isEveryDay = (row: VisitRow) => !row.days || row.days.length === 0 || row.days.length === 7;
+const effectiveDays = (row: VisitRow) => (row.days && row.days.length ? row.days : ALL_DAYS);
+const daysLabel = (row: VisitRow) => (isEveryDay(row) ? 'Every day' : effectiveDays(row).slice().sort((a, b) => a - b).map((d) => DAY_DEFS[d].full).join(', '));
 
 const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'Prefer not to say'];
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Miss', 'Ms', 'Dr', 'Other'];
@@ -35,7 +46,11 @@ function parseVisits(json?: string): VisitRow[] {
   if (!json) return [];
   try {
     const arr = JSON.parse(json);
-    return Array.isArray(arr) ? arr.filter((v) => v && v.type).map((v) => ({ type: String(v.type), duration: Number(v.duration) || 30 })) : [];
+    return Array.isArray(arr) ? arr.filter((v) => v && v.type).map((v) => ({
+      type: String(v.type),
+      duration: Number(v.duration) || 30,
+      days: Array.isArray(v.days) ? v.days.filter((n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 6) : undefined,
+    })) : [];
   } catch {
     return [];
   }
@@ -139,6 +154,13 @@ export default function ServiceUserForm() {
   const addVisit = () => setVisits((v) => [...v, { type: VISIT_PRESETS[0], duration: 30 }]);
   const updateVisit = (i: number, patch: Partial<VisitRow>) => setVisits((v) => v.map((row, idx) => idx === i ? { ...row, ...patch } : row));
   const removeVisit = (i: number) => setVisits((v) => v.filter((_, idx) => idx !== i));
+  const toggleVisitDay = (i: number, day: number) => setVisits((v) => v.map((row, idx) => {
+    if (idx !== i) return row;
+    const cur = effectiveDays(row);
+    const next = cur.includes(day) ? cur.filter((d) => d !== day) : [...cur, day].sort((a, b) => a - b);
+    // Empty or all-seven both mean "every day" — store undefined to keep it clean.
+    return { ...row, days: next.length === 0 || next.length === 7 ? undefined : next };
+  }));
 
   const error = (createMut.error || updateMut.error) as { response?: { data?: { error?: string } } } | null;
 
@@ -448,7 +470,8 @@ export default function ServiceUserForm() {
               // manually — reveal a minutes input for it.
               const durationCustom = !DURATIONS.some((d) => d.value === row.duration);
               return (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className="border border-gray-100 rounded-lg p-2 bg-gray-50/50">
+                <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
                   <select
                     value={custom ? '__other__' : row.type}
@@ -489,9 +512,39 @@ export default function ServiceUserForm() {
                   )}
                   <button type="button" onClick={() => removeVisit(i)} className="text-red-600 hover:text-red-700 text-lg px-1" title="Remove">×</button>
                 </div>
+                {/* Which days of the week this visit happens on. */}
+                <div className="flex items-center gap-1.5 mt-2 pl-7 flex-wrap">
+                  <span className="text-xs text-gray-400 mr-1">Days:</span>
+                  {DAY_DEFS.map((d) => {
+                    const on = effectiveDays(row).includes(d.i);
+                    return (
+                      <button
+                        key={d.i}
+                        type="button"
+                        title={d.full}
+                        onClick={() => toggleVisitDay(i, d.i)}
+                        className={`h-6 w-6 rounded-full text-xs font-semibold ${on ? 'bg-blue-600 text-white' : 'bg-white text-gray-400 border border-gray-300'}`}
+                      >
+                        {d.short}
+                      </button>
+                    );
+                  })}
+                  <span className="text-xs text-gray-500 ml-1">{daysLabel(row)}</span>
+                </div>
+                </div>
               );
             })}
-            <p className="text-xs text-gray-500">{visits.length} visit{visits.length > 1 ? 's' : ''} per day</p>
+            {(() => {
+              const daily = visits.filter(isEveryDay).length;
+              const partial = visits.length - daily;
+              return (
+                <p className="text-xs text-gray-500">
+                  {partial === 0
+                    ? `${visits.length} visit${visits.length > 1 ? 's' : ''} every day`
+                    : `${daily} daily · ${partial} on selected days`}
+                </p>
+              );
+            })()}
           </div>
         )}
       </Section>
