@@ -199,8 +199,11 @@ export async function listClockRecords(req: AuthRequest, res: Response) {
 
   if (startDate || endDate) {
     where.clockIn = {};
-    if (startDate) (where.clockIn as Record<string, unknown>).gte = new Date(startDate as string);
-    if (endDate) (where.clockIn as Record<string, unknown>).lte = new Date(endDate as string);
+    // Clock-ins carry a real time-of-day, so the end bound must span the WHOLE
+    // final day — a bare date (midnight) would drop every record after 00:00 on
+    // the last day, hiding today's clock-ins whenever the range ends "today".
+    if (startDate) (where.clockIn as Record<string, unknown>).gte = new Date(`${String(startDate).slice(0, 10)}T00:00:00.000`);
+    if (endDate) (where.clockIn as Record<string, unknown>).lte = new Date(`${String(endDate).slice(0, 10)}T23:59:59.999`);
   }
   Object.assign(where, relatedStaffScopeWhere(req.user));
 
