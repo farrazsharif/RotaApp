@@ -141,6 +141,7 @@ export default function CallDetail() {
   const [handoverTo, setHandoverTo] = useState('');
   const [handoverReason, setHandoverReason] = useState('');
   const [editingLog, setEditingLog] = useState(false);
+  const [logError, setLogError] = useState<string | null>(null);
 
   const { data: shift, isLoading } = useQuery({
     queryKey: ['shift', id],
@@ -228,9 +229,11 @@ export default function CallDetail() {
       setLogSent(true);
       setClockOutError(null);
       setEditingLog(false);
+      setLogError(null);
       qc.invalidateQueries({ queryKey: ['call-logs', shift?.serviceUserId] });
       setTimeout(() => setLogSent(false), 2000);
     },
+    onError: (err: any) => setLogError(err?.response?.data?.error || 'Could not save the note. Please try again.'),
   });
 
   // Co-carer signs the shared log the first carer wrote (no retyping).
@@ -284,6 +287,10 @@ export default function CallDetail() {
   const clockedInElsewhere = !!clockStatus?.clockedIn && clockStatus.record?.shiftId !== shift.id;
   const done = isCallDone(shift, user?.id);
   const shiftIsToday = isToday(new Date(shift.date));
+  // A carer can still amend this visit's log for a week after the visit — e.g.
+  // to add a task they forgot — even once the call is done. Older records are
+  // amended by a manager. Mirrors the backend edit window.
+  const withinLogEditWindow = Date.now() - new Date(shift.date).getTime() < 7 * 24 * 60 * 60 * 1000;
   const myCompletedRecord = shift.clockRecords?.find((r) => r.userId === user?.id && r.clockOut);
   const totalTimeSpent = myCompletedRecord
     ? formatElapsed(new Date(myCompletedRecord.clockOut!).getTime() - new Date(myCompletedRecord.clockIn).getTime())
@@ -522,7 +529,7 @@ export default function CallDetail() {
             <p className="text-xs text-gray-400 mb-2">This call has {carerCount} carers — one note is shared, and everyone signs it.</p>
           )}
 
-          {(!sharedLog || editingLog) && !done ? (
+          {(!sharedLog && !done) || editingLog ? (
             /* Write / edit the note */
             <>
               <textarea
@@ -542,7 +549,7 @@ export default function CallDetail() {
                 </button>
                 {editingLog && (
                   <button
-                    onClick={() => { setEditingLog(false); setNote(''); }}
+                    onClick={() => { setEditingLog(false); setNote(''); setLogError(null); }}
                     className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm"
                   >
                     Cancel
@@ -552,6 +559,7 @@ export default function CallDetail() {
               {isSharedCall && editingLog && (
                 <p className="text-xs text-gray-400 mt-2">Changing the note asks the other carers to sign again.</p>
               )}
+              {logError && <p className="text-xs text-red-600 mt-2">{logError}</p>}
             </>
           ) : sharedLog ? (
             /* Read the shared note + sign */
@@ -596,6 +604,19 @@ export default function CallDetail() {
                     <p className="text-xs text-gray-400 mt-2">Clock in to sign this log.</p>
                   )}
                 </>
+              )}
+
+              {/* After the visit is done, the carer can still amend the note for
+                  a week — e.g. to add a task they forgot on the day. */}
+              {done && withinLogEditWindow && (
+                <div className="mt-3">
+                  <button
+                    onClick={() => { setEditingLog(true); setNote(sharedLog.note); setLogError(null); }}
+                    className="text-sm font-semibold text-blue-600"
+                  >
+                    ✏️ Edit note / add a missed task
+                  </button>
+                </div>
               )}
             </>
           ) : (

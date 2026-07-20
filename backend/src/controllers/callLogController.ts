@@ -2,6 +2,12 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
+import { logAudit } from '../lib/audit';
+
+// How long after a visit a carer may still amend its log from the carer app
+// (e.g. to add a task they forgot). Older records are amended by a manager via
+// the portal, keeping late changes to care records controlled and traceable.
+const CALL_LOG_EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 const include = {
   user: { select: { id: true, firstName: true, lastName: true } },
@@ -41,14 +47,35 @@ export async function createCallLog(req: AuthRequest, res: Response) {
 
   // One shared log per visit: if a log already exists for this shift, funnel
   // the write into it (update note + re-sign) instead of creating a duplicate.
+  // This is also the path a carer takes to amend a saved log later.
   if (shiftId) {
     const existing = await prisma.callLog.findFirst({ where: { shiftId } });
     if (existing) {
+      // Amending an existing visit log: only a carer on the call (or the author)
+      // may change it, and only within the edit window.
+      const shift = await prisma.shift.findUnique({
+        where: { id: shiftId },
+        select: { userId: true, date: true, coverCarers: { select: { id: true } } },
+      });
+      const onCall = !!shift && (shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id));
+      if (!onCall && existing.userId !== req.user!.id) {
+        return res.status(403).json({ error: 'You are not assigned to this call' });
+      }
+      if (shift && Date.now() - new Date(shift.date).getTime() > CALL_LOG_EDIT_WINDOW_MS) {
+        return res.status(403).json({ error: 'This visit is too old to edit here — ask your manager to amend it.' });
+      }
+
+      const noteChanged = String(note).trim() !== existing.note;
       const log = await prisma.callLog.update({
         where: { id: existing.id },
         data: { note: String(note).trim(), signedBy: JSON.stringify([await selfSignature(req)]) },
         include,
       });
+      // Record post-save amendments to a care record so managers can see them.
+      if (noteChanged) {
+        const who = log.serviceUser ? `${log.serviceUser.firstName} ${log.serviceUser.lastName}` : 'a service user';
+        await logAudit(req, 'CALL_LOG_AMENDED', who, 'Call log note edited');
+      }
       return res.json(log);
     }
   }

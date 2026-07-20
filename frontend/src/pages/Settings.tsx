@@ -118,6 +118,7 @@ const ACTION_LABEL: Record<string, string> = {
   CARE_PLAN_DELETED: 'Care plan deleted',
   SHIFTS_PUBLISHED_BULK: 'Rota published',
   SHIFTS_CANCELLED_BULK: 'Visits cancelled (bulk)',
+  CALL_LOG_AMENDED: 'Call log amended',
 };
 
 function AuditLogTab() {
