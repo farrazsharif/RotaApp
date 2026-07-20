@@ -254,6 +254,24 @@ export default function ServiceUserDetail() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Personal details — the full set captured on the edit form. */}
+        <Section title="Personal Details">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Title" value={su.title} />
+            <Field label="Preferred Name" value={su.preferredName} />
+            <Field label="First Name" value={su.firstName} />
+            <Field label="Last Name" value={su.lastName} />
+            <Field label="Gender" value={su.gender} />
+            <Field label="Date of Birth" value={su.dateOfBirth ? format(new Date(su.dateOfBirth), 'dd MMM yyyy') : undefined} />
+            <Field label="Age" value={su.dateOfBirth ? `${differenceInYears(new Date(), new Date(su.dateOfBirth))} years` : undefined} />
+            <Field label="NHS Number" value={su.nhsNumber} />
+            <Field label="Package ID" value={su.packageId} />
+            <Field label="Ethnic Origin" value={su.ethnicOrigin} />
+            <Field label="Area / Site" value={su.site?.name} />
+            <Field label="Service Start Date" value={su.serviceStartDate ? format(new Date(su.serviceStartDate), 'dd MMM yyyy') : undefined} />
+          </div>
+        </Section>
+
         {/* Contact */}
         <Section title="Contact & Address">
           <div className="grid grid-cols-2 gap-4">
