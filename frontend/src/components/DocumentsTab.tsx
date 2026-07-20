@@ -18,6 +18,7 @@ export default function DocumentsTab({ ownerType, ownerId, canManage }: { ownerT
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState('');
+  const [customCategory, setCustomCategory] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -28,11 +29,15 @@ export default function DocumentsTab({ ownerType, ownerId, canManage }: { ownerT
     queryFn: () => documentsApi.list(ownerType, ownerId),
   });
 
+  // When "Other" is picked, the typed label is the category (falling back to
+  // "Other" if left blank).
+  const effectiveCategory = category === 'Other' ? (customCategory.trim() || 'Other') : (category || undefined);
+
   const uploadMut = useMutation({
-    mutationFn: () => documentsApi.upload(ownerType, ownerId, file!, category || undefined),
+    mutationFn: () => documentsApi.upload(ownerType, ownerId, file!, effectiveCategory),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['documents', ownerType, ownerId] });
-      setFile(null); setCategory(''); setError(null);
+      setFile(null); setCategory(''); setCustomCategory(''); setError(null);
       if (fileRef.current) fileRef.current.value = '';
     },
     onError: (e: unknown) => {
@@ -138,6 +143,15 @@ export default function DocumentsTab({ ownerType, ownerId, canManage }: { ownerT
                 <option value="">Uncategorised</option>
                 {CATEGORIES[ownerType].map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
+              {category === 'Other' && (
+                <input
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  placeholder="Type a category…"
+                  className="input mt-2"
+                  autoFocus
+                />
+              )}
             </div>
             <div>
               <label className="label">File</label>
