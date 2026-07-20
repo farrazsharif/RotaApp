@@ -13,7 +13,11 @@ type FormState = ServiceUserData & { preferredCaregiverIds: string[] };
 
 // days: weekday indices 0=Mon … 6=Sun this visit happens on. Omitted/empty/all
 // seven = every day (backward-compatible with older records that have no days).
-interface VisitRow { type: string; duration: number; days?: number[] }
+// cover: how many carers attend (1 single / 2 double / 3 triple); omitted = 1.
+interface VisitRow { type: string; duration: number; days?: number[]; cover?: number }
+
+const COVER_OPTIONS = [{ v: 1, label: 'Single cover' }, { v: 2, label: 'Double cover' }, { v: 3, label: 'Triple cover' }];
+const visitCover = (row: VisitRow) => (row.cover && row.cover >= 1 ? row.cover : 1);
 
 const DAY_DEFS = [
   { i: 0, short: 'M', full: 'Mon' }, { i: 1, short: 'T', full: 'Tue' }, { i: 2, short: 'W', full: 'Wed' },
@@ -24,12 +28,13 @@ const isEveryDay = (row: VisitRow) => !row.days || row.days.length === 0 || row.
 const effectiveDays = (row: VisitRow) => (row.days && row.days.length ? row.days : ALL_DAYS);
 const daysLabel = (row: VisitRow) => (isEveryDay(row) ? 'Every day' : effectiveDays(row).slice().sort((a, b) => a - b).map((d) => DAY_DEFS[d].full).join(', '));
 
-// Total weekly care hours implied by the visit template: each visit's duration
-// times how many days a week it runs (every-day = 7).
+// Total weekly contact hours implied by the visit template: each visit's
+// duration × how many days a week it runs (every-day = 7) × carers on the call
+// (double-up counts for both carers, matching how councils commission).
 function visitWeeklyHours(rows: VisitRow[]): number {
   const mins = rows.reduce((sum, r) => {
     const daysCount = isEveryDay(r) ? 7 : effectiveDays(r).length;
-    return sum + (Number(r.duration) || 0) * daysCount;
+    return sum + (Number(r.duration) || 0) * daysCount * visitCover(r);
   }, 0);
   return Math.round((mins / 60) * 100) / 100;
 }
@@ -60,6 +65,7 @@ function parseVisits(json?: string): VisitRow[] {
       type: String(v.type),
       duration: Number(v.duration) || 30,
       days: Array.isArray(v.days) ? v.days.filter((n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 6) : undefined,
+      cover: Number(v.cover) >= 2 ? Math.min(3, Math.floor(Number(v.cover))) : undefined,
     })) : [];
   } catch {
     return [];
@@ -524,6 +530,17 @@ export default function ServiceUserForm() {
                     </div>
                   )}
                   <button type="button" onClick={() => removeVisit(i)} className="text-red-600 hover:text-red-700 text-lg px-1" title="Remove">×</button>
+                </div>
+                {/* How many carers attend this visit. */}
+                <div className="flex items-center gap-2 mt-2 pl-7 flex-wrap">
+                  <span className="text-xs text-gray-400">Cover:</span>
+                  <select
+                    value={visitCover(row)}
+                    onChange={(e) => updateVisit(i, { cover: Number(e.target.value) > 1 ? Number(e.target.value) : undefined })}
+                    className="input py-1 text-sm w-36"
+                  >
+                    {COVER_OPTIONS.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
+                  </select>
                 </div>
                 {/* Which days of the week this visit happens on. */}
                 <div className="flex items-center gap-1.5 mt-2 pl-7 flex-wrap">

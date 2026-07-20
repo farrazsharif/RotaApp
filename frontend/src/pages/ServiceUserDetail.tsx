@@ -149,10 +149,11 @@ export default function ServiceUserDetail() {
     );
   }
 
-  let visits: { type: string; duration: number; days?: number[] }[] = [];
+  let visits: { type: string; duration: number; days?: number[]; cover?: number }[] = [];
   try { visits = su?.visits ? JSON.parse(su.visits) : []; } catch { visits = []; }
   // A visit with no days, or all seven, runs every day; otherwise only the named days.
   const visitIsDaily = (v: { days?: number[] }) => !v.days || v.days.length === 0 || v.days.length === 7;
+  const coverLabel = (n?: number) => (n === 3 ? 'Triple cover' : n === 2 ? 'Double cover' : '');
 
   const reviewOverdue = carePlan?.reviewDate ? new Date(carePlan.reviewDate) < new Date() : false;
   let carePlanSchedule: Record<string, Record<string, string>> = {};
@@ -360,6 +361,9 @@ export default function ServiceUserDetail() {
                   <div key={i} className="flex items-center justify-between text-sm border-b last:border-0 py-1">
                     <span className="text-gray-800">
                       {v.type}
+                      {v.cover && v.cover > 1 && (
+                        <span className="ml-2 text-xs font-medium text-purple-600">{coverLabel(v.cover)}</span>
+                      )}
                       {!visitIsDaily(v) && (
                         <span className="ml-2 text-xs font-medium text-blue-600">
                           {v.days!.slice().sort((a, b) => a - b).map((d) => DAYS[d].slice(0, 3)).join(', ')}
