@@ -20,6 +20,7 @@ export type PermissionKey =
 export interface AuditLog {
   id: string;
   actorName: string;
+  actorFullName?: string | null;
   action: string;
   target?: string | null;
   details?: string | null;

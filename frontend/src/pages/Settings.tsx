@@ -148,7 +148,16 @@ function AuditLogTab() {
             {logs.map((l) => (
               <tr key={l.id}>
                 <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{format(new Date(l.createdAt), 'dd MMM yyyy HH:mm')}</td>
-                <td className="px-4 py-2.5 text-gray-700">{l.actorName}</td>
+                <td className="px-4 py-2.5 text-gray-700">
+                  {l.actorFullName ? (
+                    <>
+                      <span className="font-medium text-gray-900">{l.actorFullName}</span>
+                      {l.actorName && l.actorName !== l.actorFullName && <span className="block text-xs text-gray-400">{l.actorName}</span>}
+                    </>
+                  ) : (
+                    l.actorName
+                  )}
+                </td>
                 <td className="px-4 py-2.5"><span className="badge-blue badge">{ACTION_LABEL[l.action] || l.action}</span></td>
                 <td className="px-4 py-2.5 text-gray-600">{l.target}{l.details ? ` — ${l.details}` : ''}</td>
               </tr>
