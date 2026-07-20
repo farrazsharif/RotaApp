@@ -64,7 +64,10 @@ export default function Reports() {
   }
 
   const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
-  const { data: employees = [] } = useQuery({ queryKey: ['users', 'EMPLOYEE'], queryFn: () => usersApi.list({ role: 'EMPLOYEE' }) });
+  // All active staff (any role, incl. custom roles / managers who also do visits),
+  // excluding family members — so the Carer filter lists everyone who can be on a shift.
+  const { data: allStaff = [] } = useQuery({ queryKey: ['users', 'active'], queryFn: () => usersApi.list({ active: true }) });
+  const employees = allStaff.filter((u) => u.role !== 'FAMILY_MEMBER');
   const { data: shiftRoles = [] } = useQuery({ queryKey: ['shift-roles'], queryFn: reportsApi.shiftRoles });
 
   const { data: hoursData = [], isLoading: loadingHours } = useQuery({
