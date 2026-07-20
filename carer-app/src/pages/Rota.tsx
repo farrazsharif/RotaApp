@@ -39,7 +39,9 @@ export default function Rota() {
 
   // Today / This-week scheduled hours (current Mon–Sun week).
   const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-  const durMin = (s: Shift) => Math.max(0, toMin(s.endTime) - toMin(s.startTime));
+  // Overnight visits (e.g. 19:00–07:00) wrap past midnight — add a day when the
+  // end reads earlier than the start.
+  const durMin = (s: Shift) => { let d = toMin(s.endTime) - toMin(s.startTime); if (d < 0) d += 24 * 60; return d; };
   const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);
   const inWeek = shifts.filter((s) => {
     const d = new Date(s.date);

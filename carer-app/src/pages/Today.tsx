@@ -23,7 +23,11 @@ function toMinutes(t: string) {
 }
 
 function durationMins(s: Shift) {
-  return Math.max(0, toMinutes(s.endTime) - toMinutes(s.startTime));
+  // Overnight visits (e.g. 19:00–07:00) wrap past midnight, so add a day when
+  // the end time reads earlier than the start.
+  let d = toMinutes(s.endTime) - toMinutes(s.startTime);
+  if (d < 0) d += 24 * 60;
+  return d;
 }
 
 const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);

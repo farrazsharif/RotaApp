@@ -8,7 +8,9 @@ import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
 
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-const durMin = (s: Shift) => Math.max(0, toMin(s.endTime) - toMin(s.startTime));
+// Overnight visits (e.g. 19:00–07:00) end "before" they start on the clock, so
+// add a day's worth of minutes when the end wraps past midnight.
+const durMin = (s: Shift) => { let d = toMin(s.endTime) - toMin(s.startTime); if (d < 0) d += 24 * 60; return d; };
 const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);
 const weekKey = (d: Date) => format(d, 'yyyy-MM-dd');
 
