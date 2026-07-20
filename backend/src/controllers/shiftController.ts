@@ -23,7 +23,11 @@ const shiftInclude = {
 // transaction over a remote DB is exactly what timed out. Chunking keeps each
 // transaction small and bounded.
 async function applyCoverCarersChunked(shiftIds: string[], data: Record<string, unknown>): Promise<void> {
-  const CHUNK = 40;
+  // Batch the per-shift cover writes into transactions. With the paid, co-located
+  // Neon instance (same Frankfurt region as the API, autoscaling to 8 CU) larger
+  // batches are comfortable and mean fewer round-trips, so the background fan-out
+  // finishes sooner. Kept bounded so a single transaction never grows unwieldy.
+  const CHUNK = 100;
   for (let i = 0; i < shiftIds.length; i += CHUNK) {
     const slice = shiftIds.slice(i, i + CHUNK);
     await prisma.$transaction(slice.map((id) => prisma.shift.update({ where: { id }, data })));
