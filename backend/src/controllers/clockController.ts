@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { relatedStaffScopeWhere } from '../lib/scope';
+import { logAudit } from '../lib/audit';
 
 // The logged-in carer's calls for a given day (default today), ordered by visit time.
 // Includes calls where they are the primary carer or an additional cover carer.
@@ -259,15 +260,43 @@ export async function setClockTimes(req: AuthRequest, res: Response) {
 }
 
 export async function updateClockRecord(req: AuthRequest, res: Response) {
-  const { clockIn, clockOut } = req.body;
+  const { clockIn, clockOut } = req.body as { clockIn?: string; clockOut?: string };
+
+  const existing = await prisma.clockRecord.findUnique({
+    where: { id: req.params.id },
+    include: { user: { select: { id: true, firstName: true, lastName: true } } },
+  });
+  if (!existing) return res.status(404).json({ error: 'Clock record not found' });
+
   const data: Record<string, unknown> = {};
-  if (clockIn) data.clockIn = new Date(clockIn);
-  if (clockOut) data.clockOut = new Date(clockOut);
+  const newIn = clockIn ? new Date(clockIn) : existing.clockIn;
+  if (clockIn) {
+    if (isNaN(newIn.getTime())) return res.status(400).json({ error: 'Invalid clock-in time' });
+    data.clockIn = newIn;
+  }
+  if (clockOut) {
+    const out = new Date(clockOut);
+    if (isNaN(out.getTime())) return res.status(400).json({ error: 'Invalid clock-out time' });
+    // A manager-set clock-out must be after the clock-in and not in the future.
+    if (out.getTime() <= newIn.getTime()) return res.status(400).json({ error: 'Clock-out must be after clock-in' });
+    if (out.getTime() > Date.now() + 60_000) return res.status(400).json({ error: 'Clock-out can’t be in the future' });
+    data.clockOut = out;
+  }
+  if (Object.keys(data).length === 0) return res.status(400).json({ error: 'Nothing to update' });
 
   const record = await prisma.clockRecord.update({
     where: { id: req.params.id },
     data,
     include: { user: { select: { id: true, firstName: true, lastName: true } }, shift: true },
   });
+
+  // Audit trail — a manually-set clock time is a council-facing change.
+  const who = `${existing.user.firstName} ${existing.user.lastName}`;
+  const wasOpen = !existing.clockOut;
+  const parts: string[] = [];
+  if (clockIn) parts.push(`clock-in → ${new Date(clockIn).toISOString()}`);
+  if (clockOut) parts.push(`${wasOpen ? 'manual clock-out' : 'clock-out'} → ${new Date(clockOut).toISOString()}`);
+  await logAudit(req, 'CLOCK_RECORD_EDITED', who, parts.join('; '));
+
   res.json(record);
 }
