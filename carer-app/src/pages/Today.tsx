@@ -59,7 +59,19 @@ export default function Today() {
     try { await qc.invalidateQueries(); } finally { setRefreshing(false); }
   }
 
-  const sorted = [...calls].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
+  // A call the carer is currently clocked into (clocked in, not yet out) — may be
+  // a carried-over overnight visit from a previous day.
+  const isClockedIn = (s: Shift) => !!s.clockRecords?.some((r) => r.userId === user?.id && !r.clockOut);
+  const isToday = (s: Shift) => isSameDay(new Date(s.date), new Date());
+
+  // Pin any in-progress call to the top so a still-open overnight shift can't be
+  // missed; the rest stay in visit-time order.
+  const sorted = [...calls].sort((a, b) => {
+    const ai = isClockedIn(a) ? 0 : 1;
+    const bi = isClockedIn(b) ? 0 : 1;
+    if (ai !== bi) return ai - bi;
+    return toMinutes(a.startTime) - toMinutes(b.startTime);
+  });
   const now = nowMinutes();
   const pending = sorted.filter((s) => s.status !== 'CANCELLED' && !isCallDone(s, user?.id));
   const nextCall = pending.find((s) => toMinutes(s.endTime) >= now) || pending[0];
@@ -96,7 +108,15 @@ export default function Today() {
           {sorted.map((s) => {
             const isNext = s.id === nextCall?.id;
             return (
-              <CallCard key={s.id} shift={s} highlighted={isNext} done={isCallDone(s, user?.id)} onClick={() => navigate(`/call/${s.id}`)} />
+              <CallCard
+                key={s.id}
+                shift={s}
+                highlighted={isNext}
+                done={isCallDone(s, user?.id)}
+                clockedIn={isClockedIn(s)}
+                showDate={!isToday(s)}
+                onClick={() => navigate(`/call/${s.id}`)}
+              />
             );
           })}
         </div>
@@ -105,10 +125,13 @@ export default function Today() {
   );
 }
 
-function CallCard({ shift, highlighted, done, onClick }: { shift: Shift; highlighted: boolean; done: boolean; onClick: () => void }) {
+function CallCard({ shift, highlighted, done, clockedIn, showDate, onClick }: { shift: Shift; highlighted: boolean; done: boolean; clockedIn: boolean; showDate: boolean; onClick: () => void }) {
   const su = shift.serviceUser;
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
   const isCancelled = shift.status === 'CANCELLED';
+  // An open clock-in that isn't done takes visual priority — usually a
+  // carried-over overnight visit the carer still needs to clock out of.
+  const active = clockedIn && !done;
 
   return (
     <button
@@ -117,6 +140,8 @@ function CallCard({ shift, highlighted, done, onClick }: { shift: Shift; highlig
       className={`w-full text-left rounded-2xl p-4 shadow-sm border transition-colors ${
         done
           ? 'bg-green-50 border-green-300 text-gray-500'
+          : active
+          ? 'bg-amber-500 border-amber-500 text-white'
           : highlighted
           ? 'bg-blue-600 border-blue-600 text-white'
           : isCancelled
@@ -127,9 +152,15 @@ function CallCard({ shift, highlighted, done, onClick }: { shift: Shift; highlig
       <div className="flex items-center justify-between">
         <span className="font-bold text-base">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</span>
         {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Done</span>}
-        {!done && highlighted && <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">NEXT</span>}
+        {active && <span className="text-xs font-bold bg-white/25 px-2 py-0.5 rounded-full">● CLOCKED IN — TAP TO CLOCK OUT</span>}
+        {!done && !active && highlighted && <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">NEXT</span>}
         {isCancelled && <span className="text-xs font-bold">Cancelled</span>}
       </div>
+      {showDate && (
+        <p className={`text-xs font-medium mt-0.5 ${active ? 'text-amber-50' : done ? 'text-gray-400' : highlighted ? 'text-blue-100' : 'text-gray-500'}`}>
+          {format(new Date(shift.date), 'EEE d MMM')}
+        </p>
+      )}
       <p className="text-lg font-semibold mt-1">{name}</p>
       <div className="flex items-center gap-1.5 flex-wrap">
         {shift.visitName && (
