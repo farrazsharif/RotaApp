@@ -27,6 +27,16 @@ function dayRange(startDate: unknown, endDate: unknown) {
   return { start: new Date(`${s}T00:00:00.000`), end: new Date(`${e}T23:59:59.999`) };
 }
 
+// A site filter that accepts one id or a comma-separated list, for reports that
+// let a manager pick several locations at once. Returns a Prisma filter value
+// (single or { in: [...] }) or undefined when nothing is selected.
+function siteIdFilter(raw: unknown): string | { in: string[] } | undefined {
+  if (!raw) return undefined;
+  const ids = String(raw).split(',').map((x) => x.trim()).filter(Boolean);
+  if (ids.length === 0) return undefined;
+  return ids.length === 1 ? ids[0] : { in: ids };
+}
+
 export async function hoursReport(req: AuthRequest, res: Response) {
   const { startDate, endDate, userId } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
@@ -157,8 +167,9 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
 
   const { start, end } = dayRange(startDate, endDate);
 
+  const siteFilter = siteIdFilter(siteId);
   const where: Record<string, unknown> = { date: { gte: start, lte: end }, status: { not: 'CANCELLED' } };
-  if (siteId) where.serviceUser = { siteId: siteId as string };
+  if (siteFilter) where.serviceUser = { siteId: siteFilter };
   if (role) where.role = role as string;
   if (userId) where.OR = [{ userId: userId as string }, { coverCarers: { some: { id: userId as string } } }];
   // Scoped users are confined to their sites (overrides any siteId query).
@@ -188,7 +199,7 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
   // is visible rather than silently absent.
   if (byClient) {
     const suWhere: Record<string, unknown> = { active: true };
-    if (siteId) suWhere.siteId = siteId as string;
+    if (siteFilter) suWhere.siteId = siteFilter;
     if (suScope.serviceUser && typeof suScope.serviceUser === 'object') Object.assign(suWhere, suScope.serviceUser);
     const patients = await prisma.serviceUser.findMany({
       where: suWhere,
@@ -353,7 +364,8 @@ export async function ecmReport(req: AuthRequest, res: Response) {
     published: true,
     ...relatedServiceUserScopeWhere(req.user),
   };
-  if (siteId) where.serviceUser = { siteId: String(siteId) };
+  const ecmSiteFilter = siteIdFilter(siteId);
+  if (ecmSiteFilter) where.serviceUser = { siteId: ecmSiteFilter };
   where.OR = userId
     ? [{ userId: String(userId) }, { coverCarers: { some: { id: String(userId) } } }]
     : [{ userId: { not: null } }, { coverCarers: { some: {} } }];

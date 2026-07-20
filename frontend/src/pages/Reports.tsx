@@ -10,6 +10,7 @@ import {
   startOfWeek, endOfWeek, addWeeks, subWeeks, subMonths, addDays, subDays, differenceInYears, differenceInCalendarDays,
 } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import MultiSelectDropdown from '../components/MultiSelectDropdown';
 
 type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm';
 
@@ -42,7 +43,8 @@ export default function Reports() {
   const [endDate, setEndDate] = useState(format(thisWeek.end, 'yyyy-MM-dd'));
   const [search, setSearch] = useState('');
   const [timeline, setTimeline] = useState<TimelinePreset | ''>('This Week');
-  const [siteFilter, setSiteFilter] = useState('');
+  const [siteFilter, setSiteFilter] = useState<string[]>([]);
+  const siteIdParam = siteFilter.length ? siteFilter.join(',') : undefined;
   const [roleFilter, setRoleFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
   // ECM loads on demand (not on tab open) so a big rota isn't fetched every
@@ -83,10 +85,10 @@ export default function Reports() {
   });
 
   const { data: scheduledData = [], isLoading: loadingScheduled } = useQuery({
-    queryKey: ['report-scheduled-hours', startDate, endDate, siteFilter, roleFilter, employeeFilter, schedGroupBy],
+    queryKey: ['report-scheduled-hours', startDate, endDate, siteIdParam, roleFilter, employeeFilter, schedGroupBy],
     queryFn: () => reportsApi.scheduledHours({
       startDate, endDate,
-      siteId: siteFilter || undefined,
+      siteId: siteIdParam,
       role: roleFilter || undefined,
       userId: employeeFilter || undefined,
       groupBy: schedGroupBy,
@@ -107,8 +109,8 @@ export default function Reports() {
   });
 
   const { data: ecmData = [], isLoading: loadingEcm } = useQuery({
-    queryKey: ['report-ecm', startDate, endDate, siteFilter, employeeFilter, ecmView],
-    queryFn: () => reportsApi.ecm({ startDate, endDate, siteId: siteFilter || undefined, userId: employeeFilter || undefined, view: ecmView }),
+    queryKey: ['report-ecm', startDate, endDate, siteIdParam, employeeFilter, ecmView],
+    queryFn: () => reportsApi.ecm({ startDate, endDate, siteId: siteIdParam, userId: employeeFilter || undefined, view: ecmView }),
     enabled: tab === 'ecm' && ecmRun,
   });
   // Reset ECM to its empty state whenever you leave the tab, so re-opening it
@@ -275,10 +277,12 @@ export default function Reports() {
           <>
             <div>
               <label className="label">Location Filter</label>
-              <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="input">
-                <option value="">All Locations</option>
-                {sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <MultiSelectDropdown
+                options={sites.map((s) => ({ value: s.id, label: s.name }))}
+                selected={siteFilter}
+                onChange={setSiteFilter}
+                allLabel="All Locations"
+              />
             </div>
             {tab === 'scheduled' && (
               <div>
