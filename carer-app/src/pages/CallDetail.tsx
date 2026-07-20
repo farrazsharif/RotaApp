@@ -44,7 +44,7 @@ function LiveShiftTimer({ since }: { since: string }) {
 // their own record — for when they did the visit but forgot to clock in/out and
 // recorded it late, which would otherwise show the wrong duration. One tap fills
 // the scheduled time; a manual time is also allowed.
-function AdjustTimes({ record, scheduledStart, scheduledEnd, onSaved }: { record: ClockRecord; scheduledStart: string; scheduledEnd: string; onSaved: () => void }) {
+function AdjustTimes({ record, scheduledStart, scheduledEnd, onSaved, forceOpen }: { record: ClockRecord; scheduledStart: string; scheduledEnd: string; onSaved: () => void; forceOpen?: boolean }) {
   const hasOut = !!record.clockOut;
   const [open, setOpen] = useState(false);
   const [startVal, setStartVal] = useState(() => format(new Date(record.clockIn), 'HH:mm'));
@@ -78,6 +78,10 @@ function AdjustTimes({ record, scheduledStart, scheduledEnd, onSaved }: { record
     setErr(null);
     setOpen(true);
   }
+
+  // When the clock-out was blocked for being too short, open the editor so the
+  // carer is taken straight to correcting their start time.
+  useEffect(() => { if (forceOpen) openEditor(); /* eslint-disable-next-line */ }, [forceOpen]);
 
   if (!open) {
     return (
@@ -131,6 +135,7 @@ export default function CallDetail() {
   const { user } = useAuth();
   const [note, setNote] = useState('');
   const [clockOutError, setClockOutError] = useState<{ message: string; pendingMeds: string[] } | null>(null);
+  const [shortFix, setShortFix] = useState(false);
   const [logSent, setLogSent] = useState(false);
   const [showHandover, setShowHandover] = useState(false);
   const [handoverTo, setHandoverTo] = useState('');
@@ -188,6 +193,7 @@ export default function CallDetail() {
     mutationFn: clockApi.clockOut,
     onSuccess: () => {
       setClockOutError(null);
+      setShortFix(false);
       qc.invalidateQueries({ queryKey: ['clock-status'] });
       qc.invalidateQueries({ queryKey: ['my-calls'] });
       qc.invalidateQueries({ queryKey: ['shift', id] });
@@ -195,11 +201,11 @@ export default function CallDetail() {
     },
     onError: (err: any) => {
       const data = err.response?.data;
-      if (data?.pendingMeds) {
-        setClockOutError({ message: data.error, pendingMeds: data.pendingMeds });
-      } else {
-        setClockOutError({ message: data?.error || 'Could not clock out.', pendingMeds: [] });
-      }
+      // SHORT_DURATION → show the reason and drop the carer into the start-time
+      // editor; other blocks (meds/log) keep their existing messaging.
+      setShortFix(data?.error === 'SHORT_DURATION');
+      const message = data?.message || data?.error || 'Could not clock out.';
+      setClockOutError({ message, pendingMeds: data?.pendingMeds || [] });
     },
   });
 
@@ -332,6 +338,7 @@ export default function CallDetail() {
                   record={clockStatus.record}
                   scheduledStart={shift.startTime}
                   scheduledEnd={shift.endTime}
+                  forceOpen={shortFix}
                   onSaved={() => qc.invalidateQueries({ queryKey: ['clock-status'] })}
                 />
               </div>
