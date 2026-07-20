@@ -46,7 +46,8 @@ export default function Reports() {
   const [siteFilter, setSiteFilter] = useState<string[]>([]);
   const siteIdParam = siteFilter.length ? siteFilter.join(',') : undefined;
   const [roleFilter, setRoleFilter] = useState('');
-  const [employeeFilter, setEmployeeFilter] = useState('');
+  const [employeeFilter, setEmployeeFilter] = useState<string[]>([]);
+  const userIdParam = employeeFilter.length ? employeeFilter.join(',') : undefined;
   // ECM loads on demand (not on tab open) so a big rota isn't fetched every
   // time, and a view filter narrows to just missed/recorded/short.
   const [ecmView, setEcmView] = useState('missed');
@@ -85,12 +86,12 @@ export default function Reports() {
   });
 
   const { data: scheduledData = [], isLoading: loadingScheduled } = useQuery({
-    queryKey: ['report-scheduled-hours', startDate, endDate, siteIdParam, roleFilter, employeeFilter, schedGroupBy],
+    queryKey: ['report-scheduled-hours', startDate, endDate, siteIdParam, roleFilter, userIdParam, schedGroupBy],
     queryFn: () => reportsApi.scheduledHours({
       startDate, endDate,
       siteId: siteIdParam,
       role: roleFilter || undefined,
-      userId: employeeFilter || undefined,
+      userId: userIdParam,
       groupBy: schedGroupBy,
     }),
     enabled: tab === 'scheduled',
@@ -109,8 +110,8 @@ export default function Reports() {
   });
 
   const { data: ecmData = [], isLoading: loadingEcm } = useQuery({
-    queryKey: ['report-ecm', startDate, endDate, siteIdParam, employeeFilter, ecmView],
-    queryFn: () => reportsApi.ecm({ startDate, endDate, siteId: siteIdParam, userId: employeeFilter || undefined, view: ecmView }),
+    queryKey: ['report-ecm', startDate, endDate, siteIdParam, userIdParam, ecmView],
+    queryFn: () => reportsApi.ecm({ startDate, endDate, siteId: siteIdParam, userId: userIdParam, view: ecmView }),
     enabled: tab === 'ecm' && ecmRun,
   });
   // Reset ECM to its empty state whenever you leave the tab, so re-opening it
@@ -295,10 +296,12 @@ export default function Reports() {
             )}
             <div>
               <label className="label">Carer Filter</label>
-              <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="input">
-                <option value="">Select Carers</option>
-                {employees.map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-              </select>
+              <MultiSelectDropdown
+                options={employees.map((u) => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
+                selected={employeeFilter}
+                onChange={setEmployeeFilter}
+                allLabel="All Carers"
+              />
             </div>
           </>
         )}

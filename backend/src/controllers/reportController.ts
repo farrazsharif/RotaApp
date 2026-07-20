@@ -37,6 +37,14 @@ function siteIdFilter(raw: unknown): string | { in: string[] } | undefined {
   return ids.length === 1 ? ids[0] : { in: ids };
 }
 
+// One or many ids from a single/comma-separated query param (e.g. filter a
+// report by several carers at once), or undefined when nothing is selected.
+function idList(raw: unknown): string[] | undefined {
+  if (!raw) return undefined;
+  const ids = String(raw).split(',').map((x) => x.trim()).filter(Boolean);
+  return ids.length ? ids : undefined;
+}
+
 export async function hoursReport(req: AuthRequest, res: Response) {
   const { startDate, endDate, userId } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
@@ -168,10 +176,11 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
   const { start, end } = dayRange(startDate, endDate);
 
   const siteFilter = siteIdFilter(siteId);
+  const userIds = idList(userId);
   const where: Record<string, unknown> = { date: { gte: start, lte: end }, status: { not: 'CANCELLED' } };
   if (siteFilter) where.serviceUser = { siteId: siteFilter };
   if (role) where.role = role as string;
-  if (userId) where.OR = [{ userId: userId as string }, { coverCarers: { some: { id: userId as string } } }];
+  if (userIds) where.OR = [{ userId: { in: userIds } }, { coverCarers: { some: { id: { in: userIds } } } }];
   // Scoped users are confined to their sites (overrides any siteId query).
   const suScope = relatedServiceUserScopeWhere(req.user);
   if (suScope.serviceUser) where.serviceUser = suScope.serviceUser;
@@ -239,7 +248,7 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
     // The shift may have matched because *some* carer on it is the filtered
     // employee, but it can also have other carers — only attribute hours to
     // the one actually being filtered for.
-    if (userId) carers = carers.filter((c) => c.id === userId);
+    if (userIds) carers = carers.filter((c) => userIds.includes(c.id));
     const targets = carers.length > 0 ? carers : [{ id: 'unassigned', name: 'Unassigned', rate: 0 }];
     for (const t of targets) {
       const row = ensure(t.id, t.name, t.rate);
@@ -365,9 +374,10 @@ export async function ecmReport(req: AuthRequest, res: Response) {
     ...relatedServiceUserScopeWhere(req.user),
   };
   const ecmSiteFilter = siteIdFilter(siteId);
+  const ecmUserIds = idList(userId);
   if (ecmSiteFilter) where.serviceUser = { siteId: ecmSiteFilter };
-  where.OR = userId
-    ? [{ userId: String(userId) }, { coverCarers: { some: { id: String(userId) } } }]
+  where.OR = ecmUserIds
+    ? [{ userId: { in: ecmUserIds } }, { coverCarers: { some: { id: { in: ecmUserIds } } } }]
     : [{ userId: { not: null } }, { coverCarers: { some: {} } }];
 
   const shifts = await prisma.shift.findMany({
@@ -390,7 +400,7 @@ export async function ecmReport(req: AuthRequest, res: Response) {
     const targets = carers.length > 0 ? carers : [{ id: 'unassigned', firstName: 'Unassigned', lastName: '' }];
 
     for (const c of targets) {
-      if (userId && c.id !== String(userId)) continue;
+      if (ecmUserIds && !ecmUserIds.includes(c.id)) continue;
       const clock = s.clockRecords.find((cr) => cr.userId === c.id);
       const clockIn = clock?.clockIn ? new Date(clock.clockIn) : null;
       const clockOut = clock?.clockOut ? new Date(clock.clockOut) : null;
