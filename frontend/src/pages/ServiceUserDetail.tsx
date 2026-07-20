@@ -194,6 +194,9 @@ export default function ServiceUserDetail() {
               {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
               <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${STATUS_META[su.status]?.className || STATUS_META.ACTIVE.className}`}>
                 {su.status === 'HOSPITALISED' ? <HospitalIcon /> : STATUS_META[su.status]?.icon} {STATUS_META[su.status]?.label || su.status}
+                {su.status !== 'ACTIVE' && su.statusUpdatedAt && (
+                  <span className="opacity-75">· {format(new Date(su.statusUpdatedAt), 'd MMM yyyy')}</span>
+                )}
               </span>
             </div>
             </div>
