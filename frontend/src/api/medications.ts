@@ -7,6 +7,8 @@ export interface MedicationData {
   dose?: string;
   route?: string;
   instructions?: string;
+  isBlisterPack?: boolean;
+  packContents?: string;
   times?: string[];
   applicationSites?: BodyMapPoint[];
   startDate?: string;

@@ -147,6 +147,8 @@ export interface DueDose {
   name: string;
   dose?: string | null;
   route?: string | null;
+  isBlisterPack?: boolean;
+  packContents?: string | null;
   time: string;
   scheduledFor: string;
   status: MedAdminStatus | null;

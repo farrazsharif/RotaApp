@@ -238,6 +238,8 @@ export interface Medication {
   dose?: string;
   route?: string;
   instructions?: string;
+  isBlisterPack?: boolean;
+  packContents?: string;
   times: string; // JSON array of "HH:MM"
   applicationSites: string; // JSON array of BodyMapPoint
   startDate?: string;

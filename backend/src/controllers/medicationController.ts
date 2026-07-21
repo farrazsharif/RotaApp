@@ -45,7 +45,7 @@ export async function listMedications(req: AuthRequest, res: Response) {
 }
 
 export async function createMedication(req: AuthRequest, res: Response) {
-  const { serviceUserId, name, dose, route, instructions, times, startDate, endDate, applicationSites } = req.body;
+  const { serviceUserId, name, dose, route, instructions, times, startDate, endDate, applicationSites, isBlisterPack, packContents } = req.body;
   if (!serviceUserId || !name) return res.status(400).json({ error: 'serviceUserId and name required' });
   const med = await prisma.medication.create({
     data: {
@@ -54,6 +54,8 @@ export async function createMedication(req: AuthRequest, res: Response) {
       dose: dose || null,
       route: route || null,
       instructions: instructions || null,
+      isBlisterPack: !!isBlisterPack,
+      packContents: packContents ? String(packContents) : null,
       times: parseTimes(times),
       applicationSites: parseApplicationSites(applicationSites),
       startDate: startDate ? new Date(startDate) : null,
@@ -65,12 +67,14 @@ export async function createMedication(req: AuthRequest, res: Response) {
 }
 
 export async function updateMedication(req: AuthRequest, res: Response) {
-  const { name, dose, route, instructions, times, startDate, endDate, active, applicationSites } = req.body;
+  const { name, dose, route, instructions, times, startDate, endDate, active, applicationSites, isBlisterPack, packContents } = req.body;
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
   if (dose !== undefined) data.dose = dose || null;
   if (route !== undefined) data.route = route || null;
   if (instructions !== undefined) data.instructions = instructions || null;
+  if (isBlisterPack !== undefined) data.isBlisterPack = !!isBlisterPack;
+  if (packContents !== undefined) data.packContents = packContents ? String(packContents) : null;
   if (times !== undefined) data.times = parseTimes(times);
   if (applicationSites !== undefined) data.applicationSites = parseApplicationSites(applicationSites);
   if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;

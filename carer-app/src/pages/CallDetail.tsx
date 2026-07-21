@@ -486,9 +486,17 @@ export default function CallDetail() {
                 {dueMeds.map((dose) => (
                   <div key={`${dose.medicationId}-${dose.scheduledFor}`} className="border border-gray-100 rounded-xl p-3">
                     <div className="flex items-center justify-between">
-                      <p className="font-medium text-gray-800">{dose.name}{dose.dose ? ` · ${dose.dose}` : ''}</p>
+                      <p className="font-medium text-gray-800 flex items-center gap-1.5 flex-wrap">
+                        {dose.name}{dose.dose ? ` · ${dose.dose}` : ''}
+                        {dose.isBlisterPack && <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">💊 Pack</span>}
+                      </p>
                       <span className="text-xs text-gray-400">{formatTime12h(dose.time)}</span>
                     </div>
+                    {dose.isBlisterPack && dose.packContents && (
+                      <div className="mt-1.5 text-xs text-gray-600 bg-gray-50 rounded-lg p-2 whitespace-pre-wrap">
+                        <span className="font-medium text-gray-500">In this pack:</span>{'\n'}{dose.packContents}
+                      </div>
+                    )}
                     {dose.status ? (
                       <p className="text-sm font-semibold text-green-600 mt-2">
                         ✓ {dose.status.replace('_', ' ')}

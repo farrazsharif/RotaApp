@@ -64,7 +64,7 @@ async function dueDosesForShift(shiftId: string | null) {
   if (!shift || !shift.serviceUserId) return [];
   const meds = await prisma.medication.findMany({ where: { serviceUserId: shift.serviceUserId, active: true } });
   const day = shift.date;
-  const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; time: string; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
+  const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; isBlisterPack: boolean; packContents: string | null; time: string; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
   for (const med of meds) {
     let times: string[] = [];
     try { times = JSON.parse(med.times || '[]'); } catch { times = []; }
@@ -78,6 +78,7 @@ async function dueDosesForShift(shiftId: string | null) {
       });
       out.push({
         medicationId: med.id, name: med.name, dose: med.dose, route: med.route,
+        isBlisterPack: med.isBlisterPack, packContents: med.packContents,
         time: t, scheduledFor: scheduledFor.toISOString(), status: admin?.status ?? null,
         recordedAt: admin?.recordedAt ? admin.recordedAt.toISOString() : null,
       });

@@ -66,7 +66,7 @@ function cellDate(dateStr: string, time: string): Date {
   return new Date(Date.UTC(y, m - 1, d, h, mi, 0));
 }
 
-const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '' };
+const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '', isBlisterPack: false, packContents: '' };
 
 // Default clock times offered for each visit type a service user can be
 // scheduled for (see ServiceUserForm's VISIT_TYPES). Anything without
@@ -150,6 +150,8 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
       dose: medForm.dose || undefined,
       route: medForm.route || undefined,
       instructions: medForm.instructions || undefined,
+      isBlisterPack: medForm.isBlisterPack,
+      packContents: medForm.isBlisterPack ? (medForm.packContents || undefined) : undefined,
       times: Object.values(visitTimes).sort(),
       applicationSites: isTopical(medForm.route) ? sites : undefined,
     }),
@@ -196,14 +198,43 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
 
           {isManager && showAdd && (
             <div className="rounded-lg border border-gray-200 p-3 space-y-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-800 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={medForm.isBlisterPack}
+                  onChange={(e) => setMedForm({
+                    ...medForm,
+                    isBlisterPack: e.target.checked,
+                    // Sensible default name when switching to a pack.
+                    name: e.target.checked && !medForm.name.trim() ? 'Blister Pack (MDS)' : medForm.name,
+                  })}
+                  className="h-4 w-4 accent-blue-600"
+                />
+                💊 This is a blister pack (MDS / dosette) — given as a whole at each dose time
+              </label>
+
+              {medForm.isBlisterPack && (
+                <div>
+                  <label className="label">Medications in this pack</label>
+                  <textarea
+                    value={medForm.packContents}
+                    onChange={(e) => setMedForm({ ...medForm, packContents: e.target.value })}
+                    rows={3}
+                    className="input resize-none"
+                    placeholder={'List what the pack contains, e.g.\nAmlodipine 5mg — 1 tablet\nAtorvastatin 20mg — 1 tablet\nMetformin 500mg — 1 tablet'}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">For the record — the carer administers the whole pack; this lists what’s inside.</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Medication Name *</label>
-                  <input value={medForm.name} onChange={(e) => setMedForm({ ...medForm, name: e.target.value })} className="input" placeholder="e.g. Amlodipine" />
+                  <label className="label">{medForm.isBlisterPack ? 'Pack name *' : 'Medication Name *'}</label>
+                  <input value={medForm.name} onChange={(e) => setMedForm({ ...medForm, name: e.target.value })} className="input" placeholder={medForm.isBlisterPack ? 'e.g. Blister Pack (MDS)' : 'e.g. Amlodipine'} />
                 </div>
                 <div>
                   <label className="label">Dose</label>
-                  <input value={medForm.dose} onChange={(e) => setMedForm({ ...medForm, dose: e.target.value })} className="input" placeholder="e.g. 5mg, 1 tablet" />
+                  <input value={medForm.dose} onChange={(e) => setMedForm({ ...medForm, dose: e.target.value })} className="input" placeholder={medForm.isBlisterPack ? 'e.g. 1 pack' : 'e.g. 5mg, 1 tablet'} />
                 </div>
                 <div>
                   <label className="label">Route</label>
@@ -277,12 +308,18 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                   <div key={med.id} className="rounded-lg border border-gray-200 p-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-semibold text-gray-900">
+                        <p className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
                           {med.name} {med.dose && <span className="text-gray-500 font-normal">· {med.dose}</span>}
+                          {med.isBlisterPack && <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">💊 Blister pack</span>}
                         </p>
                         <p className="text-xs text-gray-500">
                           {med.route || 'Oral'}{med.instructions ? ` · ${med.instructions}` : ''}
                         </p>
+                        {med.isBlisterPack && med.packContents && (
+                          <div className="mt-1.5 text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded p-2 whitespace-pre-wrap">
+                            <span className="font-medium text-gray-500">Contains:</span>{'\n'}{med.packContents}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-3">
                         {medSites.length > 0 && (
