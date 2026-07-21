@@ -64,10 +64,10 @@ export default function Reports() {
   }
 
   const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
-  // All active staff (any role, incl. custom roles / managers who also do visits),
-  // excluding family members — so the Carer filter lists everyone who can be on a shift.
-  const { data: allStaff = [] } = useQuery({ queryKey: ['users', 'active'], queryFn: () => usersApi.list({ active: true }) });
-  const employees = allStaff.filter((u) => u.role !== 'FAMILY_MEMBER');
+  // Every staff member for the carer filter — all roles and all states (active,
+  // inactive, and invited/pending), so the list is complete. The backend already
+  // excludes family accounts when no role is passed.
+  const { data: employees = [] } = useQuery({ queryKey: ['users', 'all-staff'], queryFn: () => usersApi.list() });
   const { data: shiftRoles = [] } = useQuery({ queryKey: ['shift-roles'], queryFn: reportsApi.shiftRoles });
 
   const { data: hoursData = [], isLoading: loadingHours } = useQuery({
