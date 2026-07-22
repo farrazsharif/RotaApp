@@ -6,6 +6,7 @@ import Layout from '../components/Layout';
 import CoverRequests from '../components/CoverRequests';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import { clockApi } from '../api/clock';
+import { handoversApi } from '../api/handovers';
 import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
@@ -43,6 +44,17 @@ export default function Today() {
     queryFn: () => clockApi.myCalls(),
     refetchInterval: 60000,
   });
+
+  // Cover requests this carer has sent that are still awaiting a response — used
+  // to badge those calls so it's clear cover has been requested for them.
+  const { data: handovers } = useQuery({
+    queryKey: ['my-handovers'],
+    queryFn: handoversApi.mine,
+    refetchInterval: 60000,
+  });
+  const coverRequestedIds = new Set(
+    (handovers?.outgoing ?? []).filter((h) => h.status === 'PENDING').map((h) => h.shiftId),
+  );
 
   // Shared shift query (also used by Rota / My Hours) drives the hours totals.
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -118,6 +130,7 @@ export default function Today() {
                 highlighted={isNext}
                 done={isCallDone(s, user?.id)}
                 clockedIn={isClockedIn(s)}
+                coverRequested={coverRequestedIds.has(s.id)}
                 showDate={!isToday(s)}
                 onClick={() => navigate(`/call/${s.id}`)}
               />
@@ -129,7 +142,7 @@ export default function Today() {
   );
 }
 
-function CallCard({ shift, highlighted, done, clockedIn, showDate, onClick }: { shift: Shift; highlighted: boolean; done: boolean; clockedIn: boolean; showDate: boolean; onClick: () => void }) {
+function CallCard({ shift, highlighted, done, clockedIn, coverRequested, showDate, onClick }: { shift: Shift; highlighted: boolean; done: boolean; clockedIn: boolean; coverRequested: boolean; showDate: boolean; onClick: () => void }) {
   const su = shift.serviceUser;
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
   const isCancelled = shift.status === 'CANCELLED';
@@ -169,6 +182,13 @@ function CallCard({ shift, highlighted, done, clockedIn, showDate, onClick }: { 
       <div className="flex items-center gap-1.5 flex-wrap">
         {shift.visitName && (
           <p className={`text-sm ${highlighted && !done ? 'text-blue-100' : 'text-gray-500'}`}>{shift.visitName}</p>
+        )}
+        {coverRequested && !done && (
+          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+            active || (highlighted && !done) ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'
+          }`}>
+            🤝 Cover requested
+          </span>
         )}
         {shift.run && (
           <span
