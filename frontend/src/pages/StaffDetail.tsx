@@ -232,6 +232,7 @@ export default function StaffDetail() {
 }
 
 function PasswordCard({ userId, email }: { userId: string; email: string }) {
+  const qc = useQueryClient();
   const [mode, setMode] = useState<'idle' | 'set'>('idle');
   const [pw, setPw] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
@@ -244,7 +245,14 @@ function PasswordCard({ userId, email }: { userId: string; email: string }) {
 
   const setMut = useMutation({
     mutationFn: () => usersApi.resetPassword(userId, { mode: 'set', password: pw }),
-    onSuccess: () => { setMsg('Password updated. Share it with the user securely.'); setPw(''); setMode('idle'); },
+    onSuccess: () => {
+      // Setting a password also activates the account, so refresh so the
+      // "Pending setup" badge/status updates to Active.
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['user', userId] });
+      setMsg('Password set and account activated. Share the password with them securely — they can log in now.');
+      setPw(''); setMode('idle');
+    },
     onError: () => setMsg('Could not update password.'),
   });
 

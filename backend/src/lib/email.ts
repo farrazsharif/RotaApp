@@ -113,9 +113,9 @@ export function resetPasswordEmail(name: string, link: string) {
     ${emailHeader()}
     <h2>Reset your Caremid password</h2>
     <p>Hi ${name},</p>
-    <p>An administrator has requested a password reset for your account. Click the link below to choose a new password:</p>
+    <p>A password reset was requested for your account. Click the link below to choose a new password:</p>
     <p><a href="${link}">Reset my password</a></p>
-    <p>This link expires in 7 days. If you didn't expect this, contact your manager — your current password still works until you use this link.</p>
+    <p>This link expires in 7 days. If you didn't request this, you can ignore this email — your current password still works until you use this link.</p>
   `;
 }
 

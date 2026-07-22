@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { login, getMe, updateMe, changePassword, checkSetPasswordToken, setPassword } from '../controllers/authController';
+import { login, getMe, updateMe, changePassword, checkSetPasswordToken, setPassword, forgotPassword } from '../controllers/authController';
 import { signup } from '../controllers/signupController';
 import { authenticate } from '../middleware/auth';
 
@@ -12,5 +12,6 @@ router.put('/me', authenticate, updateMe);
 router.put('/change-password', authenticate, changePassword);
 router.get('/set-password/:token', checkSetPasswordToken);
 router.post('/set-password', setPassword);
+router.post('/forgot-password', forgotPassword);
 
 export default router;

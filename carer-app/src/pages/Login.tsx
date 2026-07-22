@@ -10,6 +10,9 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // "Forgot password?" flow — swaps the sign-in form for an email-entry form.
+  const [mode, setMode] = useState<'login' | 'forgot'>('login');
+  const [resetSent, setResetSent] = useState('');
 
   // Single sign-on handoff: the manager portal redirects carers here with a
   // ?sso=<token> param. Adopt that session so they don't log in twice.
@@ -44,6 +47,21 @@ export default function Login() {
     }
   }
 
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const r = await authApi.forgotPassword(email);
+      setResetSent(r.message || 'If that email is registered, a reset link has been sent.');
+    } catch {
+      // Endpoint is deliberately generic; show the same reassuring message.
+      setResetSent('If that email is registered, a reset link has been sent.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-blue-600 px-6">
       <div className="w-full max-w-sm">
@@ -52,40 +70,88 @@ export default function Login() {
           <h1 className="text-lg font-bold text-white">Caremid Carer</h1>
           <p className="text-blue-100 text-sm mt-1">Clock in, log calls, record medication</p>
         </div>
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-5 shadow-xl space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-3 text-base"
-              placeholder="you@example.com"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-3 text-base"
-              placeholder="••••••••"
-            />
-          </div>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold text-base disabled:opacity-50"
-          >
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
+        {mode === 'login' ? (
+          <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-5 shadow-xl space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-3 text-base"
+                placeholder="you@example.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-3 text-base"
+                placeholder="••••••••"
+              />
+            </div>
+            {error && <p className="text-red-600 text-sm">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold text-base disabled:opacity-50"
+            >
+              {loading ? 'Signing in…' : 'Sign In'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('forgot'); setError(''); setResetSent(''); }}
+              className="w-full text-blue-600 text-sm font-medium pt-1"
+            >
+              Forgot password?
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleForgot} className="bg-white rounded-2xl p-5 shadow-xl space-y-4">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Reset your password</h2>
+              <p className="text-sm text-gray-500 mt-1">Enter your email and we'll send you a link to set a new password.</p>
+            </div>
+            {resetSent ? (
+              <p className="text-green-700 text-sm bg-green-50 rounded-lg p-3">{resetSent}</p>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-3 text-base"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-blue-600 text-white rounded-lg py-3 font-semibold text-base disabled:opacity-50"
+                >
+                  {loading ? 'Sending…' : 'Send reset link'}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => { setMode('login'); setError(''); setResetSent(''); }}
+              className="w-full text-blue-600 text-sm font-medium pt-1"
+            >
+              ← Back to sign in
+            </button>
+          </form>
+        )}
         <p className="text-center text-blue-100 text-sm mt-4">
           For carers and staff doing visits.{' '}
           <a href={window.location.hostname.endsWith('caremid.co.uk') ? 'https://portal.caremid.co.uk' : 'http://localhost:5173'}

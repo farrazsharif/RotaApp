@@ -143,7 +143,9 @@ export async function adminResetPassword(req: AuthRequest, res: Response) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
     const hashed = await bcrypt.hash(password, 10);
-    await prisma.user.update({ where: { id }, data: { password: hashed } });
+    // Setting a password manually completes onboarding: activate the account
+    // (an invited/pending carer starts inactive and otherwise can't log in).
+    await prisma.user.update({ where: { id }, data: { password: hashed, active: true } });
     await prisma.passwordSetupToken.deleteMany({ where: { userId: id } });
     await logAudit(req, 'PASSWORD_SET_BY_ADMIN', `${user.firstName} ${user.lastName}`, user.email);
     return res.json({ message: 'Password updated' });
@@ -155,6 +157,24 @@ export async function adminResetPassword(req: AuthRequest, res: Response) {
   sendEmail(user.email, 'Reset your Caremid password', resetPasswordEmail(user.firstName, link));
   await logAudit(req, 'PASSWORD_RESET_SENT', `${user.firstName} ${user.lastName}`, user.email);
   res.json({ message: 'Reset email sent', email: user.email });
+}
+
+// Self-service "forgot password": a carer/manager/family member enters their
+// email and we send a reset link to the right portal. Always responds with a
+// generic message so the endpoint can't be used to probe which emails exist,
+// and only sends for active accounts (invited/pending use the invite flow).
+export async function forgotPassword(req: Request, res: Response) {
+  const generic = { message: 'If that email is registered, a password reset link has been sent.' };
+  const { email } = req.body as { email?: string };
+  if (!email || typeof email !== 'string') return res.json(generic);
+
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+  if (user && user.active) {
+    const token = await createPasswordSetupToken(user.id);
+    const link = `${portalUrlForRole(user.role)}/set-password?token=${token}`;
+    sendEmail(user.email, 'Reset your Caremid password', resetPasswordEmail(user.firstName, link));
+  }
+  res.json(generic);
 }
 
 export async function setPassword(req: Request, res: Response) {
