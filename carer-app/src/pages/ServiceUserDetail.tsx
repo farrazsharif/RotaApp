@@ -10,6 +10,7 @@ import { medicationsApi } from '../api/medications';
 import { PSP_SECTIONS, itemKey } from '../lib/servicePlanSchema';
 import type { PspItem, PspSection } from '../lib/servicePlanSchema';
 import { formatTime12h } from '../lib/time';
+import { mapsUrl } from '../lib/maps';
 
 type Tab = 'info' | 'care' | 'service' | 'emar';
 
@@ -27,12 +28,16 @@ const STATUS_COLOR: Record<string, string> = {
   NOT_NEEDED: 'text-gray-600 bg-gray-100', SELF_ADMIN: 'text-blue-700 bg-blue-100',
 };
 
-function Field({ label, value }: { label: string; value?: string | null }) {
+function Field({ label, value, href }: { label: string; value?: string | null; href?: string | null }) {
   if (!value) return null;
   return (
     <div>
       <p className="text-xs font-medium text-gray-400">{label}</p>
-      <p className="text-sm text-gray-800">{value}</p>
+      {href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline underline-offset-2 active:text-blue-800">{value}</a>
+      ) : (
+        <p className="text-sm text-gray-800">{value}</p>
+      )}
     </div>
   );
 }
@@ -119,7 +124,7 @@ export default function ServiceUserDetail() {
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 space-y-3">
             <Field label="Date of Birth" value={su.dateOfBirth ? format(new Date(su.dateOfBirth), 'dd MMM yyyy') : undefined} />
             <Field label="NHS Number" value={su.nhsNumber} />
-            <Field label="Address" value={su.address ? `${su.address}${su.postcode ? `, ${su.postcode}` : ''}` : undefined} />
+            <Field label="Address" value={su.address ? `${su.address}${su.postcode ? `, ${su.postcode}` : ''}` : undefined} href={mapsUrl(su.address, su.postcode)} />
             <Field label="Phone" value={su.phone} />
             <Field label="Site" value={su.site?.name} />
             <div className="grid grid-cols-2 gap-3">

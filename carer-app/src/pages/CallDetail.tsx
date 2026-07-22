@@ -11,6 +11,7 @@ import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
+import { mapsUrl } from '../lib/maps';
 import type { MedAdminStatus, CallLogSignature, ClockRecord } from '../types';
 
 function formatElapsed(ms: number): string {
@@ -322,7 +323,18 @@ export default function CallDetail() {
             {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Visit Completed</span>}
           </div>
           {shift.visitName && <p className="font-semibold text-gray-800">{shift.visitName}</p>}
-          {su?.address && <p className="text-sm text-gray-500 mt-1">📍 {su.address}{su.postcode ? `, ${su.postcode}` : ''}</p>}
+          {su?.address && (
+            <p className="text-sm mt-1">
+              <a
+                href={mapsUrl(su.address, su.postcode) || undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 underline underline-offset-2 active:text-blue-800"
+              >
+                📍 {su.address}{su.postcode ? `, ${su.postcode}` : ''}
+              </a>
+            </p>
+          )}
           {su?.phone && <p className="text-sm text-gray-500">📞 {su.phone}</p>}
           {su && (
             <button
