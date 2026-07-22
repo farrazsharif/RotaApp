@@ -138,6 +138,9 @@ export interface CallLog {
   note: string;
   signedBy?: string | null; // JSON array of CallLogSignature
   createdAt: string;
+  // Returned by the list endpoint — used for the recent-visit history panel.
+  user?: { id: string; firstName: string; lastName: string } | null;
+  shift?: { id: string; date: string; startTime: string; endTime: string; visitName?: string | null } | null;
 }
 
 export type MedAdminStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN';

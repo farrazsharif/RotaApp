@@ -142,6 +142,7 @@ export default function CallDetail() {
   const [handoverReason, setHandoverReason] = useState('');
   const [editingLog, setEditingLog] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const { data: shift, isLoading } = useQuery({
     queryKey: ['shift', id],
@@ -172,6 +173,22 @@ export default function CallDetail() {
 
   // Shared call log: one log per visit that every carer on the call signs.
   const sharedLog = callLogs.find((l) => l.shiftId === shift?.id);
+
+  // Recent visit history: the last 7 days of this client's logs from OTHER
+  // visits, so the incoming carer can see what previous carers did and continue
+  // from there. Read-only — each log stays attributed to whoever wrote it.
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const historyLogs = callLogs
+    .filter((l) => l.shiftId !== shift?.id && l.note?.trim() && Date.now() - new Date(l.createdAt).getTime() <= WEEK_MS)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Name(s) to credit a log to: its signers, else the author, else the recorded time.
+  const logAuthors = (l: typeof callLogs[number]): string => {
+    try {
+      const sigs = l.signedBy ? JSON.parse(l.signedBy) : [];
+      if (Array.isArray(sigs) && sigs.length) return sigs.map((s: CallLogSignature) => `${s.firstName} ${s.lastName}`.trim()).filter(Boolean).join(', ');
+    } catch { /* fall through */ }
+    return l.user ? `${l.user.firstName} ${l.user.lastName}`.trim() : '';
+  };
   const signatures: CallLogSignature[] = (() => {
     if (!sharedLog?.signedBy) return [];
     try { const v = JSON.parse(sharedLog.signedBy); return Array.isArray(v) ? v : []; } catch { return []; }
@@ -524,6 +541,49 @@ export default function CallDetail() {
             )}
           </div>
         )}
+
+        {/* Recent visit history — last 7 days of other visits' logs, read-only,
+            so the carer can see what happened before and continue from there. */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <button
+            onClick={() => setShowHistory((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left"
+          >
+            <span className="font-semibold text-gray-800">
+              📖 Recent visit history
+              <span className="text-gray-400 font-normal text-sm"> · last 7 days</span>
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">{historyLogs.length}</span>
+              <span className={`text-gray-400 transition-transform ${showHistory ? 'rotate-180' : ''}`}>▾</span>
+            </span>
+          </button>
+          {showHistory && (
+            <div className="px-4 pb-4 space-y-2 border-t border-gray-100 pt-3">
+              {historyLogs.length === 0 ? (
+                <p className="text-sm text-gray-400">No visits logged in the last 7 days.</p>
+              ) : (
+                historyLogs.map((l) => {
+                  const authors = logAuthors(l);
+                  const when = l.shift?.date ? new Date(l.shift.date) : new Date(l.createdAt);
+                  const timeLabel = l.shift ? `${formatTime12h(l.shift.startTime)}` : format(new Date(l.createdAt), 'h:mm a');
+                  return (
+                    <div key={l.id} className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-xs font-semibold text-gray-700">
+                          {format(when, 'EEE d MMM')} · {timeLabel}
+                          {l.shift?.visitName ? ` · ${l.shift.visitName}` : ''}
+                        </span>
+                        {authors && <span className="text-xs text-gray-400 shrink-0">{authors}</span>}
+                      </div>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{l.note}</p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Call log */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
