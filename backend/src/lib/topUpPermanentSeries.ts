@@ -20,6 +20,24 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
   });
   if (rows.length === 0) return;
 
+  // Respite windows still in effect — don't regenerate visits into a period
+  // where the client is away. Grouped by service user for quick lookup below.
+  const respiteRows = await prisma.respitePeriod.findMany({
+    where: { endAt: { gte: today } },
+    select: { serviceUserId: true, startAt: true, endAt: true },
+  });
+  const respiteBySU = new Map<string, { startAt: Date; endAt: Date }[]>();
+  for (const r of respiteRows) {
+    const list = respiteBySU.get(r.serviceUserId) ?? [];
+    list.push({ startAt: new Date(r.startAt), endAt: new Date(r.endAt) });
+    respiteBySU.set(r.serviceUserId, list);
+  }
+  const inRespite = (serviceUserId: string | null, at: Date): boolean => {
+    if (!serviceUserId) return false;
+    const list = respiteBySU.get(serviceUserId);
+    return !!list && list.some((w) => at >= w.startAt && at < w.endAt);
+  };
+
   // Group by series → the weekdays it recurs on and the furthest date so far.
   const bySeries = new Map<string, { weekdays: Set<number>; latest: Date }>();
   for (const r of rows) {
@@ -52,12 +70,18 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
     }
 
     // Every matching weekday strictly after the latest shift, up to the window.
+    // Skip any that land inside a respite window (client away), matched at the
+    // template's start time so a boundary day is handled correctly.
+    const [th, tm] = String(template.startTime || '00:00').split(':').map(Number);
     const dates: Date[] = [];
     const cur = new Date(info.latest);
     cur.setDate(cur.getDate() + 1);
     while (cur <= target) {
       if (info.weekdays.has(cur.getDay())) {
-        dates.push(new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 12, 0, 0));
+        const at = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), th || 0, tm || 0, 0);
+        if (!inRespite(template.serviceUserId, at)) {
+          dates.push(new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 12, 0, 0));
+        }
       }
       cur.setDate(cur.getDate() + 1);
     }

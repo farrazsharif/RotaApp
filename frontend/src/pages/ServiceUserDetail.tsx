@@ -23,6 +23,7 @@ import FamilyAccessModal from '../components/FamilyAccessModal';
 import EmergencyGrabSheetModal from '../components/EmergencyGrabSheetModal';
 import DocumentsTab from '../components/DocumentsTab';
 import ServiceUserNotes from '../components/ServiceUserNotes';
+import RespiteSection from '../components/RespiteSection';
 
 const durationLabel = (m: number) =>
   m >= 60 ? `${m / 60} hr${m > 60 ? 's' : ''}${m % 60 ? ` ${m % 60}m` : ''}` : `${m} mins`;
@@ -307,6 +308,9 @@ export default function ServiceUserDetail() {
             </div>
           )}
         </Section>
+
+        {/* Away / Respite — cancels visits in the window as non-chargeable */}
+        <RespiteSection serviceUserId={id} isManager={isManager} />
 
         {/* Emergency contact & next of kin */}
         <Section title="Emergency Contact & Next of Kin">

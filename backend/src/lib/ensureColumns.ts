@@ -154,6 +154,26 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceUserNote_companyId_idx" ON "ServiceUserNote"("companyId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceUserNote_serviceUserId_idx" ON "ServiceUserNote"("serviceUserId")`);
 
+  // RespitePeriod — a client's away/respite window. No DB-level FK (Prisma
+  // resolves the relation via serviceUserId); creating the table here keeps the
+  // deploy migration-free and idempotent.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "RespitePeriod" (
+      "id"             TEXT PRIMARY KEY,
+      "companyId"      TEXT,
+      "serviceUserId"  TEXT NOT NULL,
+      "startAt"        TIMESTAMP(3) NOT NULL,
+      "endAt"          TIMESTAMP(3) NOT NULL,
+      "note"           TEXT,
+      "cancelledCount" INTEGER NOT NULL DEFAULT 0,
+      "createdById"    TEXT,
+      "createdByName"  TEXT NOT NULL,
+      "createdAt"      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "RespitePeriod_companyId_idx" ON "RespitePeriod"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "RespitePeriod_serviceUserId_idx" ON "RespitePeriod"("serviceUserId")`);
+
   // Performance indexes for large Shift tables. Series-wide carer changes and
   // series deletes match a visit by (company, serviceUser, date); series ops
   // group/filter by seriesId. Without these, a big rota is fully scanned on

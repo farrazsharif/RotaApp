@@ -187,8 +187,31 @@ model ServiceUser {
   invoiceLines        InvoiceLine[]
   statusChanges       ServiceUserStatusChange[]
   spotChecks          SpotCheck[]
+  respitePeriods      RespitePeriod[]
 
   @@index([companyId])
+}
+
+// A respite / away period: the client is away (respite care, family, etc.) so
+// no care is delivered and none of the visits in the window are chargeable.
+// Creating one cancels the client's scheduled visits inside the window as
+// non-chargeable; the period stays on record until a manager removes it.
+model RespitePeriod {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  serviceUserId String
+  startAt       DateTime // care pauses (the "away from" date & time)
+  endAt         DateTime // care resumes (the "restart" date & time)
+  note          String?
+  cancelledCount Int     @default(0) // visits cancelled when this period was created
+  createdById   String?
+  createdByName String
+  createdAt     DateTime @default(now())
+
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([serviceUserId])
 }
 
 // A timeline of a service user's status changes. Each entry takes effect at

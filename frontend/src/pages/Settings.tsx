@@ -119,6 +119,8 @@ const ACTION_LABEL: Record<string, string> = {
   SHIFTS_PUBLISHED_BULK: 'Rota published',
   SHIFTS_CANCELLED_BULK: 'Visits cancelled (bulk)',
   CALL_LOG_AMENDED: 'Call log amended',
+  RESPITE_ADDED: 'Respite period added',
+  RESPITE_REMOVED: 'Respite period removed',
 };
 
 function AuditLogTab() {
