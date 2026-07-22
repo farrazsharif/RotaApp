@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, WrongApp } from '../contexts/AuthContext';
+import { authApi } from '../api/auth';
 
 export default function Login() {
   const { login } = useAuth();
@@ -9,6 +10,9 @@ export default function Login() {
   const [error, setError] = useState('');
   const [wrongApp, setWrongApp] = useState<WrongApp | null>(null);
   const [loading, setLoading] = useState(false);
+  // "Forgot password?" flow — swaps the sign-in form for an email-entry form.
+  const [mode, setMode] = useState<'login' | 'forgot'>('login');
+  const [resetSent, setResetSent] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,6 +29,20 @@ export default function Login() {
       } else {
         setError(e.response?.data?.error || 'Login failed. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const r = await authApi.forgotPassword(email);
+      setResetSent(r.message || 'If that email is registered, a reset link has been sent.');
+    } catch {
+      setResetSent('If that email is registered, a reset link has been sent.');
     } finally {
       setLoading(false);
     }
@@ -64,7 +82,7 @@ export default function Login() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Sign in</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">{mode === 'login' ? 'Sign in' : 'Reset your password'}</h2>
 
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -72,46 +90,90 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="label">Email address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-                placeholder="you@example.com"
-                className="input"
-              />
-            </div>
+          {mode === 'login' ? (
+            <>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="label">Email address</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoFocus
+                    placeholder="you@example.com"
+                    className="input"
+                  />
+                </div>
 
-            <div>
-              <label className="label">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                className="input"
-              />
-            </div>
+                <div>
+                  <label className="label">Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    placeholder="••••••••"
+                    className="input"
+                  />
+                </div>
 
-            <button type="submit" disabled={loading} className="btn-primary btn w-full py-2.5 mt-2">
-              {loading ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
+                <button type="submit" disabled={loading} className="btn-primary btn w-full py-2.5 mt-2">
+                  {loading ? 'Signing in…' : 'Sign in'}
+                </button>
+              </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
-            New to Caremid?{' '}
-            <Link to="/signup" className="font-medium text-blue-600 hover:text-blue-700">Start a free trial</Link>
-          </p>
-          <p className="mt-2 text-center text-sm text-gray-500">
-            Doing visits?{' '}
-            <a href={window.location.hostname.endsWith('caremid.co.uk') ? 'https://carer.caremid.co.uk' : 'http://localhost:5174'}
-               className="font-medium text-blue-600 hover:text-blue-700">Open the Carer app</a>
-          </p>
+              <button
+                type="button"
+                onClick={() => { setMode('forgot'); setError(''); setResetSent(''); }}
+                className="mt-4 w-full text-center text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                Forgot password?
+              </button>
+
+              <p className="mt-6 text-center text-sm text-gray-500">
+                New to Caremid?{' '}
+                <Link to="/signup" className="font-medium text-blue-600 hover:text-blue-700">Start a free trial</Link>
+              </p>
+              <p className="mt-2 text-center text-sm text-gray-500">
+                Doing visits?{' '}
+                <a href={window.location.hostname.endsWith('caremid.co.uk') ? 'https://carer.caremid.co.uk' : 'http://localhost:5174'}
+                   className="font-medium text-blue-600 hover:text-blue-700">Open the Carer app</a>
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500 mb-4">Enter your email and we'll send you a link to set a new password.</p>
+              {resetSent ? (
+                <p className="text-green-700 text-sm bg-green-50 border border-green-200 rounded-lg px-4 py-3">{resetSent}</p>
+              ) : (
+                <form onSubmit={handleForgot} className="space-y-4">
+                  <div>
+                    <label className="label">Email address</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoFocus
+                      placeholder="you@example.com"
+                      className="input"
+                    />
+                  </div>
+                  <button type="submit" disabled={loading} className="btn-primary btn w-full py-2.5 mt-2">
+                    {loading ? 'Sending…' : 'Send reset link'}
+                  </button>
+                </form>
+              )}
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setError(''); setResetSent(''); }}
+                className="mt-4 w-full text-center text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                ← Back to sign in
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

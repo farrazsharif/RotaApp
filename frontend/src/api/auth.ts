@@ -10,4 +10,6 @@ export const authApi = {
     api.get<{ valid: boolean }>(`/auth/set-password/${token}`).then((r) => r.data),
   setPassword: (data: { token: string; password: string }) =>
     api.post('/auth/set-password', data).then((r) => r.data),
+  forgotPassword: (email: string) =>
+    api.post<{ message: string }>('/auth/forgot-password', { email }).then((r) => r.data),
 };
