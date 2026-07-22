@@ -7,6 +7,7 @@ import { carePlansApi } from '../api/carePlans';
 import { servicePlansApi } from '../api/servicePlans';
 import { medicationsApi } from '../api/medications';
 import { callLogsApi } from '../api/callLogs';
+import { respiteApi } from '../api/respite';
 import { useAuth } from '../contexts/AuthContext';
 import { format, differenceInYears } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
@@ -111,6 +112,12 @@ export default function ServiceUserDetail() {
   const { data: servicePlan } = useQuery({ queryKey: ['service-plan', id], queryFn: () => servicePlansApi.get(id), enabled: !!id });
   const { data: meds = [] } = useQuery({ queryKey: ['medications', id], queryFn: () => medicationsApi.list(id), enabled: !!id });
   const { data: logs = [] } = useQuery({ queryKey: ['call-logs', id], queryFn: () => callLogsApi.list(id), enabled: !!id });
+  const { data: respitePeriods = [] } = useQuery({ queryKey: ['respite', id], queryFn: () => respiteApi.list(id), enabled: !!id });
+  // A respite window covering "now" — shown as a pill in the header.
+  const activeRespite = respitePeriods.find((p) => {
+    const t = Date.now();
+    return t >= new Date(p.startAt).getTime() && t < new Date(p.endAt).getTime();
+  });
 
   const statusMut = useMutation({
     mutationFn: (vars: { status: ServiceUserStatus; effectiveAt?: string }) =>
@@ -199,6 +206,11 @@ export default function ServiceUserDetail() {
                   <span className="opacity-75">· {format(new Date(su.statusUpdatedAt), 'd MMM yyyy')}</span>
                 )}
               </span>
+              {activeRespite && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800">
+                  🏖️ On respite · until {format(new Date(activeRespite.endAt), 'd MMM yyyy')}
+                </span>
+              )}
             </div>
             </div>
           </div>
