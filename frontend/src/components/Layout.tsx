@@ -137,7 +137,10 @@ export default function Layout() {
         {/* Main, offset by the slim rail so hover-expand overlays instead of shoving content */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden lg:ml-16">
           <header className="h-16 bg-white border-b border-gray-200 flex items-center gap-3 px-4 lg:px-6 shrink-0">
-            <button className="lg:hidden p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button>
+            <button className="lg:hidden inline-flex items-center gap-2 min-h-[44px] px-3 py-2 -ml-1 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 active:bg-gray-200" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+              <span className="text-xl leading-none">☰</span>
+              <span className="text-sm">Menu</span>
+            </button>
             <div className="min-w-0">
               <p className="text-[11px] leading-none text-gray-400">Caremid</p>
               <h1 className="text-base font-semibold text-gray-900 truncate">{pageTitle}</h1>
@@ -224,10 +227,12 @@ export default function Layout() {
         {/* Topbar */}
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6 shrink-0">
           <button
-            className="lg:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+            className="lg:hidden inline-flex items-center gap-2 min-h-[44px] px-3 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 active:bg-gray-200"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
           >
-            ☰
+            <span className="text-xl leading-none">☰</span>
+            <span className="text-sm">Menu</span>
           </button>
           <div className="flex-1 lg:flex-none" />
           <div className="flex items-center gap-3">
