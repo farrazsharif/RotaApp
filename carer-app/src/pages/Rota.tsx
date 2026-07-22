@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { format, startOfWeek, addDays, isSameDay, isToday } from 'date-fns';
 import Layout from '../components/Layout';
 import { myShiftsQuery } from '../lib/shiftsQuery';
+import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
@@ -28,6 +29,17 @@ export default function Rota() {
     ...myShiftsQuery(user?.id ?? ''),
     enabled: !!user,
   });
+
+  // Cover requests the carer has sent that are still awaiting a response — used
+  // to badge those calls so it's clear cover has been requested for them.
+  const { data: handovers } = useQuery({
+    queryKey: ['my-handovers'],
+    queryFn: handoversApi.mine,
+    refetchInterval: 60000,
+  });
+  const coverRequestedIds = new Set(
+    (handovers?.outgoing ?? []).filter((h) => h.status === 'PENDING').map((h) => h.shiftId),
+  );
 
   const days = Array.from({ length: 21 }, (_, i) => addDays(weekStart, i));
 
@@ -76,7 +88,7 @@ export default function Rota() {
                   {isToday(day) ? 'Today · ' : ''}{format(day, 'EEEE d MMM')}
                 </p>
                 <div className="space-y-2">
-                  {dayShifts.map((s) => <RotaRow key={s.id} shift={s} done={isCallDone(s, userId)} onClick={() => navigate(`/call/${s.id}`)} />)}
+                  {dayShifts.map((s) => <RotaRow key={s.id} shift={s} done={isCallDone(s, userId)} coverRequested={coverRequestedIds.has(s.id)} onClick={() => navigate(`/call/${s.id}`)} />)}
                 </div>
               </div>
             );
@@ -93,7 +105,7 @@ export default function Rota() {
   );
 }
 
-function RotaRow({ shift, done, onClick }: { shift: Shift; done: boolean; onClick: () => void }) {
+function RotaRow({ shift, done, coverRequested, onClick }: { shift: Shift; done: boolean; coverRequested: boolean; onClick: () => void }) {
   const su = shift.serviceUser;
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
   return (
@@ -111,6 +123,11 @@ function RotaRow({ shift, done, onClick }: { shift: Shift; done: boolean; onClic
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${shift.run.color || '#6b7280'}1a`, color: shift.run.color || '#374151' }}>
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: shift.run.color || '#6b7280' }} />
               {shift.run.name}
+            </span>
+          )}
+          {coverRequested && !done && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+              🤝 Cover requested
             </span>
           )}
         </div>
