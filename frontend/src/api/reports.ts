@@ -38,12 +38,12 @@ export const reportsApi = {
     api.get<OvertimeRow[]>('/reports/overtime', { params }).then((r) => r.data),
   coverage: (params: { startDate: string; endDate: string }) =>
     api.get<CoverageDay[]>('/reports/coverage', { params }).then((r) => r.data),
-  scheduledHours: (params: { startDate: string; endDate: string; siteId?: string; role?: string; userId?: string; groupBy?: string }) =>
+  scheduledHours: (params: { startDate: string; endDate: string; siteId?: string; role?: string; userId?: string; serviceUserId?: string; groupBy?: string }) =>
     api.get<ScheduledHoursRow[]>('/reports/scheduled-hours', { params }).then((r) => r.data),
   cribSheet: (params: { startDate: string; endDate: string }) =>
     api.get<CribSheetRow[]>('/reports/crib-sheet', { params }).then((r) => r.data),
   shiftRoles: () => api.get<string[]>('/reports/shift-roles').then((r) => r.data),
-  ecm: (params: { startDate: string; endDate: string; siteId?: string; userId?: string; view?: string }) =>
+  ecm: (params: { startDate: string; endDate: string; siteId?: string; userId?: string; serviceUserId?: string; view?: string }) =>
     api.get<EcmRow[]>('/reports/ecm', { params }).then((r) => r.data),
   saveEcmNote: (shiftId: string, note: string) =>
     api.post('/reports/ecm-note', { shiftId, note }).then((r) => r.data),

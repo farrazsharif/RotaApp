@@ -48,6 +48,8 @@ export default function Reports() {
   const [roleFilter, setRoleFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState<string[]>([]);
   const userIdParam = employeeFilter.length ? employeeFilter.join(',') : undefined;
+  const [patientFilter, setPatientFilter] = useState<string[]>([]);
+  const serviceUserIdParam = patientFilter.length ? patientFilter.join(',') : undefined;
   // ECM loads on demand (not on tab open) so a big rota isn't fetched every
   // time, and a view filter narrows to just missed/recorded/short.
   const [ecmView, setEcmView] = useState('missed');
@@ -68,6 +70,13 @@ export default function Reports() {
   // inactive, and invited/pending), so the list is complete. The backend already
   // excludes family accounts when no role is passed.
   const { data: employees = [] } = useQuery({ queryKey: ['users', 'all-staff'], queryFn: () => usersApi.list() });
+  // Active service users for the patient filter (only relevant on the Hours
+  // Scheduled and ECM tabs, so it loads there).
+  const { data: filterServiceUsers = [] } = useQuery({
+    queryKey: ['service-users', 'active'],
+    queryFn: () => serviceUsersApi.list({ active: true }),
+    enabled: tab === 'scheduled' || tab === 'ecm',
+  });
   const { data: shiftRoles = [] } = useQuery({ queryKey: ['shift-roles'], queryFn: reportsApi.shiftRoles });
 
   const { data: hoursData = [], isLoading: loadingHours } = useQuery({
@@ -89,12 +98,13 @@ export default function Reports() {
   });
 
   const { data: scheduledData = [], isLoading: loadingScheduled } = useQuery({
-    queryKey: ['report-scheduled-hours', startDate, endDate, siteIdParam, roleFilter, userIdParam, schedGroupBy],
+    queryKey: ['report-scheduled-hours', startDate, endDate, siteIdParam, roleFilter, userIdParam, serviceUserIdParam, schedGroupBy],
     queryFn: () => reportsApi.scheduledHours({
       startDate, endDate,
       siteId: siteIdParam,
       role: roleFilter || undefined,
       userId: userIdParam,
+      serviceUserId: serviceUserIdParam,
       groupBy: schedGroupBy,
     }),
     enabled: tab === 'scheduled',
@@ -113,8 +123,8 @@ export default function Reports() {
   });
 
   const { data: ecmData = [], isLoading: loadingEcm } = useQuery({
-    queryKey: ['report-ecm', startDate, endDate, siteIdParam, userIdParam, ecmView],
-    queryFn: () => reportsApi.ecm({ startDate, endDate, siteId: siteIdParam, userId: userIdParam, view: ecmView }),
+    queryKey: ['report-ecm', startDate, endDate, siteIdParam, userIdParam, serviceUserIdParam, ecmView],
+    queryFn: () => reportsApi.ecm({ startDate, endDate, siteId: siteIdParam, userId: userIdParam, serviceUserId: serviceUserIdParam, view: ecmView }),
     enabled: tab === 'ecm' && ecmRun,
   });
   // Reset ECM to its empty state whenever you leave the tab, so re-opening it
@@ -304,6 +314,17 @@ export default function Reports() {
                 selected={employeeFilter}
                 onChange={setEmployeeFilter}
                 allLabel="All Carers"
+              />
+            </div>
+            <div className="w-44">
+              <label className="label">Service User Filter</label>
+              <MultiSelectDropdown
+                options={[...filterServiceUsers]
+                  .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+                  .map((s) => ({ value: s.id, label: `${s.firstName} ${s.lastName}` }))}
+                selected={patientFilter}
+                onChange={setPatientFilter}
+                allLabel="All Service Users"
               />
             </div>
           </>

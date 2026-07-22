@@ -169,7 +169,7 @@ export async function coverageReport(req: AuthRequest, res: Response) {
 
 // Hours Scheduled Crib Sheet — per-carer rostered hours by weekday (Mon–Sun) for the period.
 export async function scheduledHoursReport(req: AuthRequest, res: Response) {
-  const { startDate, endDate, siteId, role, userId, groupBy } = req.query;
+  const { startDate, endDate, siteId, role, userId, serviceUserId, groupBy } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
   const byClient = groupBy === 'client';
 
@@ -177,8 +177,10 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
 
   const siteFilter = siteIdFilter(siteId);
   const userIds = idList(userId);
+  const suIds = idList(serviceUserId);
   const where: Record<string, unknown> = { date: { gte: start, lte: end }, status: { not: 'CANCELLED' } };
   if (siteFilter) where.serviceUser = { siteId: siteFilter };
+  if (suIds) where.serviceUserId = { in: suIds };
   if (role) where.role = role as string;
   if (userIds) where.OR = [{ userId: { in: userIds } }, { coverCarers: { some: { id: { in: userIds } } } }];
   // Scoped users are confined to their sites (overrides any siteId query).
@@ -209,6 +211,7 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
   if (byClient) {
     const suWhere: Record<string, unknown> = { active: true };
     if (siteFilter) suWhere.siteId = siteFilter;
+    if (suIds) suWhere.id = { in: suIds };
     if (suScope.serviceUser && typeof suScope.serviceUser === 'object') Object.assign(suWhere, suScope.serviceUser);
     const patients = await prisma.serviceUser.findMany({
       where: suWhere,
@@ -362,7 +365,7 @@ function minsBetween(start: string, end: string): number {
 // the times themselves are never altered. Supports an optional `view` filter
 // (missed/recorded/short/all) so large companies don't pull the whole list.
 export async function ecmReport(req: AuthRequest, res: Response) {
-  const { startDate, endDate, siteId, userId, view } = req.query;
+  const { startDate, endDate, siteId, userId, serviceUserId, view } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
   const where: Record<string, unknown> = {
@@ -375,7 +378,9 @@ export async function ecmReport(req: AuthRequest, res: Response) {
   };
   const ecmSiteFilter = siteIdFilter(siteId);
   const ecmUserIds = idList(userId);
+  const ecmSuIds = idList(serviceUserId);
   if (ecmSiteFilter) where.serviceUser = { siteId: ecmSiteFilter };
+  if (ecmSuIds) where.serviceUserId = { in: ecmSuIds };
   where.OR = ecmUserIds
     ? [{ userId: { in: ecmUserIds } }, { coverCarers: { some: { id: { in: ecmUserIds } } } }]
     : [{ userId: { not: null } }, { coverCarers: { some: {} } }];
