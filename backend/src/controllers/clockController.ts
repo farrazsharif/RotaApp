@@ -64,15 +64,25 @@ async function dueDosesForShift(shiftId: string | null) {
   if (!shift || !shift.serviceUserId) return [];
   const meds = await prisma.medication.findMany({ where: { serviceUserId: shift.serviceUserId, active: true } });
   const day = shift.date;
+  // Overnight visits (e.g. 19:00–07:00) wrap past midnight, so the call window
+  // is start→midnight→end. A plain start<=t<=end test is empty for those and
+  // would drop every dose (why night-shift meds showed "none due").
+  const overnight = shift.endTime < shift.startTime;
   const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; isBlisterPack: boolean; packContents: string | null; time: string; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
   for (const med of meds) {
     let times: string[] = [];
     try { times = JSON.parse(med.times || '[]'); } catch { times = []; }
     for (const t of times) {
       // dose is "due at this call" if its time falls within the call window
-      if (t < shift.startTime || t > shift.endTime) continue;
+      const inWindow = overnight
+        ? (t >= shift.startTime || t <= shift.endTime)
+        : (t >= shift.startTime && t <= shift.endTime);
+      if (!inWindow) continue;
       const [h, mi] = t.split(':').map(Number);
-      const scheduledFor = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, mi, 0);
+      // On an overnight visit, a dose at/before the end time is after midnight,
+      // so it belongs to the next calendar day.
+      const dayOffset = overnight && t <= shift.endTime ? 1 : 0;
+      const scheduledFor = new Date(day.getFullYear(), day.getMonth(), day.getDate() + dayOffset, h, mi, 0);
       const admin = await prisma.medAdministration.findUnique({
         where: { medicationId_scheduledFor: { medicationId: med.id, scheduledFor } },
       });
