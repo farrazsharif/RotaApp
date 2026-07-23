@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import Layout from '../components/Layout';
 import { serviceUsersApi } from '../api/serviceUsers';
@@ -226,11 +226,18 @@ export default function ServiceUserDetail() {
                     <div key={m.id} className="border border-gray-100 rounded-lg p-2.5">
                       <p className="text-sm font-medium text-gray-800">{m.name}{m.dose ? ` · ${m.dose}` : ''}</p>
                       <p className="text-xs text-gray-500">{m.route || 'Oral'}{m.instructions ? ` · ${m.instructions}` : ''}</p>
+                      {(m.startDate || m.endDate) && (
+                        <p className="text-xs text-purple-600 font-medium mt-0.5">
+                          📅 Course{m.startDate ? ` from ${format(new Date(m.startDate), 'd MMM')}` : ''}{m.endDate ? ` until ${format(new Date(m.endDate), 'd MMM yyyy')}` : ''}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
             </div>
+
+            <AddMedForm serviceUserId={id!} />
 
             <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
               <h3 className="font-semibold text-gray-800 text-sm mb-2">Recent Administration (last 30 days)</h3>
@@ -352,6 +359,106 @@ function PspItemView({ section, item, value }: { section: PspSection; item: PspI
     <div className="py-2 border-b last:border-0">
       <p className="text-sm text-gray-800">{item.label}</p>
       <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-wrap">{(value as string) || '—'}</p>
+    </div>
+  );
+}
+
+// Lets a carer add a medication directly — mainly a short course a GP has
+// prescribed (e.g. antibiotics for a week). Set an end date and it stops
+// automatically. Leave dose times empty for an as-required (PRN) med.
+function AddMedForm({ serviceUserId }: { serviceUserId: string }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [form, setForm] = useState({ name: '', dose: '', route: 'Oral', instructions: '', startDate: today, endDate: '' });
+  const [times, setTimes] = useState<string[]>([]);
+  const [err, setErr] = useState('');
+
+  const reset = () => { setForm({ name: '', dose: '', route: 'Oral', instructions: '', startDate: today, endDate: '' }); setTimes([]); setErr(''); };
+
+  const saveMut = useMutation({
+    mutationFn: () => medicationsApi.create({
+      serviceUserId,
+      name: form.name.trim(),
+      dose: form.dose.trim() || undefined,
+      route: form.route.trim() || undefined,
+      instructions: form.instructions.trim() || undefined,
+      times: times.map((t) => t.trim()).filter(Boolean).sort(),
+      startDate: form.startDate || undefined,
+      endDate: form.endDate || undefined,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['medications', serviceUserId] }); reset(); setOpen(false); },
+    onError: () => setErr('Could not add the medication. Please try again.'),
+  });
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="w-full bg-white rounded-2xl p-4 shadow-sm border border-gray-200 text-blue-600 font-semibold text-sm">
+        + Add a medication (short course)
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 space-y-3">
+      <h3 className="font-semibold text-gray-800 text-sm">Add a medication</h3>
+      <p className="text-xs text-gray-400 -mt-1">For a short course prescribed by the GP. Set an end date and it stops automatically.</p>
+
+      <div>
+        <label className="text-xs font-medium text-gray-500">Name *</label>
+        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. Amoxicillin" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs font-medium text-gray-500">Dose</label>
+          <input value={form.dose} onChange={(e) => setForm({ ...form, dose: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. 500mg" />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-500">Route</label>
+          <input value={form.route} onChange={(e) => setForm({ ...form, route: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        </div>
+      </div>
+      <div>
+        <label className="text-xs font-medium text-gray-500">Instructions</label>
+        <input value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. With food" />
+      </div>
+
+      <div>
+        <label className="text-xs font-medium text-gray-500">Dose times</label>
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          {times.map((t, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <input type="time" value={t} onChange={(e) => setTimes((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))} className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
+              <button type="button" onClick={() => setTimes((prev) => prev.filter((_, j) => j !== i))} className="text-red-500 text-lg leading-none px-1">×</button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setTimes((prev) => [...prev, '09:00'])} className="text-sm text-blue-600 font-medium">+ Add time</button>
+        </div>
+        {times.length === 0 && <p className="text-xs text-gray-400 mt-1">No times — as required (PRN).</p>}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs font-medium text-gray-500">Start date</label>
+          <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-gray-500">End date</label>
+          <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        </div>
+      </div>
+
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      <div className="flex gap-2">
+        <button
+          onClick={() => { setErr(''); saveMut.mutate(); }}
+          disabled={!form.name.trim() || saveMut.isPending}
+          className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40"
+        >
+          {saveMut.isPending ? 'Saving…' : 'Add medication'}
+        </button>
+        <button onClick={() => { reset(); setOpen(false); }} className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm">Cancel</button>
+      </div>
     </div>
   );
 }

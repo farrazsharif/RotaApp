@@ -66,7 +66,7 @@ function cellDate(dateStr: string, time: string): Date {
   return new Date(Date.UTC(y, m - 1, d, h, mi, 0));
 }
 
-const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '', isBlisterPack: false, packContents: '' };
+const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '', isBlisterPack: false, packContents: '', startDate: '', endDate: '' };
 
 // Default clock times offered for each visit type a service user can be
 // scheduled for (see ServiceUserForm's VISIT_TYPES). Anything without
@@ -155,6 +155,8 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
       packContents: medForm.isBlisterPack ? (medForm.packContents || undefined) : undefined,
       times: Object.values(visitTimes).sort(),
       applicationSites: isTopical(medForm.route) ? sites : undefined,
+      startDate: medForm.startDate || undefined,
+      endDate: medForm.endDate || undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['medications', serviceUser.id] });
@@ -290,6 +292,17 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                 <label className="label">Instructions</label>
                 <input value={medForm.instructions} onChange={(e) => setMedForm({ ...medForm, instructions: e.target.value })} className="input" placeholder="e.g. With food" />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Start date <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input type="date" value={medForm.startDate} onChange={(e) => setMedForm({ ...medForm, startDate: e.target.value })} className="input" />
+                </div>
+                <div>
+                  <label className="label">End date <span className="text-gray-400 font-normal">(short course)</span></label>
+                  <input type="date" value={medForm.endDate} onChange={(e) => setMedForm({ ...medForm, endDate: e.target.value })} className="input" />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 -mt-1">Leave dates blank for an ongoing medication. Set an end date for a short course (e.g. a 10-day antibiotic) — it stops automatically after that day.</p>
               <div className="flex justify-end">
                 <button className="btn-primary btn" disabled={!medForm.name.trim() || addMut.isPending} onClick={() => addMut.mutate()}>
                   {addMut.isPending ? 'Saving…' : 'Add Medication'}
@@ -320,6 +333,11 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                         <p className="text-xs text-gray-500">
                           {med.route || 'Oral'}{med.instructions ? ` · ${med.instructions}` : ''}
                         </p>
+                        {(med.startDate || med.endDate) && (
+                          <p className="text-xs text-purple-600 font-medium mt-0.5">
+                            📅 Course{med.startDate ? ` from ${format(new Date(med.startDate), 'd MMM')}` : ''}{med.endDate ? ` until ${format(new Date(med.endDate), 'd MMM yyyy')}` : ''}
+                          </p>
+                        )}
                         {med.isBlisterPack && med.packContents && (
                           <div className="mt-1.5 text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded p-2 whitespace-pre-wrap">
                             <span className="font-medium text-gray-500">Contains:</span>{'\n'}{med.packContents}
@@ -412,6 +430,8 @@ function MedEditRow({ med, serviceUserId, onDone }: { med: Medication; serviceUs
     instructions: med.instructions || '',
     isBlisterPack: !!med.isBlisterPack,
     packContents: med.packContents || '',
+    startDate: med.startDate ? med.startDate.slice(0, 10) : '',
+    endDate: med.endDate ? med.endDate.slice(0, 10) : '',
   });
   const [times, setTimes] = useState<string[]>(parseTimes(med.times));
 
@@ -424,6 +444,8 @@ function MedEditRow({ med, serviceUserId, onDone }: { med: Medication; serviceUs
       isBlisterPack: form.isBlisterPack,
       packContents: form.isBlisterPack ? form.packContents.trim() : '',
       times: times.map((t) => t.trim()).filter(Boolean).sort(),
+      startDate: form.startDate || '',
+      endDate: form.endDate || '',
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['medications', serviceUserId] }); onDone(); },
   });
@@ -474,6 +496,17 @@ function MedEditRow({ med, serviceUserId, onDone }: { med: Medication; serviceUs
           <button type="button" onClick={() => setTimes((prev) => [...prev, '09:00'])} className="text-sm text-blue-600 hover:underline">+ Add time</button>
         </div>
         {times.length === 0 && <p className="text-xs text-gray-400 mt-1">No times — this medication is PRN / as required.</p>}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Start date</label>
+          <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="input" />
+        </div>
+        <div>
+          <label className="label">End date <span className="text-gray-400 font-normal">(short course)</span></label>
+          <input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="input" />
+        </div>
       </div>
 
       <div className="flex justify-end gap-2">

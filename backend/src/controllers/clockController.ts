@@ -68,8 +68,17 @@ async function dueDosesForShift(shiftId: string | null) {
   // is start→midnight→end. A plain start<=t<=end test is empty for those and
   // would drop every dose (why night-shift meds showed "none due").
   const overnight = shift.endTime < shift.startTime;
+  const visitYmd = day.toISOString().slice(0, 10);
   const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; isBlisterPack: boolean; packContents: string | null; time: string; prn: boolean; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
   for (const med of meds) {
+    // Respect a prescribed course window: a short-course med (e.g. a 10-day
+    // antibiotic) only appears on visits within its start/end dates — it
+    // auto-starts on the start date and auto-stops after the end date.
+    const startYmd = med.startDate ? med.startDate.toISOString().slice(0, 10) : null;
+    const endYmd = med.endDate ? med.endDate.toISOString().slice(0, 10) : null;
+    if (startYmd && visitYmd < startYmd) continue;
+    if (endYmd && visitYmd > endYmd) continue;
+
     let times: string[] = [];
     try { times = JSON.parse(med.times || '[]'); } catch { times = []; }
 

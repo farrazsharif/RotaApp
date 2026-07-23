@@ -121,6 +121,7 @@ const ACTION_LABEL: Record<string, string> = {
   CALL_LOG_AMENDED: 'Call log amended',
   RESPITE_ADDED: 'Respite period added',
   RESPITE_REMOVED: 'Respite period removed',
+  MEDICATION_ADDED_BY_CARER: 'Medication added by carer',
 };
 
 function AuditLogTab() {

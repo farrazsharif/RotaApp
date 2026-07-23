@@ -80,6 +80,8 @@ export interface Medication {
   instructions?: string | null;
   times: string;
   applicationSites: string;
+  startDate?: string | null;
+  endDate?: string | null;
   active: boolean;
 }
 

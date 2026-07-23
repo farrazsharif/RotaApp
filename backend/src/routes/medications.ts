@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  listMedications, createMedication, updateMedication, deleteMedication,
+  listMedications, createMedication, createMedicationByCarer, updateMedication, deleteMedication,
   listAdministrations, recordAdministration,
 } from '../controllers/medicationController';
 import { authenticate } from '../middleware/auth';
@@ -24,6 +24,9 @@ router.post('/administrations', recordAdministration);
 // Medications (managers/admin manage the regimen)
 router.get('/', listMedications);
 router.post('/', requirePermission('manage_medications'), createMedication);
+// Carers may add a short-course medication directly from the app (scoped +
+// audited); they cannot edit or discontinue the ongoing regimen.
+router.post('/carer', createMedicationByCarer);
 router.put('/:id', byMedication, requirePermission('manage_medications'), updateMedication);
 router.delete('/:id', byMedication, requirePermission('manage_medications'), deleteMedication);
 

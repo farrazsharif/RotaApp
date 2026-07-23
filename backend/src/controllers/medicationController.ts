@@ -66,6 +66,30 @@ export async function createMedication(req: AuthRequest, res: Response) {
   res.status(201).json(med);
 }
 
+// Carer-added short-course medication (e.g. a GP prescribes antibiotics for a
+// week). Same as createMedication but reachable without manage_medications —
+// the scope middleware still confines it to the carer's own clients, and it's
+// audited so it's clear a carer added it directly on a visit.
+export async function createMedicationByCarer(req: AuthRequest, res: Response) {
+  const { serviceUserId, name, dose, route, instructions, times, startDate, endDate } = req.body;
+  if (!serviceUserId || !name) return res.status(400).json({ error: 'serviceUserId and name required' });
+  const med = await prisma.medication.create({
+    data: {
+      serviceUserId,
+      name,
+      dose: dose || null,
+      route: route || null,
+      instructions: instructions || null,
+      times: parseTimes(times),
+      applicationSites: '[]',
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
+    },
+  });
+  await logAudit(req, 'MEDICATION_ADDED_BY_CARER', name, await forPatient(serviceUserId));
+  res.status(201).json(med);
+}
+
 export async function updateMedication(req: AuthRequest, res: Response) {
   const { name, dose, route, instructions, times, startDate, endDate, active, applicationSites, isBlisterPack, packContents } = req.body;
   const data: Record<string, unknown> = {};
