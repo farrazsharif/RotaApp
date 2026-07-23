@@ -110,6 +110,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
   const [visitTimes, setVisitTimes] = useState<Record<string, string>>({});
   const [sites, setSites] = useState<BodyMapPoint[]>([]);
   const [viewingSitesFor, setViewingSitesFor] = useState<Medication | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Only offer dose times for visits this client is actually scheduled for;
   // fall back to the standard Morning/Lunch/Tea/Bed slots if their care
@@ -306,6 +307,10 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                 const medSites = parseSites(med.applicationSites);
                 return (
                   <div key={med.id} className="rounded-lg border border-gray-200 p-3">
+                    {editingId === med.id ? (
+                      <MedEditRow med={med} serviceUserId={serviceUser.id} onDone={() => setEditingId(null)} />
+                    ) : (
+                    <>
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
@@ -325,6 +330,11 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                         {medSites.length > 0 && (
                           <button className="text-xs text-blue-600 hover:underline" onClick={() => setViewingSitesFor(med)}>
                             🗺 Body Map ({medSites.length})
+                          </button>
+                        )}
+                        {isManager && (
+                          <button className="text-xs text-blue-600 hover:underline" onClick={() => setEditingId(med.id)}>
+                            Edit
                           </button>
                         )}
                         {isManager && (
@@ -364,6 +374,8 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                         })}
                       </div>
                     )}
+                    </>
+                    )}
                   </div>
                 );
               })}
@@ -383,6 +395,93 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Inline editor for an existing medication — mainly to change dose times (e.g.
+// when the council changes a call time) but also name/dose/route/instructions
+// and pack contents. Application sites are left untouched (not sent), so body
+// maps aren't wiped by an edit.
+function MedEditRow({ med, serviceUserId, onDone }: { med: Medication; serviceUserId: string; onDone: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: med.name,
+    dose: med.dose || '',
+    route: med.route || 'Oral',
+    instructions: med.instructions || '',
+    isBlisterPack: !!med.isBlisterPack,
+    packContents: med.packContents || '',
+  });
+  const [times, setTimes] = useState<string[]>(parseTimes(med.times));
+
+  const saveMut = useMutation({
+    mutationFn: () => medicationsApi.update(med.id, {
+      name: form.name.trim(),
+      dose: form.dose.trim(),
+      route: form.route.trim(),
+      instructions: form.instructions.trim(),
+      isBlisterPack: form.isBlisterPack,
+      packContents: form.isBlisterPack ? form.packContents.trim() : '',
+      times: times.map((t) => t.trim()).filter(Boolean).sort(),
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['medications', serviceUserId] }); onDone(); },
+  });
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Editing medication</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">{form.isBlisterPack ? 'Pack name *' : 'Medication Name *'}</label>
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" />
+        </div>
+        <div>
+          <label className="label">Dose</label>
+          <input value={form.dose} onChange={(e) => setForm({ ...form, dose: e.target.value })} className="input" />
+        </div>
+        <div>
+          <label className="label">Route</label>
+          <input value={form.route} onChange={(e) => setForm({ ...form, route: e.target.value })} className="input" />
+        </div>
+        <div>
+          <label className="label">Instructions</label>
+          <input value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} className="input" placeholder="e.g. With food" />
+        </div>
+      </div>
+
+      {form.isBlisterPack && (
+        <div>
+          <label className="label">Medications in this pack</label>
+          <textarea value={form.packContents} onChange={(e) => setForm({ ...form, packContents: e.target.value })} rows={3} className="input resize-none" />
+        </div>
+      )}
+
+      <div>
+        <label className="label">Dose times</label>
+        <div className="flex flex-wrap items-center gap-2">
+          {times.map((t, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <input
+                type="time"
+                value={t}
+                onChange={(e) => setTimes((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                className="input w-32"
+              />
+              <button type="button" onClick={() => setTimes((prev) => prev.filter((_, j) => j !== i))} className="text-red-500 hover:text-red-700 text-lg leading-none px-1" title="Remove time">×</button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setTimes((prev) => [...prev, '09:00'])} className="text-sm text-blue-600 hover:underline">+ Add time</button>
+        </div>
+        {times.length === 0 && <p className="text-xs text-gray-400 mt-1">No times — this medication is PRN / as required.</p>}
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <button className="btn-secondary btn" onClick={onDone}>Cancel</button>
+        <button className="btn-primary btn" disabled={!form.name.trim() || saveMut.isPending} onClick={() => saveMut.mutate()}>
+          {saveMut.isPending ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
     </div>
   );
 }
