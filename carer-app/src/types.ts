@@ -153,6 +153,7 @@ export interface DueDose {
   isBlisterPack?: boolean;
   packContents?: string | null;
   time: string;
+  prn?: boolean;
   scheduledFor: string;
   status: MedAdminStatus | null;
   recordedAt: string | null;

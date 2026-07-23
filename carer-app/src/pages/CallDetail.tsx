@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
-import type { MedAdminStatus, CallLogSignature, ClockRecord } from '../types';
+import type { MedAdminStatus, CallLogSignature, ClockRecord, DueDose } from '../types';
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -238,6 +238,46 @@ export default function CallDetail() {
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['due-meds'] }),
   });
+
+  // One dose card — used for both scheduled doses and as-required (PRN) meds.
+  const renderDose = (dose: DueDose) => (
+    <div key={`${dose.medicationId}-${dose.scheduledFor}`} className="border border-gray-100 rounded-xl p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-medium text-gray-800 flex items-center gap-1.5 flex-wrap">
+          {dose.name}{dose.dose ? ` · ${dose.dose}` : ''}
+          {dose.isBlisterPack && <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">💊 Pack</span>}
+          {dose.prn && <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">As required</span>}
+        </p>
+        <span className="text-xs text-gray-400 shrink-0">{dose.prn ? 'PRN' : formatTime12h(dose.time)}</span>
+      </div>
+      {dose.isBlisterPack && dose.packContents && (
+        <div className="mt-1.5 text-xs text-gray-600 bg-gray-50 rounded-lg p-2 whitespace-pre-wrap">
+          <span className="font-medium text-gray-500">In this pack:</span>{'\n'}{dose.packContents}
+        </div>
+      )}
+      {dose.status ? (
+        <p className="text-sm font-semibold text-green-600 mt-2">
+          ✓ {dose.status.replace('_', ' ')}
+          {dose.recordedAt && <span className="text-gray-400 font-normal"> at {format(new Date(dose.recordedAt), 'h:mm a')}</span>}
+        </p>
+      ) : (
+        <select
+          defaultValue=""
+          disabled={medMut.isPending}
+          onChange={(e) => {
+            const status = e.target.value as MedAdminStatus;
+            if (status) medMut.mutate({ medicationId: dose.medicationId, scheduledFor: dose.scheduledFor, status });
+          }}
+          className="mt-2 w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm font-semibold text-gray-700 disabled:opacity-50"
+        >
+          <option value="" disabled>{dose.prn ? 'Record if given…' : 'Mark as…'}</option>
+          {STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
 
   const logMut = useMutation({
     mutationFn: () =>
@@ -512,43 +552,15 @@ export default function CallDetail() {
               <p className="text-sm text-gray-400">No medication due for this visit.</p>
             ) : (
               <div className="space-y-3">
-                {dueMeds.map((dose) => (
-                  <div key={`${dose.medicationId}-${dose.scheduledFor}`} className="border border-gray-100 rounded-xl p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium text-gray-800 flex items-center gap-1.5 flex-wrap">
-                        {dose.name}{dose.dose ? ` · ${dose.dose}` : ''}
-                        {dose.isBlisterPack && <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">💊 Pack</span>}
-                      </p>
-                      <span className="text-xs text-gray-400">{formatTime12h(dose.time)}</span>
+                {dueMeds.filter((d) => !d.prn).map(renderDose)}
+                {dueMeds.some((d) => d.prn) && (
+                  <div className="pt-1">
+                    <p className="text-xs font-semibold text-gray-500 mb-2">As required (PRN) — record only if given</p>
+                    <div className="space-y-3">
+                      {dueMeds.filter((d) => d.prn).map(renderDose)}
                     </div>
-                    {dose.isBlisterPack && dose.packContents && (
-                      <div className="mt-1.5 text-xs text-gray-600 bg-gray-50 rounded-lg p-2 whitespace-pre-wrap">
-                        <span className="font-medium text-gray-500">In this pack:</span>{'\n'}{dose.packContents}
-                      </div>
-                    )}
-                    {dose.status ? (
-                      <p className="text-sm font-semibold text-green-600 mt-2">
-                        ✓ {dose.status.replace('_', ' ')}
-                        {dose.recordedAt && <span className="text-gray-400 font-normal"> at {format(new Date(dose.recordedAt), 'h:mm a')}</span>}
-                      </p>
-                    ) : (
-                      <select
-                        defaultValue=""
-                        disabled={medMut.isPending}
-                        onChange={(e) => {
-                          const status = e.target.value as MedAdminStatus;
-                          if (status) medMut.mutate({ medicationId: dose.medicationId, scheduledFor: dose.scheduledFor, status });
-                        }}
-                        className="mt-2 w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm font-semibold text-gray-700 disabled:opacity-50"
-                      >
-                        <option value="" disabled>Mark as…</option>
-                        {STATUS_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    )}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>

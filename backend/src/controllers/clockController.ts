@@ -68,10 +68,29 @@ async function dueDosesForShift(shiftId: string | null) {
   // is start→midnight→end. A plain start<=t<=end test is empty for those and
   // would drop every dose (why night-shift meds showed "none due").
   const overnight = shift.endTime < shift.startTime;
-  const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; isBlisterPack: boolean; packContents: string | null; time: string; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
+  const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; isBlisterPack: boolean; packContents: string | null; time: string; prn: boolean; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
   for (const med of meds) {
     let times: string[] = [];
     try { times = JSON.parse(med.times || '[]'); } catch { times = []; }
+
+    // PRN / as-required meds have no set time. Surface one entry per visit
+    // (anchored to the visit start for a stable record key) so the carer can
+    // record it when actually given — but it never blocks clock-out.
+    if (times.length === 0) {
+      const [h, mi] = (shift.startTime || '12:00').split(':').map(Number);
+      const scheduledFor = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, mi, 0);
+      const admin = await prisma.medAdministration.findUnique({
+        where: { medicationId_scheduledFor: { medicationId: med.id, scheduledFor } },
+      });
+      out.push({
+        medicationId: med.id, name: med.name, dose: med.dose, route: med.route,
+        isBlisterPack: med.isBlisterPack, packContents: med.packContents,
+        time: '', prn: true, scheduledFor: scheduledFor.toISOString(),
+        status: admin?.status ?? null, recordedAt: admin?.recordedAt ? admin.recordedAt.toISOString() : null,
+      });
+      continue;
+    }
+
     for (const t of times) {
       // dose is "due at this call" if its time falls within the call window
       const inWindow = overnight
@@ -89,7 +108,7 @@ async function dueDosesForShift(shiftId: string | null) {
       out.push({
         medicationId: med.id, name: med.name, dose: med.dose, route: med.route,
         isBlisterPack: med.isBlisterPack, packContents: med.packContents,
-        time: t, scheduledFor: scheduledFor.toISOString(), status: admin?.status ?? null,
+        time: t, prn: false, scheduledFor: scheduledFor.toISOString(), status: admin?.status ?? null,
         recordedAt: admin?.recordedAt ? admin.recordedAt.toISOString() : null,
       });
     }
@@ -152,9 +171,11 @@ export async function clockOut(req: AuthRequest, res: Response) {
   });
   if (!record) return res.status(400).json({ error: 'Not clocked in' });
 
-  // Compulsory eMAR: cannot clock out while medication doses due for this call are unrecorded
+  // Compulsory eMAR: cannot clock out while scheduled medication doses due for
+  // this call are unrecorded. PRN / as-required meds are given only if needed,
+  // so they never block clock-out.
   const doses = await dueDosesForShift(record.shiftId);
-  const pending = doses.filter((d) => !d.status);
+  const pending = doses.filter((d) => !d.status && !d.prn);
   if (pending.length > 0) {
     return res.status(400).json({
       error: 'Record medication before clocking out',
