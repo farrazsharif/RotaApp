@@ -107,6 +107,8 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
   const [assignDays, setAssignDays] = useState<number[]>([]);
   const [assignFrom, setAssignFrom] = useState('');
   const [assignTo, setAssignTo] = useState('');
+  // Optional end date for the "certain weekdays" scope — blank means ongoing.
+  const [daysUntil, setDaysUntil] = useState('');
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [visitNameCustomOpen, setVisitNameCustomOpen] = useState(false);
 
@@ -256,7 +258,10 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
       const d = new Date(s.date);
       if (assignScope === 'range') return d >= from && d <= to;
       if (d < openedDate) return false;
-      if (assignScope === 'days') return assignDays.includes(d.getDay());
+      if (assignScope === 'days') {
+        const until = daysUntil ? new Date(`${daysUntil}T23:59:59`) : null;
+        return assignDays.includes(d.getDay()) && (!until || d <= until);
+      }
       return true; // future
     };
 
@@ -300,7 +305,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
           assignScope,
           assignDays: assignScope === 'days' ? assignDays : undefined,
           assignFrom: assignScope === 'range' ? assignFrom || undefined : undefined,
-          assignTo: assignScope === 'range' ? assignTo || undefined : undefined,
+          assignTo: assignScope === 'range' ? (assignTo || undefined) : assignScope === 'days' ? (daysUntil || undefined) : undefined,
         });
         // Propagate the carer to the wider scope (weekdays / date range / all
         // future) via visit-identity matching on the backend.
@@ -311,7 +316,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
             scope: assignScope,
             days: assignScope === 'days' ? assignDays : undefined,
             fromDate: assignScope === 'range' ? assignFrom || undefined : undefined,
-            toDate: assignScope === 'range' ? assignTo || undefined : undefined,
+            toDate: assignScope === 'range' ? (assignTo || undefined) : assignScope === 'days' ? (daysUntil || undefined) : undefined,
           });
         }
       } catch (err) {
@@ -558,6 +563,10 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                         {d.label}
                       </button>
                     ))}
+                    <label className="basis-full flex items-center gap-1 text-xs text-gray-600 mt-1">
+                      Until <span className="text-gray-400">(optional)</span>
+                      <input type="date" value={daysUntil} onChange={(e) => setDaysUntil(e.target.value)} className="input py-1 text-xs" />
+                    </label>
                   </div>
                 )}
                 <label className="flex items-center gap-2">
@@ -1055,6 +1064,10 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                           {d.label}
                         </button>
                       ))}
+                      <label className="basis-full flex items-center gap-1 text-xs text-gray-600 mt-1">
+                        Until <span className="text-gray-400">(optional)</span>
+                        <input type="date" value={daysUntil} onChange={(e) => setDaysUntil(e.target.value)} className="input py-1 text-xs" />
+                      </label>
                     </div>
                   )}
                   <label className="flex items-center gap-2">

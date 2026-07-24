@@ -235,7 +235,14 @@ async function resolveVisitShiftIds(
   }
   const later = await prisma.shift.findMany({ where: { ...visitMatch, date: { gte: shift.date } }, select: { id: true, date: true } });
   if (scope === 'future') return later.map((s) => s.id);
-  if (scope === 'days') return later.filter((s) => days.includes(new Date(s.date).getDay())).map((s) => s.id);
+  if (scope === 'days') {
+    // Optional end date: "certain weekdays, from this date until <toDate>".
+    const until = toDate ? new Date(`${toDate}T23:59:59`) : null;
+    return later
+      .filter((s) => days.includes(new Date(s.date).getDay()))
+      .filter((s) => !until || new Date(s.date) <= until)
+      .map((s) => s.id);
+  }
   return [];
 }
 
