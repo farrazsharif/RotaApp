@@ -11,8 +11,9 @@ import {
 } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
+import CarerRota from '../components/CarerRota';
 
-type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm';
+type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm' | 'rota';
 
 const TIMELINE_PRESETS = [
   'Next Week', 'This Week', 'Last Week', 'Two Weeks Ago',
@@ -50,6 +51,8 @@ export default function Reports() {
   const userIdParam = employeeFilter.length ? employeeFilter.join(',') : undefined;
   const [patientFilter, setPatientFilter] = useState<string[]>([]);
   const serviceUserIdParam = patientFilter.length ? patientFilter.join(',') : undefined;
+  // Rota tab: the single carer whose 4-week rota is shown for download/print.
+  const [rotaUserId, setRotaUserId] = useState('');
   // ECM loads on demand (not on tab open) so a big rota isn't fetched every
   // time, and a view filter narrows to just missed/recorded/short.
   const [ecmView, setEcmView] = useState('missed');
@@ -173,6 +176,7 @@ export default function Reports() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'scheduled', label: 'Hours Scheduled' },
+    { key: 'rota', label: 'Rota (send to carer)' },
     { key: 'hours', label: 'Hours Worked' },
     { key: 'crib', label: 'Crib Sheet' },
     { key: 'overtime', label: 'Overtime' },
@@ -269,8 +273,9 @@ export default function Reports() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
 
-      {/* Filters + Search — not relevant to the caseload-based Capacity tab */}
-      {tab !== 'capacity' && (
+      {/* Filters + Search — not relevant to the caseload Capacity tab or the
+          self-contained Rota tab (which has its own carer + date controls). */}
+      {tab !== 'capacity' && tab !== 'rota' && (
       <div className="card flex flex-wrap gap-4 items-end">
         <div>
           <label className="label">Timeline</label>
@@ -414,6 +419,26 @@ export default function Reports() {
               <p className="text-xs text-amber-600 mt-2">{unknownAgeCount} active service user{unknownAgeCount > 1 ? 's have' : ' has'} no date of birth recorded and {unknownAgeCount > 1 ? 'are' : 'is'} not included in the age brackets.</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Rota — pick a carer, then download/print their 4-week rota to send */}
+      {tab === 'rota' && (
+        <div className="space-y-4">
+          <div className="card">
+            <label className="label">Carer</label>
+            <select value={rotaUserId} onChange={(e) => setRotaUserId(e.target.value)} className="input w-full sm:w-80">
+              <option value="">Select a carer…</option>
+              {[...employees]
+                .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+                .map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+            </select>
+            <p className="text-xs text-gray-400 mt-1.5">Pick a carer to see their rota, then Download CSV or Print / Save as PDF to send it to them.</p>
+          </div>
+          {rotaUserId && (() => {
+            const c = employees.find((u) => u.id === rotaUserId);
+            return <CarerRota userId={rotaUserId} staffName={c ? `${c.firstName} ${c.lastName}` : 'Carer'} />;
+          })()}
         </div>
       )}
 
