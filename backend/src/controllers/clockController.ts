@@ -5,20 +5,6 @@ import { Role } from '../constants';
 import { relatedStaffScopeWhere } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 
-// Scheduled length of a visit in minutes, handling calls that run past midnight.
-function scheduledMinutes(startTime: string, endTime: string): number {
-  const [sh, sm] = startTime.split(':').map(Number);
-  const [eh, em] = endTime.split(':').map(Number);
-  let diff = (eh * 60 + em) - (sh * 60 + sm);
-  if (diff < 0) diff += 24 * 60;
-  return diff;
-}
-
-// A carer must have been clocked in for at least this share of the scheduled
-// visit length before they can clock out — catches "clocked in at the very end"
-// (forgot to clock in) which would otherwise record a near-zero visit.
-const MIN_ATTENDANCE_RATIO = 0.7;
-
 // The logged-in carer's calls for a given day (default today), ordered by visit time.
 // Includes calls where they are the primary carer or an additional cover carer.
 export async function myCalls(req: AuthRequest, res: Response) {
@@ -212,32 +198,11 @@ export async function clockOut(req: AuthRequest, res: Response) {
     }
   }
 
-  // Guard against a false-short record: if the carer forgot to clock in and only
-  // clocked in near the end, almost no time would be recorded for a visit that is
-  // scheduled to run much longer. Block the clock-out until they set their actual
-  // start time so the record reflects the real visit. This does NOT pad times —
-  // the carer enters the true start they arrived; it only stops a near-zero record.
-  if (record.shiftId) {
-    const shift = await prisma.shift.findUnique({
-      where: { id: record.shiftId },
-      select: { startTime: true, endTime: true },
-    });
-    if (shift) {
-      const scheduledMins = scheduledMinutes(shift.startTime, shift.endTime);
-      const recordedMins = (Date.now() - record.clockIn.getTime()) / 60000;
-      const requiredMins = Math.round(scheduledMins * MIN_ATTENDANCE_RATIO);
-      if (scheduledMins > 0 && recordedMins < requiredMins) {
-        return res.status(400).json({
-          error: 'SHORT_DURATION',
-          message: `You've only been clocked in ${Math.max(0, Math.round(recordedMins))} min, but this visit is scheduled for ${scheduledMins} min. If you started earlier, set your actual start time before clocking out.`,
-          recordedMins: Math.round(recordedMins),
-          scheduledMins,
-          requiredMins,
-        });
-      }
-    }
-  }
-
+  // Note: there is no minimum-duration block on clock-out. A visit can be
+  // genuinely short (e.g. the client isn't home or has gone to hospital), so the
+  // carer must always be able to clock out. If they forgot to clock in, they can
+  // still correct their start time via "Adjust start time" beforehand, and short
+  // visits are surfaced for review in the ECM report.
   const updated = await prisma.clockRecord.update({
     where: { id: record.id },
     data: { clockOut: new Date() },
