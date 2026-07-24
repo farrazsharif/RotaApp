@@ -1,12 +1,20 @@
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from './prisma';
+import { Role } from '../constants';
 
 type ReqUser = AuthRequest['user'];
 
 // A user is site-scoped when they have one or more sites assigned. No sites =
 // org-wide access (the default / backwards-compatible behaviour).
+//
+// Carers (EMPLOYEE) are NEVER treated as site-scoped: a carer's access is
+// defined by the shifts they're assigned to, not by branch. A manager can
+// cross-assign a carer to a client in another site, so site-scoping the carer
+// would hide their own assigned visit (and block opening/clocking/med/logs for
+// it). Their own-shift filters already limit them to their assignments.
 export function isScoped(user?: ReqUser): boolean {
-  return !!user?.siteIds && user.siteIds.length > 0;
+  if (!user || user.role === Role.EMPLOYEE) return false;
+  return !!user.siteIds && user.siteIds.length > 0;
 }
 
 // Prisma where-fragment for querying service users within scope. Returns {}
