@@ -51,7 +51,13 @@ export async function listShifts(req: AuthRequest, res: Response) {
     // Carers only ever see published shifts — drafts stay manager-only until published.
     where.published = true;
   } else if (userId) {
-    where.userId = userId;
+    // A manager pulling one carer's rota wants their cover calls too, not just
+    // the ones they're primary on — includeCover switches to the OR match.
+    if (req.query.includeCover === '1' || req.query.includeCover === 'true') {
+      where.OR = [{ userId: String(userId) }, { coverCarers: { some: { id: String(userId) } } }];
+    } else {
+      where.userId = userId;
+    }
   }
 
   if (serviceUserId) where.serviceUserId = String(serviceUserId);

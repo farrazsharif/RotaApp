@@ -6,6 +6,7 @@ export interface ShiftFilters {
   endDate?: string;
   userId?: string;
   serviceUserId?: string;
+  includeCover?: boolean;
 }
 
 // Cancellation billing: a cancelled visit may still be chargeable, priced as
