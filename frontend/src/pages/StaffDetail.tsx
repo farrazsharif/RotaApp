@@ -97,6 +97,11 @@ export default function StaffDetail() {
     mutationFn: () => usersApi.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); navigate('/users'); },
   });
+  // "View as carer": open the carer's app in a new tab via a short-lived token.
+  const impersonateMut = useMutation({
+    mutationFn: () => usersApi.impersonate(id),
+    onSuccess: ({ token, url }) => { window.open(`${url}/login?sso=${encodeURIComponent(token)}`, '_blank', 'noopener'); },
+  });
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
   if (isError || !user) {
@@ -159,6 +164,11 @@ export default function StaffDetail() {
                     : <button className="btn-secondary btn" disabled={resendMut.isPending} onClick={() => resendMut.mutate()}>
                         {resendMut.isPending ? 'Sending…' : 'Resend invite'}
                       </button>
+                )}
+                {can('manage_staff') && user.role === 'EMPLOYEE' && user.active && (
+                  <button className="btn-secondary btn" disabled={impersonateMut.isPending} onClick={() => impersonateMut.mutate()} title="Open this carer's app to see what they see">
+                    {impersonateMut.isPending ? 'Opening…' : '👁 View as carer'}
+                  </button>
                 )}
                 <button className="btn-primary btn" onClick={() => setEditOpen(true)}>Edit Details</button>
               </div>

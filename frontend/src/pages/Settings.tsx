@@ -122,6 +122,7 @@ const ACTION_LABEL: Record<string, string> = {
   RESPITE_ADDED: 'Respite period added',
   RESPITE_REMOVED: 'Respite period removed',
   MEDICATION_ADDED_BY_CARER: 'Medication added by carer',
+  VIEWED_AS_USER: 'Viewed a staff app (impersonation)',
 };
 
 function AuditLogTab() {

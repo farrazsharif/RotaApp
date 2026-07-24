@@ -8,6 +8,7 @@ import { Role } from '../constants';
 import { sendEmail, resetPasswordEmail } from '../lib/email';
 import { loadOrgSettings } from './settingsController';
 import { capabilitiesFor } from '../middleware/permissions';
+import { staffInScope } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 
 // Which front-end a password/invite link should open in, by the user's role:
@@ -175,6 +176,25 @@ export async function forgotPassword(req: Request, res: Response) {
     sendEmail(user.email, 'Reset your Caremid password', resetPasswordEmail(user.firstName, link));
   }
   res.json(generic);
+}
+
+// "View as carer": mint a short-lived session token for a staff member so a
+// manager can open that person's app to check what they see — no password
+// involved. Restricted (managers may view carers; only an admin may view
+// another admin/manager) and audited. The token expires in 30 minutes.
+export async function impersonateUser(req: AuthRequest, res: Response) {
+  const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (!(await staffInScope(req.user, target.id))) return res.status(404).json({ error: 'User not found' });
+  if (target.id === req.user!.id) return res.status(400).json({ error: 'You are already signed in as yourself' });
+  if (target.role !== Role.EMPLOYEE && req.user!.role !== Role.ADMIN) {
+    return res.status(403).json({ error: 'You can only view a carer\'s app' });
+  }
+  if (!target.active) return res.status(400).json({ error: 'This account is not active yet' });
+
+  const token = jwt.sign({ userId: target.id }, process.env.JWT_SECRET!, { expiresIn: '30m' } as jwt.SignOptions);
+  await logAudit(req, 'VIEWED_AS_USER', `${target.firstName} ${target.lastName}`, `${target.email} — opened their app to check`);
+  res.json({ token, url: portalUrlForRole(target.role) });
 }
 
 export async function setPassword(req: Request, res: Response) {

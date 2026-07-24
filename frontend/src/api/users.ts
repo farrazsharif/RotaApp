@@ -13,6 +13,8 @@ export const usersApi = {
     api.post<{ message: string; email?: string }>(`/users/${id}/reset-password`, body).then((r) => r.data),
   resendInvite: (id: string) =>
     api.post<{ message: string; email?: string }>(`/users/${id}/resend-invite`, {}).then((r) => r.data),
+  impersonate: (id: string) =>
+    api.post<{ token: string; url: string }>(`/users/${id}/impersonate`, {}).then((r) => r.data),
   delete: (id: string) => api.delete(`/users/${id}`).then((r) => r.data),
   reactivate: (id: string) =>
     api.post<{ message: string }>(`/users/${id}/reactivate`, {}).then((r) => r.data),
