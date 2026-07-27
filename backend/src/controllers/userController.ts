@@ -195,6 +195,10 @@ export async function resendInvite(req: AuthRequest, res: Response) {
 export async function deleteUser(req: AuthRequest, res: Response) {
   if (!(await staffInScope(req.user, req.params.id))) return res.status(404).json({ error: 'User not found' });
   const u = await prisma.user.update({ where: { id: req.params.id }, data: { active: false }, select: { firstName: true, lastName: true } });
+  // Deactivating a never-activated ("Pending setup") account should void the
+  // outstanding invite too, otherwise pendingSetup stays true and the person
+  // keeps showing as "Pending" instead of "Deactivated".
+  await prisma.passwordSetupToken.deleteMany({ where: { userId: req.params.id } });
   await logAudit(req, 'STAFF_DEACTIVATED', `${u.firstName} ${u.lastName}`);
   res.json({ message: 'User deactivated' });
 }

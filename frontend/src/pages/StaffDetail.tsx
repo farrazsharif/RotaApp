@@ -117,7 +117,9 @@ export default function StaffDetail() {
   const statusPending = deactivateMut.isPending || reactivateMut.isPending;
   const changeStatus = (v: string) => {
     if (v === 'active' && !user.active) reactivateMut.mutate();
-    else if (v === 'inactive' && user.active) deactivateMut.mutate();
+    // Deactivate covers both an active carer and a never-activated "Pending
+    // setup" account (still active:false) — anything that isn't already inactive.
+    else if (v === 'inactive' && statusValue !== 'inactive') deactivateMut.mutate();
   };
 
   return (
