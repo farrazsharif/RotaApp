@@ -950,7 +950,7 @@ function CarerTimeline({ users, days, shiftsInRange, needsStaff, missingCarers, 
           // shift cells don't show through it when scrolling sideways.
           const stripe = i % 2 ? 'bg-gray-50' : 'bg-white';
           return (
-            <div key={u.id} className={`grid border-b-2 border-gray-200 ${stripe}`} style={gridCols}>
+            <div key={u.id} className={`grid border-b-2 border-gray-200 mb-1.5 ${stripe}`} style={gridCols}>
               <div className={`px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 z-10 flex items-center ${stripe}`}>{u.firstName} {u.lastName}</div>
               {days.map((d) => (
                 <div key={dayKey(d)} className="border-l border-gray-100">{cell(shiftsInRange.filter((s) => carriesUser(s, u.id) && dayKey(s.date) === dayKey(d)), false)}</div>
