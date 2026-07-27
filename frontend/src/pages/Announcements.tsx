@@ -9,6 +9,7 @@ export default function Announcements() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [targetUserId, setTargetUserId] = useState(''); // '' = all carers
+  const [recipientSearch, setRecipientSearch] = useState('');
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['announcements', 'all'],
@@ -49,11 +50,25 @@ export default function Announcements() {
       <div className="card space-y-3">
         <div>
           <label className="label">Send to</label>
+          <input
+            value={recipientSearch}
+            onChange={(e) => setRecipientSearch(e.target.value)}
+            className="input mb-2"
+            placeholder="🔍 Search carers…"
+          />
           <select value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)} className="input">
             <option value="">All carers</option>
-            {[...staff].sort((a, b) => a.firstName.localeCompare(b.firstName)).map((s) => (
-              <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
-            ))}
+            {[...staff]
+              .sort((a, b) => a.firstName.localeCompare(b.firstName))
+              // Filter by the search term, but always keep the currently selected
+              // carer in the list so the dropdown never shows a blank selection.
+              .filter((s) => {
+                const q = recipientSearch.trim().toLowerCase();
+                return !q || s.id === targetUserId || `${s.firstName} ${s.lastName}`.toLowerCase().includes(q);
+              })
+              .map((s) => (
+                <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+              ))}
           </select>
         </div>
         <div>
