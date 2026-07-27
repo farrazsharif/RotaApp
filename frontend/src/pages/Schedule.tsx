@@ -943,14 +943,21 @@ function CarerTimeline({ users, days, shiftsInRange, needsStaff, missingCarers, 
         {/* One row per carer */}
         {activeUsers.length === 0 && unassigned.length === 0 ? (
           <div className="p-6 text-sm text-gray-400 text-center">No visits in this range.</div>
-        ) : activeUsers.map((u) => (
-          <div key={u.id} className="grid border-b border-gray-50" style={gridCols}>
-            <div className="px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 bg-white z-10 flex items-center">{u.firstName} {u.lastName}</div>
-            {days.map((d) => (
-              <div key={dayKey(d)} className="border-l border-gray-100">{cell(shiftsInRange.filter((s) => carriesUser(s, u.id) && dayKey(s.date) === dayKey(d)), false)}</div>
-            ))}
-          </div>
-        ))}
+        ) : activeUsers.map((u, i) => {
+          // Zebra-band alternate carers plus a bold divider so each carer's
+          // block reads as one group even when rows are very uneven in height.
+          // The sticky name cell must carry the same opaque stripe colour so
+          // shift cells don't show through it when scrolling sideways.
+          const stripe = i % 2 ? 'bg-gray-50' : 'bg-white';
+          return (
+            <div key={u.id} className={`grid border-b-2 border-gray-200 ${stripe}`} style={gridCols}>
+              <div className={`px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 z-10 flex items-center ${stripe}`}>{u.firstName} {u.lastName}</div>
+              {days.map((d) => (
+                <div key={dayKey(d)} className="border-l border-gray-100">{cell(shiftsInRange.filter((s) => carriesUser(s, u.id) && dayKey(s.date) === dayKey(d)), false)}</div>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
