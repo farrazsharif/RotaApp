@@ -5,7 +5,7 @@ import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { ClockRecord } from '../types';
-import { format, differenceInMinutes, startOfWeek, endOfWeek } from 'date-fns';
+import { format, differenceInMinutes, startOfWeek, endOfWeek, subDays, subWeeks } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
 function duration(record: ClockRecord) {
@@ -72,9 +72,31 @@ export default function Attendance() {
   const [startDate, setStartDate] = useState(format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [carerId, setCarerId] = useState('');
+  const [preset, setPreset] = useState<'today' | 'yesterday' | 'thisweek' | 'lastweek' | 'custom'>('thisweek');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'missing' | 'short'>('all');
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [outValue, setOutValue] = useState('');
+
+  // Quick date-range presets. Weeks run Monday–Sunday, matching the default.
+  function applyPreset(p: 'today' | 'yesterday' | 'thisweek' | 'lastweek') {
+    const now = new Date();
+    if (p === 'today') {
+      const d = format(now, 'yyyy-MM-dd');
+      setStartDate(d); setEndDate(d);
+    } else if (p === 'yesterday') {
+      const d = format(subDays(now, 1), 'yyyy-MM-dd');
+      setStartDate(d); setEndDate(d);
+    } else if (p === 'thisweek') {
+      setStartDate(format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+      setEndDate(format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+    } else {
+      const lw = subWeeks(now, 1);
+      setStartDate(format(startOfWeek(lw, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+      setEndDate(format(endOfWeek(lw, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+    }
+    setPreset(p);
+  }
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ['clock-records', startDate, endDate, carerId],
@@ -120,20 +142,66 @@ export default function Attendance() {
   const missingCount = records.filter((r) => !r.clockOut).length;
   const shortCount = records.filter(isShortVisit).length;
 
+  // The status filter narrows the visible rows; the stats above still summarise
+  // the whole period.
+  const visibleRecords = records.filter((r) => {
+    if (statusFilter === 'missing') return !r.clockOut;
+    if (statusFilter === 'short') return isShortVisit(r);
+    return true;
+  });
+
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
 
-      <div className="card flex flex-wrap gap-4 items-end">
+      <div className="card space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+            {([
+              { k: 'today', label: 'Today' },
+              { k: 'yesterday', label: 'Yesterday' },
+              { k: 'thisweek', label: 'This week' },
+              { k: 'lastweek', label: 'Last week' },
+            ] as const).map((r) => (
+              <button
+                key={r.k}
+                onClick={() => applyPreset(r.k)}
+                className={`px-3 py-1.5 border-l first:border-l-0 border-gray-200 ${preset === r.k ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+
+          {isManager && (
+            <div className="sm:ml-auto inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+              {([
+                { k: 'all', label: 'All', on: 'bg-gray-900 text-white' },
+                { k: 'missing', label: `No clock-out${missingCount ? ` (${missingCount})` : ''}`, on: 'bg-amber-600 text-white' },
+                { k: 'short', label: `Short visits${shortCount ? ` (${shortCount})` : ''}`, on: 'bg-red-600 text-white' },
+              ] as const).map((s) => (
+                <button
+                  key={s.k}
+                  onClick={() => setStatusFilter(s.k)}
+                  className={`px-3 py-1.5 border-l first:border-l-0 border-gray-200 ${statusFilter === s.k ? s.on : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-4 items-end">
         <div>
           <label className="label">From</label>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input" />
+          <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPreset('custom'); }} className="input" />
         </div>
         <div>
           <label className="label">To</label>
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input" />
+          <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPreset('custom'); }} className="input" />
         </div>
         {isManager && (
           <div>
@@ -164,6 +232,7 @@ export default function Attendance() {
             <p className="text-2xl font-bold text-blue-600">{totalHours.toFixed(1)}h</p>
           </div>
         </div>
+        </div>
       </div>
 
       {records.length === 0 ? (
@@ -185,7 +254,10 @@ export default function Attendance() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {records.map((r: ClockRecord) => {
+              {visibleRecords.length === 0 && (
+                <tr><td colSpan={isManager ? 6 : 5} className="px-4 py-10 text-center text-gray-400">No records match this filter.</td></tr>
+              )}
+              {visibleRecords.map((r: ClockRecord) => {
                 const missed = isMissedClockOut(r);
                 const short = isShortVisit(r);
                 const editing = editingId === r.id;
