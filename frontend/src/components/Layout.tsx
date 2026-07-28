@@ -84,7 +84,7 @@ export default function Layout() {
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
         >
           <div className="h-16 flex items-center gap-3 px-[14px] shrink-0">
-            <span className="w-9 h-9 rounded-lg bg-blue-500 flex items-center justify-center text-lg shrink-0">🩺</span>
+            <img src="/icon-192.png" alt="Caremid" className="w-9 h-9 rounded-lg bg-white object-contain shrink-0" />
             <span className="text-lg font-bold text-blue-300 whitespace-nowrap opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200">Caremid</span>
           </div>
 
@@ -175,7 +175,8 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-gray-900 text-white flex flex-col transform transition-transform duration-200
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:static lg:translate-x-0`}>
-        <div className="h-16 flex items-center px-6 border-b border-gray-700">
+        <div className="h-16 flex items-center gap-3 px-6 border-b border-gray-700">
+          <img src="/icon-192.png" alt="Caremid" className="w-9 h-9 rounded-lg bg-white object-contain shrink-0" />
           <span className="text-xl font-bold text-blue-400">Caremid</span>
         </div>
 
