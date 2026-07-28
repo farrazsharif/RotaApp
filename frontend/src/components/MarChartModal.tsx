@@ -13,10 +13,10 @@ interface Props {
 // Single-letter codes for anything other than "given" — given doses are
 // signed with the carer's initials, same convention as a paper MAR chart.
 const STATUS_CODE: Record<MedStatus, string> = {
-  GIVEN: '', REFUSED: 'R', MISSED: 'M', NOT_NEEDED: 'N', SELF_ADMIN: 'S',
+  GIVEN: '', REFUSED: 'R', MISSED: 'A', NOT_NEEDED: 'N', SELF_ADMIN: 'S',
 };
 const STATUS_LABEL: Record<MedStatus, string> = {
-  GIVEN: 'Given (carer initials)', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not needed', SELF_ADMIN: 'Self-administered',
+  GIVEN: 'Administered (carer initials)', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered',
 };
 const STATUS_COLOR: Record<MedStatus, string> = {
   GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8',
@@ -131,10 +131,10 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
       <div class="sub">${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)} · ${esc(monthLabel)} · Generated ${format(new Date(), 'dd MMM yyyy, h:mm a')}</div>
       ${tables}
       <div class="legend">
-        <div><span>Initials</span> = Given</div>
+        <div><span>Initials</span> = Administered</div>
         <div><span>R</span> = Refused</div>
-        <div><span>M</span> = Missed</div>
-        <div><span>N</span> = Not needed</div>
+        <div><span>A</span> = Absent</div>
+        <div><span>N</span> = Not required</div>
         <div><span>S</span> = Self-administered</div>
       </div>
       </body></html>`;
@@ -220,10 +220,10 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
 
           {charts.length > 0 && (
             <div className="flex gap-4 text-xs text-gray-500 flex-wrap pt-2 border-t">
-              <span><strong>Initials</strong> = Given</span>
+              <span><strong>Initials</strong> = Administered</span>
               <span><strong className="text-amber-700">R</strong> = Refused</span>
-              <span><strong className="text-red-700">M</strong> = Missed</span>
-              <span><strong className="text-gray-600">N</strong> = Not needed</span>
+              <span><strong className="text-red-700">A</strong> = Absent</span>
+              <span><strong className="text-gray-600">N</strong> = Not required</span>
               <span><strong className="text-blue-700">S</strong> = Self-administered</span>
             </div>
           )}

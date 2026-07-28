@@ -122,11 +122,11 @@ function AdjustTimes({ record, scheduledStart, scheduledEnd, onSaved, forceOpen 
 }
 
 const STATUS_OPTIONS: { value: MedAdminStatus; label: string; color: string }[] = [
-  { value: 'GIVEN', label: 'Given', color: 'bg-green-600' },
+  { value: 'GIVEN', label: 'Administered', color: 'bg-green-600' },
   { value: 'REFUSED', label: 'Refused', color: 'bg-orange-500' },
-  { value: 'NOT_NEEDED', label: 'Not Needed', color: 'bg-gray-400' },
+  { value: 'NOT_NEEDED', label: 'Not Required', color: 'bg-gray-400' },
   { value: 'SELF_ADMIN', label: 'Self-Administered', color: 'bg-blue-500' },
-  { value: 'MISSED', label: 'Missed', color: 'bg-red-600' },
+  { value: 'MISSED', label: 'Absent', color: 'bg-red-600' },
 ];
 
 export default function CallDetail() {

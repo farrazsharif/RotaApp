@@ -21,7 +21,7 @@ const SLOTS = [
 ] as const;
 
 const STATUS_LABEL: Record<string, string> = {
-  GIVEN: 'Given', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not needed', SELF_ADMIN: 'Self-admin',
+  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-admin',
 };
 const STATUS_COLOR: Record<string, string> = {
   GIVEN: 'text-green-700 bg-green-100', REFUSED: 'text-amber-700 bg-amber-100', MISSED: 'text-red-700 bg-red-100',

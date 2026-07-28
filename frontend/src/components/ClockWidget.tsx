@@ -9,10 +9,10 @@ import { formatTime12h } from '../lib/time';
 
 const MED_OPTS: { value: MedStatus | ''; label: string }[] = [
   { value: '', label: '— mark dose' },
-  { value: 'GIVEN', label: 'Given' },
+  { value: 'GIVEN', label: 'Administered' },
   { value: 'REFUSED', label: 'Refused' },
-  { value: 'MISSED', label: 'Missed' },
-  { value: 'NOT_NEEDED', label: 'Not needed' },
+  { value: 'MISSED', label: 'Absent' },
+  { value: 'NOT_NEEDED', label: 'Not Required' },
   { value: 'SELF_ADMIN', label: 'Self-admin' },
 ];
 

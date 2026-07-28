@@ -9,7 +9,7 @@ import MarChartModal from '../components/MarChartModal';
 import EmarModal from '../components/EmarModal';
 
 const STATUS_LABEL: Record<MedStatus, string> = {
-  GIVEN: 'Given', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not needed', SELF_ADMIN: 'Self-admin',
+  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-admin',
 };
 const STATUS_BADGE: Record<MedStatus, string> = {
   GIVEN: 'badge-green', REFUSED: 'badge-yellow', MISSED: 'badge-red', NOT_NEEDED: 'badge-gray', SELF_ADMIN: 'badge-blue',
