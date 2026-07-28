@@ -7,9 +7,9 @@ import { carePlansApi } from '../api/carePlans';
 import { servicePlansApi } from '../api/servicePlans';
 import { medicationsApi } from '../api/medications';
 import { callLogsApi } from '../api/callLogs';
-import { respiteApi } from '../api/respite';
+import { respiteApi, type RespitePeriod } from '../api/respite';
 import { useAuth } from '../contexts/AuthContext';
-import { format, differenceInYears } from 'date-fns';
+import { format, differenceInYears, addDays } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
 import { parseCategories } from '../lib/supportCategories';
@@ -84,6 +84,7 @@ export default function ServiceUserDetail() {
   // set (or back-date) when it takes effect before it's applied.
   const [pendingStatus, setPendingStatus] = useState<ServiceUserStatus | null>(null);
   const [effectiveAt, setEffectiveAt] = useState('');
+  const [hospitalReturn, setHospitalReturn] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: su, isLoading, isError } = useQuery({
@@ -116,12 +117,14 @@ export default function ServiceUserDetail() {
   // A respite window covering "now" — shown as a pill in the header.
   const activeRespite = respitePeriods.find((p) => {
     const t = Date.now();
-    return t >= new Date(p.startAt).getTime() && t < new Date(p.endAt).getTime();
+    return p.type !== 'HOSPITAL' && t >= new Date(p.startAt).getTime() && t < new Date(p.endAt).getTime();
   });
+  // An open hospital admission — drives the header pill + management banner.
+  const activeHospital = respitePeriods.find((p) => p.type === 'HOSPITAL' && Date.now() < new Date(p.endAt).getTime());
 
   const statusMut = useMutation({
-    mutationFn: (vars: { status: ServiceUserStatus; effectiveAt?: string }) =>
-      serviceUsersApi.update(id, { status: vars.status, statusEffectiveAt: vars.effectiveAt }),
+    mutationFn: (vars: { status: ServiceUserStatus; effectiveAt?: string; hospitalReturnDate?: string }) =>
+      serviceUsersApi.update(id, { status: vars.status, statusEffectiveAt: vars.effectiveAt, hospitalReturnDate: vars.hospitalReturnDate }),
     // Apply the new status to the cache immediately so the badge/dropdown update
     // without waiting on the refetch — then reconcile with the server response.
     onMutate: async ({ status }) => {
@@ -139,6 +142,8 @@ export default function ServiceUserDetail() {
       // The Schedule calendar embeds each shift's serviceUser.status, so its
       // cached shifts list also needs to refetch to pick up the new status.
       qc.invalidateQueries({ queryKey: ['shifts'] });
+      // A hospital admission/discharge creates or ends an away period.
+      qc.invalidateQueries({ queryKey: ['respite', id] });
     },
   });
 
@@ -211,6 +216,11 @@ export default function ServiceUserDetail() {
                   🏖️ On respite · until {format(new Date(activeRespite.endAt), 'd MMM yyyy')}
                 </span>
               )}
+              {activeHospital && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-red-100 text-red-800">
+                  🏥 In hospital · until {format(new Date(activeHospital.endAt), 'd MMM yyyy')}
+                </span>
+              )}
             </div>
             </div>
           </div>
@@ -226,6 +236,8 @@ export default function ServiceUserDetail() {
                     if (next === su.status) { setPendingStatus(null); return; }
                     setPendingStatus(next);
                     setEffectiveAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+                    // Default an expected return ~1 week out for a hospital admission.
+                    if (next === 'HOSPITALISED') setHospitalReturn(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
                   }}
                   disabled={statusMut.isPending}
                   className="input"
@@ -242,13 +254,24 @@ export default function ServiceUserDetail() {
                       <input type="datetime-local" value={effectiveAt} onChange={(e) => setEffectiveAt(e.target.value)} className="input" />
                     </div>
                     <p className="text-xs text-gray-500">Calls from this time onward show the new status. Defaults to now — back-date it if it happened earlier.</p>
+                    {pendingStatus === 'HOSPITALISED' && (
+                      <div>
+                        <label className="label">Expected return date</label>
+                        <input type="date" value={hospitalReturn} min={effectiveAt.slice(0, 10)} onChange={(e) => setHospitalReturn(e.target.value)} className="input" />
+                        <p className="text-xs text-gray-500 mt-1">Visits from admission to this date are cancelled non-chargeable and carers are notified. You can extend or shorten it later.</p>
+                      </div>
+                    )}
                     <div className="flex justify-end gap-2 pt-1">
                       <button className="btn-secondary btn btn-sm" onClick={() => setPendingStatus(null)}>Cancel</button>
                       <button
                         className="btn-primary btn btn-sm"
-                        disabled={statusMut.isPending || !effectiveAt}
+                        disabled={statusMut.isPending || !effectiveAt || (pendingStatus === 'HOSPITALISED' && !hospitalReturn)}
                         onClick={() => statusMut.mutate(
-                          { status: pendingStatus, effectiveAt: new Date(effectiveAt).toISOString() },
+                          {
+                            status: pendingStatus,
+                            effectiveAt: new Date(effectiveAt).toISOString(),
+                            hospitalReturnDate: pendingStatus === 'HOSPITALISED' && hospitalReturn ? new Date(`${hospitalReturn}T23:59:00`).toISOString() : undefined,
+                          },
                           { onSuccess: () => setPendingStatus(null) },
                         )}
                       >
@@ -265,6 +288,14 @@ export default function ServiceUserDetail() {
           </div>
         </div>
       </div>
+
+      {isManager && activeHospital && (
+        <HospitalBanner
+          period={activeHospital}
+          returning={statusMut.isPending}
+          onMarkReturned={() => statusMut.mutate({ status: 'ACTIVE' as ServiceUserStatus, effectiveAt: new Date().toISOString() })}
+        />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Personal details — the full set captured on the edit form. */}
@@ -619,6 +650,46 @@ export default function ServiceUserDetail() {
       {logsOpen && <CallLogsModal serviceUser={su} onClose={() => setLogsOpen(false)} />}
       {familyAccessOpen && <FamilyAccessModal serviceUser={su} onClose={() => setFamilyAccessOpen(false)} />}
       {grabSheetOpen && <EmergencyGrabSheetModal serviceUser={su} canManage={isManager} onClose={() => setGrabSheetOpen(false)} />}
+    </div>
+  );
+}
+
+// Shown while a client is in hospital: summarises the admission and lets the
+// office extend/shorten the expected return date (restoring or cancelling the
+// affected visits) or mark them returned now.
+function HospitalBanner({ period, onMarkReturned, returning }: { period: RespitePeriod; onMarkReturned: () => void; returning: boolean }) {
+  const qc = useQueryClient();
+  const [ret, setRet] = useState(period.endAt.slice(0, 10));
+  const updateMut = useMutation({
+    mutationFn: () => respiteApi.update(period.id, { endAt: new Date(`${ret}T23:59:00`).toISOString() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['respite', period.serviceUserId] });
+      qc.invalidateQueries({ queryKey: ['shifts'] });
+    },
+  });
+  const changed = ret !== period.endAt.slice(0, 10);
+  return (
+    <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="font-semibold text-red-900">🏥 In hospital</p>
+          <p className="text-sm text-red-800">
+            Since {format(new Date(period.startAt), 'd MMM yyyy')} · {period.cancelledCount} visit{period.cancelledCount !== 1 ? 's' : ''} cancelled (non-chargeable). Expected back {format(new Date(period.endAt), 'd MMM yyyy')}.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="label">Expected return</label>
+            <input type="date" value={ret} min={period.startAt.slice(0, 10)} onChange={(e) => setRet(e.target.value)} className="input" />
+          </div>
+          <button className="btn-secondary btn" disabled={!changed || updateMut.isPending} onClick={() => updateMut.mutate()}>
+            {updateMut.isPending ? 'Saving…' : 'Update return date'}
+          </button>
+          <button className="btn-primary btn" disabled={returning} onClick={onMarkReturned}>
+            {returning ? 'Applying…' : 'Mark returned now'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

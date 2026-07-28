@@ -3,9 +3,10 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { ServiceUserStatus } from '../constants';
 import { isScoped, serviceUserInScope } from '../lib/scope';
-import { emitToUser } from '../lib/socket';
+import { emitToUser, emitToCompany } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
 import { logAudit } from '../lib/audit';
+import { cancelAwayWindow, restoreAwayVisits } from '../lib/awayPeriods';
 
 // Turn a camelCase field name into readable words for the audit details,
 // e.g. "emergencyContactPhone" → "emergency contact phone".
@@ -179,7 +180,7 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
   if (data.status !== undefined) {
     const existing = await prisma.serviceUser.findUnique({
       where: { id: req.params.id },
-      select: { status: true, statusUpdatedAt: true, firstName: true, lastName: true, _count: { select: { statusChanges: true } } },
+      select: { status: true, statusUpdatedAt: true, firstName: true, lastName: true, companyId: true, _count: { select: { statusChanges: true } } },
     });
     if (existing && existing.status !== data.status) {
       // Effective moment defaults to now, but a manager may back-date it — e.g.
@@ -236,6 +237,52 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
               await sendPushToUser(carerId, { title: 'Visits Cancelled', body: message });
             }),
           );
+        }
+      }
+
+      // Hospital admission: cancel the client's visits until an expected return
+      // date (non-chargeable) and notify carers. Reuses the away-period engine
+      // (RespitePeriod type=HOSPITAL) so the return date can later be extended
+      // or reduced, and the top-up won't regenerate visits during the stay.
+      if (data.status === ServiceUserStatus.HOSPITALISED) {
+        const rr = req.body.hospitalReturnDate ? new Date(String(req.body.hospitalReturnDate)) : null;
+        const returnAt = rr && !isNaN(rr.getTime()) && rr > effectiveAt ? rr : null;
+        if (returnAt) {
+          const patientName = `${existing.firstName} ${existing.lastName}`;
+          const cancelledIds = await cancelAwayWindow(req.params.id, effectiveAt, returnAt, {
+            reason: 'Hospital admission', patientName, awayLabel: 'in hospital', notify: true,
+          });
+          const author = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { firstName: true, lastName: true, email: true } });
+          const createdByName = author ? `${author.firstName} ${author.lastName}`.trim() || author.email : (req.user!.email ?? 'Unknown');
+          await prisma.respitePeriod.create({
+            data: {
+              serviceUserId: req.params.id, startAt: effectiveAt, endAt: returnAt, type: 'HOSPITAL',
+              note: 'Hospital admission', cancelledShiftIds: JSON.stringify(cancelledIds), cancelledCount: cancelledIds.length,
+              createdById: req.user?.id ?? null, createdByName,
+            },
+          });
+          if (existing.companyId) emitToCompany(existing.companyId, 'data:changed', { resource: '/api/shifts' });
+        }
+      }
+
+      // Leaving hospital (discharge / back to active): end any open hospital
+      // period as of now and restore the visits it cancelled from now onward.
+      if (existing.status === ServiceUserStatus.HOSPITALISED
+        && data.status !== ServiceUserStatus.HOSPITALISED
+        && data.status !== ServiceUserStatus.DECEASED) {
+        const active = await prisma.respitePeriod.findFirst({
+          where: { serviceUserId: req.params.id, type: 'HOSPITAL', endAt: { gt: effectiveAt } },
+          orderBy: { startAt: 'desc' },
+        });
+        if (active) {
+          let ids: string[] = [];
+          try { ids = JSON.parse(active.cancelledShiftIds || '[]'); } catch { ids = []; }
+          const patientName = `${existing.firstName} ${existing.lastName}`;
+          const restored = await restoreAwayVisits(ids, effectiveAt, { patientName, resumeLabel: 'back from hospital', notify: true });
+          const restoredSet = new Set(restored);
+          const remaining = ids.filter((idv) => !restoredSet.has(idv));
+          await prisma.respitePeriod.update({ where: { id: active.id }, data: { endAt: effectiveAt, cancelledShiftIds: JSON.stringify(remaining), cancelledCount: remaining.length } });
+          if (existing.companyId) emitToCompany(existing.companyId, 'data:changed', { resource: '/api/shifts' });
         }
       }
     }

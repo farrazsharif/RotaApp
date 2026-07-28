@@ -205,6 +205,8 @@ model RespitePeriod {
   startAt       DateTime // care pauses (the "away from" date & time)
   endAt         DateTime // care resumes (the "restart" date & time)
   note          String?
+  type          String   @default("RESPITE") // RESPITE (planned away) | HOSPITAL (admission)
+  cancelledShiftIds String @default("[]") // JSON array of shift ids this period cancelled (for extend/reduce restore)
   cancelledCount Int     @default(0) // visits cancelled when this period was created
   createdById   String?
   createdByName String

@@ -6,6 +6,8 @@ export interface RespitePeriod {
   startAt: string;
   endAt: string;
   note: string | null;
+  type?: 'RESPITE' | 'HOSPITAL';
+  cancelledShiftIds?: string;
   cancelledCount: number;
   createdById: string | null;
   createdByName: string;
@@ -17,5 +19,8 @@ export const respiteApi = {
     api.get<RespitePeriod[]>('/respite', { params: { serviceUserId } }).then((r) => r.data),
   create: (body: { serviceUserId: string; startAt: string; endAt: string; note?: string }) =>
     api.post<RespitePeriod>('/respite', body).then((r) => r.data),
+  // Move the return date — extend (cancels more) or reduce (restores visits).
+  update: (id: string, body: { endAt: string }) =>
+    api.patch<RespitePeriod>(`/respite/${id}`, body).then((r) => r.data),
   remove: (id: string) => api.delete(`/respite/${id}`).then((r) => r.data),
 };

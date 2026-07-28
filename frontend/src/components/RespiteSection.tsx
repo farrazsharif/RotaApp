@@ -25,10 +25,13 @@ export default function RespiteSection({ serviceUserId, isManager }: { serviceUs
   const [err, setErr] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const { data: periods = [], isLoading } = useQuery({
+  const { data: allPeriods = [], isLoading } = useQuery({
     queryKey: ['respite', serviceUserId],
     queryFn: () => respiteApi.list(serviceUserId),
   });
+  // Hospital admissions live in the same table but are managed from the
+  // hospital banner, not here — this section is planned respite only.
+  const periods = allPeriods.filter((p) => p.type !== 'HOSPITAL');
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['respite', serviceUserId] });

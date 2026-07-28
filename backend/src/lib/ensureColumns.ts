@@ -175,6 +175,11 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   `);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "RespitePeriod_companyId_idx" ON "RespitePeriod"("companyId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "RespitePeriod_serviceUserId_idx" ON "RespitePeriod"("serviceUserId")`);
+  // Hospital admissions reuse this table: a type discriminator, and the ids of
+  // the visits the period cancelled (so a return date can be extended/reduced,
+  // restoring exactly those visits).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "RespitePeriod" ADD COLUMN IF NOT EXISTS "type" TEXT NOT NULL DEFAULT 'RESPITE'`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "RespitePeriod" ADD COLUMN IF NOT EXISTS "cancelledShiftIds" TEXT NOT NULL DEFAULT '[]'`);
 
   // Performance indexes for large Shift tables. Series-wide carer changes and
   // series deletes match a visit by (company, serviceUser, date); series ops

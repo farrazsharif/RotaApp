@@ -4,15 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { serviceUserInScope } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { emitToCompany } from '../lib/socket';
-
-// Combine a shift's stored date (noon-anchored) with its "HH:MM" start time so
-// the respite window's times of day are respected — a morning call before the
-// "away from" time still happens; an evening one inside the window is cancelled.
-function shiftStart(date: Date, startTime: string): Date {
-  const d = new Date(date);
-  const [h, m] = String(startTime || '00:00').split(':').map(Number);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h || 0, m || 0, 0);
-}
+import { cancelAwayWindow, restoreAwayVisits } from '../lib/awayPeriods';
 
 // GET /api/respite?serviceUserId=… — a client's respite/away periods, newest first.
 export async function listRespite(req: AuthRequest, res: Response) {
@@ -50,39 +42,20 @@ export async function createRespite(req: AuthRequest, res: Response) {
   const author = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { firstName: true, lastName: true, email: true } });
   const createdByName = author ? `${author.firstName} ${author.lastName}`.trim() || author.email : (req.user!.email ?? 'Unknown');
 
-  // Candidate visits: fetch a day either side of the window, then filter by the
-  // precise start datetime so time-of-day boundaries are honoured. Only visits
-  // still SCHEDULED are cancelled — delivered/completed care is never undone.
-  const dayBefore = new Date(startAt.getFullYear(), startAt.getMonth(), startAt.getDate() - 1, 0, 0, 0);
-  const dayAfter = new Date(endAt.getFullYear(), endAt.getMonth(), endAt.getDate() + 1, 23, 59, 59);
-  const candidates = await prisma.shift.findMany({
-    where: { serviceUserId, status: 'SCHEDULED', date: { gte: dayBefore, lte: dayAfter } },
-    select: { id: true, date: true, startTime: true },
+  // Only visits still SCHEDULED are cancelled — delivered/completed care is
+  // never undone. Respite is silent (no carer push); hospital admissions notify.
+  const patientName = `${su.firstName} ${su.lastName}`;
+  const toCancel = await cancelAwayWindow(serviceUserId, startAt, endAt, {
+    reason: note ? `Respite — ${note}` : 'Respite (client away)',
+    patientName, awayLabel: 'on respite', notify: false,
   });
-  const toCancel = candidates
-    .filter((s) => {
-      const start = shiftStart(s.date, s.startTime);
-      return start >= startAt && start < endAt;
-    })
-    .map((s) => s.id);
-
-  if (toCancel.length > 0) {
-    await prisma.shift.updateMany({
-      where: { id: { in: toCancel } },
-      data: {
-        status: 'CANCELLED',
-        cancelledAt: new Date(),
-        cancelBillable: false,
-        cancelChargeType: null,
-        cancelChargePercent: null,
-        cancelChargeAmount: null,
-        cancelReason: note ? `Respite — ${note}` : 'Respite (client away)',
-      },
-    });
-  }
 
   const period = await prisma.respitePeriod.create({
-    data: { serviceUserId, startAt, endAt, note: note || null, cancelledCount: toCancel.length, createdById: req.user!.id, createdByName },
+    data: {
+      serviceUserId, startAt, endAt, note: note || null, type: 'RESPITE',
+      cancelledShiftIds: JSON.stringify(toCancel), cancelledCount: toCancel.length,
+      createdById: req.user!.id, createdByName,
+    },
   });
 
   await logAudit(
@@ -96,6 +69,52 @@ export async function createRespite(req: AuthRequest, res: Response) {
   if (su.companyId) emitToCompany(su.companyId, 'data:changed', { resource: '/api/shifts' });
 
   res.status(201).json(period);
+}
+
+// PATCH /api/respite/:id — move the return date (extend or reduce). Extending
+// cancels the newly-covered visits; reducing (or an early discharge) restores
+// the visits from the new date onward. For a hospital period carers are
+// notified of the change; respite is silent.
+export async function updateRespite(req: AuthRequest, res: Response) {
+  const period = await prisma.respitePeriod.findUnique({ where: { id: req.params.id } });
+  if (!period) return res.status(404).json({ error: 'Not found' });
+  if (!(await serviceUserInScope(req.user, period.serviceUserId))) return res.status(404).json({ error: 'Not found' });
+
+  const newEnd = req.body.endAt ? new Date(req.body.endAt) : null;
+  if (!newEnd || isNaN(newEnd.getTime())) return res.status(400).json({ error: 'A valid return date is required' });
+  if (newEnd <= new Date(period.startAt)) return res.status(400).json({ error: 'The return date must be after the away-from date' });
+
+  const su = await prisma.serviceUser.findUnique({
+    where: { id: period.serviceUserId },
+    select: { firstName: true, lastName: true, companyId: true },
+  });
+  const patientName = su ? `${su.firstName} ${su.lastName}` : 'the client';
+  const isHospital = period.type === 'HOSPITAL';
+  let ids: string[] = [];
+  try { ids = JSON.parse(period.cancelledShiftIds || '[]'); } catch { ids = []; }
+
+  const oldEnd = new Date(period.endAt);
+  if (newEnd.getTime() > oldEnd.getTime()) {
+    const added = await cancelAwayWindow(period.serviceUserId, oldEnd, newEnd, {
+      reason: isHospital ? 'Hospital admission' : (period.note ? `Respite — ${period.note}` : 'Respite (client away)'),
+      patientName, awayLabel: isHospital ? 'in hospital' : 'on respite', notify: isHospital,
+    });
+    ids = [...new Set([...ids, ...added])];
+  } else if (newEnd.getTime() < oldEnd.getTime()) {
+    const restored = await restoreAwayVisits(ids, newEnd, {
+      patientName, resumeLabel: isHospital ? 'back from hospital' : 'back from respite', notify: isHospital,
+    });
+    const restoredSet = new Set(restored);
+    ids = ids.filter((id) => !restoredSet.has(id));
+  }
+
+  const updated = await prisma.respitePeriod.update({
+    where: { id: period.id },
+    data: { endAt: newEnd, cancelledShiftIds: JSON.stringify(ids), cancelledCount: ids.length },
+  });
+  await logAudit(req, isHospital ? 'HOSPITAL_UPDATED' : 'RESPITE_UPDATED', patientName, `Return date → ${newEnd.toISOString().slice(0, 10)} · ${ids.length} visit(s) currently cancelled`);
+  if (su?.companyId) emitToCompany(su.companyId, 'data:changed', { resource: '/api/shifts' });
+  res.json(updated);
 }
 
 // DELETE /api/respite/:id — remove a respite record. Does NOT automatically

@@ -53,6 +53,7 @@ export interface ServiceUserData {
   // When set alongside a status change, the moment the new status takes effect
   // (ISO string). Defaults to now on the server if omitted.
   statusEffectiveAt?: string;
+  hospitalReturnDate?: string; // when status → HOSPITALISED: expected return date
 }
 
 export const serviceUsersApi = {
