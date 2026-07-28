@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
-import { Role } from '../constants';
 import { emitToUser } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
 
@@ -31,21 +30,6 @@ type ShiftLite = {
 function shiftLine(shift: ShiftLite): string {
   const who = shift.serviceUser ? `${shift.serviceUser.firstName} ${shift.serviceUser.lastName}` : 'a client';
   return `${who} · ${shortDate(shift.date)} ${shift.startTime}–${shift.endTime}`;
-}
-
-// Notify every manager/admin in the company (in-app + push). Reads are tenant-scoped.
-async function notifyManagers(title: string, message: string, data: Record<string, unknown>) {
-  const managers = await prisma.user.findMany({
-    where: { active: true, role: { in: [Role.ADMIN, Role.MANAGER] } },
-    select: { id: true },
-  });
-  await Promise.all(managers.map(async (m) => {
-    const n = await prisma.notification.create({
-      data: { userId: m.id, type: 'SHIFT_HANDOVER', title, message, data: JSON.stringify(data) },
-    });
-    emitToUser(m.id, 'notification', n);
-    await sendPushToUser(m.id, { title, body: message, url: '/handovers' });
-  }));
 }
 
 // Is the given user currently a carer on the shift (primary or cover)?
@@ -166,7 +150,6 @@ export async function respondHandover(req: AuthRequest, res: Response) {
   if (handover.status !== 'PENDING') return res.status(400).json({ error: 'This request has already been dealt with' });
 
   const toName = `${handover.toUser.firstName} ${handover.toUser.lastName}`;
-  const fromName = `${handover.fromUser.firstName} ${handover.fromUser.lastName}`;
   const line = shiftLine(handover.shift as ShiftLite);
 
   if (action === 'DECLINE') {
@@ -190,8 +173,6 @@ export async function respondHandover(req: AuthRequest, res: Response) {
   });
   emitToUser(handover.fromUserId, 'notification', n);
   await sendPushToUser(handover.fromUserId, { title: 'Cover Accepted', body: toMsg });
-
-  await notifyManagers('Shift Handover', `${fromName} → ${toName}: ${line}`, { handoverId: handover.id, shiftId: handover.shiftId });
 
   res.json({ ...handover, status: 'ACCEPTED' });
 }
