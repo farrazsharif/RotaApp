@@ -101,31 +101,18 @@ export default function ServiceUserDetail() {
     .filter((a) => isToday(new Date(a.scheduledFor)))
     .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime());
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'info', label: 'Info' },
-    { key: 'care', label: 'Care Plan' },
-    { key: 'logs', label: 'Daily Logs' },
-    { key: 'emar', label: 'eMAR' },
+  // Carer-app-style bottom navigation, in the requested order.
+  const navItems: { key: Tab; label: string; icon: string }[] = [
+    { key: 'info', label: 'Today', icon: '📅' },
+    { key: 'emar', label: 'eMAR', icon: '💊' },
+    { key: 'care', label: 'Care Plan', icon: '📋' },
+    { key: 'logs', label: 'Logs', icon: '🕑' },
   ];
 
   return (
     <Layout title={`${su.firstName} ${su.lastName}`}>
-      <div className="space-y-4">
+      <div className="space-y-4 pb-24">
         <button onClick={() => navigate('/')} className="text-sm text-blue-600 font-medium">← Your Family</button>
-
-        <div className="flex gap-1 bg-gray-200 p-1 rounded-xl overflow-x-auto">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                tab === t.key ? 'bg-white shadow text-gray-900' : 'text-gray-500'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
 
         {tab === 'info' && (
           <div className="space-y-4">
@@ -305,6 +292,21 @@ export default function ServiceUserDetail() {
           </div>
         )}
       </div>
+
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 flex pb-[env(safe-area-inset-bottom)] z-20">
+        {navItems.map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setTab(item.key)}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium ${
+              tab === item.key ? 'text-blue-600' : 'text-gray-400'
+            }`}
+          >
+            <span className="text-xl leading-none">{item.icon}</span>
+            {item.label}
+          </button>
+        ))}
+      </nav>
     </Layout>
   );
 }
