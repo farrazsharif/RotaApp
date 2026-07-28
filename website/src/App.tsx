@@ -47,7 +47,7 @@ function Nav() {
     <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-100">
       <div className="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between">
         <a href="#top" className="flex items-center gap-2 font-bold text-xl text-brand-700">
-          <span className="grid place-items-center w-8 h-8 rounded-lg bg-brand-600 text-white text-base">C</span>
+          <img src="/icon-192.png" alt="Caremid" className="w-8 h-8 rounded-lg bg-white object-contain" />
           Caremid
         </a>
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
@@ -291,7 +291,7 @@ function Footer() {
       <div className="mx-auto max-w-6xl px-5 py-12 flex flex-col md:flex-row gap-6 md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2 font-bold text-lg text-white">
-            <span className="grid place-items-center w-7 h-7 rounded-lg bg-brand-600 text-white text-sm">C</span>
+            <img src="/icon-192.png" alt="Caremid" className="w-7 h-7 rounded-lg bg-white object-contain" />
             Caremid
           </div>
           <p className="mt-2 text-sm">Care management software for UK care providers.</p>
