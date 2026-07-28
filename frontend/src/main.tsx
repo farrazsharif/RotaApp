@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import './index.css';
+import { installPasteNormalizer } from './lib/pasteNormalize';
+
+// Tidy whitespace in anything pasted into a field (stray/doubled spaces).
+installPasteNormalizer();
 
 // Always run the latest deployed version. Register the service worker
 // immediately, then re-check for a new build whenever the tab regains focus or
