@@ -36,6 +36,31 @@ function isMissedClockOut(r: ClockRecord): boolean {
   return !!end && Date.now() > end.getTime() + 15 * 60 * 1000;
 }
 
+// Under this many minutes on a completed visit is flagged for review.
+const SHORT_VISIT_MINUTES = 15;
+
+// The planned length of the visit this record belongs to, in minutes
+// (overnight-aware). null when the record isn't tied to a shift.
+function plannedMinutes(r: ClockRecord): number | null {
+  if (!r.shift) return null;
+  const [sh, sm] = r.shift.startTime.split(':').map(Number);
+  const [eh, em] = r.shift.endTime.split(':').map(Number);
+  let mins = eh * 60 + em - (sh * 60 + sm);
+  if (mins <= 0) mins += 24 * 60;
+  return mins;
+}
+
+// A completed visit where the carer was clocked in for under 15 minutes — far
+// short of a normal care call — worth keeping an eye on. Genuine short pop-ins
+// (planned under 15 min) are left alone.
+function isShortVisit(r: ClockRecord): boolean {
+  if (!r.clockOut) return false;
+  const actual = differenceInMinutes(new Date(r.clockOut), new Date(r.clockIn));
+  if (actual >= SHORT_VISIT_MINUTES) return false;
+  const planned = plannedMinutes(r);
+  return planned === null || planned >= SHORT_VISIT_MINUTES;
+}
+
 const dtLocal = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
 export default function Attendance() {
@@ -93,6 +118,7 @@ export default function Attendance() {
     return sum + differenceInMinutes(new Date(r.clockOut), new Date(r.clockIn)) / 60;
   }, 0);
   const missingCount = records.filter((r) => !r.clockOut).length;
+  const shortCount = records.filter(isShortVisit).length;
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
@@ -127,6 +153,12 @@ export default function Attendance() {
               <p className="text-2xl font-bold text-amber-600">{missingCount}</p>
             </div>
           )}
+          {isManager && shortCount > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Short visits</p>
+              <p className="text-2xl font-bold text-red-600">{shortCount}</p>
+            </div>
+          )}
           <div>
             <p className="text-xs text-gray-500 uppercase tracking-wide">Total Hours</p>
             <p className="text-2xl font-bold text-blue-600">{totalHours.toFixed(1)}h</p>
@@ -155,9 +187,10 @@ export default function Attendance() {
             <tbody className="divide-y divide-gray-100">
               {records.map((r: ClockRecord) => {
                 const missed = isMissedClockOut(r);
+                const short = isShortVisit(r);
                 const editing = editingId === r.id;
                 return (
-                  <tr key={r.id} className={`hover:bg-gray-50 ${missed ? 'bg-amber-50' : ''}`}>
+                  <tr key={r.id} className={`hover:bg-gray-50 ${missed ? 'bg-amber-50' : short ? 'bg-red-50' : ''}`}>
                     {isManager && (
                       <td className="px-4 py-3 font-medium">{r.user.firstName} {r.user.lastName}</td>
                     )}
@@ -190,7 +223,10 @@ export default function Attendance() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-medium text-blue-600">{duration(r)}</td>
+                    <td className={`px-4 py-3 font-medium ${short ? 'text-red-600' : 'text-blue-600'}`}>
+                      {duration(r)}
+                      {short && <span className="ml-2 badge-red badge" title={`Under ${SHORT_VISIT_MINUTES} min on a longer planned visit`}>Short</span>}
+                    </td>
                     <td className="px-4 py-3 text-gray-500">
                       <div className="flex items-center justify-between gap-3">
                         <span>
