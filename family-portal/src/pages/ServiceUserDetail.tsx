@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, isToday } from 'date-fns';
 import Layout from '../components/Layout';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { carePlansApi } from '../api/carePlans';
@@ -54,7 +54,8 @@ export default function ServiceUserDetail() {
   const { data: logs = [] } = useQuery({
     queryKey: ['call-logs', id],
     queryFn: () => callLogsApi.list(id!),
-    enabled: !!id && tab === 'logs',
+    // Also needed by the "Today" summary on the Info (home) tab.
+    enabled: !!id && (tab === 'logs' || tab === 'info'),
   });
 
   const { data: medications = [] } = useQuery({
@@ -66,7 +67,8 @@ export default function ServiceUserDetail() {
   const { data: administrations = [] } = useQuery({
     queryKey: ['med-admin', id, 'recent'],
     queryFn: () => medicationsApi.administrations(id!, format(new Date(Date.now() - 30 * 86400000), 'yyyy-MM-dd'), format(new Date(), 'yyyy-MM-dd')),
-    enabled: !!id && tab === 'emar',
+    // Also needed by the "Today" summary on the Info (home) tab.
+    enabled: !!id && (tab === 'emar' || tab === 'info'),
   });
 
   if (isLoading) {
@@ -90,6 +92,14 @@ export default function ServiceUserDetail() {
 
   let schedule: Partial<Record<string, Partial<Record<string, string>>>> = {};
   try { schedule = carePlan?.schedule ? JSON.parse(carePlan.schedule) : {}; } catch { schedule = {}; }
+
+  // "Today" summary for the home (Info) tab — earliest first, like a day timeline.
+  const todayLogs = logs
+    .filter((l) => isToday(new Date(l.createdAt)))
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const todayAdmins = administrations
+    .filter((a) => isToday(new Date(a.scheduledFor)))
+    .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime());
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'info', label: 'Info' },
@@ -118,6 +128,52 @@ export default function ServiceUserDetail() {
         </div>
 
         {tab === 'info' && (
+          <div className="space-y-4">
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800 text-sm">Today</h3>
+              <span className="text-xs text-gray-400">{format(new Date(), 'EEE dd MMM')}</span>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-400">Visit Logs</p>
+              {todayLogs.length === 0 ? (
+                <p className="text-sm text-gray-400">No visit logs yet today</p>
+              ) : (
+                todayLogs.map((log) => (
+                  <div key={log.id} className="border border-gray-100 rounded-lg p-2.5">
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-0.5">
+                      <span className="font-medium text-gray-700">{log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Carer'}</span>
+                      <span>{format(new Date(log.createdAt), 'h:mm a')}</span>
+                    </div>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {su.needsMedication && (
+              <div className="space-y-2 pt-1">
+                <p className="text-xs font-medium text-gray-400">Medication (eMAR)</p>
+                {todayAdmins.length === 0 ? (
+                  <p className="text-sm text-gray-400">No medication recorded yet today</p>
+                ) : (
+                  todayAdmins.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between border-b border-gray-100 pb-2 last:border-0">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{a.medication?.name}</p>
+                        <p className="text-xs text-gray-400">
+                          {format(new Date(a.scheduledFor), 'h:mm a')}{a.user ? ` · ${a.user.firstName} ${a.user.lastName}` : ''}
+                        </p>
+                      </div>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_COLOR[a.status]}`}>{STATUS_LABEL[a.status]}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 space-y-3">
             <Field label="Date of Birth" value={su.dateOfBirth ? format(new Date(su.dateOfBirth), 'dd MMM yyyy') : undefined} />
             <Field label="NHS Number" value={su.nhsNumber} />
@@ -139,6 +195,7 @@ export default function ServiceUserDetail() {
               {su.needsPersonalCare && <span className="text-xs font-semibold bg-pink-100 text-pink-700 px-2 py-1 rounded-full">Personal Care</span>}
             </div>
             <Field label="Care Notes" value={su.careNotes} />
+          </div>
           </div>
         )}
 
