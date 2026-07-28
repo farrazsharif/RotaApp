@@ -14,6 +14,14 @@ function duration(record: ClockRecord) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
+// The scheduled start of the visit this record belongs to.
+function shiftStart(r: ClockRecord): Date | null {
+  if (!r.shift) return null;
+  const base = new Date(r.shift.date);
+  const [sh, sm] = r.shift.startTime.split(':').map(Number);
+  return new Date(base.getFullYear(), base.getMonth(), base.getDate(), sh, sm, 0);
+}
+
 // The scheduled end of the visit this record belongs to, accounting for
 // overnight calls (end earlier than start rolls to the next day). Used to
 // distinguish a carer still on a live visit from a forgotten clock-out, and to
@@ -76,6 +84,7 @@ export default function Attendance() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'missing' | 'short'>('all');
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [inValue, setInValue] = useState('');
   const [outValue, setOutValue] = useState('');
 
   // Quick date-range presets. Weeks run Monday–Sunday, matching the default.
@@ -109,30 +118,49 @@ export default function Attendance() {
     enabled: isManager,
   });
 
-  const clockOutMut = useMutation({
-    mutationFn: ({ id, clockOut }: { id: string; clockOut: string }) => clockApi.updateRecord(id, { clockOut }),
+  const saveMut = useMutation({
+    mutationFn: ({ id, clockIn, clockOut }: { id: string; clockIn?: string; clockOut?: string }) =>
+      clockApi.updateRecord(id, { clockIn, clockOut }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clock-records'] });
       setEditingId(null);
     },
     onError: (e: unknown) => {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      alert(msg || 'Could not save the clock-out time. Please try again.');
+      alert(msg || 'Could not save the clock times. Please try again.');
     },
   });
 
-  function startClockOut(r: ClockRecord) {
-    const end = shiftEnd(r);
-    // Default to the visit's scheduled end if that's already passed (the usual
-    // forgotten-clock-out case), otherwise now. Never suggest a future time.
-    const suggested = end && end.getTime() <= Date.now() ? end : new Date();
-    setOutValue(dtLocal(suggested));
+  // Opens the inline editor. For an open record (no clock-out) the clock-out is
+  // pre-filled to the visit's scheduled end if that's passed, else now.
+  function startEdit(r: ClockRecord) {
+    setInValue(dtLocal(new Date(r.clockIn)));
+    if (r.clockOut) {
+      setOutValue(dtLocal(new Date(r.clockOut)));
+    } else {
+      const end = shiftEnd(r);
+      const suggested = end && end.getTime() <= Date.now() ? end : new Date();
+      setOutValue(dtLocal(suggested));
+    }
     setEditingId(r.id);
   }
 
-  function saveClockOut(r: ClockRecord) {
-    if (!outValue) return;
-    clockOutMut.mutate({ id: r.id, clockOut: new Date(outValue).toISOString() });
+  // One-click fix for the "carer forgot to adjust the time" case: fill both
+  // fields with the visit's scheduled start and end.
+  function applyPlanned(r: ClockRecord) {
+    const start = shiftStart(r);
+    const end = shiftEnd(r);
+    if (start) setInValue(dtLocal(start));
+    if (end) setOutValue(dtLocal(end));
+  }
+
+  function saveEdit(r: ClockRecord) {
+    if (!inValue || !outValue) return;
+    saveMut.mutate({
+      id: r.id,
+      clockIn: new Date(inValue).toISOString(),
+      clockOut: new Date(outValue).toISOString(),
+    });
   }
 
   const totalHours = records.reduce((sum, r) => {
@@ -261,6 +289,37 @@ export default function Attendance() {
                 const missed = isMissedClockOut(r);
                 const short = isShortVisit(r);
                 const editing = editingId === r.id;
+
+                // Editing spans the whole row so both time fields have room.
+                if (editing) {
+                  return (
+                    <tr key={r.id} className="bg-blue-50">
+                      <td colSpan={isManager ? 6 : 5} className="px-4 py-3">
+                        <div className="flex flex-wrap items-end gap-3">
+                          {isManager && <div className="text-sm font-medium text-gray-800 mr-1">{r.user.firstName} {r.user.lastName}</div>}
+                          <div>
+                            <label className="label text-xs">Clock In</label>
+                            <input type="datetime-local" value={inValue} max={dtLocal(new Date())} onChange={(e) => setInValue(e.target.value)} className="input py-1 text-xs" />
+                          </div>
+                          <div>
+                            <label className="label text-xs">Clock Out</label>
+                            <input type="datetime-local" value={outValue} max={dtLocal(new Date())} onChange={(e) => setOutValue(e.target.value)} className="input py-1 text-xs" />
+                          </div>
+                          {r.shift && (
+                            <button onClick={() => applyPlanned(r)} className="btn-secondary btn btn-sm" title="Fill in the scheduled visit start and end">
+                              Use planned times
+                            </button>
+                          )}
+                          <button onClick={() => saveEdit(r)} disabled={saveMut.isPending} className="btn-primary btn btn-sm">
+                            {saveMut.isPending ? 'Saving…' : 'Save'}
+                          </button>
+                          <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 hover:underline">Cancel</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
                   <tr key={r.id} className={`hover:bg-gray-50 ${missed ? 'bg-amber-50' : short ? 'bg-red-50' : ''}`}>
                     {isManager && (
@@ -271,24 +330,6 @@ export default function Attendance() {
                     <td className="px-4 py-3">
                       {r.clockOut ? (
                         format(new Date(r.clockOut), 'h:mm a')
-                      ) : editing ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="datetime-local"
-                            value={outValue}
-                            max={dtLocal(new Date())}
-                            onChange={(e) => setOutValue(e.target.value)}
-                            className="input py-1 text-xs"
-                          />
-                          <button
-                            onClick={() => saveClockOut(r)}
-                            disabled={clockOutMut.isPending}
-                            className="btn-primary btn btn-sm"
-                          >
-                            {clockOutMut.isPending ? 'Saving…' : 'Save'}
-                          </button>
-                          <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 hover:underline">Cancel</button>
-                        </div>
                       ) : (
                         <span className={missed ? 'badge-yellow badge' : 'badge-green badge'}>
                           {missed ? 'No clock-out' : 'Active'}
@@ -306,9 +347,9 @@ export default function Attendance() {
                             ? `${r.shift.serviceUser ? `${r.shift.serviceUser.firstName} ${r.shift.serviceUser.lastName} · ` : ''}${formatTime12h(r.shift.startTime)}–${formatTime12h(r.shift.endTime)}`
                             : '—'}
                         </span>
-                        {canEdit && !r.clockOut && !editing && (
-                          <button onClick={() => startClockOut(r)} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
-                            Clock out →
+                        {canEdit && (
+                          <button onClick={() => startEdit(r)} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+                            {r.clockOut ? 'Edit' : 'Clock out →'}
                           </button>
                         )}
                       </div>
