@@ -86,8 +86,8 @@ function ageFromDob(dob?: string): number | null {
 
 const emptyForm: FormState = {
   firstName: '', lastName: '', title: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', serviceStartDate: '', photo: '', siteId: '', nhsNumber: '', packageId: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
-  phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '',
-  nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '',
+  phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '', emergencyContactEmail: '',
+  nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '', nextOfKinEmail: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
   pharmacyName: '', pharmacyPhone: '', pharmacyAddress: '',
   needsMedication: false, needsMobility: false, needsPersonalCare: false, careNotes: '',
@@ -136,9 +136,9 @@ export default function ServiceUserForm() {
       phone: su.phone || '', email: su.email || '',
       emergencyContactName: su.emergencyContactName || '', emergencyContactPhone: su.emergencyContactPhone || '',
       emergencyContactMobile: su.emergencyContactMobile || '', emergencyContactAddress: su.emergencyContactAddress || '',
-      emergencyContactRelation: su.emergencyContactRelation || '',
+      emergencyContactRelation: su.emergencyContactRelation || '', emergencyContactEmail: su.emergencyContactEmail || '',
       nextOfKinName: su.nextOfKinName || '', nextOfKinPhone: su.nextOfKinPhone || '',
-      nextOfKinMobile: su.nextOfKinMobile || '', nextOfKinAddress: su.nextOfKinAddress || '', nextOfKinRelation: su.nextOfKinRelation || '',
+      nextOfKinMobile: su.nextOfKinMobile || '', nextOfKinAddress: su.nextOfKinAddress || '', nextOfKinRelation: su.nextOfKinRelation || '', nextOfKinEmail: su.nextOfKinEmail || '',
       gpName: su.gpName || '', gpPractice: su.gpPractice || '', gpPhone: su.gpPhone || '', gpAddress: su.gpAddress || '',
       pharmacyName: su.pharmacyName || '', pharmacyPhone: su.pharmacyPhone || '', pharmacyAddress: su.pharmacyAddress || '',
       needsMedication: su.needsMedication, needsMobility: su.needsMobility, needsPersonalCare: su.needsPersonalCare,
@@ -369,6 +369,10 @@ export default function ServiceUserForm() {
             <label className="label">Relationship</label>
             <input value={form.emergencyContactRelation} onChange={(e) => setForm({ ...form, emergencyContactRelation: e.target.value })} className="input" />
           </div>
+          <div>
+            <label className="label">Email</label>
+            <input type="email" value={form.emergencyContactEmail} onChange={(e) => setForm({ ...form, emergencyContactEmail: e.target.value })} className="input" />
+          </div>
           <div className="col-span-3">
             <label className="label">Address</label>
             <input value={form.emergencyContactAddress} onChange={(e) => setForm({ ...form, emergencyContactAddress: e.target.value })} className="input" />
@@ -392,6 +396,10 @@ export default function ServiceUserForm() {
             <div>
               <label className="label">Relationship</label>
               <input value={form.nextOfKinRelation} onChange={(e) => setForm({ ...form, nextOfKinRelation: e.target.value })} className="input" />
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input type="email" value={form.nextOfKinEmail} onChange={(e) => setForm({ ...form, nextOfKinEmail: e.target.value })} className="input" />
             </div>
             <div className="col-span-3">
               <label className="label">Address</label>

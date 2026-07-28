@@ -331,6 +331,7 @@ export default function ServiceUserDetail() {
             <Field label="Relationship" value={su.emergencyContactRelation} />
             <Field label="Phone" value={su.emergencyContactPhone} />
             <Field label="Mobile" value={su.emergencyContactMobile} />
+            <Field label="Email" value={su.emergencyContactEmail} />
             <Field label="Address" value={su.emergencyContactAddress} />
           </div>
           <div className="border-t mt-4 pt-4">
@@ -340,6 +341,7 @@ export default function ServiceUserDetail() {
               <Field label="Relationship" value={su.nextOfKinRelation} />
               <Field label="Phone" value={su.nextOfKinPhone} />
               <Field label="Mobile" value={su.nextOfKinMobile} />
+              <Field label="Email" value={su.nextOfKinEmail} />
               <Field label="Address" value={su.nextOfKinAddress} />
             </div>
           </div>

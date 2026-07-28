@@ -146,11 +146,13 @@ model ServiceUser {
   emergencyContactMobile   String?
   emergencyContactAddress  String?
   emergencyContactRelation String?
+  emergencyContactEmail    String?
   nextOfKinName            String?
   nextOfKinPhone           String?
   nextOfKinMobile          String?
   nextOfKinAddress         String?
   nextOfKinRelation        String?
+  nextOfKinEmail           String?
   gpName                   String?
   gpPractice               String?
   gpPhone                  String?

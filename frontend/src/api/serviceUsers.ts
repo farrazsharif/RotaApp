@@ -26,11 +26,13 @@ export interface ServiceUserData {
   emergencyContactMobile?: string;
   emergencyContactAddress?: string;
   emergencyContactRelation?: string;
+  emergencyContactEmail?: string;
   nextOfKinName?: string;
   nextOfKinPhone?: string;
   nextOfKinMobile?: string;
   nextOfKinAddress?: string;
   nextOfKinRelation?: string;
+  nextOfKinEmail?: string;
   gpName?: string;
   gpPractice?: string;
   gpPhone?: string;

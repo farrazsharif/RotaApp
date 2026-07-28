@@ -92,8 +92,8 @@ function buildData(body: Record<string, unknown>) {
   const data: Record<string, unknown> = {};
   const stringFields = [
     'firstName', 'lastName', 'title', 'preferredName', 'gender', 'ethnicOrigin', 'nhsNumber', 'packageId', 'grabSheet', 'address', 'postcode', 'keySafe', 'medsSafeCode', 'phone', 'email', 'photo',
-    'emergencyContactName', 'emergencyContactPhone', 'emergencyContactMobile', 'emergencyContactAddress', 'emergencyContactRelation',
-    'nextOfKinName', 'nextOfKinPhone', 'nextOfKinMobile', 'nextOfKinAddress', 'nextOfKinRelation', 'careNotes',
+    'emergencyContactName', 'emergencyContactPhone', 'emergencyContactMobile', 'emergencyContactAddress', 'emergencyContactRelation', 'emergencyContactEmail',
+    'nextOfKinName', 'nextOfKinPhone', 'nextOfKinMobile', 'nextOfKinAddress', 'nextOfKinRelation', 'nextOfKinEmail', 'careNotes',
     'gpName', 'gpPractice', 'gpPhone', 'gpAddress',
     'pharmacyName', 'pharmacyPhone', 'pharmacyAddress',
   ];
