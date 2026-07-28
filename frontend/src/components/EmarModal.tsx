@@ -66,7 +66,46 @@ function cellDate(dateStr: string, time: string): Date {
   return new Date(Date.UTC(y, m - 1, d, h, mi, 0));
 }
 
-const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '', isBlisterPack: false, packContents: '', startDate: '', endDate: '' };
+// Weekday schedule. Numbers are JS getDay() values (0=Sun), shown Mon-first.
+const WEEKDAYS: { n: number; label: string }[] = [
+  { n: 1, label: 'Mon' }, { n: 2, label: 'Tue' }, { n: 3, label: 'Wed' },
+  { n: 4, label: 'Thu' }, { n: 5, label: 'Fri' }, { n: 6, label: 'Sat' }, { n: 0, label: 'Sun' },
+];
+function parseDays(s?: string): number[] {
+  try { const a = JSON.parse(s || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+function daysLabel(days: number[]): string {
+  if (days.length === 0) return 'Every day';
+  return WEEKDAYS.filter((w) => days.includes(w.n)).map((w) => w.label).join(', ');
+}
+function WeekdayPicker({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
+  const toggle = (n: number) => onChange(value.includes(n) ? value.filter((x) => x !== n) : [...value, n]);
+  return (
+    <div>
+      <label className="label">Days of the week</label>
+      <div className="flex flex-wrap gap-1.5">
+        {WEEKDAYS.map((w) => {
+          const sel = value.includes(w.n);
+          return (
+            <button
+              key={w.n}
+              type="button"
+              onClick={() => toggle(w.n)}
+              className={`px-2.5 py-1.5 rounded-lg border text-sm ${sel ? 'border-blue-500 bg-blue-50 text-blue-700 font-semibold' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+            >
+              {w.label}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-xs text-gray-400 mt-1">
+        {value.length === 0 ? 'Given every day. Tap days to limit it — e.g. once a week (one day) or specific days.' : `Given on: ${daysLabel(value)}`}
+      </p>
+    </div>
+  );
+}
+
+const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '', isBlisterPack: false, packContents: '', startDate: '', endDate: '', daysOfWeek: [] as number[] };
 
 // Default clock times offered for each visit type a service user can be
 // scheduled for (see ServiceUserForm's VISIT_TYPES). Anything without
@@ -154,6 +193,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
       isBlisterPack: medForm.isBlisterPack,
       packContents: medForm.isBlisterPack ? (medForm.packContents || undefined) : undefined,
       times: Object.values(visitTimes).sort(),
+      daysOfWeek: medForm.daysOfWeek,
       applicationSites: isTopical(medForm.route) ? sites : undefined,
       startDate: medForm.startDate || undefined,
       endDate: medForm.endDate || undefined,
@@ -292,6 +332,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                 <label className="label">Instructions</label>
                 <input value={medForm.instructions} onChange={(e) => setMedForm({ ...medForm, instructions: e.target.value })} className="input" placeholder="e.g. With food" />
               </div>
+              <WeekdayPicker value={medForm.daysOfWeek} onChange={(v) => setMedForm({ ...medForm, daysOfWeek: v })} />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Start date <span className="text-gray-400 font-normal">(optional)</span></label>
@@ -317,6 +358,10 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
             <div className="space-y-4">
               {meds.map((med: Medication) => {
                 const times = parseTimes(med.times);
+                const days = parseDays(med.daysOfWeek);
+                // Weekday of the selected date (UTC, matching the server) — used
+                // to hide dose slots on days a restricted med isn't due.
+                const dueToday = days.length === 0 || days.includes(new Date(`${date}T00:00:00Z`).getUTCDay());
                 const medSites = parseSites(med.applicationSites);
                 return (
                   <div key={med.id} className="rounded-lg border border-gray-200 p-3">
@@ -337,6 +382,9 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                           <p className="text-xs text-purple-600 font-medium mt-0.5">
                             📅 Course{med.startDate ? ` from ${format(new Date(med.startDate), 'd MMM')}` : ''}{med.endDate ? ` until ${format(new Date(med.endDate), 'd MMM yyyy')}` : ''}
                           </p>
+                        )}
+                        {days.length > 0 && (
+                          <p className="text-xs text-blue-600 font-medium mt-0.5">📆 {daysLabel(days)} only</p>
                         )}
                         {med.isBlisterPack && med.packContents && (
                           <div className="mt-1.5 text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded p-2 whitespace-pre-wrap">
@@ -365,6 +413,8 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
 
                     {times.length === 0 ? (
                       <p className="text-xs text-amber-600 mt-2">No dose times set (PRN / as required)</p>
+                    ) : !dueToday ? (
+                      <p className="text-xs text-gray-400 mt-2">Not scheduled on this day — given {daysLabel(days)} only.</p>
                     ) : (
                       <div className="flex flex-wrap gap-3 mt-3">
                         {times.map((t) => {
@@ -434,6 +484,7 @@ function MedEditRow({ med, serviceUserId, onDone }: { med: Medication; serviceUs
     endDate: med.endDate ? med.endDate.slice(0, 10) : '',
   });
   const [times, setTimes] = useState<string[]>(parseTimes(med.times));
+  const [days, setDays] = useState<number[]>(parseDays(med.daysOfWeek));
 
   const saveMut = useMutation({
     mutationFn: () => medicationsApi.update(med.id, {
@@ -444,6 +495,7 @@ function MedEditRow({ med, serviceUserId, onDone }: { med: Medication; serviceUs
       isBlisterPack: form.isBlisterPack,
       packContents: form.isBlisterPack ? form.packContents.trim() : '',
       times: times.map((t) => t.trim()).filter(Boolean).sort(),
+      daysOfWeek: days,
       startDate: form.startDate || '',
       endDate: form.endDate || '',
     }),
@@ -497,6 +549,8 @@ function MedEditRow({ med, serviceUserId, onDone }: { med: Medication; serviceUs
         </div>
         {times.length === 0 && <p className="text-xs text-gray-400 mt-1">No times — this medication is PRN / as required.</p>}
       </div>
+
+      <WeekdayPicker value={days} onChange={setDays} />
 
       <div className="grid grid-cols-2 gap-3">
         <div>

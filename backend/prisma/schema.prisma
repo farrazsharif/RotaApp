@@ -507,6 +507,7 @@ model Medication {
   isBlisterPack    Boolean   @default(false) // an MDS / dosette pack given as a whole at each dose time
   packContents     String? // free-text list of the medications inside the blister pack (for the record)
   times            String    @default("[]") // JSON array of "HH:MM" dose times
+  daysOfWeek       String    @default("[]") // JSON array of weekday numbers 0-6 (0=Sun); empty = every day
   // JSON array of { view: 'front'|'back'|'faceFront'|'faceSide', x, y } body-map
   // points (x/y as % of the diagram) — where a cream/lotion should be applied.
   applicationSites String    @default("[]")

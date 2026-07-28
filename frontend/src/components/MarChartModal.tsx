@@ -22,6 +22,9 @@ const STATUS_COLOR: Record<MedStatus, string> = {
   GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8',
 };
 
+function parseDays(s?: string): number[] {
+  try { const a = JSON.parse(s || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
+}
 function parseTimes(times: string): string[] {
   try {
     const a = JSON.parse(times);
@@ -69,15 +72,20 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
   };
 
   const charts = useMemo(
-    () => meds.map((med: Medication) => ({ med, times: parseTimes(med.times) })),
+    () => meds.map((med: Medication) => ({ med, times: parseTimes(med.times), days: parseDays(med.daysOfWeek) })),
     [meds]
   );
+
+  // Is day `d` of this month one the med is scheduled for? Empty list = every
+  // day. Weekday derived in UTC to match how doses are recorded/matched.
+  const dueOn = (days: number[], d: number) =>
+    days.length === 0 || days.includes(new Date(Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), d)).getUTCDay());
 
   function exportPdf() {
     const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
     const monthLabel = format(monthDate, 'MMMM yyyy');
 
-    const tables = charts.map(({ med, times }) => `
+    const tables = charts.map(({ med, times, days: medDays }) => `
       <h2>${esc(med.name)}${med.dose ? ` · ${esc(med.dose)}` : ''}${med.route ? ` · ${esc(med.route)}` : ''}</h2>
       ${med.instructions ? `<p class="instructions">${esc(med.instructions)}</p>` : ''}
       <table>
@@ -92,6 +100,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                 <td class="time-col">${esc(formatTime12h(t))}</td>
                 ${days.map((d) => {
                   if (d > daysInMonth) return '<td class="invalid-day"></td>';
+                  if (!dueOn(medDays, d)) return '<td style="background:#eef2f7"></td>';
                   const rec = recordFor(med.id, d, t);
                   if (!rec) return '<td></td>';
                   const code = esc(initialsFor(rec));
@@ -166,7 +175,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
           {charts.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">No active medications for this client</p>
           ) : (
-            charts.map(({ med, times }) => (
+            charts.map(({ med, times, days: medDays }) => (
               <div key={med.id} className="overflow-x-auto">
                 <h3 className="font-semibold text-gray-900 mb-1">
                   {med.name}{med.dose ? ` · ${med.dose}` : ''}{med.route ? ` · ${med.route}` : ''}
@@ -193,6 +202,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                           <td className="border border-gray-300 px-2 py-1.5 font-medium whitespace-nowrap">{formatTime12h(t)}</td>
                           {days.map((d) => {
                             if (d > daysInMonth) return <td key={d} className="border border-gray-300 bg-gray-200" />;
+                            if (!dueOn(medDays, d)) return <td key={d} className="border border-gray-300 bg-blue-50" />;
                             const rec = recordFor(med.id, d, t);
                             return (
                               <td

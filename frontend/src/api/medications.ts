@@ -10,6 +10,7 @@ export interface MedicationData {
   isBlisterPack?: boolean;
   packContents?: string;
   times?: string[];
+  daysOfWeek?: number[];
   applicationSites?: BodyMapPoint[];
   startDate?: string;
   endDate?: string;

@@ -30,6 +30,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // list of what's inside the pack.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Medication" ADD COLUMN IF NOT EXISTS "isBlisterPack" BOOLEAN NOT NULL DEFAULT false`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Medication" ADD COLUMN IF NOT EXISTS "packContents" TEXT`);
+  // Which weekdays a med is due (JSON array of 0-6, 0=Sun). Empty = every day.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Medication" ADD COLUMN IF NOT EXISTS "daysOfWeek" TEXT NOT NULL DEFAULT '[]'`);
   // Site display order on the schedule (lower = first). "order" is a reserved
   // word so it must stay double-quoted.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Site" ADD COLUMN IF NOT EXISTS "order" INTEGER NOT NULL DEFAULT 0`);

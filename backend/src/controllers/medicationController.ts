@@ -22,6 +22,13 @@ function parseTimes(input: unknown): string {
   return '[]';
 }
 
+// Weekday schedule → JSON array of unique 0-6 ints (0=Sun). Empty = every day.
+function parseDays(input: unknown): string {
+  if (!Array.isArray(input)) return '[]';
+  const days = [...new Set(input.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))].sort();
+  return JSON.stringify(days);
+}
+
 const VALID_VIEWS = ['front', 'back'];
 
 function parseApplicationSites(input: unknown): string {
@@ -45,7 +52,7 @@ export async function listMedications(req: AuthRequest, res: Response) {
 }
 
 export async function createMedication(req: AuthRequest, res: Response) {
-  const { serviceUserId, name, dose, route, instructions, times, startDate, endDate, applicationSites, isBlisterPack, packContents } = req.body;
+  const { serviceUserId, name, dose, route, instructions, times, daysOfWeek, startDate, endDate, applicationSites, isBlisterPack, packContents } = req.body;
   if (!serviceUserId || !name) return res.status(400).json({ error: 'serviceUserId and name required' });
   const med = await prisma.medication.create({
     data: {
@@ -57,6 +64,7 @@ export async function createMedication(req: AuthRequest, res: Response) {
       isBlisterPack: !!isBlisterPack,
       packContents: packContents ? String(packContents) : null,
       times: parseTimes(times),
+      daysOfWeek: parseDays(daysOfWeek),
       applicationSites: parseApplicationSites(applicationSites),
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
@@ -91,7 +99,7 @@ export async function createMedicationByCarer(req: AuthRequest, res: Response) {
 }
 
 export async function updateMedication(req: AuthRequest, res: Response) {
-  const { name, dose, route, instructions, times, startDate, endDate, active, applicationSites, isBlisterPack, packContents } = req.body;
+  const { name, dose, route, instructions, times, daysOfWeek, startDate, endDate, active, applicationSites, isBlisterPack, packContents } = req.body;
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
   if (dose !== undefined) data.dose = dose || null;
@@ -100,6 +108,7 @@ export async function updateMedication(req: AuthRequest, res: Response) {
   if (isBlisterPack !== undefined) data.isBlisterPack = !!isBlisterPack;
   if (packContents !== undefined) data.packContents = packContents ? String(packContents) : null;
   if (times !== undefined) data.times = parseTimes(times);
+  if (daysOfWeek !== undefined) data.daysOfWeek = parseDays(daysOfWeek);
   if (applicationSites !== undefined) data.applicationSites = parseApplicationSites(applicationSites);
   if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
   if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
