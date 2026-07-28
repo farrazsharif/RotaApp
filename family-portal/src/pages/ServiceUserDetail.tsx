@@ -115,8 +115,8 @@ export default function ServiceUserDetail() {
         <button onClick={() => navigate('/')} className="text-sm text-blue-600 font-medium">← Your Family</button>
 
         {tab === 'info' && (
-          <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 space-y-3">
+          <div className="flex flex-col gap-4">
+          <div className="order-2 bg-white rounded-2xl p-4 shadow-sm border border-gray-200 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-gray-800 text-sm">Today</h3>
               <span className="text-xs text-gray-400">{format(new Date(), 'EEE dd MMM')}</span>
@@ -161,7 +161,8 @@ export default function ServiceUserDetail() {
             )}
           </div>
 
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 space-y-3">
+          <div className="order-1 bg-white rounded-2xl p-4 shadow-sm border border-gray-200 space-y-3">
+            <p className="text-lg font-semibold text-gray-900">{su.firstName} {su.lastName}</p>
             <Field label="Date of Birth" value={su.dateOfBirth ? format(new Date(su.dateOfBirth), 'dd MMM yyyy') : undefined} />
             <Field label="NHS Number" value={su.nhsNumber} />
             <Field label="Address" value={su.address ? `${su.address}${su.postcode ? `, ${su.postcode}` : ''}` : undefined} />
