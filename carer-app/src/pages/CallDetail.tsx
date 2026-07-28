@@ -129,6 +129,8 @@ const STATUS_OPTIONS: { value: MedAdminStatus; label: string; color: string }[] 
   { value: 'MISSED', label: 'Absent', color: 'bg-red-600' },
 ];
 
+const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
+
 export default function CallDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -228,15 +230,24 @@ export default function CallDetail() {
     },
   });
 
-  const medMut = useMutation({
-    mutationFn: (vars: { medicationId: string; scheduledFor: string; status: MedAdminStatus }) =>
-      medicationsApi.recordAdministration({
-        medicationId: vars.medicationId,
-        serviceUserId: shift!.serviceUserId!,
-        scheduledFor: vars.scheduledFor,
-        status: vars.status,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['due-meds'] }),
+  // Doses the carer has ticked but not yet saved, keyed by dose. Nothing is
+  // recorded until they tap "Save".
+  const [picks, setPicks] = useState<Record<string, { medicationId: string; scheduledFor: string; status: MedAdminStatus }>>({});
+
+  const saveAllMut = useMutation({
+    mutationFn: () =>
+      Promise.all(
+        Object.values(picks).map((p) =>
+          medicationsApi.recordAdministration({
+            medicationId: p.medicationId,
+            serviceUserId: shift!.serviceUserId!,
+            scheduledFor: p.scheduledFor,
+            status: p.status,
+          }),
+        ),
+      ),
+    onSuccess: () => { setPicks({}); qc.invalidateQueries({ queryKey: ['due-meds'] }); },
+    onError: () => alert('Could not save the medication. Please try again.'),
   });
 
   // One dose card — used for both scheduled doses and as-required (PRN) meds.
@@ -257,25 +268,40 @@ export default function CallDetail() {
       )}
       {dose.status ? (
         <p className="text-sm font-semibold text-green-600 mt-2">
-          ✓ {dose.status.replace('_', ' ')}
+          ✓ {STATUS_LABEL[dose.status] || dose.status}
           {dose.recordedAt && <span className="text-gray-400 font-normal"> at {format(new Date(dose.recordedAt), 'h:mm a')}</span>}
         </p>
-      ) : (
-        <select
-          defaultValue=""
-          disabled={medMut.isPending}
-          onChange={(e) => {
-            const status = e.target.value as MedAdminStatus;
-            if (status) medMut.mutate({ medicationId: dose.medicationId, scheduledFor: dose.scheduledFor, status });
-          }}
-          className="mt-2 w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm font-semibold text-gray-700 disabled:opacity-50"
-        >
-          <option value="" disabled>{dose.prn ? 'Record if given…' : 'Mark as…'}</option>
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      )}
+      ) : (() => {
+        const key = `${dose.medicationId}__${dose.scheduledFor}`;
+        const picked = picks[key]?.status;
+        return (
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {STATUS_OPTIONS.map((opt) => {
+              const sel = picked === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPicks((p) => {
+                    const n = { ...p };
+                    if (sel) delete n[key];
+                    else n[key] = { medicationId: dose.medicationId, scheduledFor: dose.scheduledFor, status: opt.value };
+                    return n;
+                  })}
+                  className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-sm text-left transition-colors ${
+                    sel ? 'border-blue-500 bg-blue-50 text-blue-700 font-semibold' : 'border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded flex items-center justify-center text-[11px] border-2 shrink-0 ${
+                    sel ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'
+                  }`}>{sel ? '✓' : ''}</span>
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
     </div>
   );
 
@@ -551,17 +577,28 @@ export default function CallDetail() {
             {dueMeds.length === 0 ? (
               <p className="text-sm text-gray-400">No medication due for this visit.</p>
             ) : (
-              <div className="space-y-3">
-                {dueMeds.filter((d) => !d.prn).map(renderDose)}
-                {dueMeds.some((d) => d.prn) && (
-                  <div className="pt-1">
-                    <p className="text-xs font-semibold text-gray-500 mb-2">As required (PRN) — record only if given</p>
-                    <div className="space-y-3">
-                      {dueMeds.filter((d) => d.prn).map(renderDose)}
+              <>
+                <div className="space-y-3">
+                  {dueMeds.filter((d) => !d.prn).map(renderDose)}
+                  {dueMeds.some((d) => d.prn) && (
+                    <div className="pt-1">
+                      <p className="text-xs font-semibold text-gray-500 mb-2">As required (PRN) — record only if given</p>
+                      <div className="space-y-3">
+                        {dueMeds.filter((d) => d.prn).map(renderDose)}
+                      </div>
                     </div>
-                  </div>
+                  )}
+                </div>
+                {Object.keys(picks).length > 0 && (
+                  <button
+                    onClick={() => saveAllMut.mutate()}
+                    disabled={saveAllMut.isPending}
+                    className="mt-3 w-full rounded-xl bg-blue-600 text-white font-semibold py-2.5 disabled:opacity-50"
+                  >
+                    {saveAllMut.isPending ? 'Saving…' : `Save ${Object.keys(picks).length} medication${Object.keys(picks).length > 1 ? 's' : ''}`}
+                  </button>
                 )}
-              </div>
+              </>
             )}
           </div>
         )}
