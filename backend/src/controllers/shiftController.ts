@@ -117,7 +117,7 @@ function buildRecurringDates(startStr: string, repeat: Repeat): Date[] {
 }
 
 export async function createShift(req: AuthRequest, res: Response) {
-  const { userId, serviceUserId, date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, repeat, runId } = req.body;
+  const { userId, serviceUserId, date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, repeat, runId, givesMedication } = req.body;
   if (!date || !startTime || !endTime) {
     return res.status(400).json({ error: 'date, startTime, endTime required' });
   }
@@ -137,6 +137,7 @@ export async function createShift(req: AuthRequest, res: Response) {
     cover: Number(cover) || 1,
     role: role || null,
     notes: notes || null,
+    givesMedication: givesMedication !== false,
     runId: runId || null,
     // New shifts start as drafts — carers won't see them until a manager
     // explicitly publishes (see publishShift / publishBulkShifts below).
@@ -253,7 +254,7 @@ async function resolveVisitShiftIds(
 }
 
 export async function updateShift(req: AuthRequest, res: Response) {
-  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId, runId,
+  const { date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, status, serviceUserId, userId, runId, givesMedication,
     assignScope, assignDays, assignFrom, assignTo } = req.body;
   // Whether this edit should also apply to future occurrences of the same visit.
   const propagate = assignScope === 'days' || assignScope === 'future' || assignScope === 'range';
@@ -299,6 +300,7 @@ export async function updateShift(req: AuthRequest, res: Response) {
   }
   if (role !== undefined) data.role = role;
   if (notes !== undefined) data.notes = notes;
+  if (givesMedication !== undefined) data.givesMedication = !!givesMedication;
   if (status !== undefined) data.status = status;
   if (runId !== undefined) data.runId = runId || null;
 
@@ -315,6 +317,7 @@ export async function updateShift(req: AuthRequest, res: Response) {
     if (cover !== undefined) sibData.cover = Number(cover) || 1;
     if (role !== undefined) sibData.role = role;
     if (notes !== undefined) sibData.notes = notes;
+    if (givesMedication !== undefined) sibData.givesMedication = !!givesMedication;
     if (runId !== undefined) sibData.runId = runId || null;
     if (Object.keys(sibData).length > 0) {
       await prisma.shift.updateMany({ where: { id: { in: siblingIds } }, data: sibData });

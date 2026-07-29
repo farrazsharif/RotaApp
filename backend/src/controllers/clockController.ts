@@ -48,6 +48,9 @@ async function dueDosesForShift(shiftId: string | null) {
   if (!shiftId) return [];
   const shift = await prisma.shift.findUnique({ where: { id: shiftId } });
   if (!shift || !shift.serviceUserId) return [];
+  // Personal-care-only visits don't administer medication — hide all doses
+  // (scheduled and PRN) so they don't show to, or block, that carer.
+  if ((shift as { givesMedication?: boolean }).givesMedication === false) return [];
   const meds = await prisma.medication.findMany({ where: { serviceUserId: shift.serviceUserId, active: true } });
   const day = shift.date;
   // Overnight visits (e.g. 19:00–07:00) wrap past midnight, so the call window

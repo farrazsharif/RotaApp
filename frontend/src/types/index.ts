@@ -123,6 +123,7 @@ export interface Shift {
   coverCarers?: Pick<User, 'id' | 'firstName' | 'lastName'>[];
   role?: string;
   notes?: string;
+  givesMedication?: boolean;
   status: ShiftStatus;
   published: boolean;
   createdAt: string;

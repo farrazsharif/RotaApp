@@ -30,6 +30,7 @@ export interface CreateShiftData {
   coverCarerIds?: string[];
   role?: string;
   notes?: string;
+  givesMedication?: boolean;
   runId?: string | null;
   repeat?: {
     daysOfWeek: number[];

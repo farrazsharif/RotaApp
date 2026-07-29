@@ -560,6 +560,7 @@ model Shift {
   cover         Int      @default(1)
   role          String?
   notes         String?
+  givesMedication Boolean @default(true) // does the carer administer meds on this visit? off for personal-care-only visits
   ecmNote       String?  // ECM: reason/explanation for a short or missed visit
   status        String   @default("SCHEDULED")
   // Cancellation billing: when a visit is cancelled it can still be chargeable

@@ -28,6 +28,7 @@ interface FormValues {
   cover: number;
   role: string;
   notes: string;
+  givesMedication: boolean;
 }
 
 const WEEKDAYS = [
@@ -148,10 +149,11 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
         cover: shift.cover || 1,
         role: shift.role || '',
         notes: shift.notes || '',
+        givesMedication: shift.givesMedication !== false,
       });
       setVisitNameCustomOpen(!!shift.visitName && !VISIT_PRESETS.includes(shift.visitName));
     } else {
-      reset({ userId: '', date: defaultDate || format(new Date(), 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00', serviceUserId: '', visitName: '' });
+      reset({ userId: '', date: defaultDate || format(new Date(), 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00', serviceUserId: '', visitName: '', givesMedication: true });
       setVisitNameCustomOpen(false);
     }
   }, [shift, defaultDate, reset]);
@@ -374,6 +376,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
       coverCarerIds: coverCarerIds.slice(0, Math.max(0, (Number(values.cover) || 1) - 1)).filter(Boolean),
       role: values.role || undefined,
       notes: values.notes || undefined,
+      givesMedication: values.givesMedication,
       // null (not undefined) so clearing the run actually removes it.
       runId: runId || null,
     };
@@ -601,6 +604,14 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
             <label className="label">Notes</label>
             <textarea {...register('notes')} rows={2} className="input resize-none" />
           </div>
+
+          <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer">
+            <input type="checkbox" {...register('givesMedication')} className="mt-0.5 h-4 w-4 accent-blue-600" />
+            <span className="text-sm">
+              <span className="font-medium text-gray-800">Carer administers medication on this visit</span>
+              <span className="block text-xs text-gray-500">Leave on for medication rounds. Turn off for personal-care-only visits so due doses don’t show to (or block) that carer.</span>
+            </span>
+          </label>
 
           {!shift && (
             <div className="rounded-lg border border-gray-200 p-3 space-y-3">

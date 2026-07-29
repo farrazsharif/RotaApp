@@ -10,6 +10,9 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "supportCategories" TEXT NOT NULL DEFAULT '[]'`);
   // Flag marking an open-ended recurring series for the permanent top-up job.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "seriesPermanent" BOOLEAN NOT NULL DEFAULT false`);
+  // Does the carer administer medication on this visit? Off for personal-care-
+  // only visits so their doses don't show to (and block) that carer.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "givesMedication" BOOLEAN NOT NULL DEFAULT true`);
   // ECM: manager's reason/explanation for a short or missed visit.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "ecmNote" TEXT`);
   // Cancellation billing — a cancelled visit can still be chargeable, with a
