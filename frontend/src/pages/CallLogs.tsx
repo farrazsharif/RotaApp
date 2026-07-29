@@ -4,7 +4,7 @@ import { callLogsApi } from '../api/callLogs';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
 import { CallLog, CallLogSignature } from '../types';
-import { format } from 'date-fns';
+import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
 // Parse the shared-log signatures (JSON) for double/triple-up calls.
@@ -46,6 +46,24 @@ export default function CallLogs() {
   const [serviceUserId, setServiceUserId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [preset, setPreset] = useState<'today' | 'thisweek' | 'lastweek' | 'custom'>('custom');
+
+  // Quick date-range presets. Weeks run Monday–Sunday.
+  function applyPreset(p: 'today' | 'thisweek' | 'lastweek') {
+    const now = new Date();
+    if (p === 'today') {
+      const d = format(now, 'yyyy-MM-dd');
+      setFrom(d); setTo(d);
+    } else if (p === 'thisweek') {
+      setFrom(format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+      setTo(format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+    } else {
+      const lw = subWeeks(now, 1);
+      setFrom(format(startOfWeek(lw, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+      setTo(format(endOfWeek(lw, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+    }
+    setPreset(p);
+  }
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNote, setEditNote] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -118,7 +136,7 @@ export default function CallLogs() {
     return arr;
   }, [sorted]);
 
-  const clearFilters = () => { setSearch(''); setServiceUserId(''); setFrom(''); setTo(''); };
+  const clearFilters = () => { setSearch(''); setServiceUserId(''); setFrom(''); setTo(''); setPreset('custom'); };
   const hasFilters = !!(search || serviceUserId || from || to);
 
   function exportPdf() {
@@ -193,7 +211,23 @@ export default function CallLogs() {
       </div>
 
       {/* Filters */}
-      <div className="card flex flex-wrap items-end gap-3">
+      <div className="card space-y-3">
+        <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+          {([
+            { k: 'today', label: 'Today' },
+            { k: 'thisweek', label: 'This week' },
+            { k: 'lastweek', label: 'Last week' },
+          ] as const).map((r) => (
+            <button
+              key={r.k}
+              onClick={() => applyPreset(r.k)}
+              className={`px-3 py-1.5 border-l first:border-l-0 border-gray-200 ${preset === r.k ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="label">Client (call)</label>
           <select value={serviceUserId} onChange={(e) => setServiceUserId(e.target.value)} className="input w-56">
@@ -207,17 +241,18 @@ export default function CallLogs() {
         </div>
         <div>
           <label className="label">From</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" />
+          <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPreset('custom'); }} className="input" />
         </div>
         <div>
           <label className="label">To</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input" />
+          <input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPreset('custom'); }} className="input" />
         </div>
         <div className="flex-1 min-w-[200px]">
           <label className="label">Search</label>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Client, carer or note…" className="input w-full" />
         </div>
         {hasFilters && <button className="btn-secondary btn" onClick={clearFilters}>Clear</button>}
+        </div>
       </div>
 
       <p className="text-sm text-gray-500">
