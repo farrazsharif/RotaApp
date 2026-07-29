@@ -899,6 +899,14 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
                 <input {...register('role')} placeholder="e.g. Stockport Carer" className="input" />
               </div>
 
+              <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer">
+                <input type="checkbox" {...register('givesMedication')} className="mt-0.5 h-4 w-4 accent-blue-600" />
+                <span className="text-sm">
+                  <span className="font-medium text-gray-800">Carer administers medication on this visit</span>
+                  <span className="block text-xs text-gray-500">Leave on for medication rounds. Turn off for personal-care-only visits so due doses don’t show to (or block) that carer.</span>
+                </span>
+              </label>
+
               <div>
                 <label className="label">Notes</label>
                 <textarea {...register('notes')} rows={2} className="input resize-none" />
