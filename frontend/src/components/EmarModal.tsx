@@ -74,18 +74,28 @@ const WEEKDAYS: { n: number; label: string }[] = [
 function parseDays(s?: string): number[] {
   try { const a = JSON.parse(s || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
 }
+// Empty OR all seven means "every day".
+function isEveryDay(days: number[]): boolean {
+  return days.length === 0 || days.length >= WEEKDAYS.length;
+}
 function daysLabel(days: number[]): string {
-  if (days.length === 0) return 'Every day';
+  if (isEveryDay(days)) return 'Every day';
   return WEEKDAYS.filter((w) => days.includes(w.n)).map((w) => w.label).join(', ');
 }
 function WeekdayPicker({ value, onChange }: { value: number[]; onChange: (v: number[]) => void }) {
-  const toggle = (n: number) => onChange(value.includes(n) ? value.filter((x) => x !== n) : [...value, n]);
+  // Default is every day, shown as all days ticked. Untick the days a med isn't
+  // given. When all seven end up selected we store it as "every day" (empty).
+  const selected = value.length === 0 ? WEEKDAYS.map((w) => w.n) : value;
+  const toggle = (n: number) => {
+    const next = selected.includes(n) ? selected.filter((x) => x !== n) : [...selected, n];
+    onChange(next.length >= WEEKDAYS.length ? [] : next);
+  };
   return (
     <div>
       <label className="label">Days of the week</label>
       <div className="flex flex-wrap gap-1.5">
         {WEEKDAYS.map((w) => {
-          const sel = value.includes(w.n);
+          const sel = selected.includes(w.n);
           return (
             <button
               key={w.n}
@@ -99,7 +109,7 @@ function WeekdayPicker({ value, onChange }: { value: number[]; onChange: (v: num
         })}
       </div>
       <p className="text-xs text-gray-400 mt-1">
-        {value.length === 0 ? 'Given every day. Tap days to limit it — e.g. once a week (one day) or specific days.' : `Given on: ${daysLabel(value)}`}
+        {isEveryDay(selected) ? 'Given every day. Untick the days it isn’t given — e.g. once a week (leave one) or specific days.' : `Given on: ${daysLabel(selected)}`}
       </p>
     </div>
   );
@@ -383,7 +393,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                             📅 Course{med.startDate ? ` from ${format(new Date(med.startDate), 'd MMM')}` : ''}{med.endDate ? ` until ${format(new Date(med.endDate), 'd MMM yyyy')}` : ''}
                           </p>
                         )}
-                        {days.length > 0 && (
+                        {days.length > 0 && days.length < WEEKDAYS.length && (
                           <p className="text-xs text-blue-600 font-medium mt-0.5">📆 {daysLabel(days)} only</p>
                         )}
                         {med.isBlisterPack && med.packContents && (
