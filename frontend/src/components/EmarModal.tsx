@@ -121,14 +121,22 @@ const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '', isBliste
 // scheduled for (see ServiceUserForm's VISIT_TYPES). Anything without
 // a known default (e.g. a custom visit type) falls back to a blank time
 // the manager fills in themselves.
-const VISIT_DEFAULT_TIMES: Record<string, string> = {
-  Morning: '08:00',
-  Lunch: '12:00',
-  Tea: '16:30',
-  Bed: '21:00',
-  'Sitting Call': '14:00',
-  'Cleaning Call': '10:00',
-};
+// Sensible default dose time for a visit slot. Care-plan visit types are named
+// like "Morning Call" / "Bed Call", so we match on the slot word regardless of
+// the "Call" suffix, case, or minor wording — otherwise every visit fell back
+// to 09:00 (so a morning + bed med saved as 09:00 and 09:00).
+function defaultTimeForVisit(type: string): string {
+  const t = type.toLowerCase().replace(/\s*call$/, '').trim();
+  const map: Record<string, string> = {
+    morning: '08:00', breakfast: '08:00', am: '08:00',
+    lunch: '12:00', midday: '12:00', noon: '12:00',
+    afternoon: '14:00', tea: '16:30', teatime: '16:30',
+    evening: '18:30', bed: '21:00', night: '21:00', pm: '21:00',
+    sitting: '14:00', cleaning: '10:00', shopping: '11:00',
+    laundry: '11:00', domestic: '10:00', social: '14:00', 'pop in': '12:00',
+  };
+  return map[t] || '09:00';
+}
 
 function parseScheduledVisitTypes(visitsJson?: string): string[] {
   if (!visitsJson) return [];
@@ -166,7 +174,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
   // plan has no visits configured yet.
   const scheduledVisitTypes = parseScheduledVisitTypes(serviceUser.visits);
   const visitTimeOpts = (scheduledVisitTypes.length > 0 ? scheduledVisitTypes : ['Morning', 'Lunch', 'Tea', 'Bed'])
-    .map((type) => ({ key: type, label: type, defaultTime: VISIT_DEFAULT_TIMES[type] || '09:00' }));
+    .map((type) => ({ key: type, label: type, defaultTime: defaultTimeForVisit(type) }));
 
   function toggleVisit(key: string, defaultTime: string) {
     setVisitTimes((prev) => {
