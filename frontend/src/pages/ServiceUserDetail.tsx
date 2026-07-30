@@ -218,7 +218,7 @@ export default function ServiceUserDetail() {
               )}
               {activeHospital && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-red-100 text-red-800">
-                  🏥 In hospital · until {format(new Date(activeHospital.endAt), 'd MMM yyyy')}
+                  🏥 In hospital · until {format(new Date(activeHospital.endAt), 'd MMM, h:mm a')}
                 </span>
               )}
             </div>
@@ -237,7 +237,7 @@ export default function ServiceUserDetail() {
                     setPendingStatus(next);
                     setEffectiveAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
                     // Default an expected return ~1 week out for a hospital admission.
-                    if (next === 'HOSPITALISED') setHospitalReturn(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
+                    if (next === 'HOSPITALISED') setHospitalReturn(format(addDays(new Date(), 7), "yyyy-MM-dd'T'HH:mm"));
                   }}
                   disabled={statusMut.isPending}
                   className="input"
@@ -256,9 +256,9 @@ export default function ServiceUserDetail() {
                     <p className="text-xs text-gray-500">Calls from this time onward show the new status. Defaults to now — back-date it if it happened earlier.</p>
                     {pendingStatus === 'HOSPITALISED' && (
                       <div>
-                        <label className="label">Expected return date</label>
-                        <input type="date" value={hospitalReturn} min={effectiveAt.slice(0, 10)} onChange={(e) => setHospitalReturn(e.target.value)} className="input" />
-                        <p className="text-xs text-gray-500 mt-1">Visits from admission to this date are cancelled non-chargeable and carers are notified. You can extend or shorten it later.</p>
+                        <label className="label">Expected return (date &amp; time)</label>
+                        <input type="datetime-local" value={hospitalReturn} min={effectiveAt} onChange={(e) => setHospitalReturn(e.target.value)} className="input" />
+                        <p className="text-xs text-gray-500 mt-1">Visits from admission up to this date &amp; time are cancelled non-chargeable; anything after resumes. Set it before the first visit they’ll be back for (e.g. a bed call). Adjustable later.</p>
                       </div>
                     )}
                     <div className="flex justify-end gap-2 pt-1">
@@ -270,7 +270,7 @@ export default function ServiceUserDetail() {
                           {
                             status: pendingStatus,
                             effectiveAt: new Date(effectiveAt).toISOString(),
-                            hospitalReturnDate: pendingStatus === 'HOSPITALISED' && hospitalReturn ? new Date(`${hospitalReturn}T23:59:00`).toISOString() : undefined,
+                            hospitalReturnDate: pendingStatus === 'HOSPITALISED' && hospitalReturn ? new Date(hospitalReturn).toISOString() : undefined,
                           },
                           { onSuccess: () => setPendingStatus(null) },
                         )}
@@ -659,28 +659,30 @@ export default function ServiceUserDetail() {
 // affected visits) or mark them returned now.
 function HospitalBanner({ period, onMarkReturned, returning }: { period: RespitePeriod; onMarkReturned: () => void; returning: boolean }) {
   const qc = useQueryClient();
-  const [ret, setRet] = useState(period.endAt.slice(0, 10));
+  // datetime-local works in local time; convert the stored (UTC) endAt for display.
+  const localEnd = format(new Date(period.endAt), "yyyy-MM-dd'T'HH:mm");
+  const [ret, setRet] = useState(localEnd);
   const updateMut = useMutation({
-    mutationFn: () => respiteApi.update(period.id, { endAt: new Date(`${ret}T23:59:00`).toISOString() }),
+    mutationFn: () => respiteApi.update(period.id, { endAt: new Date(ret).toISOString() }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['respite', period.serviceUserId] });
       qc.invalidateQueries({ queryKey: ['shifts'] });
     },
   });
-  const changed = ret !== period.endAt.slice(0, 10);
+  const changed = ret !== localEnd;
   return (
     <div className="rounded-xl border border-red-200 bg-red-50 p-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="font-semibold text-red-900">🏥 In hospital</p>
           <p className="text-sm text-red-800">
-            Since {format(new Date(period.startAt), 'd MMM yyyy')} · {period.cancelledCount} visit{period.cancelledCount !== 1 ? 's' : ''} cancelled (non-chargeable). Expected back {format(new Date(period.endAt), 'd MMM yyyy')}.
+            Since {format(new Date(period.startAt), 'd MMM yyyy')} · {period.cancelledCount} visit{period.cancelledCount !== 1 ? 's' : ''} cancelled (non-chargeable). Expected back {format(new Date(period.endAt), 'd MMM yyyy, h:mm a')}.
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div>
             <label className="label">Expected return</label>
-            <input type="date" value={ret} min={period.startAt.slice(0, 10)} onChange={(e) => setRet(e.target.value)} className="input" />
+            <input type="datetime-local" value={ret} min={format(new Date(period.startAt), "yyyy-MM-dd'T'HH:mm")} onChange={(e) => setRet(e.target.value)} className="input" />
           </div>
           <button className="btn-secondary btn" disabled={!changed || updateMut.isPending} onClick={() => updateMut.mutate()}>
             {updateMut.isPending ? 'Saving…' : 'Update return date'}
