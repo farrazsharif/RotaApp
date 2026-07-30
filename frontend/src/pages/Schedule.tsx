@@ -891,8 +891,19 @@ function CarerTimeline({ users, days, shiftsInRange, needsStaff, missingCarers, 
   const dayKey = (d: Date | string) => format(new Date(d), 'yyyy-MM-dd');
   const carriesUser = (s: Shift, uid: string) => s.userId === uid || (s.coverCarers?.some((c) => c.id === uid) ?? false);
 
-  // Only carers with at least one visit in range keep the grid readable.
-  const activeUsers = users.filter((u) => shiftsInRange.some((s) => carriesUser(s, u.id)));
+  // Rows come from whoever is actually assigned to the visible visits — not just
+  // the active-carer list. A carer who's been deactivated but still holds
+  // upcoming shifts is missing from `users`, yet must still show here (their
+  // visits appear in the calendar). Prefer the `users` object for a consistent
+  // name, else fall back to the carer embedded on the shift.
+  const byId = new Map(users.map((u) => [u.id, u] as const));
+  const carerMap = new Map<string, { id: string; firstName: string; lastName: string }>();
+  for (const s of shiftsInRange) {
+    if (s.userId && s.user) carerMap.set(s.userId, byId.get(s.userId) ?? { id: s.userId, firstName: s.user.firstName, lastName: s.user.lastName });
+    for (const c of s.coverCarers ?? []) carerMap.set(c.id, byId.get(c.id) ?? { id: c.id, firstName: c.firstName, lastName: c.lastName });
+  }
+  const activeUsers = [...carerMap.values()].sort((a, b) =>
+    `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' }));
   const unassigned = shiftsInRange.filter(needsStaff);
 
   const cell = (list: Shift[], unassignedRow: boolean) => (
