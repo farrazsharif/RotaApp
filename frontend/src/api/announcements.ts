@@ -7,12 +7,13 @@ export interface Announcement {
   authorId: string | null;
   authorName: string;
   targetUserId: string | null;
+  targetUserIds?: string | null; // JSON array of recipient ids; "[]" = all carers
   createdAt: string;
 }
 
 export const announcementsApi = {
   listAll: () => api.get<Announcement[]>('/announcements/all').then((r) => r.data),
-  create: (data: { body: string; title?: string; targetUserId?: string }) =>
+  create: (data: { body: string; title?: string; targetUserIds?: string[] }) =>
     api.post<Announcement>('/announcements', data).then((r) => r.data),
   remove: (id: string) => api.delete(`/announcements/${id}`).then((r) => r.data),
 };

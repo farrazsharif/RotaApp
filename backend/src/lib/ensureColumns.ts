@@ -78,6 +78,7 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
       "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Announcement" ADD COLUMN IF NOT EXISTS "targetUserIds" TEXT NOT NULL DEFAULT '[]'`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Announcement_companyId_idx" ON "Announcement"("companyId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Announcement_targetUserId_idx" ON "Announcement"("targetUserId")`);
 

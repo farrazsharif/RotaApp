@@ -8,7 +8,7 @@ export default function Announcements() {
   const qc = useQueryClient();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [targetUserId, setTargetUserId] = useState(''); // '' = all carers
+  const [selectedIds, setSelectedIds] = useState<string[]>([]); // empty = all carers
   const [recipientSearch, setRecipientSearch] = useState('');
 
   const { data: items = [], isLoading } = useQuery({
@@ -26,10 +26,20 @@ export default function Announcements() {
     return u ? `${u.firstName} ${u.lastName}` : 'a carer';
   };
 
+  const toggleCarer = (id: string) =>
+    setSelectedIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+
+  const sortedStaff = [...staff].sort((a, b) => a.firstName.localeCompare(b.firstName));
+  const q = recipientSearch.trim().toLowerCase();
+  const shownStaff = sortedStaff.filter((s) => !q || `${s.firstName} ${s.lastName}`.toLowerCase().includes(q));
+
+  // Names of currently selected carers, in list order, for the summary + button.
+  const selectedNames = sortedStaff.filter((s) => selectedIds.includes(s.id)).map((s) => `${s.firstName} ${s.lastName}`);
+
   const createMut = useMutation({
-    mutationFn: () => announcementsApi.create({ body: body.trim(), title: title.trim() || undefined, targetUserId: targetUserId || undefined }),
+    mutationFn: () => announcementsApi.create({ body: body.trim(), title: title.trim() || undefined, targetUserIds: selectedIds.length ? selectedIds : undefined }),
     onSuccess: () => {
-      setTitle(''); setBody(''); setTargetUserId('');
+      setTitle(''); setBody(''); setSelectedIds([]); setRecipientSearch('');
       qc.invalidateQueries({ queryKey: ['announcements'] });
     },
   });
@@ -39,37 +49,59 @@ export default function Announcements() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['announcements'] }),
   });
 
+  // Names for a saved announcement's recipient list (multi), falling back to the
+  // legacy single target. Returns null for a broadcast.
+  const recipientLabel = (a: { targetUserId: string | null; targetUserIds?: string | null }): string | null => {
+    let ids: string[] = [];
+    try { ids = JSON.parse(a.targetUserIds || '[]'); } catch { ids = []; }
+    if (!ids.length && a.targetUserId) ids = [a.targetUserId];
+    if (!ids.length) return null;
+    const names = ids.map((id) => staffName(id) || 'a carer');
+    return names.length <= 3 ? names.join(', ') : `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
+  };
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Announcements</h1>
-        <p className="text-sm text-gray-500">Post messages to the carer app — to everyone, or to one carer.</p>
+        <p className="text-sm text-gray-500">Post messages to the carer app — to everyone, or to selected carers (e.g. everyone covering one client).</p>
       </div>
 
       {/* Composer */}
       <div className="card space-y-3">
         <div>
-          <label className="label">Send to</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="label mb-0">Send to</label>
+            <span className="text-xs text-gray-500">
+              {selectedIds.length === 0 ? 'All carers' : `${selectedIds.length} selected`}
+              {selectedIds.length > 0 && (
+                <button type="button" onClick={() => setSelectedIds([])} className="ml-2 text-blue-600 hover:underline">Clear</button>
+              )}
+            </span>
+          </div>
           <input
             value={recipientSearch}
             onChange={(e) => setRecipientSearch(e.target.value)}
             className="input mb-2"
             placeholder="🔍 Search carers…"
           />
-          <select value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)} className="input">
-            <option value="">All carers</option>
-            {[...staff]
-              .sort((a, b) => a.firstName.localeCompare(b.firstName))
-              // Filter by the search term, but always keep the currently selected
-              // carer in the list so the dropdown never shows a blank selection.
-              .filter((s) => {
-                const q = recipientSearch.trim().toLowerCase();
-                return !q || s.id === targetUserId || `${s.firstName} ${s.lastName}`.toLowerCase().includes(q);
-              })
-              .map((s) => (
-                <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
-              ))}
-          </select>
+          <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto divide-y divide-gray-100">
+            {/* All carers = no one ticked. Selecting any carer switches to targeted. */}
+            <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 font-medium text-sm text-gray-800">
+              <input type="checkbox" checked={selectedIds.length === 0} onChange={() => setSelectedIds([])} className="h-4 w-4 accent-blue-600" />
+              All carers
+            </label>
+            {shownStaff.map((s) => (
+              <label key={s.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 text-sm text-gray-700">
+                <input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleCarer(s.id)} className="h-4 w-4 accent-blue-600" />
+                {s.firstName} {s.lastName}
+              </label>
+            ))}
+            {shownStaff.length === 0 && <p className="px-3 py-3 text-sm text-gray-400">No carers match “{recipientSearch}”.</p>}
+          </div>
+          {selectedIds.length > 0 && (
+            <p className="text-xs text-gray-500 mt-1">To: {selectedNames.join(', ')}</p>
+          )}
         </div>
         <div>
           <label className="label">Title (optional)</label>
@@ -85,7 +117,13 @@ export default function Announcements() {
             disabled={!body.trim() || createMut.isPending}
             onClick={() => createMut.mutate()}
           >
-            {createMut.isPending ? 'Posting…' : targetUserId ? `Send to ${staffName(targetUserId)}` : 'Post to all carers'}
+            {createMut.isPending
+              ? 'Posting…'
+              : selectedIds.length === 0
+                ? 'Post to all carers'
+                : selectedIds.length === 1
+                  ? `Send to ${selectedNames[0]}`
+                  : `Send to ${selectedIds.length} carers`}
           </button>
         </div>
       </div>
@@ -102,8 +140,8 @@ export default function Announcements() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {a.targetUserId
-                      ? <span className="badge-purple">To {staffName(a.targetUserId)}</span>
+                    {recipientLabel(a)
+                      ? <span className="badge-purple">To {recipientLabel(a)}</span>
                       : <span className="badge-blue">All carers</span>}
                     <span className="text-xs text-gray-400">{a.authorName} · {format(new Date(a.createdAt), 'dd MMM yyyy, h:mm a')}</span>
                   </div>

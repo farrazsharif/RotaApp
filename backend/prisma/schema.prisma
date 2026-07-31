@@ -769,7 +769,11 @@ model Announcement {
   body         String
   authorId     String?
   authorName   String
-  targetUserId String? // null = all carers; set = one carer
+  targetUserId String? // legacy single target; null = all carers, set = one carer
+  // Multi-recipient targeting: JSON array of user ids. "[]" = broadcast to all
+  // carers. When non-empty the message goes only to those carers (used when the
+  // office selects several carers, e.g. everyone covering one client).
+  targetUserIds String  @default("[]")
   createdAt    DateTime @default(now())
 
   @@index([companyId])
