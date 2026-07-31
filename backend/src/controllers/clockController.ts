@@ -61,22 +61,21 @@ async function dueDosesForShift(shiftId: string | null) {
   // A dose's scheduled time is a nominal label (GP says "morning" = 08:00), but a
   // visit rarely lines up to the minute — a Morning Call might run 09:00–10:00.
   // A strict "time inside the window" test then drops the morning dose entirely,
-  // so carers saw "no medication due". To fix this we still show any dose whose
-  // time lands inside a visit, but a dose that lands inside NO visit that day is
-  // "orphaned" and gets attached to the nearest visit within a grace window, so
-  // it surfaces on the closest call instead of vanishing.
-  const DOSE_VISIT_GRACE_MIN = 180; // how far (mins) a stray dose can reach to a visit
+  // so carers saw "no medication due". And when a client is visited only once but
+  // has meds due later (tea/bed), those doses must still surface on that single
+  // visit so the carer can PREPARE them / leave them out for self-administration.
+  // So every scheduled dose is assigned to exactly one visit — the visit that
+  // will handle it — using this rule:
+  //   1. a visit whose window contains the dose time gives it live; else
+  //   2. the nearest upcoming visit within grace gives it (slightly early/late); else
+  //   3. the last visit BEFORE the dose prepares it (leave-out for later); else
+  //   4. the first visit of the day gives it (a dose earlier than any visit).
+  const DOSE_VISIT_GRACE_MIN = 180; // how soon an upcoming visit "catches" a stray dose
   const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
   const inWindow = (s: { startTime: string; endTime: string }, t: string) =>
     s.endTime < s.startTime ? (t >= s.startTime || t <= s.endTime) : (t >= s.startTime && t <= s.endTime);
-  const distToWindow = (s: { startTime: string; endTime: string }, t: string) => {
-    if (inWindow(s, t)) return 0;
-    const tm = toMin(t), sm = toMin(s.startTime), em = toMin(s.endTime);
-    if (s.endTime < s.startTime) return Math.min(Math.abs(tm - em), Math.abs(sm - tm)); // overnight hole
-    return tm < sm ? sm - tm : tm - em;
-  };
-  // Candidate visits that could own an orphan dose: the same client's other calls
-  // that day which actually administer meds (exclude cancelled + personal-care-only).
+  // Candidate visits that could own a dose: the same client's calls that day which
+  // actually administer meds (exclude cancelled + personal-care-only), earliest first.
   const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   const lo = new Date(day); lo.setDate(lo.getDate() - 1);
   const hi = new Date(day); hi.setDate(hi.getDate() + 2);
@@ -84,22 +83,24 @@ async function dueDosesForShift(shiftId: string | null) {
   const candidates = (await prisma.shift.findMany({
     where: { serviceUserId: shift.serviceUserId, date: { gte: lo, lt: hi }, status: { not: 'CANCELLED' } },
     select: { id: true, startTime: true, endTime: true, date: true, givesMedication: true },
-  })).filter((s) => dayKey(s.date) === targetKey && (s as { givesMedication?: boolean }).givesMedication !== false);
-  // Does the CURRENT shift own dose time t? Yes if t is inside its own window, or
-  // if t is inside no visit's window and this shift is the nearest one within grace.
-  const ownsDose = (t: string): boolean => {
-    if (inWindow(shift, t)) return true;
-    if (candidates.some((c) => inWindow(c, t))) return false; // some other visit contains it
-    let best = candidates[0] ? candidates[0] : null;
-    let bestDist = best ? distToWindow(best, t) : Infinity;
-    for (const c of candidates) {
-      const d = distToWindow(c, t);
-      if (d < bestDist || (d === bestDist && best && (c.startTime < best.startTime || (c.startTime === best.startTime && c.id < best.id)))) {
-        best = c; bestDist = d;
-      }
-    }
-    return !!best && best.id === shift.id && bestDist <= DOSE_VISIT_GRACE_MIN;
+  })).filter((s) => dayKey(s.date) === targetKey && (s as { givesMedication?: boolean }).givesMedication !== false)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id));
+  // Which single visit handles dose time t? (See the numbered rule above.)
+  const ownerOfDose = (t: string): string | null => {
+    if (candidates.length === 0) return null;
+    const contains = candidates.find((c) => inWindow(c, t));
+    if (contains) return contains.id;
+    const tm = toMin(t);
+    // nearest upcoming visit within grace
+    const upcoming = candidates.filter((c) => toMin(c.startTime) > tm).sort((a, b) => toMin(a.startTime) - toMin(b.startTime))[0];
+    if (upcoming && toMin(upcoming.startTime) - tm <= DOSE_VISIT_GRACE_MIN) return upcoming.id;
+    // else the last visit before the dose prepares it (leave-out for later)
+    const before = candidates.filter((c) => toMin(c.startTime) <= tm);
+    if (before.length > 0) return before[before.length - 1].id;
+    // else the dose is before every visit — the first visit gives it (late)
+    return candidates[0].id;
   };
+  const ownsDose = (t: string): boolean => ownerOfDose(t) === shift.id;
   const visitYmd = day.toISOString().slice(0, 10);
   const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; isBlisterPack: boolean; packContents: string | null; time: string; prn: boolean; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
   for (const med of meds) {
