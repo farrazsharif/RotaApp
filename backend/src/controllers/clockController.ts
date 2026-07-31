@@ -57,6 +57,49 @@ async function dueDosesForShift(shiftId: string | null) {
   // is start→midnight→end. A plain start<=t<=end test is empty for those and
   // would drop every dose (why night-shift meds showed "none due").
   const overnight = shift.endTime < shift.startTime;
+
+  // A dose's scheduled time is a nominal label (GP says "morning" = 08:00), but a
+  // visit rarely lines up to the minute — a Morning Call might run 09:00–10:00.
+  // A strict "time inside the window" test then drops the morning dose entirely,
+  // so carers saw "no medication due". To fix this we still show any dose whose
+  // time lands inside a visit, but a dose that lands inside NO visit that day is
+  // "orphaned" and gets attached to the nearest visit within a grace window, so
+  // it surfaces on the closest call instead of vanishing.
+  const DOSE_VISIT_GRACE_MIN = 180; // how far (mins) a stray dose can reach to a visit
+  const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+  const inWindow = (s: { startTime: string; endTime: string }, t: string) =>
+    s.endTime < s.startTime ? (t >= s.startTime || t <= s.endTime) : (t >= s.startTime && t <= s.endTime);
+  const distToWindow = (s: { startTime: string; endTime: string }, t: string) => {
+    if (inWindow(s, t)) return 0;
+    const tm = toMin(t), sm = toMin(s.startTime), em = toMin(s.endTime);
+    if (s.endTime < s.startTime) return Math.min(Math.abs(tm - em), Math.abs(sm - tm)); // overnight hole
+    return tm < sm ? sm - tm : tm - em;
+  };
+  // Candidate visits that could own an orphan dose: the same client's other calls
+  // that day which actually administer meds (exclude cancelled + personal-care-only).
+  const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const lo = new Date(day); lo.setDate(lo.getDate() - 1);
+  const hi = new Date(day); hi.setDate(hi.getDate() + 2);
+  const targetKey = dayKey(day);
+  const candidates = (await prisma.shift.findMany({
+    where: { serviceUserId: shift.serviceUserId, date: { gte: lo, lt: hi }, status: { not: 'CANCELLED' } },
+    select: { id: true, startTime: true, endTime: true, date: true, givesMedication: true },
+  })).filter((s) => dayKey(s.date) === targetKey && (s as { givesMedication?: boolean }).givesMedication !== false);
+  // Does the CURRENT shift own dose time t? Yes if t is inside its own window, or
+  // if t is inside no visit's window and this shift is the nearest one within grace.
+  const ownsDose = (t: string): boolean => {
+    if (inWindow(shift, t)) return true;
+    if (candidates.some((c) => inWindow(c, t))) return false; // some other visit contains it
+    let best = candidates[0] ? candidates[0] : null;
+    let bestDist = best ? distToWindow(best, t) : Infinity;
+    for (const c of candidates) {
+      const d = distToWindow(c, t);
+      if (d < bestDist || (d === bestDist && best && (c.startTime < best.startTime || (c.startTime === best.startTime && c.id < best.id)))) {
+        best = c; bestDist = d;
+      }
+    }
+    return !!best && best.id === shift.id && bestDist <= DOSE_VISIT_GRACE_MIN;
+  };
   const visitYmd = day.toISOString().slice(0, 10);
   const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; isBlisterPack: boolean; packContents: string | null; time: string; prn: boolean; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
   for (const med of meds) {
@@ -100,11 +143,9 @@ async function dueDosesForShift(shiftId: string | null) {
     }
 
     for (const t of times) {
-      // dose is "due at this call" if its time falls within the call window
-      const inWindow = overnight
-        ? (t >= shift.startTime || t <= shift.endTime)
-        : (t >= shift.startTime && t <= shift.endTime);
-      if (!inWindow) continue;
+      // Show the dose if this visit owns it: inside its window, or the nearest
+      // visit for an orphan dose that lands in no window (see ownsDose above).
+      if (!ownsDose(t)) continue;
       const [h, mi] = t.split(':').map(Number);
       // On an overnight visit, a dose at/before the end time is after midnight,
       // so it belongs to the next calendar day.
