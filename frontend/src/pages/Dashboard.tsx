@@ -100,7 +100,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
               {stats.lateCheckins > 0 && <AlertTile count={stats.lateCheckins} label="Late / missed check-ins" tone="danger" to="/late-checkins" />}
               {stats.unassignedToday > 0 && <AlertTile count={stats.unassignedToday} label="Unassigned visits today" tone="danger" to="/schedule" />}
-              {stats.missedMeds > 0 && <AlertTile count={stats.missedMeds} label="Meds missed today" tone="warning" />}
+              {stats.missedMeds > 0 && <AlertTile count={stats.missedMeds} label="Meds missed today" tone="warning" to="/missed-meds" />}
               {stats.expiringCompliance > 0 && <AlertTile count={stats.expiringCompliance} label="DBS / training expiring" tone="warning" to="/users" />}
             </div>
           </div>

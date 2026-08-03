@@ -499,6 +499,76 @@ export async function lateCheckinsList(req: AuthRequest, res: Response) {
   res.json(rows);
 }
 
+// The missed medications behind the dashboard's "Meds missed today" count —
+// which client, which carer, and which visit each missed dose was on.
+export async function missedMedsList(req: AuthRequest, res: Response) {
+  const now = new Date();
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const todayEnd = new Date(todayStart);
+  todayEnd.setUTCDate(todayEnd.getUTCDate() + 1);
+
+  const missed = await prisma.medAdministration.findMany({
+    where: { status: 'MISSED', scheduledFor: { gte: todayStart, lt: todayEnd }, ...relatedServiceUserScopeWhere(req.user) },
+    include: {
+      medication: { select: { name: true, dose: true, isBlisterPack: true } },
+      serviceUser: { select: { id: true, firstName: true, lastName: true } },
+      user: { select: { firstName: true, lastName: true } },
+    },
+    orderBy: { scheduledFor: 'asc' },
+  });
+  if (missed.length === 0) return res.json([]);
+
+  // Pull today's visits for the affected clients so we can name the visit each
+  // dose belonged to. The dose isn't stored against a shift, so we match by
+  // client + dose time: the visit whose window contains it, else the nearest.
+  const serviceUserIds = Array.from(new Set(missed.map((m) => m.serviceUserId)));
+  const shifts = await prisma.shift.findMany({
+    where: { serviceUserId: { in: serviceUserIds }, date: { gte: todayStart, lt: todayEnd }, status: { not: 'CANCELLED' } },
+    include: { user: { select: { firstName: true, lastName: true } }, coverCarers: { select: { firstName: true, lastName: true } } },
+  });
+
+  const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+  const inWindow = (s: { startTime: string; endTime: string }, t: string) =>
+    s.endTime < s.startTime ? (t >= s.startTime || t <= s.endTime) : (t >= s.startTime && t <= s.endTime);
+  const distToWindow = (s: { startTime: string; endTime: string }, t: string) => {
+    if (inWindow(s, t)) return 0;
+    const tm = toMin(t), sm = toMin(s.startTime), em = toMin(s.endTime);
+    return Math.min(Math.abs(tm - sm), Math.abs(tm - em));
+  };
+
+  const rows = missed.map((m) => {
+    // Dose time as HH:MM (scheduledFor was built from local components on a UTC host).
+    const hh = String(m.scheduledFor.getUTCHours()).padStart(2, '0');
+    const mm = String(m.scheduledFor.getUTCMinutes()).padStart(2, '0');
+    const doseTime = `${hh}:${mm}`;
+    const carerName = m.user ? `${m.user.firstName} ${m.user.lastName}` : null;
+    const mine = shifts.filter((s) => s.serviceUserId === m.serviceUserId);
+    // Prefer the visit assigned to the carer who marked it missed; then the
+    // visit whose window fits the dose time; then the nearest visit.
+    const best = [...mine].sort((a, b) => {
+      const aCarer = carerName && [a.user, ...a.coverCarers].some((c) => c && `${c.firstName} ${c.lastName}` === carerName) ? 0 : 1;
+      const bCarer = carerName && [b.user, ...b.coverCarers].some((c) => c && `${c.firstName} ${c.lastName}` === carerName) ? 0 : 1;
+      if (aCarer !== bCarer) return aCarer - bCarer;
+      return distToWindow(a, doseTime) - distToWindow(b, doseTime);
+    })[0];
+    const visitCarers = best ? [best.user, ...best.coverCarers].filter(Boolean).map((c) => `${c!.firstName} ${c!.lastName}`) : [];
+    return {
+      id: m.id,
+      doseTime,
+      medName: m.medication.name,
+      medDose: m.medication.dose,
+      serviceUserName: `${m.serviceUser.firstName} ${m.serviceUser.lastName}`,
+      carerName: carerName || (visitCarers[0] ?? null),
+      visitName: best?.visitName ?? null,
+      visitStart: best?.startTime ?? null,
+      visitEnd: best?.endTime ?? null,
+      note: m.note ?? null,
+    };
+  });
+
+  res.json(rows);
+}
+
 export async function dashboardStats(req: AuthRequest, res: Response) {
   const now = new Date();
   // Anchor day maths to UTC — shift dates are stored at UTC midnight, so

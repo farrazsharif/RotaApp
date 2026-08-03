@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { hoursReport, overtimeReport, coverageReport, scheduledHoursReport, cribSheetReport, dashboardStats, shiftRoles, lateCheckinsList, ecmReport, saveEcmNote } from '../controllers/reportController';
+import { hoursReport, overtimeReport, coverageReport, scheduledHoursReport, cribSheetReport, dashboardStats, shiftRoles, lateCheckinsList, missedMedsList, ecmReport, saveEcmNote } from '../controllers/reportController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 
@@ -9,6 +9,7 @@ router.use(authenticate);
 
 router.get('/dashboard', dashboardStats);
 router.get('/late-checkins', lateCheckinsList);
+router.get('/missed-meds', missedMedsList);
 router.get('/hours', requirePermission('view_reports'), hoursReport);
 router.get('/overtime', requirePermission('view_reports'), overtimeReport);
 router.get('/coverage', requirePermission('view_reports'), coverageReport);
