@@ -137,9 +137,10 @@ const adminInclude = {
 };
 
 export async function listAdministrations(req: AuthRequest, res: Response) {
-  const { serviceUserId, date, startDate, endDate, recent } = req.query;
+  const { serviceUserId, date, startDate, endDate, recent, status } = req.query;
   const where: Record<string, unknown> = {};
   if (serviceUserId) where.serviceUserId = String(serviceUserId);
+  if (status && Object.values(MedStatus).includes(String(status) as MedStatus)) where.status = String(status);
   Object.assign(where, relatedServiceUserScopeWhere(req.user));
   if (date) {
     const [y, m, d] = String(date).split('-').map(Number);

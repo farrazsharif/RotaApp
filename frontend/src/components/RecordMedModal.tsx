@@ -57,8 +57,9 @@ export default function RecordMedModal({ serviceUser, medication, scheduledFor, 
       recordedAt: givenAt ? new Date(givenAt).toISOString() : undefined,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['med-admin', 'recent'] });
+      qc.invalidateQueries({ queryKey: ['med-admin'] });
       qc.invalidateQueries({ queryKey: ['med-admin-range', serviceUser.id] });
+      qc.invalidateQueries({ queryKey: ['missed-meds'] });
       onSaved?.();
       onClose();
     },

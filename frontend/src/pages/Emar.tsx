@@ -4,7 +4,7 @@ import { medicationsApi } from '../api/medications';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
 import { MedAdministration, MedStatus, ServiceUser } from '../types';
-import { format } from 'date-fns';
+import { format, startOfWeek, endOfWeek, subWeeks, subDays } from 'date-fns';
 import MarChartModal from '../components/MarChartModal';
 import EmarModal from '../components/EmarModal';
 import RecordMedModal from '../components/RecordMedModal';
@@ -24,10 +24,28 @@ export default function Emar() {
   const [editRec, setEditRec] = useState<MedAdministration | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | MedStatus>('ALL');
+  const [range, setRange] = useState<'recent' | 'today' | 'week' | 'lastweek' | 'last30'>('recent');
+
+  // Translate the range preset into start/end dates (or a recent-N fetch).
+  const rangeParams = (() => {
+    const today = new Date();
+    const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
+    switch (range) {
+      case 'today': return { startDate: fmt(today), endDate: fmt(today) };
+      case 'week': return { startDate: fmt(startOfWeek(today, { weekStartsOn: 1 })), endDate: fmt(endOfWeek(today, { weekStartsOn: 1 })) };
+      case 'lastweek': { const w = subWeeks(today, 1); return { startDate: fmt(startOfWeek(w, { weekStartsOn: 1 })), endDate: fmt(endOfWeek(w, { weekStartsOn: 1 })) }; }
+      case 'last30': return { startDate: fmt(subDays(today, 29)), endDate: fmt(today) };
+      default: return { recent: 200 };
+    }
+  })();
 
   const { data: records = [], isLoading } = useQuery({
-    queryKey: ['med-admin', 'recent'],
-    queryFn: () => medicationsApi.recentAdministrations(200),
+    queryKey: ['med-admin', range, statusFilter],
+    queryFn: () => medicationsApi.queryAdministrations({
+      ...rangeParams,
+      status: statusFilter === 'ALL' ? undefined : statusFilter,
+    }),
   });
 
   const { data: serviceUsers = [] } = useQuery({
@@ -76,8 +94,34 @@ export default function Emar() {
         </div>
       </div>
 
+      {/* Filters: status (e.g. Absent/missed) across a date range */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+          {([['recent', 'Recent'], ['today', 'Today'], ['week', 'This week'], ['lastweek', 'Last week'], ['last30', 'Last 30 days']] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setRange(v)}
+              className={`px-3 py-1.5 ${range === v ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'} border-r border-gray-200 last:border-r-0`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'ALL' | MedStatus)} className="input w-44">
+          <option value="ALL">All statuses</option>
+          <option value="MISSED">Absent (missed)</option>
+          <option value="REFUSED">Refused</option>
+          <option value="NOT_NEEDED">Not Required</option>
+          <option value="GIVEN">Administered</option>
+          <option value="SELF_ADMIN">Self-administered</option>
+        </select>
+        <span className="text-sm text-gray-500">{filtered.length} record{filtered.length === 1 ? '' : 's'}</span>
+      </div>
+
       {filtered.length === 0 ? (
-        <div className="card text-center py-12 text-gray-400">No medication records yet</div>
+        <div className="card text-center py-12 text-gray-400">
+          {statusFilter === 'ALL' ? 'No medication records for this period' : `No ${STATUS_LABEL[statusFilter as MedStatus].toLowerCase()} records for this period`}
+        </div>
       ) : (
         <div className="card p-0 overflow-x-auto">
           <table className="w-full text-sm">

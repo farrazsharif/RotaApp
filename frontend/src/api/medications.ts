@@ -30,6 +30,9 @@ export const medicationsApi = {
     api.get<MedAdministration[]>('/medications/administrations', { params: { serviceUserId, startDate, endDate } }).then((r) => r.data),
   recentAdministrations: (recent = 100) =>
     api.get<MedAdministration[]>('/medications/administrations', { params: { recent } }).then((r) => r.data),
+  // Filterable log for the eMAR page: by status and/or date range (or recent N).
+  queryAdministrations: (params: { startDate?: string; endDate?: string; status?: MedStatus; recent?: number }) =>
+    api.get<MedAdministration[]>('/medications/administrations', { params }).then((r) => r.data),
   record: (data: { medicationId: string; serviceUserId: string; scheduledFor: string; status: MedStatus; note?: string }) =>
     api.post<MedAdministration>('/medications/administrations', data).then((r) => r.data),
   // Office record/correction from the portal: can attribute to a carer, set the
