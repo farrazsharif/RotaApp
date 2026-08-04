@@ -168,8 +168,8 @@ export default function Layout() {
               <p className="text-[11px] leading-none text-gray-400">Caremid</p>
               <h1 className="text-base font-semibold text-gray-900 truncate">{pageTitle}</h1>
             </div>
+            {topbarActions}
             <div className="flex items-center gap-3 ml-auto">
-              {topbarActions}
               <NotificationBell />
               <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold" title={`${user?.firstName} ${user?.lastName}`}>{initials}</div>
             </div>
@@ -259,9 +259,9 @@ export default function Layout() {
             <span className="text-xl leading-none">☰</span>
             <span className="text-sm">Menu</span>
           </button>
+          {topbarActions}
           <div className="flex-1 lg:flex-none" />
           <div className="flex items-center gap-3">
-            {topbarActions}
             <NotificationBell />
           </div>
         </header>
