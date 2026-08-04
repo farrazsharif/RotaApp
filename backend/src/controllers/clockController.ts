@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { relatedStaffScopeWhere } from '../lib/scope';
 import { logAudit } from '../lib/audit';
+import { ownerShiftIdForDose } from '../lib/doseOwnership';
 
 // The logged-in carer's calls for a given day (default today), ordered by visit time.
 // Includes calls where they are the primary carer or an additional cover carer.
@@ -70,12 +71,8 @@ async function dueDosesForShift(shiftId: string | null) {
   //   2. the nearest upcoming visit within grace gives it (slightly early/late); else
   //   3. the last visit BEFORE the dose prepares it (leave-out for later); else
   //   4. the first visit of the day gives it (a dose earlier than any visit).
-  const DOSE_VISIT_GRACE_MIN = 180; // how soon an upcoming visit "catches" a stray dose
-  const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
-  const inWindow = (s: { startTime: string; endTime: string }, t: string) =>
-    s.endTime < s.startTime ? (t >= s.startTime || t <= s.endTime) : (t >= s.startTime && t <= s.endTime);
   // Candidate visits that could own a dose: the same client's calls that day which
-  // actually administer meds (exclude cancelled + personal-care-only), earliest first.
+  // actually administer meds (exclude cancelled + personal-care-only).
   const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   const lo = new Date(day); lo.setDate(lo.getDate() - 1);
   const hi = new Date(day); hi.setDate(hi.getDate() + 2);
@@ -83,24 +80,9 @@ async function dueDosesForShift(shiftId: string | null) {
   const candidates = (await prisma.shift.findMany({
     where: { serviceUserId: shift.serviceUserId, date: { gte: lo, lt: hi }, status: { not: 'CANCELLED' } },
     select: { id: true, startTime: true, endTime: true, date: true, givesMedication: true },
-  })).filter((s) => dayKey(s.date) === targetKey && (s as { givesMedication?: boolean }).givesMedication !== false)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.id.localeCompare(b.id));
-  // Which single visit handles dose time t? (See the numbered rule above.)
-  const ownerOfDose = (t: string): string | null => {
-    if (candidates.length === 0) return null;
-    const contains = candidates.find((c) => inWindow(c, t));
-    if (contains) return contains.id;
-    const tm = toMin(t);
-    // nearest upcoming visit within grace
-    const upcoming = candidates.filter((c) => toMin(c.startTime) > tm).sort((a, b) => toMin(a.startTime) - toMin(b.startTime))[0];
-    if (upcoming && toMin(upcoming.startTime) - tm <= DOSE_VISIT_GRACE_MIN) return upcoming.id;
-    // else the last visit before the dose prepares it (leave-out for later)
-    const before = candidates.filter((c) => toMin(c.startTime) <= tm);
-    if (before.length > 0) return before[before.length - 1].id;
-    // else the dose is before every visit — the first visit gives it (late)
-    return candidates[0].id;
-  };
-  const ownsDose = (t: string): boolean => ownerOfDose(t) === shift.id;
+  })).filter((s) => dayKey(s.date) === targetKey && (s as { givesMedication?: boolean }).givesMedication !== false);
+  // Does this shift own dose time t? (See ownerShiftIdForDose for the rule.)
+  const ownsDose = (t: string): boolean => ownerShiftIdForDose(candidates, t) === shift.id;
   const visitYmd = day.toISOString().slice(0, 10);
   const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; isBlisterPack: boolean; packContents: string | null; time: string; prn: boolean; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
   for (const med of meds) {

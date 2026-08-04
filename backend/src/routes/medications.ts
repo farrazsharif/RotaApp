@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   listMedications, createMedication, createMedicationByCarer, updateMedication, deleteMedication,
-  listAdministrations, recordAdministration, recordAdministrationByManager,
+  listAdministrations, recordAdministration, recordAdministrationByManager, cancelledDoses,
 } from '../controllers/medicationController';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
@@ -19,6 +19,8 @@ const byMedication = scopeRecordById((id) =>
 
 // Administration records (any authenticated user/carer can record)
 router.get('/administrations', listAdministrations);
+// Dose slots whose visit was cancelled (for the MAR chart's "C" markers).
+router.get('/cancelled-doses', cancelledDoses);
 router.post('/administrations', recordAdministration);
 // Office record/correction from the portal — attributes to a carer, sets the
 // real time, and is audited. Managers only.

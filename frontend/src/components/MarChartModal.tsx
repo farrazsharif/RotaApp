@@ -66,6 +66,21 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
     queryFn: () => medicationsApi.administrationsRange(serviceUser.id, startDate, endDate),
   });
 
+  // Dose slots whose visit was cancelled — shown as "C" where there's no record.
+  const { data: cancelledSlots = [] } = useQuery({
+    queryKey: ['med-cancelled', serviceUser.id, month],
+    queryFn: () => medicationsApi.cancelledDoses(serviceUser.id, startDate, endDate),
+  });
+  const cancelledSet = useMemo(
+    () => new Set(cancelledSlots.map((c) => `${c.medicationId}__${new Date(c.scheduledFor).getTime()}`)),
+    [cancelledSlots],
+  );
+  const isCancelled = (medicationId: string, day: number, time: string) => {
+    if (day > daysInMonth) return false;
+    const [h, m] = time.split(':').map(Number);
+    return cancelledSet.has(`${medicationId}__${Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), day, h, m, 0)}`);
+  };
+
   // Dose times are stored as the server's wall-clock time, encoded as if it
   // were UTC (the server runs in UTC) — must build the comparison the same
   // way, or this silently shifts by the browser's UTC offset (e.g. during BST).
@@ -107,7 +122,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                   if (d > daysInMonth) return '<td class="invalid-day"></td>';
                   if (!dueOn(medDays, d)) return '<td style="background:#eef2f7"></td>';
                   const rec = recordFor(med.id, d, t);
-                  if (!rec) return '<td></td>';
+                  if (!rec) return isCancelled(med.id, d, t) ? '<td style="color:#6b7280;font-weight:bold;" title="Visit cancelled">C</td>' : '<td></td>';
                   const code = esc(initialsFor(rec));
                   const color = STATUS_COLOR[rec.status];
                   return `<td style="color:${color};font-weight:bold;" title="${esc(STATUS_LABEL[rec.status])}">${code}</td>`;
@@ -150,6 +165,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         <div><span>A</span> = Absent</div>
         <div><span>N</span> = Not required</div>
         <div><span>S</span> = Self-administered</div>
+        <div><span>C</span> = Cancelled visit</div>
       </div>
       </body></html>`;
 
@@ -211,21 +227,24 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                             if (d > daysInMonth) return <td key={d} className="border border-gray-300 bg-gray-200" />;
                             if (!dueOn(medDays, d)) return <td key={d} className="border border-gray-300 bg-blue-50" />;
                             const rec = recordFor(med.id, d, t);
+                            const cancelled = !rec && isCancelled(med.id, d, t);
                             const [hh, mm] = t.split(':').map(Number);
                             const scheduledFor = new Date(Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), d, hh, mm, 0)).toISOString();
                             return (
                               <td
                                 key={d}
-                                className={`border border-gray-300 text-center font-bold ${isManager ? 'cursor-pointer hover:bg-blue-50' : ''}`}
-                                style={rec ? { color: STATUS_COLOR[rec.status] } : undefined}
+                                className={`border border-gray-300 text-center font-bold ${cancelled ? 'bg-gray-50' : ''} ${isManager ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                style={rec ? { color: STATUS_COLOR[rec.status] } : cancelled ? { color: '#6b7280' } : undefined}
                                 title={
                                   rec
                                     ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${isManager ? ' · click to edit' : ''}`
-                                    : isManager ? 'Click to record this dose' : undefined
+                                    : cancelled
+                                      ? `Visit cancelled${isManager ? ' · click to record' : ''}`
+                                      : isManager ? 'Click to record this dose' : undefined
                                 }
                                 onClick={isManager ? () => setCell({ med, time: t, scheduledFor, existing: rec ?? null }) : undefined}
                               >
-                                {rec ? initialsFor(rec) : ''}
+                                {rec ? initialsFor(rec) : cancelled ? 'C' : ''}
                               </td>
                             );
                           })}
@@ -249,6 +268,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
               <span><strong className="text-red-700">A</strong> = Absent</span>
               <span><strong className="text-gray-600">N</strong> = Not required</span>
               <span><strong className="text-blue-700">S</strong> = Self-administered</span>
+              <span><strong className="text-gray-500">C</strong> = Cancelled visit</span>
             </div>
           )}
         </div>

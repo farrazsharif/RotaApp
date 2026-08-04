@@ -28,6 +28,9 @@ export const medicationsApi = {
     api.get<MedAdministration[]>('/medications/administrations', { params: { serviceUserId, date } }).then((r) => r.data),
   administrationsRange: (serviceUserId: string, startDate: string, endDate: string) =>
     api.get<MedAdministration[]>('/medications/administrations', { params: { serviceUserId, startDate, endDate } }).then((r) => r.data),
+  // Dose slots (medicationId + scheduledFor ISO) whose visit was cancelled — for the MAR chart's "C" markers.
+  cancelledDoses: (serviceUserId: string, startDate: string, endDate: string) =>
+    api.get<{ medicationId: string; scheduledFor: string }[]>('/medications/cancelled-doses', { params: { serviceUserId, startDate, endDate } }).then((r) => r.data),
   recentAdministrations: (recent = 100) =>
     api.get<MedAdministration[]>('/medications/administrations', { params: { recent } }).then((r) => r.data),
   // Filterable log for the eMAR page: by status and/or date range (or recent N).
