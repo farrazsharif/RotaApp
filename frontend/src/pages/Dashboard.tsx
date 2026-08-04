@@ -84,9 +84,6 @@ export default function Dashboard() {
         <div className="flex flex-wrap gap-2">
           {can('manage_schedule') && <Link to="/schedule" className="btn-secondary btn">+ Add shift</Link>}
           {can('manage_schedule') && <Link to="/schedule" className="btn-secondary btn">Publish rota</Link>}
-          {can('manage_schedule') && <Link to="/attendance" className="btn-secondary btn">⏱️ Attendance</Link>}
-          {can('manage_schedule') && <Link to="/handovers" className="btn-secondary btn">🤝 Handovers</Link>}
-          {can('manage_schedule') && <Link to="/announcements" className="btn-secondary btn">📣 Announcements</Link>}
           {can('manage_billing') && <Link to="/finances" className="btn-primary btn">New invoice</Link>}
         </div>
       </div>

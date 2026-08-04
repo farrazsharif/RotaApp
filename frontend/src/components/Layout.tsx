@@ -48,6 +48,32 @@ export default function Layout() {
     navigate('/login');
   }
 
+  // Quick actions pinned to the top bar on every page (managers only). Icon +
+  // label on wider screens; icon-only on mobile so they stay reachable (these
+  // pages aren't in the sidebar). The active page's button is highlighted.
+  const topbarActions = can('manage_schedule') ? (
+    <div className="flex items-center gap-1">
+      {[
+        { to: '/attendance', label: 'Attendance', icon: '⏱️' },
+        { to: '/handovers', label: 'Handovers', icon: '🤝' },
+        { to: '/announcements', label: 'Announcements', icon: '📣' },
+      ].map((a) => (
+        <NavLink
+          key={a.to}
+          to={a.to}
+          title={a.label}
+          aria-label={a.label}
+          className={({ isActive }) =>
+            `inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm ${isActive ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700 hover:bg-gray-100'}`
+          }
+        >
+          <span className="leading-none">{a.icon}</span>
+          <span className="hidden md:inline">{a.label}</span>
+        </NavLink>
+      ))}
+    </div>
+  ) : null;
+
   const visibleNav = navItems.filter((item) => {
     if (item.platformOnly && !user?.platformAdmin) return false;
     // Platform owners get a platform-only experience: just Platform Admin +
@@ -143,6 +169,7 @@ export default function Layout() {
               <h1 className="text-base font-semibold text-gray-900 truncate">{pageTitle}</h1>
             </div>
             <div className="flex items-center gap-3 ml-auto">
+              {topbarActions}
               <NotificationBell />
               <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold" title={`${user?.firstName} ${user?.lastName}`}>{initials}</div>
             </div>
@@ -234,6 +261,7 @@ export default function Layout() {
           </button>
           <div className="flex-1 lg:flex-none" />
           <div className="flex items-center gap-3">
+            {topbarActions}
             <NotificationBell />
           </div>
         </header>
