@@ -254,6 +254,11 @@ export default function ServiceUserDetail() {
                       <input type="datetime-local" value={effectiveAt} onChange={(e) => setEffectiveAt(e.target.value)} className="input" />
                     </div>
                     <p className="text-xs text-gray-500">Calls from this time onward show the new status. Defaults to now — back-date it if it happened earlier.</p>
+                    {(pendingStatus === 'DISCHARGED' || pendingStatus === 'DECEASED') && (
+                      <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">
+                        All of this client's visits from the effective time onward will be cancelled and removed from carers' rotas.
+                      </p>
+                    )}
                     {pendingStatus === 'HOSPITALISED' && (
                       <div>
                         <label className="label">Expected return (date &amp; time)</label>

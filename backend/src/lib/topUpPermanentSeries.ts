@@ -58,10 +58,10 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
       include: { coverCarers: { select: { id: true } }, serviceUser: { select: { status: true } } },
     });
     if (!template || !template.companyId) continue; // need a tenant to create under
-    // Don't keep generating future calls for someone who has passed away — and
-    // clear any future calls still on the schedule for them (covers people
-    // marked deceased before auto-cancel shipped).
-    if (template.serviceUser?.status === 'DECEASED') {
+    // Don't keep generating future calls for someone who has been discharged or
+    // has passed away — and clear any future calls still on the schedule for
+    // them (also covers people marked before auto-cancel shipped).
+    if (template.serviceUser?.status === 'DECEASED' || template.serviceUser?.status === 'DISCHARGED') {
       await prisma.shift.updateMany({
         where: { seriesId, status: { not: 'CANCELLED' }, date: { gte: today } },
         data: { status: 'CANCELLED' },

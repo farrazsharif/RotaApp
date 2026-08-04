@@ -199,11 +199,11 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
         data: { serviceUserId: req.params.id, status: String(data.status), effectiveAt, changedById: req.user?.id ?? null },
       });
 
-      // When a service user passes away, take their upcoming calls off the
-      // schedule automatically — cancel every not-already-cancelled shift that
-      // starts at or after the effective moment (calls earlier that day already
-      // happened, so they're left intact).
-      if (data.status === ServiceUserStatus.DECEASED) {
+      // When a service user is discharged (care ended) or passes away, take
+      // their upcoming calls off the schedule automatically — cancel every
+      // not-already-cancelled shift that starts at or after the effective moment
+      // (calls earlier that day already happened, so they're left intact).
+      if (data.status === ServiceUserStatus.DECEASED || data.status === ServiceUserStatus.DISCHARGED) {
         const dayStart = new Date(effectiveAt.getFullYear(), effectiveAt.getMonth(), effectiveAt.getDate(), 0, 0, 0);
         const candidates = await prisma.shift.findMany({
           where: { serviceUserId: req.params.id, status: { not: 'CANCELLED' }, date: { gte: dayStart } },
@@ -237,6 +237,7 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
               await sendPushToUser(carerId, { title: 'Visits Cancelled', body: message });
             }),
           );
+          if (existing?.companyId) emitToCompany(existing.companyId, 'data:changed', { resource: '/api/shifts' });
         }
       }
 
@@ -265,11 +266,14 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
         }
       }
 
-      // Leaving hospital (discharge / back to active): end any open hospital
-      // period as of now and restore the visits it cancelled from now onward.
+      // Leaving hospital back to care (e.g. Active / On hold): end any open
+      // hospital period as of now and restore the visits it cancelled from now
+      // onward. Skipped for Discharged/Deceased — there, care has ended, so the
+      // visits stay cancelled (handled above) rather than being restored.
       if (existing.status === ServiceUserStatus.HOSPITALISED
         && data.status !== ServiceUserStatus.HOSPITALISED
-        && data.status !== ServiceUserStatus.DECEASED) {
+        && data.status !== ServiceUserStatus.DECEASED
+        && data.status !== ServiceUserStatus.DISCHARGED) {
         const active = await prisma.respitePeriod.findFirst({
           where: { serviceUserId: req.params.id, type: 'HOSPITAL', endAt: { gt: effectiveAt } },
           orderBy: { startAt: 'desc' },
@@ -284,6 +288,17 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
           await prisma.respitePeriod.update({ where: { id: active.id }, data: { endAt: effectiveAt, cancelledShiftIds: JSON.stringify(remaining), cancelledCount: remaining.length } });
           if (existing.companyId) emitToCompany(existing.companyId, 'data:changed', { resource: '/api/shifts' });
         }
+      }
+
+      // Discharged/deceased straight from hospital: close any open hospital
+      // period so the "in hospital" banner clears and the top-up's respite skip
+      // doesn't linger (the visits it cancelled stay cancelled — care has ended).
+      if ((data.status === ServiceUserStatus.DISCHARGED || data.status === ServiceUserStatus.DECEASED)
+        && existing.status === ServiceUserStatus.HOSPITALISED) {
+        await prisma.respitePeriod.updateMany({
+          where: { serviceUserId: req.params.id, type: 'HOSPITAL', endAt: { gt: effectiveAt } },
+          data: { endAt: effectiveAt },
+        });
       }
     }
   }
