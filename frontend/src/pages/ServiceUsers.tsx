@@ -13,7 +13,7 @@ const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; clas
   ACTIVE: { label: 'Active', icon: '🟢', className: 'bg-green-100 text-green-700' },
   ON_HOLD: { label: 'On Hold', icon: '⏸️', className: 'bg-gray-200 text-gray-700' },
   HOSPITALISED: { label: 'Hospitalised', icon: '', className: 'bg-amber-100 text-amber-700' },
-  DISCHARGED: { label: 'Discharged', icon: '↩️', className: 'bg-blue-100 text-blue-700' },
+  DISCHARGED: { label: 'End of Care', icon: '↩️', className: 'bg-blue-100 text-blue-700' },
   DECEASED: { label: 'Passed Away', icon: '⚪', className: 'bg-slate-300 text-slate-800' },
 };
 
@@ -141,7 +141,7 @@ export default function ServiceUsers() {
         </div>
         <div className="card p-4">
           <div className="text-2xl font-bold text-blue-600">{statusCount('DISCHARGED')}</div>
-          <div className="text-xs text-gray-500 mt-0.5">Discharged</div>
+          <div className="text-xs text-gray-500 mt-0.5">End of Care</div>
         </div>
         <div className="card p-4">
           <div className="text-2xl font-bold text-slate-500">{statusCount('DECEASED')}</div>

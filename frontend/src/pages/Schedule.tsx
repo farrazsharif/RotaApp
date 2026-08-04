@@ -21,7 +21,7 @@ const STATUS_ICON: Record<ServiceUserStatus, string> = {
   ACTIVE: '', ON_HOLD: '⏸️', HOSPITALISED: '', DISCHARGED: '↩️', DECEASED: '⚪',
 };
 const STATUS_LABEL: Record<ServiceUserStatus, string> = {
-  ACTIVE: 'Active', ON_HOLD: 'On Hold', HOSPITALISED: 'Hospitalised', DISCHARGED: 'Discharged', DECEASED: 'Passed Away',
+  ACTIVE: 'Active', ON_HOLD: 'On Hold', HOSPITALISED: 'Hospitalised', DISCHARGED: 'End of Care', DECEASED: 'Passed Away',
 };
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6366f1'];
