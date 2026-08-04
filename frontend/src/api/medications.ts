@@ -32,4 +32,8 @@ export const medicationsApi = {
     api.get<MedAdministration[]>('/medications/administrations', { params: { recent } }).then((r) => r.data),
   record: (data: { medicationId: string; serviceUserId: string; scheduledFor: string; status: MedStatus; note?: string }) =>
     api.post<MedAdministration>('/medications/administrations', data).then((r) => r.data),
+  // Office record/correction from the portal: can attribute to a carer, set the
+  // actual time given, and is audited. Creates a missing record or edits one.
+  recordManage: (data: { medicationId: string; serviceUserId: string; scheduledFor: string; status: MedStatus; note?: string; userId?: string | null; recordedAt?: string }) =>
+    api.post<MedAdministration>('/medications/administrations/manage', data).then((r) => r.data),
 };

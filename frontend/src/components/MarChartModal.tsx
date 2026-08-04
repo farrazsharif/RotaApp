@@ -4,6 +4,8 @@ import { medicationsApi } from '../api/medications';
 import { ServiceUser, Medication, MedAdministration, MedStatus } from '../types';
 import { format, getDaysInMonth, parse } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import { useAuth } from '../contexts/AuthContext';
+import RecordMedModal from './RecordMedModal';
 
 interface Props {
   serviceUser: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
@@ -41,7 +43,10 @@ function initialsFor(rec: MedAdministration): string {
 }
 
 export default function MarChartModal({ serviceUser, onClose }: Props) {
+  const { isManager } = useAuth();
   const [month, setMonth] = useState(format(new Date(), 'yyyy-MM'));
+  // A cell the office is recording/correcting (managers only).
+  const [cell, setCell] = useState<{ med: Medication; time: string; scheduledFor: string; existing: MedAdministration | null } | null>(null);
 
   const monthDate = parse(month, 'yyyy-MM', new Date());
   const daysInMonth = getDaysInMonth(monthDate);
@@ -162,7 +167,9 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10">
           <div>
             <h2 className="text-lg font-semibold">MAR Chart — {serviceUser.firstName} {serviceUser.lastName}</h2>
-            <p className="text-xs text-gray-500">Medication Administration Record · carer initials as signature</p>
+            <p className="text-xs text-gray-500">
+              Medication Administration Record · carer initials as signature{isManager ? ' · click a cell to record or correct a dose' : ''}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="input" />
@@ -204,12 +211,19 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                             if (d > daysInMonth) return <td key={d} className="border border-gray-300 bg-gray-200" />;
                             if (!dueOn(medDays, d)) return <td key={d} className="border border-gray-300 bg-blue-50" />;
                             const rec = recordFor(med.id, d, t);
+                            const [hh, mm] = t.split(':').map(Number);
+                            const scheduledFor = new Date(Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), d, hh, mm, 0)).toISOString();
                             return (
                               <td
                                 key={d}
-                                className="border border-gray-300 text-center font-bold"
+                                className={`border border-gray-300 text-center font-bold ${isManager ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                                 style={rec ? { color: STATUS_COLOR[rec.status] } : undefined}
-                                title={rec ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}` : undefined}
+                                title={
+                                  rec
+                                    ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${isManager ? ' · click to edit' : ''}`
+                                    : isManager ? 'Click to record this dose' : undefined
+                                }
+                                onClick={isManager ? () => setCell({ med, time: t, scheduledFor, existing: rec ?? null }) : undefined}
                               >
                                 {rec ? initialsFor(rec) : ''}
                               </td>
@@ -239,6 +253,16 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
           )}
         </div>
       </div>
+
+      {cell && (
+        <RecordMedModal
+          serviceUser={serviceUser}
+          medication={{ id: cell.med.id, name: cell.med.name, dose: cell.med.dose }}
+          scheduledFor={cell.scheduledFor}
+          existing={cell.existing}
+          onClose={() => setCell(null)}
+        />
+      )}
     </div>
   );
 }

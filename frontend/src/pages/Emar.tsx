@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { medicationsApi } from '../api/medications';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
-import { MedStatus, ServiceUser } from '../types';
+import { MedAdministration, MedStatus, ServiceUser } from '../types';
 import { format } from 'date-fns';
 import MarChartModal from '../components/MarChartModal';
 import EmarModal from '../components/EmarModal';
+import RecordMedModal from '../components/RecordMedModal';
 
 const STATUS_LABEL: Record<MedStatus, string> = {
   GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-admin',
@@ -20,6 +21,7 @@ export default function Emar() {
   const [search, setSearch] = useState('');
   const [marChartFor, setMarChartFor] = useState<{ id: string; firstName: string; lastName: string } | null>(null);
   const [addMedFor, setAddMedFor] = useState<ServiceUser | null>(null);
+  const [editRec, setEditRec] = useState<MedAdministration | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState('');
 
@@ -87,6 +89,7 @@ export default function Emar() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Medication</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
+                {isManager && <th className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -110,11 +113,26 @@ export default function Emar() {
                   </td>
                   <td className="px-4 py-3"><span className={`badge ${STATUS_BADGE[r.status]}`}>{STATUS_LABEL[r.status]}</span></td>
                   <td className="px-4 py-3 text-gray-600">{r.user ? `${r.user.firstName} ${r.user.lastName}` : '—'}</td>
+                  {isManager && (
+                    <td className="px-4 py-3 text-right">
+                      <button className="text-blue-600 hover:underline" onClick={() => setEditRec(r)}>Edit</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {editRec && editRec.serviceUser && editRec.medication && (
+        <RecordMedModal
+          serviceUser={editRec.serviceUser}
+          medication={editRec.medication}
+          scheduledFor={editRec.scheduledFor}
+          existing={editRec}
+          onClose={() => setEditRec(null)}
+        />
       )}
 
       {marChartFor && <MarChartModal serviceUser={marChartFor} onClose={() => setMarChartFor(null)} />}

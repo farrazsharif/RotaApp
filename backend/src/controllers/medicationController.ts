@@ -5,6 +5,11 @@ import { MedStatus } from '../constants';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 
+// Human-readable status words for audit details (matches the portal labels).
+const STATUS_WORD: Record<string, string> = {
+  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered',
+};
+
 // "for <patient name>" suffix for a medication audit entry, or undefined.
 async function forPatient(serviceUserId: string | null | undefined): Promise<string | undefined> {
   if (!serviceUserId) return undefined;
@@ -176,4 +181,51 @@ export async function recordAdministration(req: AuthRequest, res: Response) {
     include: adminInclude,
   });
   res.status(201).json(record);
+}
+
+// Office record/correction from the portal — used when a carer was offline and
+// their entry never reached us, or to fix a wrong one. Unlike the carer path it
+// can attribute the dose to the carer who actually gave it and set the real
+// time given, and every change is audited (a MAR is a legal document). Keyed on
+// medication + scheduled slot, so it both creates a missing record and edits an
+// existing one.
+export async function recordAdministrationByManager(req: AuthRequest, res: Response) {
+  const { medicationId, serviceUserId, scheduledFor, status, note, userId, recordedAt } = req.body as {
+    medicationId?: string; serviceUserId?: string; scheduledFor?: string; status?: string;
+    note?: string; userId?: string | null; recordedAt?: string;
+  };
+  if (!medicationId || !serviceUserId || !scheduledFor || !status) {
+    return res.status(400).json({ error: 'medicationId, serviceUserId, scheduledFor, status required' });
+  }
+  if (!Object.values(MedStatus).includes(status as MedStatus)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  // Attribute to the named carer if given (and only if they're a real user);
+  // null clears it. When omitted, fall back to the office user recording it.
+  let carerId: string | null = req.user!.id;
+  if (userId === null) carerId = null;
+  else if (userId) {
+    const carer = await prisma.user.findFirst({ where: { id: userId }, select: { id: true } });
+    if (!carer) return res.status(400).json({ error: 'Selected carer not found' });
+    carerId = carer.id;
+  }
+  const when = new Date(scheduledFor);
+  const recAt = recordedAt ? new Date(recordedAt) : new Date();
+  const existing = await prisma.medAdministration.findUnique({
+    where: { medicationId_scheduledFor: { medicationId, scheduledFor: when } },
+    select: { id: true },
+  });
+  const record = await prisma.medAdministration.upsert({
+    where: { medicationId_scheduledFor: { medicationId, scheduledFor: when } },
+    update: { status, note: note || null, userId: carerId, recordedAt: recAt },
+    create: { medicationId, serviceUserId, scheduledFor: when, status, note: note || null, userId: carerId, recordedAt: recAt },
+    include: adminInclude,
+  });
+  await logAudit(
+    req,
+    existing ? 'MED_ADMIN_EDITED' : 'MED_ADMIN_RECORDED',
+    `${record.medication.name} @ ${when.toISOString().slice(0, 16).replace('T', ' ')}`,
+    `${STATUS_WORD[status as MedStatus] || status}${(await forPatient(serviceUserId)) || ''}`,
+  );
+  res.status(existing ? 200 : 201).json(record);
 }
