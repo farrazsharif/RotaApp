@@ -6,6 +6,7 @@ import { shiftsApi } from '../api/shifts';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { ClockRecord, Shift } from '../types';
+import RecordVisitModal from '../components/RecordVisitModal';
 import { format, differenceInMinutes, startOfWeek, endOfWeek, subDays, subWeeks } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
@@ -102,6 +103,7 @@ export default function Attendance() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [inValue, setInValue] = useState('');
   const [outValue, setOutValue] = useState('');
+  const [recordShift, setRecordShift] = useState<Shift | null>(null);
 
   // Quick date-range presets. Weeks run Monday–Sunday, matching the default.
   function applyPreset(p: 'today' | 'yesterday' | 'thisweek' | 'lastweek') {
@@ -349,8 +351,17 @@ export default function Attendance() {
                       <td className="px-4 py-3 text-gray-400">—</td>
                       <td className="px-4 py-3 text-gray-400">—</td>
                       <td className="px-4 py-3 text-gray-500">
-                        {s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName} · ` : ''}
-                        {s.visitName ? `${s.visitName} · ` : ''}{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}
+                        <div className="flex items-center justify-between gap-3">
+                          <span>
+                            {s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName} · ` : ''}
+                            {s.visitName ? `${s.visitName} · ` : ''}{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}
+                          </span>
+                          {canEdit && (
+                            <button onClick={() => setRecordShift(s)} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap">
+                              Record visit →
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -430,6 +441,17 @@ export default function Attendance() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {recordShift && (
+        <RecordVisitModal
+          shift={recordShift}
+          carer={{
+            id: (carerId || recordShift.userId || recordShift.coverCarers?.[0]?.id) as string,
+            name: missedCarerName(recordShift),
+          }}
+          onClose={() => setRecordShift(null)}
+        />
       )}
     </div>
   );

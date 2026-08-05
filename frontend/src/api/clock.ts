@@ -12,4 +12,7 @@ export const clockApi = {
     api.get<ClockRecord[]>('/clock/records', { params }).then((r) => r.data),
   updateRecord: (id: string, data: { clockIn?: string; clockOut?: string }) =>
     api.put<ClockRecord>(`/clock/records/${id}`, data).then((r) => r.data),
+  // Office backfill of a missed visit's clock in/out, attributed to the carer.
+  createRecord: (data: { shiftId: string; userId?: string; clockIn: string; clockOut?: string }) =>
+    api.post<ClockRecord>('/clock/records', data).then((r) => r.data),
 };

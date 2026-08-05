@@ -94,6 +94,29 @@ export async function createCallLog(req: AuthRequest, res: Response) {
   res.status(201).json(log);
 }
 
+// Office backfill: a manager records a visit's call log after the fact (carer
+// had no signal). The note is attributed to the carer who did the visit
+// (asUserId) and the change is audited. Creates the log, or updates the visit's
+// existing one.
+export async function createCallLogAsManager(req: AuthRequest, res: Response) {
+  const { serviceUserId, shiftId, note, asUserId } = req.body as { serviceUserId?: string; shiftId?: string; note?: string; asUserId?: string };
+  if (!serviceUserId || !note || !String(note).trim()) {
+    return res.status(400).json({ error: 'serviceUserId and note are required' });
+  }
+  const authorId = asUserId || req.user!.id;
+  const author = await prisma.user.findUnique({ where: { id: authorId }, select: { firstName: true, lastName: true } });
+  const sig: Signature = { userId: authorId, firstName: author?.firstName || '', lastName: author?.lastName || '', signedAt: new Date().toISOString() };
+
+  const existing = shiftId ? await prisma.callLog.findFirst({ where: { shiftId } }) : null;
+  const log = existing
+    ? await prisma.callLog.update({ where: { id: existing.id }, data: { note: String(note).trim(), userId: authorId, signedBy: JSON.stringify([sig]) }, include })
+    : await prisma.callLog.create({ data: { serviceUserId, shiftId: shiftId || null, userId: authorId, note: String(note).trim(), signedBy: JSON.stringify([sig]) }, include });
+
+  const who = log.serviceUser ? `${log.serviceUser.firstName} ${log.serviceUser.lastName}` : 'a service user';
+  await logAudit(req, existing ? 'CALL_LOG_AMENDED' : 'CALL_LOG_ADDED', who, 'Office-entered call log');
+  res.status(existing ? 200 : 201).json(log);
+}
+
 // A co-carer confirms & signs the existing shared log (no retyping).
 export async function signCallLog(req: AuthRequest, res: Response) {
   const existing = await prisma.callLog.findUnique({ where: { id: req.params.id } });

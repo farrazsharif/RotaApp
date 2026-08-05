@@ -386,3 +386,39 @@ export async function updateClockRecord(req: AuthRequest, res: Response) {
 
   res.json(record);
 }
+
+// Office backfill of a missed visit — the carer did the call but couldn't
+// submit (e.g. no signal), so a manager records their clock in/out after the
+// fact. Attributed to the assigned carer and audited.
+export async function createClockRecord(req: AuthRequest, res: Response) {
+  const { shiftId, userId, clockIn, clockOut } = req.body as { shiftId?: string; userId?: string; clockIn?: string; clockOut?: string };
+  if (!shiftId || !clockIn) return res.status(400).json({ error: 'shiftId and clockIn are required' });
+
+  const shift = await prisma.shift.findUnique({
+    where: { id: shiftId },
+    include: { coverCarers: { select: { id: true } } },
+  });
+  if (!shift) return res.status(404).json({ error: 'Visit not found' });
+  const carerId = userId || shift.userId || shift.coverCarers[0]?.id || null;
+  if (!carerId) return res.status(400).json({ error: 'No carer is assigned to this visit' });
+
+  const cin = new Date(clockIn);
+  if (isNaN(cin.getTime())) return res.status(400).json({ error: 'Invalid clock-in time' });
+  let cout: Date | null = null;
+  if (clockOut) {
+    cout = new Date(clockOut);
+    if (isNaN(cout.getTime())) return res.status(400).json({ error: 'Invalid clock-out time' });
+    if (cout.getTime() <= cin.getTime()) return res.status(400).json({ error: 'Clock-out must be after clock-in' });
+    if (cout.getTime() > Date.now() + 60_000) return res.status(400).json({ error: 'Clock-out can’t be in the future' });
+  }
+
+  // If a record already exists for this shift+carer, update it rather than dupe.
+  const existing = await prisma.clockRecord.findFirst({ where: { shiftId, userId: carerId } });
+  const record = existing
+    ? await prisma.clockRecord.update({ where: { id: existing.id }, data: { clockIn: cin, clockOut: cout }, include: { user: { select: { id: true, firstName: true, lastName: true } }, shift: true } })
+    : await prisma.clockRecord.create({ data: { userId: carerId, shiftId, clockIn: cin, clockOut: cout }, include: { user: { select: { id: true, firstName: true, lastName: true } }, shift: true } });
+
+  const who = `${record.user.firstName} ${record.user.lastName}`;
+  await logAudit(req, existing ? 'CLOCK_RECORD_EDITED' : 'CLOCK_RECORD_ADDED', who, `office entry · in ${cin.toISOString()}${cout ? ` · out ${cout.toISOString()}` : ''}`);
+  res.status(existing ? 200 : 201).json(record);
+}
