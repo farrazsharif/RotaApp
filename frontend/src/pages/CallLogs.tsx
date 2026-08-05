@@ -2,10 +2,28 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { callLogsApi } from '../api/callLogs';
 import { serviceUsersApi } from '../api/serviceUsers';
+import { shiftsApi } from '../api/shifts';
 import { useAuth } from '../contexts/AuthContext';
-import { CallLog, CallLogSignature } from '../types';
-import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
+import { CallLog, CallLogSignature, Shift } from '../types';
+import { format, startOfWeek, endOfWeek, subWeeks, subDays } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+
+// Scheduled start/end of a shift (overnight-aware) — for the missing-logs view.
+function schedStart(s: Shift): Date {
+  const b = new Date(s.date);
+  const [h, m] = s.startTime.split(':').map(Number);
+  return new Date(b.getFullYear(), b.getMonth(), b.getDate(), h, m, 0);
+}
+function schedEnd(s: Shift): Date {
+  const b = new Date(s.date);
+  const [sh, sm] = s.startTime.split(':').map(Number);
+  const [eh, em] = s.endTime.split(':').map(Number);
+  const e = new Date(b.getFullYear(), b.getMonth(), b.getDate(), eh, em, 0);
+  if (eh * 60 + em <= sh * 60 + sm) e.setDate(e.getDate() + 1);
+  return e;
+}
+const shiftCarer = (s: Shift): string =>
+  s.user ? `${s.user.firstName} ${s.user.lastName}` : (s.coverCarers?.[0] ? `${s.coverCarers[0].firstName} ${s.coverCarers[0].lastName}` : 'Unassigned');
 
 // Parse the shared-log signatures (JSON) for double/triple-up calls.
 function signaturesFor(log: CallLog): CallLogSignature[] {
@@ -67,6 +85,9 @@ export default function CallLogs() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNote, setEditNote] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'logs' | 'missing'>('logs');
+  const [addingShiftId, setAddingShiftId] = useState<string | null>(null);
+  const [addNote, setAddNote] = useState('');
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['call-logs', 'all'],
@@ -94,7 +115,42 @@ export default function CallLogs() {
     queryFn: () => serviceUsersApi.list(),
   });
 
+  // Missing-logs view: scheduled shifts in the window with no call log. Bound the
+  // shift fetch to the chosen range, defaulting to the last 7 days.
+  const effFrom = from || format(subDays(new Date(), 7), 'yyyy-MM-dd');
+  const effTo = to || format(new Date(), 'yyyy-MM-dd');
+  const { data: shifts = [] } = useQuery({
+    queryKey: ['shifts', 'missing-logs', effFrom, effTo, serviceUserId],
+    queryFn: () => shiftsApi.list({ startDate: effFrom, endDate: effTo, serviceUserId: serviceUserId || undefined }),
+    enabled: mode === 'missing',
+  });
+
+  const createMut = useMutation({
+    mutationFn: ({ shift, note }: { shift: Shift; note: string }) =>
+      callLogsApi.createManage({ serviceUserId: shift.serviceUserId!, shiftId: shift.id, note, asUserId: shift.userId || shift.coverCarers?.[0]?.id }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['call-logs'] });
+      qc.invalidateQueries({ queryKey: ['shifts', 'missing-logs'] });
+      setAddingShiftId(null);
+      setAddNote('');
+    },
+  });
+
   const term = search.trim().toLowerCase();
+
+  // Shifts (assigned, over, not cancelled) that have no call log yet.
+  const loggedShiftIds = useMemo(() => new Set(logs.map((l) => l.shift?.id).filter(Boolean) as string[]), [logs]);
+  const missingShifts = useMemo(() => {
+    const now = Date.now();
+    return shifts
+      .filter((s) =>
+        s.status !== 'CANCELLED' &&
+        (!!s.userId || (s.coverCarers?.length ?? 0) > 0) &&
+        schedEnd(s).getTime() < now &&
+        !loggedShiftIds.has(s.id) &&
+        (!term || [s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : '', shiftCarer(s), s.visitName || ''].join(' ').toLowerCase().includes(term)))
+      .sort((a, b) => schedStart(b).getTime() - schedStart(a).getTime());
+  }, [shifts, loggedShiftIds, term]);
 
   const filtered = useMemo(() => {
     const fromTs = from ? new Date(from + 'T00:00:00').getTime() : null;
@@ -214,6 +270,20 @@ export default function CallLogs() {
       <div className="card space-y-3">
         <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
           {([
+            { k: 'logs', label: 'Logs' },
+            { k: 'missing', label: `Missing logs${mode === 'missing' && missingShifts.length ? ` (${missingShifts.length})` : ''}` },
+          ] as const).map((m) => (
+            <button
+              key={m.k}
+              onClick={() => setMode(m.k)}
+              className={`px-3 py-1.5 border-l first:border-l-0 border-gray-200 ${mode === m.k ? (m.k === 'missing' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white') : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm ml-2">
+          {([
             { k: 'today', label: 'Today' },
             { k: 'thisweek', label: 'This week' },
             { k: 'lastweek', label: 'Last week' },
@@ -255,11 +325,67 @@ export default function CallLogs() {
         </div>
       </div>
 
-      <p className="text-sm text-gray-500">
-        {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'} across {groups.length} service user{groups.length === 1 ? '' : 's'}
-      </p>
+      {mode === 'missing' ? (
+        <p className="text-sm text-gray-500">
+          {missingShifts.length} shift{missingShifts.length === 1 ? '' : 's'} with no call log · {format(new Date(effFrom), 'dd MMM')}–{format(new Date(effTo), 'dd MMM yyyy')}
+        </p>
+      ) : (
+        <p className="text-sm text-gray-500">
+          {filtered.length} {filtered.length === 1 ? 'entry' : 'entries'} across {groups.length} service user{groups.length === 1 ? '' : 's'}
+        </p>
+      )}
 
-      {sorted.length === 0 ? (
+      {mode === 'missing' ? (
+        missingShifts.length === 0 ? (
+          <div className="card text-center py-12 text-gray-400">
+            <p className="text-4xl mb-3">✅</p>
+            <p>No missing call logs in this period — every past visit has a log.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {missingShifts.map((s) => (
+              <div key={s.id} className="card border-l-4 border-red-300">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Client'}
+                    <span className="ml-2 badge-red badge">No log</span>
+                  </p>
+                  <span className="text-xs text-gray-500">{format(schedStart(s), 'EEE dd MMM yyyy')}</span>
+                </div>
+                <p className="text-sm font-medium text-gray-700">Carer: {shiftCarer(s)}</p>
+                <p className="text-xs text-gray-500 mb-2">
+                  Visit time {formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}{s.visitName ? ` · ${s.visitName}` : ''}
+                </p>
+                {addingShiftId === s.id ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={addNote}
+                      onChange={(e) => setAddNote(e.target.value)}
+                      rows={3}
+                      className="input w-full"
+                      placeholder="What the carer did on this visit… (entered by office — carer had no signal)"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        className="btn-primary btn btn-sm"
+                        disabled={!addNote.trim() || createMut.isPending}
+                        onClick={() => createMut.mutate({ shift: s, note: addNote.trim() })}
+                      >
+                        {createMut.isPending ? 'Saving…' : 'Save log'}
+                      </button>
+                      <button className="btn-secondary btn btn-sm" onClick={() => { setAddingShiftId(null); setAddNote(''); }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="text-sm font-medium text-blue-600 hover:underline" onClick={() => { setAddingShiftId(s.id); setAddNote(''); }}>
+                    + Add call log
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      ) : sorted.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">No call logs found</div>
       ) : (
         <div className="space-y-3">
