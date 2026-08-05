@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { clockApi } from '../api/clock';
 import { usersApi } from '../api/users';
+import { shiftsApi } from '../api/shifts';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
-import { ClockRecord } from '../types';
+import { ClockRecord, Shift } from '../types';
 import { format, differenceInMinutes, startOfWeek, endOfWeek, subDays, subWeeks } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
@@ -71,6 +72,21 @@ function isShortVisit(r: ClockRecord): boolean {
 
 const dtLocal = (d: Date) => format(d, "yyyy-MM-dd'T'HH:mm");
 
+// Scheduled start/end of a shift (overnight-aware), for spotting missed visits.
+function scheduledStart(s: Shift): Date {
+  const base = new Date(s.date);
+  const [h, m] = s.startTime.split(':').map(Number);
+  return new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0);
+}
+function scheduledEnd(s: Shift): Date {
+  const base = new Date(s.date);
+  const [sh, sm] = s.startTime.split(':').map(Number);
+  const [eh, em] = s.endTime.split(':').map(Number);
+  const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), eh, em, 0);
+  if (eh * 60 + em <= sh * 60 + sm) end.setDate(end.getDate() + 1);
+  return end;
+}
+
 export default function Attendance() {
   const { isManager } = useAuth();
   const { can } = usePermissions();
@@ -81,7 +97,7 @@ export default function Attendance() {
   const [endDate, setEndDate] = useState(format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'));
   const [carerId, setCarerId] = useState('');
   const [preset, setPreset] = useState<'today' | 'yesterday' | 'thisweek' | 'lastweek' | 'custom'>('thisweek');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'missing' | 'short'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'missing' | 'short' | 'missed'>('all');
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [inValue, setInValue] = useState('');
@@ -110,6 +126,13 @@ export default function Attendance() {
   const { data: records = [], isLoading } = useQuery({
     queryKey: ['clock-records', startDate, endDate, carerId],
     queryFn: () => clockApi.records({ startDate, endDate, userId: carerId || undefined }),
+  });
+
+  // Scheduled visits in the same window, so we can surface ones that were never
+  // attended (assigned, already over, but with no clock-in) as "Missed".
+  const { data: shifts = [] } = useQuery({
+    queryKey: ['shifts', 'attendance', startDate, endDate, carerId],
+    queryFn: () => shiftsApi.list({ startDate, endDate, userId: carerId || undefined }),
   });
 
   const { data: carers = [] } = useQuery({
@@ -170,13 +193,36 @@ export default function Attendance() {
   const missingCount = records.filter((r) => !r.clockOut).length;
   const shortCount = records.filter(isShortVisit).length;
 
-  // The status filter narrows the visible rows; the stats above still summarise
-  // the whole period.
-  const visibleRecords = records.filter((r) => {
-    if (statusFilter === 'missing') return !r.clockOut;
-    if (statusFilter === 'short') return isShortVisit(r);
-    return true;
-  });
+  // Missed visits: an assigned, non-cancelled shift whose scheduled end has
+  // passed but that has no clock-in at all. When a carer is selected these are
+  // that carer's own shifts; otherwise a shift nobody clocked into.
+  const attendedShiftIds = new Set(records.map((r) => r.shift?.id).filter(Boolean) as string[]);
+  const isAssigned = (s: Shift) => !!s.userId || (s.coverCarers?.length ?? 0) > 0;
+  const now = Date.now();
+  const missedShifts = shifts.filter(
+    (s) => s.status !== 'CANCELLED' && isAssigned(s) && !attendedShiftIds.has(s.id) && scheduledEnd(s).getTime() < now,
+  );
+  const missedCount = missedShifts.length;
+
+  const selectedCarerName = (() => {
+    const c = carerId ? carers.find((x) => x.id === carerId) : null;
+    return c ? `${c.firstName} ${c.lastName}` : '';
+  })();
+  const missedCarerName = (s: Shift) =>
+    selectedCarerName || (s.user ? `${s.user.firstName} ${s.user.lastName}` : (s.coverCarers?.[0] ? `${s.coverCarers[0].firstName} ${s.coverCarers[0].lastName}` : '—'));
+
+  // Unified, newest-first row list. Clock records and missed visits share the
+  // table; the status filter narrows which appear (stats above still summarise
+  // the whole period).
+  type Row = { key: string; t: number; kind: 'rec'; rec: ClockRecord } | { key: string; t: number; kind: 'missed'; shift: Shift };
+  const recRows: Row[] = records.map((r) => ({ key: r.id, t: new Date(r.clockIn).getTime(), kind: 'rec', rec: r }));
+  const missedRows: Row[] = missedShifts.map((s) => ({ key: `missed-${s.id}`, t: scheduledStart(s).getTime(), kind: 'missed', shift: s }));
+  let rows: Row[];
+  if (statusFilter === 'missed') rows = missedRows;
+  else if (statusFilter === 'missing') rows = recRows.filter((x) => x.kind === 'rec' && !x.rec.clockOut);
+  else if (statusFilter === 'short') rows = recRows.filter((x) => x.kind === 'rec' && isShortVisit(x.rec));
+  else rows = [...recRows, ...missedRows];
+  rows = rows.sort((a, b) => b.t - a.t);
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
@@ -207,6 +253,7 @@ export default function Attendance() {
             <div className="sm:ml-auto inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
               {([
                 { k: 'all', label: 'All', on: 'bg-gray-900 text-white' },
+                { k: 'missed', label: `Missed${missedCount ? ` (${missedCount})` : ''}`, on: 'bg-red-600 text-white' },
                 { k: 'missing', label: `No clock-out${missingCount ? ` (${missingCount})` : ''}`, on: 'bg-amber-600 text-white' },
                 { k: 'short', label: `Short visits${shortCount ? ` (${shortCount})` : ''}`, on: 'bg-red-600 text-white' },
               ] as const).map((s) => (
@@ -243,6 +290,12 @@ export default function Attendance() {
           </div>
         )}
         <div className="ml-auto flex gap-6 text-right">
+          {isManager && missedCount > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Missed</p>
+              <p className="text-2xl font-bold text-red-600">{missedCount}</p>
+            </div>
+          )}
           {isManager && missingCount > 0 && (
             <div>
               <p className="text-xs text-gray-500 uppercase tracking-wide">No clock-out</p>
@@ -263,10 +316,10 @@ export default function Attendance() {
         </div>
       </div>
 
-      {records.length === 0 ? (
+      {records.length === 0 && missedShifts.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
           <p className="text-4xl mb-3">⏱️</p>
-          <p>No clock records for this period</p>
+          <p>No clock records or missed visits for this period</p>
         </div>
       ) : (
         <div className="card p-0 overflow-x-auto">
@@ -282,10 +335,27 @@ export default function Attendance() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {visibleRecords.length === 0 && (
+              {rows.length === 0 && (
                 <tr><td colSpan={isManager ? 6 : 5} className="px-4 py-10 text-center text-gray-400">No records match this filter.</td></tr>
               )}
-              {visibleRecords.map((r: ClockRecord) => {
+              {rows.map((row) => {
+                if (row.kind === 'missed') {
+                  const s = row.shift;
+                  return (
+                    <tr key={row.key} className="bg-red-50 hover:bg-red-100/60">
+                      {isManager && <td className="px-4 py-3 font-medium">{missedCarerName(s)}</td>}
+                      <td className="px-4 py-3 text-gray-600">{format(scheduledStart(s), 'EEE dd MMM')}</td>
+                      <td className="px-4 py-3"><span className="badge-red badge">Missed</span></td>
+                      <td className="px-4 py-3 text-gray-400">—</td>
+                      <td className="px-4 py-3 text-gray-400">—</td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName} · ` : ''}
+                        {s.visitName ? `${s.visitName} · ` : ''}{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}
+                      </td>
+                    </tr>
+                  );
+                }
+                const r = row.rec;
                 const missed = isMissedClockOut(r);
                 const short = isShortVisit(r);
                 const editing = editingId === r.id;
