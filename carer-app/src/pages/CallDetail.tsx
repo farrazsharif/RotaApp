@@ -374,6 +374,12 @@ export default function CallDetail() {
 
   const su = shift.serviceUser;
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
+  // Other carers on this same call (double/triple-up) — so the carer can see who
+  // they're working alongside. Excludes themselves.
+  const coCarers = [
+    shift.user && shift.user.id !== user?.id ? shift.user : null,
+    ...(shift.coverCarers ?? []).filter((c) => c.id !== user?.id),
+  ].filter(Boolean) as { id: string; firstName: string; lastName: string }[];
   const clockedInElsewhere = !!clockStatus?.clockedIn && clockStatus.record?.shiftId !== shift.id;
   const done = isCallDone(shift, user?.id);
   const shiftIsToday = isToday(new Date(shift.date));
@@ -395,6 +401,16 @@ export default function CallDetail() {
             {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Visit Completed</span>}
           </div>
           {shift.visitName && <p className="font-semibold text-gray-800">{shift.visitName}</p>}
+          {coCarers.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-medium text-gray-500">👥 Working with</span>
+              {coCarers.map((c) => (
+                <span key={c.id} className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                  {c.firstName} {c.lastName}
+                </span>
+              ))}
+            </div>
+          )}
           {su?.address && (
             <p className="text-sm mt-1">
               <a
