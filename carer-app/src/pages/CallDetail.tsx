@@ -196,7 +196,13 @@ export default function CallDetail() {
     if (!sharedLog?.signedBy) return [];
     try { const v = JSON.parse(sharedLog.signedBy); return Array.isArray(v) ? v : []; } catch { return []; }
   })();
-  const carerCount = shift?.cover && shift.cover > 1 ? shift.cover : 1;
+  // A call is a "shared" (double/triple-up) log only when 2+ carers are actually
+  // assigned to THIS shift — not merely because the cover target is set >1. This
+  // keeps two separate single-carer visits (even overlapping ones, e.g. a 1-hour
+  // Bed Call and a 10-hour Night Call at the same start) as independent logs, so
+  // each carer writes and signs their own note.
+  const assignedCarerCount = (shift?.userId ? 1 : 0) + (shift?.coverCarers?.length ?? 0);
+  const carerCount = Math.max(assignedCarerCount, 1);
   const isSharedCall = carerCount > 1;
   const iSigned = !!sharedLog && (sharedLog.userId === user?.id || signatures.some((s) => s.userId === user?.id));
   // A carer can clock out once they've written or signed this visit's log.
