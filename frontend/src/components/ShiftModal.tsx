@@ -103,6 +103,8 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelScope, setCancelScope] = useState<'one' | 'future' | 'days'>('one');
   const [cancelDays, setCancelDays] = useState<number[]>([]);
+  // Optional end date for cancel/delete "certain weekdays" — blank means onward.
+  const [cancelUntil, setCancelUntil] = useState('');
   const [cancelBilling, setCancelBilling] = useState<CancelBillingValue>(emptyCancelBilling);
   const [cancelMode, setCancelMode] = useState<'cancel' | 'delete'>('cancel');
   const [seriesUpdateOpen, setSeriesUpdateOpen] = useState(false);
@@ -735,6 +737,12 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                         ))}
                       </div>
                     )}
+                    {cancelScope === 'days' && (
+                      <label className="flex items-center gap-2 pl-6 text-xs text-gray-600">
+                        Until <span className="text-gray-400">(optional)</span>
+                        <input type="date" value={cancelUntil} onChange={(e) => setCancelUntil(e.target.value)} className="input py-1 text-xs" />
+                      </label>
+                    )}
                     <label className="flex items-center gap-2">
                       <input type="radio" name="cancelScope" checked={cancelScope === 'future'} onChange={() => setCancelScope('future')} />
                       All future shifts in this series
@@ -747,7 +755,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                 <button
                   type="button"
                   disabled={deleteMut.isPending || (cancelScope === 'days' && cancelDays.length === 0)}
-                  onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined })}
+                  onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined, until: cancelScope === 'days' ? (cancelUntil || undefined) : undefined })}
                   className="btn-danger btn btn-sm"
                 >
                   {deleteMut.isPending ? 'Cancelling…' : 'Confirm Cancel'}
@@ -996,6 +1004,12 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                             ))}
                           </div>
                         )}
+                        {cancelScope === 'days' && (
+                          <label className="flex items-center gap-2 pl-6 text-xs text-gray-600">
+                            Until <span className="text-gray-400">(optional)</span>
+                            <input type="date" value={cancelUntil} onChange={(e) => setCancelUntil(e.target.value)} className="input py-1 text-xs" />
+                          </label>
+                        )}
                         <label className="flex items-center gap-2">
                           <input type="radio" name="cancelScope" checked={cancelScope === 'future'} onChange={() => setCancelScope('future')} />
                           All future shifts in this series
@@ -1019,7 +1033,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                       <button
                         type="button"
                         disabled={deleteMut.isPending || (cancelScope === 'days' && cancelDays.length === 0)}
-                        onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined, hard: true })}
+                        onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined, until: cancelScope === 'days' ? (cancelUntil || undefined) : undefined, hard: true })}
                         className="btn-danger btn btn-sm"
                       >
                         {deleteMut.isPending ? 'Deleting…' : 'Delete Permanently'}
@@ -1028,7 +1042,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                       <button
                         type="button"
                         disabled={deleteMut.isPending || (cancelScope === 'days' && cancelDays.length === 0)}
-                        onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined, ...toCancelBilling(cancelBilling) })}
+                        onClick={() => deleteMut.mutate({ scope: cancelScope, days: cancelScope === 'days' ? cancelDays : undefined, until: cancelScope === 'days' ? (cancelUntil || undefined) : undefined, ...toCancelBilling(cancelBilling) })}
                         className="btn-danger btn btn-sm"
                       >
                         {deleteMut.isPending ? 'Cancelling…' : cancelBilling.billable ? 'Confirm Cancel (chargeable)' : 'Confirm Cancel'}

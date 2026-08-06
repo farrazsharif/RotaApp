@@ -63,12 +63,13 @@ export const shiftsApi = {
   ) => api.put<Shift>(`/shifts/${id}`, data).then((r) => r.data),
   // hard: true permanently removes the shift (created-in-error); otherwise it's
   // a cancellation that keeps a CANCELLED record with the billing choice.
-  delete: (id: string, opts?: { scope?: 'one' | 'future' | 'days'; days?: number[]; hard?: boolean } & CancelBilling) =>
+  delete: (id: string, opts?: { scope?: 'one' | 'future' | 'days'; days?: number[]; until?: string; hard?: boolean } & CancelBilling) =>
     api
       .delete(`/shifts/${id}`, {
         params: {
           scope: opts?.scope,
           days: opts?.days && opts.days.length ? opts.days.join(',') : undefined,
+          until: opts?.until || undefined,
           hard: opts?.hard ? '1' : undefined,
           billable: !opts?.hard && opts?.billable ? '1' : undefined,
           chargeType: !opts?.hard && opts?.billable ? opts?.chargeType : undefined,

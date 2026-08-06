@@ -376,6 +376,8 @@ export async function deleteShift(req: AuthRequest, res: Response) {
     .split(',')
     .filter(Boolean)
     .map(Number);
+  // Optional end date for the "certain weekdays" scope — blank means onward.
+  const until = req.query.until ? new Date(`${String(req.query.until)}T23:59:59`) : null;
 
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id } });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
@@ -391,7 +393,9 @@ export async function deleteShift(req: AuthRequest, res: Response) {
     if (scope === 'future') {
       idsToCancel = laterInSeries.map((s) => s.id);
     } else if (scope === 'days') {
-      idsToCancel = laterInSeries.filter((s) => days.includes(new Date(s.date).getDay())).map((s) => s.id);
+      idsToCancel = laterInSeries
+        .filter((s) => days.includes(new Date(s.date).getDay()) && (!until || new Date(s.date) <= until))
+        .map((s) => s.id);
     }
   }
 
