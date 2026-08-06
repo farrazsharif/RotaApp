@@ -159,11 +159,13 @@ export default function CallDetail() {
     refetchInterval: 15000,
   });
 
+  // The visit's doses (with recorded status), by shift — stays available after
+  // the call is completed so the carer can review what was given.
   const { data: dueMeds = [] } = useQuery({
-    queryKey: ['due-meds'],
-    queryFn: clockApi.dueMeds,
-    enabled: !!clockStatus?.clockedIn,
-    refetchInterval: 15000,
+    queryKey: ['shift-meds', id],
+    queryFn: () => clockApi.shiftMeds(id!),
+    enabled: !!id,
+    refetchInterval: () => (clockStatus?.clockedIn ? 15000 : false),
   });
 
   const clockedIn = !!clockStatus?.clockedIn && clockStatus.record?.shiftId === shift?.id;
@@ -212,7 +214,7 @@ export default function CallDetail() {
     mutationFn: () => clockApi.clockIn(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clock-status'] });
-      qc.invalidateQueries({ queryKey: ['due-meds'] });
+      qc.invalidateQueries({ queryKey: ['shift-meds', id] });
     },
   });
 
@@ -252,12 +254,12 @@ export default function CallDetail() {
           }),
         ),
       ),
-    onSuccess: () => { setPicks({}); qc.invalidateQueries({ queryKey: ['due-meds'] }); },
+    onSuccess: () => { setPicks({}); qc.invalidateQueries({ queryKey: ['shift-meds', id] }); },
     onError: () => alert('Could not save the medication. Please try again.'),
   });
 
   // One dose card — used for both scheduled doses and as-required (PRN) meds.
-  const renderDose = (dose: DueDose) => (
+  const renderDose = (dose: DueDose, interactive: boolean) => (
     <div key={`${dose.medicationId}-${dose.scheduledFor}`} className="border border-gray-100 rounded-xl p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="font-medium text-gray-800 flex items-center gap-1.5 flex-wrap">
@@ -277,6 +279,8 @@ export default function CallDetail() {
           ✓ {STATUS_LABEL[dose.status] || dose.status}
           {dose.recordedAt && <span className="text-gray-400 font-normal"> at {format(new Date(dose.recordedAt), 'h:mm a')}</span>}
         </p>
+      ) : !interactive ? (
+        <p className="text-sm font-medium text-gray-400 mt-2">Not recorded</p>
       ) : (() => {
         const key = `${dose.medicationId}__${dose.scheduledFor}`;
         const picked = picks[key]?.status;
@@ -592,21 +596,23 @@ export default function CallDetail() {
           </div>
         )}
 
-        {/* Medication */}
-        {!done && clockedIn && (
+        {/* Medication — interactive while on the call; read-only afterwards so
+            the carer can check what was given. */}
+        {(clockedIn || (done && dueMeds.length > 0)) && (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-            <h2 className="font-semibold text-gray-800 mb-2">Medication Due</h2>
+            <h2 className="font-semibold text-gray-800 mb-1">{done ? 'Medication record' : 'Medication Due'}</h2>
+            {done && dueMeds.length > 0 && <p className="text-xs text-gray-400 mb-2">What was given on this visit.</p>}
             {dueMeds.length === 0 ? (
               <p className="text-sm text-gray-400">No medication due for this visit.</p>
             ) : (
               <>
                 <div className="space-y-3">
-                  {dueMeds.filter((d) => !d.prn).map(renderDose)}
+                  {dueMeds.filter((d) => !d.prn).map((d) => renderDose(d, clockedIn && !done))}
                   {dueMeds.some((d) => d.prn) && (
                     <div className="pt-1">
-                      <p className="text-xs font-semibold text-gray-500 mb-2">As required (PRN) — record only if given</p>
+                      <p className="text-xs font-semibold text-gray-500 mb-2">As required (PRN){clockedIn && !done ? ' — record only if given' : ''}</p>
                       <div className="space-y-3">
-                        {dueMeds.filter((d) => d.prn).map(renderDose)}
+                        {dueMeds.filter((d) => d.prn).map((d) => renderDose(d, clockedIn && !done))}
                       </div>
                     </div>
                   )}

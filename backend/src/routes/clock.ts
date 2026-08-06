@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { clockIn, clockOut, getClockStatus, listClockRecords, listActiveClockRecords, updateClockRecord, createClockRecord, setClockTimes, myCalls, dueMeds } from '../controllers/clockController';
+import { clockIn, clockOut, getClockStatus, listClockRecords, listActiveClockRecords, updateClockRecord, createClockRecord, setClockTimes, myCalls, dueMeds, shiftMeds } from '../controllers/clockController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 
@@ -9,6 +9,7 @@ router.use(authenticate);
 
 router.get('/my-calls', myCalls);
 router.get('/due-meds', dueMeds);
+router.get('/shift-meds/:shiftId', shiftMeds);
 router.post('/in', clockIn);
 router.post('/out', clockOut);
 router.get('/status', getClockStatus);

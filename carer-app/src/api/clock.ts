@@ -5,6 +5,9 @@ export const clockApi = {
   myCalls: (date?: string) =>
     api.get<Shift[]>('/clock/my-calls', { params: date ? { date } : {} }).then((r) => r.data),
   dueMeds: () => api.get<{ doses: DueDose[] }>('/clock/due-meds').then((r) => r.data.doses),
+  // A specific visit's doses (with recorded status) regardless of clock state —
+  // so meds stay visible for review after the call is completed.
+  shiftMeds: (shiftId: string) => api.get<{ doses: DueDose[] }>(`/clock/shift-meds/${shiftId}`).then((r) => r.data.doses),
   status: () => api.get<{ clockedIn: boolean; record: ClockRecord | null }>('/clock/status').then((r) => r.data),
   clockIn: (shiftId?: string) => api.post<ClockRecord>('/clock/in', shiftId ? { shiftId } : {}).then((r) => r.data),
   clockOut: () => api.post<ClockRecord>('/clock/out').then((r) => r.data),

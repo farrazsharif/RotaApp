@@ -159,6 +159,22 @@ export async function dueMeds(req: AuthRequest, res: Response) {
   res.json({ doses });
 }
 
+// GET /clock/shift-meds/:shiftId — a specific visit's doses (with recorded
+// status), independent of clock state, so the carer can still see what was
+// given after the call is completed. Only a carer on the visit may view it.
+export async function shiftMeds(req: AuthRequest, res: Response) {
+  const { shiftId } = req.params;
+  const shift = await prisma.shift.findUnique({
+    where: { id: shiftId },
+    select: { userId: true, coverCarers: { select: { id: true } } },
+  });
+  if (!shift) return res.json({ doses: [] });
+  const onShift = shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id);
+  if (!onShift) return res.status(403).json({ error: 'You are not assigned to this visit' });
+  const doses = await dueDosesForShift(shiftId);
+  res.json({ doses });
+}
+
 export async function clockIn(req: AuthRequest, res: Response) {
   const { shiftId } = req.body;
 
