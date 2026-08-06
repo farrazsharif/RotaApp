@@ -106,6 +106,8 @@ export default function Schedule() {
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
   const [search, setSearch] = useState('');
   const [assignFilter, setAssignFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+  const [visitFilter, setVisitFilter] = useState<string[]>([]); // selected call types; empty = all
+  const [callMenuOpen, setCallMenuOpen] = useState(false);
   const [pubResult, setPubResult] = useState<string | null>(null);
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
   const [cancelAllBilling, setCancelAllBilling] = useState<CancelBillingValue>(emptyCancelBilling);
@@ -229,12 +231,25 @@ export default function Schedule() {
       && statusAtShift(s.serviceUser, s.date, s.startTime) !== 'DECEASED',
   );
 
+  // Call-type (visit name) options from what's actually scheduled, ordered by the
+  // usual day sequence (Morning → Bed) then any custom names alphabetically.
+  const VISIT_ORDER = ['Morning Call', 'Lunch Call', 'Tea Call', 'Bed Call', 'Night Call'];
+  const visitNameOptions = useMemo(() => {
+    const names = Array.from(new Set(notCancelled.map((s) => s.visitName).filter(Boolean) as string[]));
+    return names.sort((a, b) => {
+      const ia = VISIT_ORDER.indexOf(a), ib = VISIT_ORDER.indexOf(b);
+      if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      return a.localeCompare(b);
+    });
+  }, [notCancelled]);
+
   const activeShifts = notCancelled
     .filter((s) => {
       if (assignFilter === 'assigned') return !needsStaff(s);
       if (assignFilter === 'unassigned') return needsStaff(s);
       return true;
     })
+    .filter((s) => visitFilter.length === 0 || (s.visitName ? visitFilter.includes(s.visitName) : false))
     .filter((s) => {
       if (!term) return true;
       const names = [
@@ -550,6 +565,45 @@ export default function Schedule() {
                   {opt.label}
                 </button>
               ))}
+            </div>
+
+            {/* Call-type filter — multi-select checkboxes */}
+            <div className="relative">
+              <button
+                onClick={() => setCallMenuOpen((o) => !o)}
+                className={`btn btn-sm inline-flex items-center gap-1.5 ${visitFilter.length ? 'btn-primary' : 'btn-secondary'}`}
+              >
+                {visitFilter.length ? `Call type · ${visitFilter.length}` : 'Call type'}
+                <span className="text-xs">▾</span>
+              </button>
+              {callMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setCallMenuOpen(false)} />
+                  <div className="absolute left-0 mt-1 w-56 max-h-72 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-20 p-2 text-sm">
+                    <div className="flex items-center justify-between px-1 pb-1.5 mb-1 border-b border-gray-100">
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Call type</span>
+                      {visitFilter.length > 0 && (
+                        <button className="text-xs text-blue-600 hover:underline" onClick={() => setVisitFilter([])}>Clear</button>
+                      )}
+                    </div>
+                    {visitNameOptions.length === 0 ? (
+                      <p className="px-1 py-2 text-gray-400">No calls in view</p>
+                    ) : (
+                      visitNameOptions.map((name) => (
+                        <label key={name} className="flex items-center gap-2 px-1 py-1.5 rounded hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={visitFilter.includes(name)}
+                            onChange={() => setVisitFilter((cur) => cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name])}
+                            className="h-4 w-4 accent-blue-600"
+                          />
+                          <span className="text-gray-700">{name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
