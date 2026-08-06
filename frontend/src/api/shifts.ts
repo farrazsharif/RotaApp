@@ -9,6 +9,12 @@ export interface ShiftFilters {
   includeCover?: boolean;
 }
 
+// Before-state of an assignment change, returned by assignCarer so the client
+// can offer a one-click Undo.
+export interface AssignUndo {
+  shifts: { id: string; userId: string | null; coverCarerIds: string[] }[];
+}
+
 // Cancellation billing: a cancelled visit may still be chargeable, priced as
 // the full visit, a percentage of it, or a custom flat amount.
 export interface CancelBilling {
@@ -80,5 +86,8 @@ export const shiftsApi = {
   publishBulk: (ids: string[], opts?: { notify?: 'none' | 'carers' | 'all'; message?: string }) =>
     api.post<{ message: string; count: number; skipped: number }>('/shifts/publish-bulk', { ids, ...(opts || {}) }).then((r) => r.data),
   assignCarer: (id: string, body: { userId?: string | null; coverCarerIds?: string[]; scope?: 'one' | 'future' | 'days' | 'range'; days?: number[]; fromDate?: string; toDate?: string }) =>
-    api.post<{ message: string; count: number }>(`/shifts/${id}/assign`, body).then((r) => r.data),
+    api.post<{ message: string; count: number; undo?: AssignUndo }>(`/shifts/${id}/assign`, body).then((r) => r.data),
+  // Revert a bulk assign/unassign to the before-state returned by assignCarer.
+  restoreAssignments: (undo: AssignUndo) =>
+    api.post<{ message: string; count: number }>('/shifts/restore-assignments', undo).then((r) => r.data),
 };

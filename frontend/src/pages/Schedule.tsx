@@ -6,7 +6,7 @@ import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
 import { EventClickArg, EventContentArg, EventDropArg } from '@fullcalendar/core';
 import enGbLocale from '@fullcalendar/core/locales/en-gb';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { shiftsApi, CancelBilling } from '../api/shifts';
+import { shiftsApi, CancelBilling, AssignUndo } from '../api/shifts';
 import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
@@ -101,6 +101,7 @@ export default function Schedule() {
   const calRef = useRef<FullCalendar>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [undoInfo, setUndoInfo] = useState<{ payload: AssignUndo; summary: string } | null>(null);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
   const [search, setSearch] = useState('');
@@ -166,6 +167,11 @@ export default function Schedule() {
   const cancelAllMut = useMutation({
     mutationFn: ({ ids, billing }: { ids: string[]; billing?: CancelBilling }) => shiftsApi.cancelBulk(ids, billing),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
+  });
+  const restoreMut = useMutation({
+    mutationFn: (payload: AssignUndo) => shiftsApi.restoreAssignments(payload),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['shifts'] }); setUndoInfo(null); },
+    onError: () => alert('Could not undo the change. You can re-assign the carer manually.'),
   });
   const publishAllMut = useMutation({
     mutationFn: (v: { ids: string[]; notify: 'none' | 'carers' | 'all'; message: string }) =>
@@ -671,7 +677,23 @@ export default function Schedule() {
           shift={selectedShift}
           defaultDate={selectedDate}
           onClose={() => { setModalOpen(false); setSelectedShift(null); }}
+          onAssignUndo={(payload, summary) => setUndoInfo({ payload, summary })}
         />
+      )}
+
+      {/* Undo the last bulk carer change (e.g. an accidental "all future" unassign). */}
+      {undoInfo && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-3 bg-gray-900 text-white rounded-xl shadow-lg px-4 py-3 max-w-[92vw]">
+          <span className="text-sm">{undoInfo.summary}</span>
+          <button
+            onClick={() => restoreMut.mutate(undoInfo.payload)}
+            disabled={restoreMut.isPending}
+            className="text-sm font-semibold text-blue-300 hover:text-blue-200 disabled:opacity-50 whitespace-nowrap"
+          >
+            {restoreMut.isPending ? 'Undoing…' : '↩ Undo'}
+          </button>
+          <button onClick={() => setUndoInfo(null)} className="text-gray-400 hover:text-white text-lg leading-none" aria-label="Dismiss">×</button>
+        </div>
       )}
 
       {publishOpen && (

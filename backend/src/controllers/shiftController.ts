@@ -488,9 +488,13 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
     await applyCoverCarersChunked([shift.id], { coverCarers: { set: connectSet } });
   }
 
+  // Before-state of every touched shift, so the client can offer a one-click
+  // Undo (e.g. after unassigning "all future" by mistake). Restored verbatim.
+  const undoShifts = beforeShifts.map((s) => ({ id: s.id, userId: s.userId ?? null, coverCarerIds: s.coverCarers.map((c) => c.id) }));
+
   // Respond as soon as the assignment (and the opened shift's cover) is saved.
   if (ids.length > 20) console.log(`[shift] assignCarer scope=${scope} count=${ids.length} cover=${!!(connectSet && connectSet.length)} primary-ms=${Date.now() - t0}`);
-  res.json({ message: 'Assigned', count: ids.length });
+  res.json({ message: 'Assigned', count: ids.length, undo: { shifts: undoShifts } });
 
   // Fan the cover carers (a per-shift many-to-many that can't be done in a
   // single query) out to the REST of the series in the background, so a large
@@ -539,6 +543,50 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
       .catch((e) => console.error('assignCarer background fan-out failed:', e));
 
   if (companyId) runWithCompany(companyId, runFanout); else runFanout();
+}
+
+// Undo an assignment change: put each shift's primary + cover carers back to the
+// exact before-state returned by the assign call. Used by the "Undo" button on
+// the schedule after a bulk assign/unassign.
+export async function restoreShiftAssignments(req: AuthRequest, res: Response) {
+  const { shifts } = req.body as { shifts?: { id: string; userId: string | null; coverCarerIds: string[] }[] };
+  if (!Array.isArray(shifts) || shifts.length === 0) return res.status(400).json({ error: 'shifts array required' });
+
+  // Only touch shifts in the caller's scope (tenant + site).
+  const found = await prisma.shift.findMany({
+    where: { id: { in: shifts.map((s) => s.id) } },
+    select: { id: true, serviceUserId: true },
+  });
+  const inScope = new Set<string>();
+  for (const f of found) {
+    if (await serviceUserInScope(req.user, f.serviceUserId)) inScope.add(f.id);
+  }
+  const targets = shifts.filter((s) => inScope.has(s.id));
+  if (targets.length === 0) return res.status(404).json({ error: 'No matching shifts' });
+
+  // Restore the primary carer, grouped by userId so it's a few updateMany calls.
+  const byUser = new Map<string | null, string[]>();
+  for (const s of targets) {
+    const k = s.userId ?? null;
+    (byUser.get(k) ?? byUser.set(k, []).get(k)!).push(s.id);
+  }
+  for (const [uid, sids] of byUser) {
+    await prisma.shift.updateMany({ where: { id: { in: sids } }, data: { userId: uid } });
+  }
+  // Restore cover carers, grouped by identical cover sets to chunk the m2m writes.
+  const byCover = new Map<string, string[]>();
+  for (const s of targets) {
+    const key = [...s.coverCarerIds].sort().join(',');
+    (byCover.get(key) ?? byCover.set(key, []).get(key)!).push(s.id);
+  }
+  for (const [key, sids] of byCover) {
+    const cover = key ? key.split(',').map((id) => ({ id })) : [];
+    await applyCoverCarersChunked(sids, { coverCarers: { set: cover } });
+  }
+
+  await logAudit(req, 'SHIFT_ASSIGNMENT_RESTORED', `${targets.length} visit${targets.length > 1 ? 's' : ''}`, 'Undo assignment change');
+  if (req.user!.companyId) emitToCompany(req.user!.companyId, 'data:changed', { resource: '/api/shifts' });
+  res.json({ message: 'Restored', count: targets.length });
 }
 
 // Cancel many shifts at once (e.g. everything currently shown on the schedule).

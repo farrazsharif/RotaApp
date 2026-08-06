@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { shiftsApi, CreateShiftData } from '../api/shifts';
+import { shiftsApi, CreateShiftData, AssignUndo } from '../api/shifts';
 import { usersApi } from '../api/users';
 import { runsApi } from '../api/runs';
 import { CancelBillingFields, CancelBillingValue, emptyCancelBilling, toCancelBilling } from './CancelBillingFields';
@@ -16,6 +16,9 @@ interface Props {
   shift?: Shift | null;
   defaultDate?: string;
   onClose: () => void;
+  // Called after a scoped (all-future / range / weekdays) carer change so the
+  // schedule can offer a one-click Undo of that bulk assignment.
+  onAssignUndo?: (undo: AssignUndo, summary: string) => void;
 }
 
 interface FormValues {
@@ -49,7 +52,7 @@ function StatusBadge({ active }: { active: boolean }) {
   );
 }
 
-export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
+export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }: Props) {
   const qc = useQueryClient();
   const { isManager } = useAuth();
   const readOnly = !isManager;
@@ -312,7 +315,7 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
         // Propagate the carer to the wider scope (weekdays / date range / all
         // future) via visit-identity matching on the backend.
         if (assignScope !== 'one') {
-          await shiftsApi.assignCarer(shift!.id, {
+          const res = await shiftsApi.assignCarer(shift!.id, {
             userId: data.userId,
             coverCarerIds: data.coverCarerIds,
             scope: assignScope,
@@ -320,6 +323,12 @@ export default function ShiftModal({ shift, defaultDate, onClose }: Props) {
             fromDate: assignScope === 'range' ? assignFrom || undefined : undefined,
             toDate: assignScope === 'range' ? (assignTo || undefined) : assignScope === 'days' ? (daysUntil || undefined) : undefined,
           });
+          // Offer to undo this bulk change (e.g. an accidental "all future" unassign).
+          if (res.undo?.shifts?.length) {
+            const scopeLabel = assignScope === 'future' ? 'all future visits' : assignScope === 'range' ? 'the date range' : 'the selected weekdays';
+            const action = data.userId ? 'Assigned' : 'Unassigned';
+            onAssignUndo?.(res.undo, `${action} carer across ${scopeLabel} (${res.undo.shifts.length} visit${res.undo.shifts.length > 1 ? 's' : ''})`);
+          }
         }
       } catch (err) {
         // Roll back to the pre-optimistic state and surface the real reason.
