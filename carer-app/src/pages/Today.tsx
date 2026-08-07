@@ -45,6 +45,21 @@ export default function Today() {
     refetchInterval: 60000,
   });
 
+  // The call the carer is still clocked into (open record, no clock-out), from
+  // the authoritative clock status. Kept so it stays pinned until clocked out —
+  // even after the date rolls over and it drops off today's call list.
+  const { data: clockStatus } = useQuery({
+    queryKey: ['clock-status'],
+    queryFn: clockApi.status,
+    refetchInterval: 60000,
+  });
+  const activeRecord = clockStatus?.clockedIn ? clockStatus.record : null;
+  const activeCall: Shift | null = activeRecord?.shift
+    ? { ...activeRecord.shift, clockRecords: [{ id: activeRecord.id, userId: activeRecord.userId, clockIn: activeRecord.clockIn, clockOut: null }] }
+    : null;
+  // Merge it in if today's list doesn't already include it.
+  const allCalls = activeCall && !calls.some((c) => c.id === activeCall.id) ? [activeCall, ...calls] : calls;
+
   // Cover requests this carer has sent that are still awaiting a response — used
   // to badge those calls so it's clear cover has been requested for them.
   const { data: handovers } = useQuery({
@@ -82,7 +97,7 @@ export default function Today() {
 
   // Pin any in-progress call to the top so a still-open overnight shift can't be
   // missed; the rest stay in visit-time order.
-  const sorted = [...calls].sort((a, b) => {
+  const sorted = [...allCalls].sort((a, b) => {
     const ai = isClockedIn(a) ? 0 : 1;
     const bi = isClockedIn(b) ? 0 : 1;
     if (ai !== bi) return ai - bi;

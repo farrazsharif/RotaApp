@@ -123,6 +123,7 @@ export interface ClockRecord {
   shiftId?: string | null;
   clockIn: string;
   clockOut?: string | null;
+  shift?: Shift | null; // included by /clock/status for the open record
 }
 
 export interface CallLogSignature {
