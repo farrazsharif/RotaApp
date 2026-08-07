@@ -607,6 +607,16 @@ export default function Schedule() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {undoInfo && (
+              <button
+                onClick={() => restoreMut.mutate(undoInfo.payload)}
+                disabled={restoreMut.isPending}
+                title={undoInfo.summary}
+                className="btn-secondary btn inline-flex items-center gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+              >
+                {restoreMut.isPending ? 'Undoing…' : '↩ Undo last change'}
+              </button>
+            )}
             <div className="relative">
               <button className="btn-secondary btn" onClick={() => setMenuOpen((o) => !o)} aria-label="More actions">⋯</button>
               {menuOpen && (
@@ -733,21 +743,6 @@ export default function Schedule() {
           onClose={() => { setModalOpen(false); setSelectedShift(null); }}
           onAssignUndo={(payload, summary) => setUndoInfo({ payload, summary })}
         />
-      )}
-
-      {/* Undo the last bulk carer change (e.g. an accidental "all future" unassign). */}
-      {undoInfo && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[80] flex items-center gap-3 bg-gray-900 text-white rounded-xl shadow-lg px-4 py-3 max-w-[92vw]">
-          <span className="text-sm">{undoInfo.summary}</span>
-          <button
-            onClick={() => restoreMut.mutate(undoInfo.payload)}
-            disabled={restoreMut.isPending}
-            className="text-sm font-semibold text-blue-300 hover:text-blue-200 disabled:opacity-50 whitespace-nowrap"
-          >
-            {restoreMut.isPending ? 'Undoing…' : '↩ Undo'}
-          </button>
-          <button onClick={() => setUndoInfo(null)} className="text-gray-400 hover:text-white text-lg leading-none" aria-label="Dismiss">×</button>
-        </div>
       )}
 
       {publishOpen && (
