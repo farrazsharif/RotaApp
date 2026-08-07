@@ -101,7 +101,29 @@ export default function Schedule() {
   const calRef = useRef<FullCalendar>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [undoInfo, setUndoInfo] = useState<{ payload: AssignUndo; summary: string } | null>(null);
+  // The last bulk carer change, kept so an "Undo last change" button stays
+  // available even after a reload or navigating away (for up to 30 min).
+  const UNDO_KEY = 'caremid.schedule.undo';
+  const UNDO_MAX_AGE = 30 * 60 * 1000;
+  const [undoInfo, setUndoInfoState] = useState<{ payload: AssignUndo; summary: string; at: number } | null>(() => {
+    try {
+      const raw = localStorage.getItem(UNDO_KEY);
+      const v = raw ? JSON.parse(raw) : null;
+      if (v && typeof v.at === 'number' && Date.now() - v.at < UNDO_MAX_AGE) return v;
+      if (raw) localStorage.removeItem(UNDO_KEY);
+    } catch { /* ignore */ }
+    return null;
+  });
+  const setUndoInfo = (info: { payload: AssignUndo; summary: string } | null) => {
+    if (info) {
+      const v = { ...info, at: Date.now() };
+      setUndoInfoState(v);
+      try { localStorage.setItem(UNDO_KEY, JSON.stringify(v)); } catch { /* ignore */ }
+    } else {
+      setUndoInfoState(null);
+      try { localStorage.removeItem(UNDO_KEY); } catch { /* ignore */ }
+    }
+  };
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
   const [search, setSearch] = useState('');
