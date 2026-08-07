@@ -12,6 +12,7 @@ import {
 import { formatTime12h } from '../lib/time';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import CarerRota from '../components/CarerRota';
+import SearchableSelect from '../components/SearchableSelect';
 
 type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm' | 'rota';
 
@@ -427,12 +428,15 @@ export default function Reports() {
         <div className="space-y-4">
           <div className="card">
             <label className="label">Carer</label>
-            <select value={rotaUserId} onChange={(e) => setRotaUserId(e.target.value)} className="input w-full sm:w-80">
-              <option value="">Select a carer…</option>
-              {[...employees]
+            <SearchableSelect
+              value={rotaUserId}
+              onChange={setRotaUserId}
+              placeholder="Select a carer…"
+              className="w-full sm:w-80"
+              options={[...employees]
                 .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
-                .map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-            </select>
+                .map((u) => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
+            />
             <p className="text-xs text-gray-400 mt-1.5">Pick a carer to see their rota, then Download CSV or Print / Save as PDF to send it to them.</p>
           </div>
           {rotaUserId && (() => {
