@@ -48,11 +48,15 @@ export default function History() {
   const weeks = Array.from({ length: WEEK_COUNT }, (_, i) => {
     const ws = addWeeks(firstWeekStart, i);
     const we = addDays(ws, 6);
+    // Sort by calendar DAY first, then start time. (Using the raw date
+    // timestamp splits same-day visits into blocks, because recurring shifts are
+    // stored at noon and single ones at midnight — that's what jumbled the list.)
+    const dayNum = (d: Date) => d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate();
     const list = shifts
       .filter((s) => { const d = new Date(s.date); return d >= ws && d < addDays(ws, 7) && s.status !== 'CANCELLED'; })
       .sort((a, b) => {
-        const da = new Date(a.date).getTime(); const db = new Date(b.date).getTime();
-        return da !== db ? da - db : a.startTime.localeCompare(b.startTime);
+        const ka = dayNum(new Date(a.date)); const kb = dayNum(new Date(b.date));
+        return ka !== kb ? ka - kb : toMin(a.startTime) - toMin(b.startTime);
       });
     const mins = list.reduce((sum, s) => sum + durMin(s), 0);
     return { key: weekKey(ws), ws, we, mins, list, isCurrent: isSameDay(ws, thisWeekStart), isFuture: ws > thisWeekStart };
