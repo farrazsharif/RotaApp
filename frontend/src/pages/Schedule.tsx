@@ -522,14 +522,17 @@ export default function Schedule() {
             <button className="btn-secondary btn btn-sm rounded-l-none border-l-0 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => shiftBy(1)} disabled={atFutureCap} title={atFutureCap ? 'The schedule only shows up to 2 months ahead' : undefined} aria-label="Next">›</button>
           </div>
           <button className="btn-secondary btn btn-sm" onClick={() => setAnchor(new Date())}>Today</button>
-          <input
-            type="date"
-            value={format(anchor, 'yyyy-MM-dd')}
-            onChange={(e) => { if (e.target.value) setAnchor(new Date(e.target.value + 'T00:00:00')); }}
-            className="border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-700"
-            title="Jump to a date"
-            aria-label="Jump to a date"
-          />
+          <div className="inline-flex items-center gap-1.5">
+            <input
+              type="date"
+              value={format(anchor, 'yyyy-MM-dd')}
+              onChange={(e) => { if (e.target.value) setAnchor(new Date(e.target.value + 'T00:00:00')); }}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-700"
+              title="Jump to a date"
+              aria-label="Jump to a date"
+            />
+            <span className="text-sm font-semibold text-blue-600">{format(anchor, 'EEE')}</span>
+          </div>
           <span className="font-semibold text-gray-800 ml-1">{title}</span>
         </div>
         <div className="flex items-center gap-2">

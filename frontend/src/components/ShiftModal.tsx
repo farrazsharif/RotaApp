@@ -63,6 +63,14 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
   const watchedUserId = watch('userId');
   const watchedStart = watch('startTime');
   const watchedEnd = watch('endTime');
+  // Weekday of the picked date, shown next to the field (native date inputs
+  // can't display the day name themselves).
+  const watchedDate = watch('date');
+  const weekdayOf = (v?: string) => {
+    if (!v) return '';
+    const d = new Date(`${v}T00:00:00`);
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { weekday: 'long' });
+  };
   const assignedIds = [watchedUserId, ...coverCarerIds].filter(Boolean) as string[];
 
   function addCarer(id: string) {
@@ -459,7 +467,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
           {renderVisitNamePicker(true)}
 
           <div>
-            <label className="label">Date *</label>
+            <label className="label">Date * {watchedDate && weekdayOf(watchedDate) && <span className="text-blue-600 font-semibold ml-1">· {weekdayOf(watchedDate)}</span>}</label>
             <input type="date" {...register('date', { required: true })} className="input" />
             {errors.date && <p className="text-xs text-red-500 mt-1">Required</p>}
           </div>
@@ -677,6 +685,9 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                             onChange={(e) => setRepeatEndDate(e.target.value)}
                             className="input ml-2 py-1 text-sm"
                           />
+                        )}
+                        {repeatEndType === 'date' && repeatEndDate && weekdayOf(repeatEndDate) && (
+                          <span className="ml-2 text-xs font-semibold text-blue-600">{weekdayOf(repeatEndDate)}</span>
                         )}
                       </label>
                       <label className="flex items-center gap-2 text-sm">
