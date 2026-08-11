@@ -107,6 +107,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
     const monthLabel = format(monthDate, 'MMMM yyyy');
 
     const tables = charts.map(({ med, times, days: medDays }) => `
+      <div class="med-block">
       <h2>${esc(med.name)}${med.dose ? ` · ${esc(med.dose)}` : ''}${med.route ? ` · ${esc(med.route)}` : ''}</h2>
       ${med.instructions ? `<p class="instructions">${esc(med.instructions)}</p>` : ''}
       <table>
@@ -137,7 +138,8 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         <span>Date Commenced: ${med.startDate ? esc(format(new Date(med.startDate), 'dd MMM yyyy')) : '—'}</span>
         <span>Date Discontinued: ${med.endDate ? esc(format(new Date(med.endDate), 'dd MMM yyyy')) : '—'}</span>
       </div>
-    `).join('<div class="page-break"></div>');
+      </div>
+    `).join('');
 
     const html = `<!DOCTYPE html><html><head><title>MAR Chart</title>
       <style>
@@ -154,7 +156,10 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         .dates-row { display: flex; justify-content: space-between; font-size: 11px; border: 1px solid #333; padding: 6px; margin-top: -1px; }
         .legend { display: flex; gap: 16px; font-size: 11px; margin-top: 16px; flex-wrap: wrap; }
         .legend span { font-weight: bold; }
-        .page-break { page-break-before: always; }
+        /* Pack as many medications onto a page as fit; only break to a new page
+           when a whole medication block won't fit, never mid-table. */
+        .med-block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 18px; }
+        .med-block h2 { margin-top: 0; }
         @media print { body { margin: 6mm; } }
         ${BRANDING_PRINT_CSS}
       </style></head><body>
