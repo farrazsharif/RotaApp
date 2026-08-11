@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { ServiceUser } from '../types';
 import { defaultTemplateSections, keyForItem, PspItem, PspSection } from './servicePlanSchema';
+import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
 
 type YnVal = { v: '' | 'YES' | 'NO'; comment: string; action?: string };
 type CheckVal = { checked: boolean; comment: string };
@@ -128,11 +129,13 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
       .toolbar button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid #2563eb; background: #2563eb; color: #fff; cursor: pointer; }
       .toolbar button.secondary { background: #fff; color: #374151; border-color: #d1d5db; }
       @media print { body { margin: 0; } .section { page-break-inside: auto; } .no-print { display: none !important; } }
+      ${BRANDING_PRINT_CSS}
     </style></head><body>
     <div class="toolbar no-print">
       <button onclick="window.print()">🖨 Print</button>
       <button class="secondary" onclick="window.close()">Close</button>
     </div>
+    ${brandingHeaderHtml()}
     <h1>Personal Service Plan</h1>
     ${opts.signed ? `<div class="signed-banner">
       🔒 Signed version — immutable audit record${opts.signed.label ? ` · ${esc(opts.signed.label)}` : ''}<br/>

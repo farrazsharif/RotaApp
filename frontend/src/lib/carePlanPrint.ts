@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { ServiceUser } from '../types';
+import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 const SLOTS = [
@@ -78,11 +79,13 @@ export function printCarePlan(serviceUser: ServiceUser, data: CarePlanPrintData,
       .toolbar button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid #2563eb; background: #2563eb; color: #fff; cursor: pointer; }
       .toolbar button.secondary { background: #fff; color: #374151; border-color: #d1d5db; }
       @media print { body { margin: 0; } .no-print { display: none !important; } }
+      ${BRANDING_PRINT_CSS}
     </style></head><body>
     <div class="toolbar no-print">
       <button onclick="window.print()">🖨 Print</button>
       <button class="secondary" onclick="window.close()">Close</button>
     </div>
+    ${brandingHeaderHtml()}
     <h1>Care Plan</h1>
     <div class="sub">
       ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}

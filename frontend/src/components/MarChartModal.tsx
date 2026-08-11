@@ -5,6 +5,7 @@ import { ServiceUser, Medication, MedAdministration, MedStatus } from '../types'
 import { format, getDaysInMonth, parse } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 import { useAuth } from '../contexts/AuthContext';
+import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import RecordMedModal from './RecordMedModal';
 
 interface Props {
@@ -155,7 +156,9 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         .legend span { font-weight: bold; }
         .page-break { page-break-before: always; }
         @media print { body { margin: 6mm; } }
+        ${BRANDING_PRINT_CSS}
       </style></head><body>
+      ${brandingHeaderHtml()}
       <h1>Medication Administration Record (MAR) Chart</h1>
       <div class="sub">${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)} · ${esc(monthLabel)} · Generated ${format(new Date(), 'dd MMM yyyy, h:mm a')}</div>
       ${tables}

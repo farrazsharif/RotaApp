@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { CallLog, CallLogSignature, Shift } from '../types';
 import { format, startOfWeek, endOfWeek, subWeeks, subDays } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
 // Scheduled start/end of a shift (overnight-aware) — for the missing-logs view.
 function schedStart(s: Shift): Date {
@@ -243,7 +244,9 @@ export default function CallLogs() {
         .visit { font-size: 11px; color: #777; margin-bottom: 3px; }
         .note { font-size: 13px; white-space: pre-wrap; }
         @media print { body { margin: 12mm; } }
+        ${BRANDING_PRINT_CSS}
       </style></head><body>
+      ${brandingHeaderHtml()}
       <h1>Call Logs</h1>
       <div class="sub">${esc(rangeLabel)} · ${filtered.length} entr${filtered.length === 1 ? 'y' : 'ies'} · Generated ${format(new Date(), 'dd MMM yyyy, h:mm a')}</div>
       ${body || '<p>No call logs match the current filters.</p>'}

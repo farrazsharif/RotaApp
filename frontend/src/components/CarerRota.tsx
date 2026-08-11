@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { shiftsApi } from '../api/shifts';
 import { Shift } from '../types';
+import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
 // A carer's upcoming rota (primary + cover calls) over a date range — defaults
 // to the next 4 weeks — with Download CSV and Print / Save-as-PDF so a manager
@@ -78,7 +79,9 @@ export default function CarerRota({ userId, staffName }: { userId: string; staff
         th{background:#1d4ed8;color:#fff}
         tr.dayhdr td{background:#f3f4f6;font-weight:bold}
         @media print{button{display:none}}
+        ${BRANDING_PRINT_CSS}
       </style></head><body>
+      ${brandingHeaderHtml()}
       <h1>Rota — ${staffName}</h1>
       <p class="sub">${rangeLabel} · ${rota.length} visit(s) · ${totalHours.toFixed(1)} hours</p>
       <table><thead><tr><th>Time</th><th>Client</th><th>Visit</th><th>Postcode</th></tr></thead>

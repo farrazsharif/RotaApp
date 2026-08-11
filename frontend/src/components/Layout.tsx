@@ -4,7 +4,10 @@ import { usePermissions } from '../hooks/usePermissions';
 import { PermissionKey } from '../types';
 import NotificationBell from './NotificationBell';
 import OfficeNotes from './OfficeNotes';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { settingsApi } from '../api/settings';
+import { primePrintBranding } from '../lib/printBranding';
 
 const navItems: { to: string; label: string; icon: string; exact?: boolean; managerOnly?: boolean; capability?: PermissionKey; platformOnly?: boolean }[] = [
   { to: '/platform', label: 'Platform Admin', icon: '🏢', platformOnly: true },
@@ -30,6 +33,12 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Load the company's own branding once (name/logo/address) and cache it so the
+  // print builders can stamp every printable form with the company letterhead
+  // rather than a hard-coded identity.
+  const { data: orgSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get, staleTime: 5 * 60 * 1000 });
+  useEffect(() => { primePrintBranding(orgSettings); }, [orgSettings]);
 
   function handleLogout() {
     logout();

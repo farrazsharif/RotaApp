@@ -4,6 +4,7 @@ import { likesDislikesApi } from '../api/likesDislikes';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
+import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
 interface Props {
   serviceUser: ServiceUser;
@@ -82,7 +83,9 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
         .field-label { font-size: 11px; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: 0.02em; }
         .field-value { font-size: 13px; white-space: pre-wrap; margin-top: 3px; }
         @media print { body { margin: 0; } }
+        ${BRANDING_PRINT_CSS}
       </style></head><body>
+      ${brandingHeaderHtml()}
       <h1>Likes &amp; Dislikes</h1>
       <div class="sub">${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)} · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
       ${fieldRows}
