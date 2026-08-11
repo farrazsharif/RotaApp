@@ -26,6 +26,11 @@ export default function CarerRota({ userId, staffName }: { userId: string; staff
     .filter((s) => s.status !== 'CANCELLED' && s.published !== false)
     .sort((a, b) => (a.date === b.date ? a.startTime.localeCompare(b.startTime) : a.date.localeCompare(b.date)));
 
+  // Assigned-but-unpublished visits are held out of the printed rota on purpose
+  // (you don't send a carer draft shifts). Surface the count so it's obvious why
+  // a shift you assigned isn't listed — the fix is to publish it on the Schedule.
+  const hiddenDrafts = shifts.filter((s) => s.status !== 'CANCELLED' && s.published === false);
+
   const totalHours = rota.reduce((sum, s) => sum + durMin(s), 0) / 60;
   const clientOf = (s: Shift) => (s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Unassigned client');
 
@@ -115,6 +120,12 @@ export default function CarerRota({ userId, staffName }: { userId: string; staff
       </div>
 
       <p className="text-sm text-gray-500">{rangeLabel} · {rota.length} visit{rota.length === 1 ? '' : 's'} · {totalHours.toFixed(1)} hours</p>
+
+      {hiddenDrafts.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 no-print">
+          <span className="font-semibold">{hiddenDrafts.length} assigned visit{hiddenDrafts.length === 1 ? '' : 's'} not shown</span> — {hiddenDrafts.length === 1 ? 'it is' : 'they are'} still a draft (not published), so {hiddenDrafts.length === 1 ? "it's" : "they're"} kept off the printed rota. Publish {hiddenDrafts.length === 1 ? 'it' : 'them'} on the Schedule to include {hiddenDrafts.length === 1 ? 'it' : 'them'} here.
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center p-6"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>
