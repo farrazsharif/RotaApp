@@ -71,11 +71,13 @@
   .badge-purple { @apply badge bg-purple-100 text-purple-800; }
 }
 
-/* Emergency Grab Sheet printing: show only the sheet, nothing else. */
+/* DOM printing (Grab Sheet, on-page reports): show only the printable region,
+   nothing else — so the company letterhead + form print without the app chrome. */
 @media print {
   body * { visibility: hidden !important; }
-  .grab-sheet-printable, .grab-sheet-printable * { visibility: visible !important; }
-  .grab-sheet-printable {
+  .grab-sheet-printable, .grab-sheet-printable *,
+  .report-printable, .report-printable * { visibility: visible !important; }
+  .grab-sheet-printable, .report-printable {
     position: absolute;
     left: 0;
     top: 0;

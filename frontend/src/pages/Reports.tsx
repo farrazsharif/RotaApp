@@ -13,6 +13,7 @@ import { formatTime12h } from '../lib/time';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import CarerRota from '../components/CarerRota';
 import SearchableSelect from '../components/SearchableSelect';
+import PrintBrandingHeader from '../components/PrintBrandingHeader';
 
 type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm' | 'rota';
 
@@ -490,7 +491,7 @@ export default function Reports() {
           <div className="text-sm font-semibold text-gray-700">
             Hours Scheduled Between: {format(parseISO(startDate), 'dd-MM-yyyy')} - {format(parseISO(endDate), 'dd-MM-yyyy')}
           </div>
-          <div className="flex flex-wrap justify-between items-center gap-2">
+          <div className="flex flex-wrap justify-between items-center gap-2 no-print">
             <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
               <button onClick={() => setSchedGroupBy('carer')} className={`px-3 py-1.5 ${schedGroupBy === 'carer' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>By carer</button>
               <button onClick={() => setSchedGroupBy('client')} className={`px-3 py-1.5 border-l border-gray-200 ${schedGroupBy === 'client' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>By patient</button>
@@ -503,7 +504,15 @@ export default function Reports() {
           {filteredScheduled.length === 0 ? (
             <div className="card text-center py-12 text-gray-400">{term ? 'No matches' : 'No scheduled shifts in this period'}</div>
           ) : (
-            <div className={`card p-0 overflow-x-auto ${showRequired ? 'max-w-2xl' : 'max-w-md'}`}>
+            <div className="report-printable">
+              {/* Company letterhead + title — only on the printout */}
+              <div className="hidden print:block mb-4">
+                <PrintBrandingHeader />
+                <div className="text-base font-bold text-gray-900">
+                  Hours Scheduled — {format(parseISO(startDate), 'dd MMM yyyy')} to {format(parseISO(endDate), 'dd MMM yyyy')} · {schedGroupBy === 'client' ? 'By patient' : 'By carer'}
+                </div>
+              </div>
+              <div className={`card p-0 overflow-x-auto ${showRequired ? 'max-w-2xl' : 'max-w-md'}`}>
               {showRequired && (
                 <p className="text-xs text-gray-500 px-4 pt-3">
                   "Required" = each patient's contracted weekly hours × {rangeWeeks % 1 === 0 ? rangeWeeks : rangeWeeks.toFixed(2)} week{rangeWeeks === 1 ? '' : 's'} in this range. "Scheduled" is contact hours — a double-up visit counts once per carer, so it lines up with council-commissioned hours. A red difference means the rota is short of the care package.
@@ -559,6 +568,7 @@ export default function Reports() {
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>

@@ -5,6 +5,8 @@ import { shiftsApi } from '../api/shifts';
 import { ServiceUser } from '../types';
 import { format, differenceInYears, addDays } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import { settingsApi } from '../api/settings';
+import PrintBrandingHeader from './PrintBrandingHeader';
 
 // Minutes between two HH:mm times (handles overnight).
 function durationMins(start: string, end: string): number {
@@ -55,6 +57,10 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
 
   const age = su.dateOfBirth ? differenceInYears(new Date(), new Date(su.dateOfBirth)) : null;
 
+  // Company identity for the ambulance-crew instruction line and letterhead.
+  const { data: org } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get, staleTime: 5 * 60 * 1000 });
+  const companyName = org?.companyName || 'the care office';
+
   // Derive the agreed calls from the actual schedule: pull the next two weeks of
   // this service user's shifts and collapse them to the distinct daily calls.
   const from = format(new Date(), 'yyyy-MM-dd');
@@ -99,10 +105,13 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
 
         {/* Printable sheet */}
         <div className="grab-sheet-printable p-6 space-y-4 text-gray-900">
+          {/* Company letterhead (also shown on screen as a preview) */}
+          <PrintBrandingHeader />
+
           <div className="text-center border-2 border-gray-800 rounded-lg p-3">
             <h1 className="text-xl font-bold">AMBULANCE CREW</h1>
             <p className="text-xs mt-1">If admission to hospital is necessary, please take this document with you as it contains the relevant information you will require. <span className="font-semibold">Please leave the rest of the file at home.</span></p>
-            <p className="text-xs mt-1">For discharge or further information, contact <span className="font-semibold">Care 24</span> on <span className="font-semibold">0161 432 4627</span> or <span className="font-semibold">07944 433 888</span>.</p>
+            <p className="text-xs mt-1">For discharge or further information, contact <span className="font-semibold">{companyName}</span>{org?.phone ? <> on <span className="font-semibold">{org.phone}</span></> : ''}.</p>
           </div>
 
           {/* Service User Information */}
