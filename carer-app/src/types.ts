@@ -30,9 +30,18 @@ export interface ServiceUser {
   postcode?: string | null;
   phone?: string | null;
   email?: string | null;
+  preferredName?: string | null;
+  // Property entry — carers need these to get in and to reach the meds.
+  keySafe?: string | null;
+  medsSafeCode?: string | null;
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
+  emergencyContactMobile?: string | null;
   emergencyContactRelation?: string | null;
+  nextOfKinName?: string | null;
+  nextOfKinPhone?: string | null;
+  nextOfKinMobile?: string | null;
+  nextOfKinRelation?: string | null;
   gpName?: string | null;
   gpPractice?: string | null;
   gpPhone?: string | null;

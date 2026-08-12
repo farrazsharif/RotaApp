@@ -42,6 +42,9 @@ function Field({ label, value, href }: { label: string; value?: string | null; h
   );
 }
 
+// A tappable phone number — dials directly on the carer's phone.
+const telHref = (phone?: string | null) => (phone ? `tel:${phone.replace(/\s+/g, '')}` : undefined);
+
 export default function ServiceUserDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -123,19 +126,70 @@ export default function ServiceUserDetail() {
         {tab === 'info' && (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 space-y-3">
             <Field label="Date of Birth" value={su.dateOfBirth ? format(new Date(su.dateOfBirth), 'dd MMM yyyy') : undefined} />
+            <Field label="Preferred Name" value={su.preferredName} />
             <Field label="NHS Number" value={su.nhsNumber} />
             <Field label="Address" value={su.address ? `${su.address}${su.postcode ? `, ${su.postcode}` : ''}` : undefined} href={mapsUrl(su.address, su.postcode)} />
-            <Field label="Phone" value={su.phone} />
+            <Field label="Phone" value={su.phone} href={telHref(su.phone)} />
             <Field label="Site" value={su.site?.name} />
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Emergency Contact" value={su.emergencyContactName} />
-              <Field label="Relation" value={su.emergencyContactRelation} />
+
+            {/* Property access — highlighted so carers can find the entry code fast */}
+            {(su.keySafe || su.medsSafeCode) && (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-amber-700">🔑 Property Access</p>
+                {su.keySafe && (
+                  <div>
+                    <p className="text-xs font-medium text-amber-700">Keysafe / entry</p>
+                    <p className="text-base font-bold text-gray-900">{su.keySafe}</p>
+                  </div>
+                )}
+                {su.medsSafeCode && (
+                  <div>
+                    <p className="text-xs font-medium text-amber-700">Meds safe code</p>
+                    <p className="text-base font-bold text-gray-900">{su.medsSafeCode}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Emergency contact */}
+            {(su.emergencyContactName || su.emergencyContactPhone || su.emergencyContactMobile) && (
+              <div className="pt-1 border-t border-gray-100 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Emergency Contact</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Name" value={su.emergencyContactName} />
+                  <Field label="Relation" value={su.emergencyContactRelation} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Phone" value={su.emergencyContactPhone} href={telHref(su.emergencyContactPhone)} />
+                  <Field label="Mobile" value={su.emergencyContactMobile} href={telHref(su.emergencyContactMobile)} />
+                </div>
+              </div>
+            )}
+
+            {/* Next of kin */}
+            {(su.nextOfKinName || su.nextOfKinPhone || su.nextOfKinMobile) && (
+              <div className="pt-1 border-t border-gray-100 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Next of Kin</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Name" value={su.nextOfKinName} />
+                  <Field label="Relation" value={su.nextOfKinRelation} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Phone" value={su.nextOfKinPhone} href={telHref(su.nextOfKinPhone)} />
+                  <Field label="Mobile" value={su.nextOfKinMobile} href={telHref(su.nextOfKinMobile)} />
+                </div>
+              </div>
+            )}
+
+            {/* GP & pharmacy */}
+            <div className="pt-1 border-t border-gray-100 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-gray-400">GP & Pharmacy</p>
+              <Field label="GP" value={[su.gpName, su.gpPractice].filter(Boolean).join(' · ') || undefined} />
+              <Field label="GP Phone" value={su.gpPhone} href={telHref(su.gpPhone)} />
+              <Field label="Pharmacy" value={su.pharmacyName} />
+              <Field label="Pharmacy Phone" value={su.pharmacyPhone} href={telHref(su.pharmacyPhone)} />
             </div>
-            <Field label="Emergency Phone" value={su.emergencyContactPhone} />
-            <Field label="GP" value={[su.gpName, su.gpPractice].filter(Boolean).join(' · ') || undefined} />
-            <Field label="GP Phone" value={su.gpPhone} />
-            <Field label="Pharmacy" value={su.pharmacyName} />
-            <Field label="Pharmacy Phone" value={su.pharmacyPhone} />
+
             <div className="flex flex-wrap gap-2 pt-1">
               {su.needsMedication && <span className="text-xs font-semibold bg-purple-100 text-purple-700 px-2 py-1 rounded-full">Medication</span>}
               {su.needsMobility && <span className="text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Mobility Support</span>}
