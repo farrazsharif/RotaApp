@@ -19,7 +19,7 @@ export const RequestStatus = {
 export type RequestStatus = (typeof RequestStatus)[keyof typeof RequestStatus];
 
 export const MedStatus = {
-  GIVEN: 'GIVEN', REFUSED: 'REFUSED', MISSED: 'MISSED', NOT_NEEDED: 'NOT_NEEDED', SELF_ADMIN: 'SELF_ADMIN',
+  GIVEN: 'GIVEN', REFUSED: 'REFUSED', MISSED: 'MISSED', NOT_NEEDED: 'NOT_NEEDED', SELF_ADMIN: 'SELF_ADMIN', CANCELLED: 'CANCELLED',
 } as const;
 export type MedStatus = (typeof MedStatus)[keyof typeof MedStatus];
 

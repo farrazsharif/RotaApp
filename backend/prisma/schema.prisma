@@ -531,7 +531,7 @@ model MedAdministration {
   serviceUserId String
   userId        String?
   scheduledFor  DateTime
-  status        String // GIVEN, REFUSED, MISSED, NOT_NEEDED, SELF_ADMIN
+  status        String // GIVEN, REFUSED, MISSED, NOT_NEEDED, SELF_ADMIN, CANCELLED
   note          String?
   recordedAt    DateTime @default(now())
 

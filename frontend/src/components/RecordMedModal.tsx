@@ -12,6 +12,7 @@ const STATUSES: { v: MedStatus; label: string }[] = [
   { v: 'REFUSED', label: 'Refused' },
   { v: 'MISSED', label: 'Absent' },
   { v: 'NOT_NEEDED', label: 'Not Required' },
+  { v: 'CANCELLED', label: 'Cancelled (visit not made)' },
 ];
 
 function toLocalInput(d: Date): string {

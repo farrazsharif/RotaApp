@@ -20,6 +20,7 @@ const STATUS_OPTS: { value: MedStatus | ''; label: string }[] = [
   { value: 'MISSED', label: 'Absent' },
   { value: 'NOT_NEEDED', label: 'Not Required' },
   { value: 'SELF_ADMIN', label: 'Self-admin' },
+  { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
 const statusClass: Record<string, string> = {
@@ -28,6 +29,7 @@ const statusClass: Record<string, string> = {
   MISSED: 'bg-red-100 text-red-800 border-red-300',
   NOT_NEEDED: 'bg-gray-100 text-gray-600 border-gray-300',
   SELF_ADMIN: 'bg-blue-100 text-blue-800 border-blue-300',
+  CANCELLED: 'bg-gray-100 text-gray-600 border-gray-300',
   '': 'bg-white text-gray-400 border-gray-300',
 };
 

@@ -16,13 +16,13 @@ interface Props {
 // Single-letter codes for anything other than "given" — given doses are
 // signed with the carer's initials, same convention as a paper MAR chart.
 const STATUS_CODE: Record<MedStatus, string> = {
-  GIVEN: '', REFUSED: 'R', MISSED: 'A', NOT_NEEDED: 'N', SELF_ADMIN: 'S',
+  GIVEN: '', REFUSED: 'R', MISSED: 'A', NOT_NEEDED: 'N', SELF_ADMIN: 'S', CANCELLED: 'C',
 };
 const STATUS_LABEL: Record<MedStatus, string> = {
-  GIVEN: 'Administered (carer initials)', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered',
+  GIVEN: 'Administered (carer initials)', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled visit',
 };
 const STATUS_COLOR: Record<MedStatus, string> = {
-  GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8',
+  GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8', CANCELLED: '#6b7280',
 };
 
 function parseDays(s?: string): number[] {

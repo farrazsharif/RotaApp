@@ -146,7 +146,7 @@ export interface CallLog {
   shift?: { id: string; date: string; startTime: string; endTime: string; visitName?: string | null } | null;
 }
 
-export type MedAdminStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN';
+export type MedAdminStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN' | 'CANCELLED';
 
 export interface DueDose {
   medicationId: string;
