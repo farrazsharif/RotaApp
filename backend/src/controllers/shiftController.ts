@@ -399,6 +399,15 @@ export async function deleteShift(req: AuthRequest, res: Response) {
     }
   }
 
+  // Readable label for the audit trail: client name + this shift's date.
+  const auditSu = shift.serviceUserId
+    ? await prisma.serviceUser.findUnique({ where: { id: shift.serviceUserId }, select: { firstName: true, lastName: true } })
+    : null;
+  const auditWho = auditSu ? `${auditSu.firstName} ${auditSu.lastName}` : 'Visit';
+  const auditCount = idsToCancel.length;
+  const auditTarget = `${auditWho} · ${new Date(shift.date).toDateString()}${shift.startTime ? ` ${shift.startTime}` : ''}`;
+  const auditScope = auditCount > 1 ? ` · ${auditCount} visits (${scope})` : '';
+
   // Hard delete (?hard=1): the shift was created in error and should be removed
   // entirely — distinct from cancelling, which keeps a CANCELLED record for
   // audit/billing. Refuse if it's already invoiced; that must be cancelled.
@@ -424,6 +433,7 @@ export async function deleteShift(req: AuthRequest, res: Response) {
       emitToUser(shift.userId, 'notification', notification);
       await sendPushToUser(shift.userId, { title: notification.title, body: message });
     }
+    await logAudit(req, 'SHIFT_DELETED', auditTarget, `Visit deleted${auditScope}`);
     return res.json({ message: 'Deleted', count: idsToCancel.length, deleted: true });
   }
 
@@ -451,6 +461,9 @@ export async function deleteShift(req: AuthRequest, res: Response) {
     });
     emitToUser(shift.userId, 'notification', notification);
   }
+
+  const chargeable = req.query.billable === '1' || req.query.billable === 'true';
+  await logAudit(req, 'SHIFT_CANCELLED', auditTarget, `Visit cancelled${auditScope}${chargeable ? ' · chargeable' : ''}`);
 
   res.json({ message: 'Cancelled', count: idsToCancel.length });
 }
