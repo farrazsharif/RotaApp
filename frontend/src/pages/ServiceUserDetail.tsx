@@ -17,6 +17,9 @@ import CarePlanModal from '../components/CarePlanModal';
 import LikesDislikesModal from '../components/LikesDislikesModal';
 import { likesDislikesApi } from '../api/likesDislikes';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
+import RiskAssessmentModal from '../components/RiskAssessmentModal';
+import { riskAssessmentsApi } from '../api/riskAssessments';
+import { RA_FORMS, RA_TYPES } from '../lib/riskAssessmentSchema';
 import EmarModal from '../components/EmarModal';
 import MarChartModal from '../components/MarChartModal';
 import CallLogsModal from '../components/CallLogsModal';
@@ -75,6 +78,7 @@ export default function ServiceUserDetail() {
   const [carePlanOpen, setCarePlanOpen] = useState(false);
   const [likesDislikesOpen, setLikesDislikesOpen] = useState(false);
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
+  const [raType, setRaType] = useState<string | null>(null);
   const [emarOpen, setEmarOpen] = useState(false);
   const [marChartOpen, setMarChartOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -111,6 +115,7 @@ export default function ServiceUserDetail() {
   const { data: carePlan } = useQuery({ queryKey: ['care-plan', id], queryFn: () => carePlansApi.get(id), enabled: !!id });
   const { data: likesDislikes } = useQuery({ queryKey: ['likes-dislikes', id], queryFn: () => likesDislikesApi.get(id), enabled: !!id });
   const { data: servicePlan } = useQuery({ queryKey: ['service-plan', id], queryFn: () => servicePlansApi.get(id), enabled: !!id });
+  const { data: riskAssessments = [] } = useQuery({ queryKey: ['risk-assessments', id], queryFn: () => riskAssessmentsApi.list(id), enabled: !!id });
   const { data: meds = [] } = useQuery({ queryKey: ['medications', id], queryFn: () => medicationsApi.list(id), enabled: !!id });
   const { data: logs = [] } = useQuery({ queryKey: ['call-logs', id], queryFn: () => callLogsApi.list(id), enabled: !!id });
   const { data: respitePeriods = [] } = useQuery({ queryKey: ['respite', id], queryFn: () => respiteApi.list(id), enabled: !!id });
@@ -572,6 +577,30 @@ export default function ServiceUserDetail() {
         </p>
       </Section>
 
+      {/* Risk Assessments */}
+      <Section title="Risk Assessments">
+        <div className="space-y-2">
+          {RA_TYPES.map((t) => {
+            const summary = riskAssessments.find((r) => r.type === t.type);
+            return (
+              <div key={t.type} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{t.title}</p>
+                  <p className="text-xs text-gray-500">
+                    {summary
+                      ? `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`
+                      : 'Not started yet.'}
+                  </p>
+                </div>
+                <button className="btn-secondary btn btn-sm shrink-0" onClick={() => setRaType(t.type)}>
+                  {isManager ? (summary ? 'Open / Edit' : 'Start') : 'Open'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
       {/* Medications */}
       <Section
         title="Medications"
@@ -650,6 +679,7 @@ export default function ServiceUserDetail() {
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
       {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}
       {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}
+      {raType && RA_FORMS[raType] && <RiskAssessmentModal serviceUser={su} form={RA_FORMS[raType]} onClose={() => setRaType(null)} />}
       {emarOpen && <EmarModal serviceUser={su} onClose={() => setEmarOpen(false)} />}
       {marChartOpen && <MarChartModal serviceUser={su} onClose={() => setMarChartOpen(false)} />}
       {logsOpen && <CallLogsModal serviceUser={su} onClose={() => setLogsOpen(false)} />}

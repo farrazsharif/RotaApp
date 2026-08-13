@@ -9,10 +9,19 @@ import { servicePlansApi } from '../api/servicePlans';
 import { medicationsApi } from '../api/medications';
 import { PSP_SECTIONS, itemKey } from '../lib/servicePlanSchema';
 import type { PspItem, PspSection } from '../lib/servicePlanSchema';
+import { riskAssessmentsApi } from '../api/riskAssessments';
+import { RA_ENVIRONMENT, keyForRaItem } from '../lib/riskAssessmentSchema';
+import type { RiskVal } from '../lib/riskAssessmentSchema';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
 
-type Tab = 'info' | 'care' | 'service' | 'emar';
+type Tab = 'info' | 'care' | 'service' | 'emar' | 'risk';
+
+const RISK_LEVEL: Record<string, { label: string; cls: string }> = {
+  LOW: { label: 'Low', cls: 'text-green-700 bg-green-100' },
+  MED: { label: 'Medium', cls: 'text-amber-700 bg-amber-100' },
+  HIGH: { label: 'High', cls: 'text-red-700 bg-red-100' },
+};
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 const SLOTS = [
@@ -50,6 +59,7 @@ export default function ServiceUserDetail() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('info');
   const [pspSection, setPspSection] = useState(PSP_SECTIONS[0].id);
+  const [raSectionId, setRaSectionId] = useState(RA_ENVIRONMENT.sections[0].id);
 
   const { data: su, isLoading } = useQuery({
     queryKey: ['service-user', id],
@@ -67,6 +77,12 @@ export default function ServiceUserDetail() {
     queryKey: ['service-plan', id],
     queryFn: () => servicePlansApi.get(id!),
     enabled: !!id && tab === 'service',
+  });
+
+  const { data: riskAssessment } = useQuery({
+    queryKey: ['risk-assessment', id, RA_ENVIRONMENT.type],
+    queryFn: () => riskAssessmentsApi.get(id!, RA_ENVIRONMENT.type),
+    enabled: !!id && tab === 'risk',
   });
 
   const { data: medications = [] } = useQuery({
@@ -95,12 +111,16 @@ export default function ServiceUserDetail() {
   let pspValues: Record<string, unknown> = {};
   try { pspValues = servicePlan?.data ? JSON.parse(servicePlan.data) : {}; } catch { pspValues = {}; }
 
+  let raValues: Record<string, unknown> = {};
+  try { raValues = riskAssessment?.data ? JSON.parse(riskAssessment.data) : {}; } catch { raValues = {}; }
+
   const currentSection = PSP_SECTIONS.find((s) => s.id === pspSection)!;
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'info', label: 'Info' },
     { key: 'care', label: 'Care Plan' },
     { key: 'service', label: 'Service Plan' },
+    { key: 'risk', label: 'Risk' },
     { key: 'emar', label: 'eMAR' },
   ];
 
@@ -265,6 +285,62 @@ export default function ServiceUserDetail() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {tab === 'risk' && (
+          <div className="space-y-3">
+            {!riskAssessment ? (
+              <p className="text-center text-gray-400 py-8 text-sm">No risk assessment recorded yet</p>
+            ) : (() => {
+              const section = RA_ENVIRONMENT.sections.find((s) => s.id === raSectionId) ?? RA_ENVIRONMENT.sections[0];
+              return (
+                <>
+                  <select value={raSectionId} onChange={(e) => setRaSectionId(e.target.value)} className="input text-sm w-full">
+                    {RA_ENVIRONMENT.sections.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  </select>
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+                    <h3 className="font-bold text-gray-900">{section.title}</h3>
+                    <div className="mt-2 divide-y divide-gray-100">
+                      {section.items.map((item, i) => {
+                        const key = keyForRaItem(section.id, i);
+                        const type = item.type || 'risk';
+                        if (type === 'risk') {
+                          const v = (raValues[key] as RiskVal) || { level: '', comment: '', action: '' };
+                          const lvl = v.level ? RISK_LEVEL[v.level] : null;
+                          return (
+                            <div key={key} className="py-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm text-gray-800 flex-1"><span className="text-gray-400 mr-1">{i + 1}.</span>{item.label}</p>
+                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${lvl ? lvl.cls : 'text-gray-400 bg-gray-100'}`}>{lvl ? lvl.label : '—'}</span>
+                              </div>
+                              {v.comment && <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">Comment:</span> {v.comment}</p>}
+                              {v.action && <p className="text-xs text-gray-500"><span className="font-medium">Action:</span> {v.action}</p>}
+                            </div>
+                          );
+                        }
+                        if (type === 'signature') {
+                          const dataUrl = (raValues[key] as string) || '';
+                          return (
+                            <div key={key} className="py-2">
+                              <p className="text-xs font-medium text-gray-400">{item.label}</p>
+                              {dataUrl ? <img src={dataUrl} alt="signature" className="border rounded bg-white max-h-24 mt-1" /> : <p className="text-sm text-gray-400">Not signed</p>}
+                            </div>
+                          );
+                        }
+                        const val = (raValues[key] as string) || '';
+                        return (
+                          <div key={key} className="py-2">
+                            <p className="text-xs font-medium text-gray-400">{item.label}</p>
+                            <p className="text-sm text-gray-800">{type === 'date' && val ? format(new Date(val), 'dd MMM yyyy') : val || '—'}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 

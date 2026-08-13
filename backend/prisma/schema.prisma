@@ -182,6 +182,7 @@ model ServiceUser {
   medAdministrations  MedAdministration[]
   carePlan            CarePlan?
   servicePlan         PersonalServicePlan?
+  riskAssessments     RiskAssessment[]
   familyLinks         FamilyLink[]
   likesDislikes       LikesDislikes?
   reviews             Review[]
@@ -286,6 +287,25 @@ model PersonalServicePlan {
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
 
+  @@index([companyId])
+}
+
+// A completed risk assessment for a client. One row per (serviceUser, type) so
+// a client can hold several kinds (Environment, Bathing, Fire…). `data` is a
+// JSON blob of field values keyed by item id — same shape as PersonalServicePlan.
+model RiskAssessment {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  serviceUserId String
+  type          String // e.g. 'ENVIRONMENT'
+  data          String   @default("{}")
+  updatedById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceUserId, type])
   @@index([companyId])
 }
 

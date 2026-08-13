@@ -1,0 +1,264 @@
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { riskAssessmentsApi } from '../api/riskAssessments';
+import { useAuth } from '../contexts/AuthContext';
+import { ServiceUser } from '../types';
+import { RaForm, RaItem, RaSection, RiskVal, keyForRaItem } from '../lib/riskAssessmentSchema';
+import { printRiskAssessment } from '../lib/riskAssessmentPrint';
+import { format } from 'date-fns';
+
+interface Props {
+  serviceUser: ServiceUser;
+  form: RaForm;
+  onClose: () => void;
+}
+
+const LEVELS: { v: RiskVal['level']; label: string; on: string }[] = [
+  { v: 'LOW', label: 'Low', on: 'bg-green-600 text-white border-green-600' },
+  { v: 'MED', label: 'Med', on: 'bg-amber-500 text-white border-amber-500' },
+  { v: 'HIGH', label: 'High', on: 'bg-red-600 text-white border-red-600' },
+];
+
+export default function RiskAssessmentModal({ serviceUser, form, onClose }: Props) {
+  const { isManager } = useAuth();
+  const ro = !isManager;
+  const qc = useQueryClient();
+  const [values, setValues] = useState<Record<string, unknown>>({});
+  const [activeSection, setActiveSection] = useState(form.sections[0].id);
+
+  const { data: ra, isLoading } = useQuery({
+    queryKey: ['risk-assessment', serviceUser.id, form.type],
+    queryFn: () => riskAssessmentsApi.get(serviceUser.id, form.type),
+  });
+
+  useEffect(() => {
+    if (ra?.data) {
+      try { setValues(JSON.parse(ra.data)); } catch { setValues({}); }
+    } else {
+      setValues({});
+    }
+  }, [ra]);
+
+  const saveMut = useMutation({
+    mutationFn: () => riskAssessmentsApi.save(serviceUser.id, form.type, values),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['risk-assessment', serviceUser.id, form.type] });
+      qc.invalidateQueries({ queryKey: ['risk-assessments', serviceUser.id] });
+    },
+  });
+
+  const set = (key: string, val: unknown) => setValues((v) => ({ ...v, [key]: val }));
+  const risk = (key: string): RiskVal => (values[key] as RiskVal) || { level: '', comment: '', action: '' };
+  const str = (key: string): string => (values[key] as string) || '';
+
+  // Progress: how many hazard sections have at least one item rated.
+  const rated = useMemo(() => {
+    return form.sections.filter((s) =>
+      s.items.some((item, i) => {
+        const key = keyForRaItem(s.id, i);
+        const v = values[key];
+        if (item.type && item.type !== 'risk') return typeof v === 'string' ? v.trim() !== '' : false;
+        return !!v && (v as RiskVal).level !== '';
+      }),
+    ).length;
+  }, [values, form]);
+
+  const doPrint = () => printRiskAssessment(serviceUser, form, values, { createdAt: ra?.createdAt, updatedAt: ra?.updatedAt });
+
+  function renderItem(section: RaSection, item: RaItem, idx: number) {
+    const key = keyForRaItem(section.id, idx);
+    const type = item.type || 'risk';
+
+    if (type === 'risk') {
+      const v = risk(key);
+      return (
+        <div key={key} className="py-2.5 border-b last:border-0">
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+            <span className="text-sm text-gray-800 flex-1 min-w-[220px]">
+              <span className="text-gray-400 mr-1.5">{idx + 1}.</span>{item.label}
+            </span>
+            {ro ? (
+              <span className={`text-xs font-bold ${v.level === 'HIGH' ? 'text-red-600' : v.level === 'MED' ? 'text-amber-600' : v.level === 'LOW' ? 'text-green-700' : 'text-gray-400'}`}>
+                {v.level ? LEVELS.find((l) => l.v === v.level)!.label : '—'}
+              </span>
+            ) : (
+              <div className="flex gap-1">
+                {LEVELS.map((l) => (
+                  <button
+                    key={l.v}
+                    type="button"
+                    onClick={() => set(key, { ...v, level: v.level === l.v ? '' : l.v })}
+                    className={`px-3 py-1 rounded-md text-xs font-medium border ${v.level === l.v ? l.on : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="grid gap-2 mt-1.5 sm:grid-cols-2">
+            <CommentField label="Comment" value={v.comment} ro={ro} onChange={(c) => set(key, { ...v, comment: c })} />
+            <CommentField label="Action needed" value={v.action} ro={ro} onChange={(a) => set(key, { ...v, action: a })} />
+          </div>
+        </div>
+      );
+    }
+
+    if (type === 'signature') {
+      const dataUrl = str(key);
+      return (
+        <div key={key} className="py-3 border-b last:border-0">
+          <p className="text-sm text-gray-800 mb-2">{item.label}</p>
+          <SignaturePad value={dataUrl} ro={ro} onChange={(d) => set(key, d)} />
+        </div>
+      );
+    }
+
+    // text / longtext / date
+    const v = str(key);
+    return (
+      <div key={key} className="py-2 border-b last:border-0">
+        <label className="label">{item.label}</label>
+        {ro ? (
+          <p className="text-sm text-gray-800 whitespace-pre-wrap">
+            {type === 'date' && v ? format(new Date(v), 'dd MMM yyyy') : v || <span className="text-gray-400">—</span>}
+          </p>
+        ) : type === 'longtext' ? (
+          <textarea value={v} rows={3} onChange={(e) => set(key, e.target.value)} className="input resize-none text-sm" />
+        ) : (
+          <input type={type === 'date' ? 'date' : 'text'} value={v} onChange={(e) => set(key, e.target.value)} className="input text-sm" />
+        )}
+      </div>
+    );
+  }
+
+  const current = form.sections.find((s) => s.id === activeSection) ?? form.sections[0];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b">
+          <div>
+            <h2 className="text-lg font-semibold">{form.title} — {serviceUser.firstName} {serviceUser.lastName}</h2>
+            <p className="text-xs text-gray-500">
+              {ra ? `Last updated ${format(new Date(ra.updatedAt), 'dd MMM yyyy, h:mm a')}` : 'Not started'}
+              {` · ${rated}/${form.sections.length} sections started`}
+              {ro && ' · read-only'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>
+        ) : (
+          <div className="flex-1 flex min-h-0">
+            <nav className="w-56 shrink-0 border-r overflow-y-auto p-2 hidden md:block">
+              {form.sections.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSection(s.id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${current?.id === s.id ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                >
+                  {s.title}
+                </button>
+              ))}
+            </nav>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <select className="input mb-4 md:hidden" value={current?.id ?? ''} onChange={(e) => setActiveSection(e.target.value)}>
+                {form.sections.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+              </select>
+
+              <h3 className="text-xl font-bold text-gray-900">{current?.title}</h3>
+              {current?.intro && <p className="text-sm text-gray-500 mt-1">{current.intro}</p>}
+
+              <div className="mt-4">
+                {current?.items.map((item, i) => renderItem(current, item, i))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 p-4 border-t">
+          {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
+          {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
+          <div className="flex-1" />
+          <button onClick={doPrint} className="btn-secondary btn">🖨 Print</button>
+          <button onClick={onClose} className="btn-secondary btn">Close</button>
+          {isManager && (
+            <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+              {saveMut.isPending ? 'Saving…' : 'Save'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommentField({ label, value, ro, onChange }: { label: string; value: string; ro: boolean; onChange: (v: string) => void }) {
+  if (ro) {
+    if (!value) return <span className="hidden" />;
+    return <p className="text-xs text-gray-500"><span className="font-medium">{label}:</span> {value}</p>;
+  }
+  return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={label} className="input py-1 text-sm" />;
+}
+
+function SignaturePad({ value, ro, onChange }: { value: string; ro: boolean; onChange: (dataUrl: string) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const last = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (value) {
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, c.width, c.height);
+      img.src = value;
+    }
+  }, [value]);
+
+  if (ro) {
+    return value
+      ? <img src={value} alt="signature" className="border rounded-lg bg-white max-h-32" />
+      : <p className="text-sm text-gray-400 border rounded-lg p-3 bg-gray-50">Not signed</p>;
+  }
+
+  const pos = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const r = canvasRef.current!.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (canvasRef.current!.width / r.width), y: (e.clientY - r.top) * (canvasRef.current!.height / r.height) };
+  };
+  const start = (e: React.PointerEvent<HTMLCanvasElement>) => { drawing.current = true; last.current = pos(e); (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId); };
+  const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    const ctx = canvasRef.current!.getContext('2d')!;
+    const p = pos(e);
+    ctx.strokeStyle = '#111827'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(last.current!.x, last.current!.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last.current = p;
+  };
+  const end = () => { if (drawing.current) { drawing.current = false; onChange(canvasRef.current!.toDataURL('image/png')); } };
+  const clear = () => { const c = canvasRef.current!; c.getContext('2d')!.clearRect(0, 0, c.width, c.height); onChange(''); };
+
+  return (
+    <div className="space-y-1">
+      <canvas
+        ref={canvasRef}
+        width={500}
+        height={140}
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={end}
+        onPointerLeave={end}
+        className="border rounded-lg bg-white w-full touch-none cursor-crosshair"
+        style={{ maxWidth: 500 }}
+      />
+      <button type="button" onClick={clear} className="text-xs text-blue-600 hover:underline">Clear signature</button>
+    </div>
+  );
+}
