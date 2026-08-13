@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { ServiceUser } from '../types';
-import { RaForm, RaSection, RaItem, RiskVal, keyForRaItem } from './riskAssessmentSchema';
+import { RaForm, RaSection, RaItem, RiskVal, HazardVal, keyForRaItem } from './riskAssessmentSchema';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
 
 interface PrintOpts {
@@ -18,7 +18,9 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
   const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
 
   const risk = (key: string): RiskVal => (values[key] as RiskVal) || { level: '', comment: '', action: '' };
+  const hazard = (key: string): HazardVal => (values[key] as HazardVal) || { level: '', whoHarmed: '', controlled: '', actions: '' };
   const str = (key: string): string => (values[key] as string) || '';
+  const HML_LABEL: Record<string, string> = { H: 'High', M: 'Medium', L: 'Low' };
 
   // Hazard table for a section of 'risk' items.
   function riskTable(section: RaSection): string {
@@ -41,6 +43,26 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
     </table>`;
   }
 
+  // Fire-safety style hazard table (Hazard · Who harmed · Controlled · Risk · Actions).
+  function hazardTable(section: RaSection): string {
+    const rows = section.items.map((item, i) => {
+      const v = hazard(keyForRaItem(section.id, i));
+      return `<tr>
+        <td class="obs">${esc(item.label)}${item.hint ? `<div class="hint">${esc(item.hint)}</div>` : ''}</td>
+        <td>${esc(v.whoHarmed)}</td>
+        <td>${esc(v.controlled)}</td>
+        <td class="lvlw">${v.level ? esc(HML_LABEL[v.level]) : ''}</td>
+        <td>${esc(v.actions)}</td>
+      </tr>`;
+    }).join('');
+    return `<table class="ra">
+      <thead>
+        <tr><th class="obs">Identify the hazard</th><th>Who may be harmed</th><th>How is the risk controlled</th><th class="lvlw">Risk H/M/L</th><th>Actions required</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
   // Non-hazard sections (details / sign-off): simple label→value fields.
   function fieldsBlock(section: RaSection): string {
     return section.items.map((item: RaItem, i) => {
@@ -56,11 +78,13 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
   }
 
   const sectionsHtml = form.sections.map((s) => {
-    const isRisk = s.items.every((it) => (it.type || 'risk') === 'risk');
+    const allRisk = s.items.every((it) => (it.type || 'risk') === 'risk');
+    const allHazard = s.items.every((it) => it.type === 'hazard');
+    const body = allRisk ? riskTable(s) : allHazard ? hazardTable(s) : `<div class="fields-grid">${fieldsBlock(s)}</div>`;
     return `<div class="section">
       <h2>${esc(s.title)}</h2>
       ${s.intro ? `<p class="intro">${esc(s.intro)}</p>` : ''}
-      ${isRisk ? riskTable(s) : `<div class="fields-grid">${fieldsBlock(s)}</div>`}
+      ${body}
     </div>`;
   }).join('');
 
@@ -77,8 +101,10 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
       table.ra th, table.ra td { border: 1px solid #999; padding: 4px 5px; text-align: left; vertical-align: top; }
       table.ra th { background: #f3f3f3; }
       table.ra .num { width: 22px; text-align: center; color: #666; }
-      table.ra .obs { width: 40%; }
+      table.ra .obs { width: 30%; }
+      table.ra .obs .hint { font-size: 9px; color: #777; font-style: italic; }
       table.ra .lvl { width: 34px; text-align: center; font-weight: bold; }
+      table.ra .lvlw { width: 64px; text-align: center; font-weight: bold; }
       .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .field { margin-bottom: 6px; }
       .field-label { font-size: 10px; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: 0.02em; }

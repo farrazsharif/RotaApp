@@ -10,8 +10,8 @@ import { medicationsApi } from '../api/medications';
 import { PSP_SECTIONS, itemKey } from '../lib/servicePlanSchema';
 import type { PspItem, PspSection } from '../lib/servicePlanSchema';
 import { riskAssessmentsApi } from '../api/riskAssessments';
-import { RA_ENVIRONMENT, keyForRaItem } from '../lib/riskAssessmentSchema';
-import type { RiskVal } from '../lib/riskAssessmentSchema';
+import { RA_FORMS, RA_TYPES, keyForRaItem } from '../lib/riskAssessmentSchema';
+import type { RiskVal, HazardVal } from '../lib/riskAssessmentSchema';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
 
@@ -21,6 +21,10 @@ const RISK_LEVEL: Record<string, { label: string; cls: string }> = {
   LOW: { label: 'Low', cls: 'text-green-700 bg-green-100' },
   MED: { label: 'Medium', cls: 'text-amber-700 bg-amber-100' },
   HIGH: { label: 'High', cls: 'text-red-700 bg-red-100' },
+  // Fire-safety hazards use H/M/L.
+  L: { label: 'Low', cls: 'text-green-700 bg-green-100' },
+  M: { label: 'Medium', cls: 'text-amber-700 bg-amber-100' },
+  H: { label: 'High', cls: 'text-red-700 bg-red-100' },
 };
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
@@ -59,7 +63,8 @@ export default function ServiceUserDetail() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('info');
   const [pspSection, setPspSection] = useState(PSP_SECTIONS[0].id);
-  const [raSectionId, setRaSectionId] = useState(RA_ENVIRONMENT.sections[0].id);
+  const [raFormType, setRaFormType] = useState(RA_TYPES[0].type);
+  const [raSectionId, setRaSectionId] = useState('');
 
   const { data: su, isLoading } = useQuery({
     queryKey: ['service-user', id],
@@ -79,9 +84,15 @@ export default function ServiceUserDetail() {
     enabled: !!id && tab === 'service',
   });
 
+  const { data: raSummaries = [] } = useQuery({
+    queryKey: ['risk-assessments', id],
+    queryFn: () => riskAssessmentsApi.list(id!),
+    enabled: !!id && tab === 'risk',
+  });
+
   const { data: riskAssessment } = useQuery({
-    queryKey: ['risk-assessment', id, RA_ENVIRONMENT.type],
-    queryFn: () => riskAssessmentsApi.get(id!, RA_ENVIRONMENT.type),
+    queryKey: ['risk-assessment', id, raFormType],
+    queryFn: () => riskAssessmentsApi.get(id!, raFormType),
     enabled: !!id && tab === 'risk',
   });
 
@@ -288,16 +299,25 @@ export default function ServiceUserDetail() {
           </div>
         )}
 
-        {tab === 'risk' && (
-          <div className="space-y-3">
-            {!riskAssessment ? (
-              <p className="text-center text-gray-400 py-8 text-sm">No risk assessment recorded yet</p>
-            ) : (() => {
-              const section = RA_ENVIRONMENT.sections.find((s) => s.id === raSectionId) ?? RA_ENVIRONMENT.sections[0];
-              return (
+        {tab === 'risk' && (() => {
+          const raForm = RA_FORMS[raFormType] ?? RA_FORMS[RA_TYPES[0].type];
+          const section = raForm.sections.find((s) => s.id === raSectionId) ?? raForm.sections[0];
+          return (
+            <div className="space-y-3">
+              {RA_TYPES.length > 1 && (
+                <select value={raFormType} onChange={(e) => { setRaFormType(e.target.value); setRaSectionId(''); }} className="input text-sm w-full font-semibold">
+                  {RA_TYPES.map((t) => {
+                    const done = raSummaries.some((r) => r.type === t.type);
+                    return <option key={t.type} value={t.type}>{t.title}{done ? '' : ' (not started)'}</option>;
+                  })}
+                </select>
+              )}
+              {!riskAssessment ? (
+                <p className="text-center text-gray-400 py-8 text-sm">This risk assessment hasn’t been recorded yet</p>
+              ) : (
                 <>
-                  <select value={raSectionId} onChange={(e) => setRaSectionId(e.target.value)} className="input text-sm w-full">
-                    {RA_ENVIRONMENT.sections.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  <select value={section.id} onChange={(e) => setRaSectionId(e.target.value)} className="input text-sm w-full">
+                    {raForm.sections.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
                   </select>
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
                     <h3 className="font-bold text-gray-900">{section.title}</h3>
@@ -316,6 +336,24 @@ export default function ServiceUserDetail() {
                               </div>
                               {v.comment && <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">Comment:</span> {v.comment}</p>}
                               {v.action && <p className="text-xs text-gray-500"><span className="font-medium">Action:</span> {v.action}</p>}
+                            </div>
+                          );
+                        }
+                        if (type === 'hazard') {
+                          const v = (raValues[key] as HazardVal) || { level: '', whoHarmed: '', controlled: '', actions: '' };
+                          const lvl = v.level ? RISK_LEVEL[v.level] : null;
+                          return (
+                            <div key={key} className="py-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <p className="text-sm text-gray-800">{item.label}</p>
+                                  {item.hint && <p className="text-xs text-gray-400">{item.hint}</p>}
+                                </div>
+                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${lvl ? lvl.cls : 'text-gray-400 bg-gray-100'}`}>{lvl ? lvl.label : '—'}</span>
+                              </div>
+                              {v.whoHarmed && <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">Who may be harmed:</span> {v.whoHarmed}</p>}
+                              {v.controlled && <p className="text-xs text-gray-500"><span className="font-medium">How controlled:</span> {v.controlled}</p>}
+                              {v.actions && <p className="text-xs text-gray-500"><span className="font-medium">Actions:</span> {v.actions}</p>}
                             </div>
                           );
                         }
@@ -339,10 +377,10 @@ export default function ServiceUserDetail() {
                     </div>
                   </div>
                 </>
-              );
-            })()}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })()}
 
         {tab === 'emar' && (
           <div className="space-y-4">

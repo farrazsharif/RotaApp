@@ -3,11 +3,12 @@
 // Comment and an Action, mirroring the paper form. Shared shape used by the
 // portal (fill/print) and the carer app (read-only).
 
-export type RaItemType = 'risk' | 'text' | 'longtext' | 'date' | 'signature';
+export type RaItemType = 'risk' | 'hazard' | 'text' | 'longtext' | 'date' | 'signature';
 
 export interface RaItem {
   label: string;
   type?: RaItemType; // default 'risk'
+  hint?: string;     // optional example / guidance shown under the label
 }
 
 export interface RaSection {
@@ -26,6 +27,10 @@ export interface RaForm {
 
 // Value stored for a 'risk' item.
 export interface RiskVal { level: '' | 'LOW' | 'MED' | 'HIGH'; comment: string; action: string; }
+
+// Value stored for a 'hazard' item (fire-safety style: who's harmed, how it's
+// controlled, a H/M/L risk factor, and actions required).
+export interface HazardVal { level: '' | 'H' | 'M' | 'L'; whoHarmed: string; controlled: string; actions: string; }
 
 // Stable per-item key (schema order is fixed; never reorder existing items).
 export const keyForRaItem = (sectionId: string, idx: number): string => `${sectionId}__${idx}`;
@@ -237,7 +242,96 @@ export const RA_ENVIRONMENT: RaForm = {
   ],
 };
 
-// Registry — add future risk assessments (Bathing, Fire Safety…) here.
-export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT };
+export const RA_FIRE_SAFETY: RaForm = {
+  type: 'FIRE_SAFETY',
+  title: 'Fire Safety Risk Assessment',
+  sections: [
+  {
+    id: 'details',
+    title: 'Assessment Details',
+    intro: 'Risk key — High: reduce the risk immediately. Moderate: identify actions required to reduce the risk. Low: reduce the risk if practicable.',
+    items: [
+      { label: 'Service user name and address', type: 'text' },
+      { label: 'Name of assessor', type: 'text' },
+      { label: 'Date', type: 'date' },
+      { label: 'Review date', type: 'date' },
+    ],
+  },
+  {
+    id: 'increased',
+    title: 'Increased Fire Risk',
+    items: [
+      { label: 'Smoking', type: 'hazard' },
+      { label: 'Evidence of previous fires or near misses e.g. scorch marks, cigarette burns on furniture, heaters', type: 'hazard' },
+      { label: 'Overloaded sockets', type: 'hazard' },
+      { label: 'Signs of unsafe wiring', type: 'hazard' },
+      { label: 'Unsafe use of candles or naked flames', type: 'hazard' },
+      { label: 'Hoarding disorders', type: 'hazard' },
+      { label: 'Are combustible materials close to sources of ignition? i.e. clothes drying in front of a gas fire', type: 'hazard' },
+      { label: 'Incidents or threats to property', type: 'hazard' },
+    ],
+  },
+  {
+    id: 'react',
+    title: 'Less Able to React if There is a Fire',
+    items: [
+      { label: 'No working smoke alarms', type: 'hazard' },
+      { label: 'Person has a history of alcohol dependency or drug misuse (prescribed or recreational)', type: 'hazard' },
+      { label: 'Mental health conditions such as dementia or learning disability', type: 'hazard' },
+      { label: 'Physical or sensory impairment', type: 'hazard' },
+    ],
+  },
+  {
+    id: 'escape',
+    title: 'Reduced Ability to Escape',
+    items: [
+      { label: 'Reduced mobility due to physical disability or age-related problems / long-term illness', type: 'hazard' },
+      { label: 'Difficulties in making decisions', type: 'hazard' },
+    ],
+  },
+  {
+    id: 'plans',
+    title: 'Escape Plans',
+    items: [
+      { label: 'Type of property', type: 'hazard', hint: 'Flat, bedsit, bungalow, house' },
+      { label: 'Is there a planned escape route for the type of property?', type: 'hazard' },
+      { label: 'Is the escape route free from obstructions?', type: 'hazard' },
+      { label: 'Is there a stay-put scheme in place?', type: 'hazard' },
+    ],
+  },
+  {
+    id: 'awareness',
+    title: 'Awareness',
+    items: [
+      { label: 'A Home Safety Fire Check has been carried out in the property by the local fire officer', type: 'hazard' },
+      { label: 'Are fire extinguishers and fire blankets available?', type: 'hazard' },
+      { label: 'Are the service user and family aware of hazards?', type: 'hazard' },
+      { label: 'Are smoke alarms routinely tested?', type: 'hazard' },
+    ],
+  },
+  {
+    id: 'staff',
+    title: 'Staff Training',
+    items: [
+      { label: 'Staff aware of fire risks on the property', type: 'hazard' },
+      { label: 'The staff know how to act in the event of a fire', type: 'hazard' },
+      { label: 'If a smoker, a separate Smokers Home Safety risk assessment has been completed', type: 'hazard' },
+      { label: 'Emollient creams being used by the service user', type: 'hazard' },
+    ],
+  },
+  {
+    id: 'signoff',
+    title: 'Sign-off',
+    items: [
+      { label: 'Actions completed and reduced risk factor', type: 'longtext' },
+      { label: 'Signature', type: 'signature' },
+      { label: 'Date completed', type: 'date' },
+    ],
+  },
+  ],
+};
+
+// Registry — add future risk assessments (Bathing, Manual Handling…) here.
+export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY };
 
 export const RA_TYPES: { type: string; title: string }[] = Object.values(RA_FORMS).map((f) => ({ type: f.type, title: f.title }));

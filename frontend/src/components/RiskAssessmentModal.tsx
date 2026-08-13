@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser } from '../types';
-import { RaForm, RaItem, RaSection, RiskVal, keyForRaItem } from '../lib/riskAssessmentSchema';
+import { RaForm, RaItem, RaSection, RiskVal, HazardVal, keyForRaItem } from '../lib/riskAssessmentSchema';
 import { printRiskAssessment } from '../lib/riskAssessmentPrint';
 import { format } from 'date-fns';
 
@@ -17,6 +17,12 @@ const LEVELS: { v: RiskVal['level']; label: string; on: string }[] = [
   { v: 'LOW', label: 'Low', on: 'bg-green-600 text-white border-green-600' },
   { v: 'MED', label: 'Med', on: 'bg-amber-500 text-white border-amber-500' },
   { v: 'HIGH', label: 'High', on: 'bg-red-600 text-white border-red-600' },
+];
+
+const HML: { v: HazardVal['level']; label: string; on: string }[] = [
+  { v: 'L', label: 'Low', on: 'bg-green-600 text-white border-green-600' },
+  { v: 'M', label: 'Med', on: 'bg-amber-500 text-white border-amber-500' },
+  { v: 'H', label: 'High', on: 'bg-red-600 text-white border-red-600' },
 ];
 
 export default function RiskAssessmentModal({ serviceUser, form, onClose }: Props) {
@@ -49,6 +55,7 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
 
   const set = (key: string, val: unknown) => setValues((v) => ({ ...v, [key]: val }));
   const risk = (key: string): RiskVal => (values[key] as RiskVal) || { level: '', comment: '', action: '' };
+  const hazard = (key: string): HazardVal => (values[key] as HazardVal) || { level: '', whoHarmed: '', controlled: '', actions: '' };
   const str = (key: string): string => (values[key] as string) || '';
 
   // Progress: how many hazard sections have at least one item rated.
@@ -57,8 +64,9 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
       s.items.some((item, i) => {
         const key = keyForRaItem(s.id, i);
         const v = values[key];
-        if (item.type && item.type !== 'risk') return typeof v === 'string' ? v.trim() !== '' : false;
-        return !!v && (v as RiskVal).level !== '';
+        const t = item.type || 'risk';
+        if (t === 'risk' || t === 'hazard') return !!v && (v as { level?: string }).level !== '' && (v as { level?: string }).level !== undefined;
+        return typeof v === 'string' ? v.trim() !== '' : false;
       }),
     ).length;
   }, [values, form]);
@@ -99,6 +107,43 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
           <div className="grid gap-2 mt-1.5 sm:grid-cols-2">
             <CommentField label="Comment" value={v.comment} ro={ro} onChange={(c) => set(key, { ...v, comment: c })} />
             <CommentField label="Action needed" value={v.action} ro={ro} onChange={(a) => set(key, { ...v, action: a })} />
+          </div>
+        </div>
+      );
+    }
+
+    if (type === 'hazard') {
+      const v = hazard(key);
+      return (
+        <div key={key} className="py-2.5 border-b last:border-0">
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+            <div className="flex-1 min-w-[220px]">
+              <span className="text-sm text-gray-800">{item.label}</span>
+              {item.hint && <span className="block text-xs text-gray-400">{item.hint}</span>}
+            </div>
+            {ro ? (
+              <span className={`text-xs font-bold ${v.level === 'H' ? 'text-red-600' : v.level === 'M' ? 'text-amber-600' : v.level === 'L' ? 'text-green-700' : 'text-gray-400'}`}>
+                {v.level ? HML.find((l) => l.v === v.level)!.label : '—'}
+              </span>
+            ) : (
+              <div className="flex gap-1">
+                {HML.map((l) => (
+                  <button
+                    key={l.v}
+                    type="button"
+                    onClick={() => set(key, { ...v, level: v.level === l.v ? '' : l.v })}
+                    className={`px-3 py-1 rounded-md text-xs font-medium border ${v.level === l.v ? l.on : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="grid gap-2 mt-1.5 sm:grid-cols-3">
+            <CommentField label="Who may be harmed" value={v.whoHarmed} ro={ro} onChange={(x) => set(key, { ...v, whoHarmed: x })} />
+            <CommentField label="How is the risk controlled" value={v.controlled} ro={ro} onChange={(x) => set(key, { ...v, controlled: x })} />
+            <CommentField label="Actions required" value={v.actions} ro={ro} onChange={(x) => set(key, { ...v, actions: x })} />
           </div>
         </div>
       );
