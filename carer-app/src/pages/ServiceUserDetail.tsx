@@ -11,7 +11,7 @@ import { PSP_SECTIONS, itemKey } from '../lib/servicePlanSchema';
 import type { PspItem, PspSection } from '../lib/servicePlanSchema';
 import { riskAssessmentsApi } from '../api/riskAssessments';
 import { RA_FORMS, RA_TYPES, keyForRaItem } from '../lib/riskAssessmentSchema';
-import type { RiskVal, HazardVal } from '../lib/riskAssessmentSchema';
+import type { RiskVal, HazardVal, YesNoVal } from '../lib/riskAssessmentSchema';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
 
@@ -354,6 +354,19 @@ export default function ServiceUserDetail() {
                               {v.whoHarmed && <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">Who may be harmed:</span> {v.whoHarmed}</p>}
                               {v.controlled && <p className="text-xs text-gray-500"><span className="font-medium">How controlled:</span> {v.controlled}</p>}
                               {v.actions && <p className="text-xs text-gray-500"><span className="font-medium">Actions:</span> {v.actions}</p>}
+                            </div>
+                          );
+                        }
+                        if (type === 'yesno') {
+                          const v = (raValues[key] as YesNoVal) || { v: '', comment: '' };
+                          const cls = v.v === 'YES' ? 'text-green-700 bg-green-100' : v.v === 'NO' ? 'text-red-700 bg-red-100' : 'text-gray-400 bg-gray-100';
+                          return (
+                            <div key={key} className="py-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm text-gray-800 flex-1"><span className="text-gray-400 mr-1">{i + 1}.</span>{item.label}</p>
+                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${cls}`}>{v.v || '—'}</span>
+                              </div>
+                              {v.comment && <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">Comment:</span> {v.comment}</p>}
                             </div>
                           );
                         }

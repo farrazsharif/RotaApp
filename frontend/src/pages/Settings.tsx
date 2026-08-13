@@ -126,18 +126,59 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 function AuditLogTab() {
-  const { data: logs = [], isLoading } = useQuery({ queryKey: ['audit'], queryFn: auditApi.list });
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [q, setQ] = useState('');
+  // Applied filters (only sent when Search is pressed / cleared), so typing
+  // doesn't refetch on every keystroke.
+  const [applied, setApplied] = useState<{ from?: string; to?: string; q?: string }>({});
+  const hasFilter = !!(applied.from || applied.to || applied.q);
+
+  const { data: logs = [], isLoading, isFetching } = useQuery({
+    queryKey: ['audit', applied],
+    queryFn: () => auditApi.list(applied),
+  });
+
+  const search = () => setApplied({ from: from || undefined, to: to || undefined, q: q.trim() || undefined });
+  const clear = () => { setFrom(''); setTo(''); setQ(''); setApplied({}); };
 
   return (
     <div className="card p-0 overflow-x-auto">
-      <div className="p-4 border-b">
-        <h2 className="font-semibold text-gray-900">Audit Log</h2>
-        <p className="text-sm text-gray-500">Recent sensitive changes — who did what and when.</p>
+      <div className="p-4 border-b space-y-3">
+        <div>
+          <h2 className="font-semibold text-gray-900">Audit Log</h2>
+          <p className="text-sm text-gray-500">Who did what and when. All records are kept — search by date to see older activity.</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="label">From</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input" />
+          </div>
+          <div>
+            <label className="label">To</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input" />
+          </div>
+          <div className="flex-1 min-w-[180px]">
+            <label className="label">Search</label>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') search(); }}
+              placeholder="Name, action, client…"
+              className="input w-full"
+            />
+          </div>
+          <button className="btn-primary btn" onClick={search}>Search</button>
+          {hasFilter && <button className="btn-secondary btn" onClick={clear}>Clear</button>}
+        </div>
+        {hasFilter && !isFetching && (
+          <p className="text-xs text-gray-500">{logs.length} matching {logs.length === 1 ? 'entry' : 'entries'}{applied.from || applied.to ? ` · ${applied.from || 'earliest'} → ${applied.to || 'now'}` : ''}.</p>
+        )}
       </div>
       {isLoading ? (
         <div className="p-6 text-gray-400 text-sm">Loading…</div>
       ) : logs.length === 0 ? (
-        <div className="p-6 text-gray-400 text-sm">No activity recorded yet.</div>
+        <div className="p-6 text-gray-400 text-sm">{hasFilter ? 'No entries match those filters.' : 'No activity recorded yet.'}</div>
       ) : (
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">

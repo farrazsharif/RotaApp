@@ -3,7 +3,7 @@
 // Comment and an Action, mirroring the paper form. Shared shape used by the
 // portal (fill/print) and the carer app (read-only).
 
-export type RaItemType = 'risk' | 'hazard' | 'text' | 'longtext' | 'date' | 'signature';
+export type RaItemType = 'risk' | 'hazard' | 'yesno' | 'text' | 'longtext' | 'date' | 'signature';
 
 export interface RaItem {
   label: string;
@@ -31,6 +31,9 @@ export interface RiskVal { level: '' | 'LOW' | 'MED' | 'HIGH'; comment: string; 
 // Value stored for a 'hazard' item (fire-safety style: who's harmed, how it's
 // controlled, a H/M/L risk factor, and actions required).
 export interface HazardVal { level: '' | 'H' | 'M' | 'L'; whoHarmed: string; controlled: string; actions: string; }
+
+// Value stored for a 'yesno' item (a Yes/No safety check with a comment).
+export interface YesNoVal { v: '' | 'YES' | 'NO'; comment: string; }
 
 // Stable per-item key (schema order is fixed; never reorder existing items).
 export const keyForRaItem = (sectionId: string, idx: number): string => `${sectionId}__${idx}`;
@@ -331,7 +334,47 @@ export const RA_FIRE_SAFETY: RaForm = {
   ],
 };
 
-// Registry — add future risk assessments (Bathing, Manual Handling…) here.
-export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY };
+export const RA_BATHING: RaForm = {
+  type: 'BATHING',
+  title: 'Bathing & Showering Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [{ label: 'Name of service user', type: 'text' }],
+    },
+    {
+      id: 'checks',
+      title: 'Bathing & Showering Checks',
+      intro: 'Mark Yes or No for each observation and add any comment.',
+      items: [
+        { label: 'Service user is able to safely run a bath, or add cold water, unattended.', type: 'yesno' },
+        { label: 'Service user is able to enter / exit a bath / shower safely and unaided.', type: 'yesno' },
+        { label: 'Service user is able to safely stand unaided in a shower OR there is a shower stool available.', type: 'yesno' },
+        { label: 'Where required, grab handles are within easy reach and are securely fixed.', type: 'yesno' },
+        { label: 'Textured bath / shower mats are available to assist grip and reduce risk of slipping.', type: 'yesno' },
+        { label: 'Service user can differentiate between hot and cold taps OR can safely operate mixer taps / thermostatic valve taps.', type: 'yesno' },
+        { label: 'Service user does not have an impaired sensitivity to temperature.', type: 'yesno' },
+        { label: 'Service user’s mental capacity allows them to recognise a bath or shower that is too hot.', type: 'yesno' },
+        { label: 'Showers — risk of excessive OR restricted cold water arising from water diversions around gravity-fed shower systems.', type: 'yesno' },
+        { label: 'Service user is able to summon assistance when needed.', type: 'yesno' },
+        { label: 'Bath hoists or other lifting aids required.', type: 'yesno' },
+        { label: 'Thermometers are available to check the temperature of bathing / showering water.', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+// Registry — add future risk assessments (Manual Handling, Smoking…) here.
+export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, BATHING: RA_BATHING };
 
 export const RA_TYPES: { type: string; title: string }[] = Object.values(RA_FORMS).map((f) => ({ type: f.type, title: f.title }));

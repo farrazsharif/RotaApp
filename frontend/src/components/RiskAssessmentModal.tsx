@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser } from '../types';
-import { RaForm, RaItem, RaSection, RiskVal, HazardVal, keyForRaItem } from '../lib/riskAssessmentSchema';
+import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem } from '../lib/riskAssessmentSchema';
 import { printRiskAssessment } from '../lib/riskAssessmentPrint';
 import { format } from 'date-fns';
 
@@ -56,6 +56,7 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
   const set = (key: string, val: unknown) => setValues((v) => ({ ...v, [key]: val }));
   const risk = (key: string): RiskVal => (values[key] as RiskVal) || { level: '', comment: '', action: '' };
   const hazard = (key: string): HazardVal => (values[key] as HazardVal) || { level: '', whoHarmed: '', controlled: '', actions: '' };
+  const yesno = (key: string): YesNoVal => (values[key] as YesNoVal) || { v: '', comment: '' };
   const str = (key: string): string => (values[key] as string) || '';
 
   // Progress: how many hazard sections have at least one item rated.
@@ -66,6 +67,7 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
         const v = values[key];
         const t = item.type || 'risk';
         if (t === 'risk' || t === 'hazard') return !!v && (v as { level?: string }).level !== '' && (v as { level?: string }).level !== undefined;
+        if (t === 'yesno') return !!v && (v as YesNoVal).v !== '';
         return typeof v === 'string' ? v.trim() !== '' : false;
       }),
     ).length;
@@ -144,6 +146,42 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
             <CommentField label="Who may be harmed" value={v.whoHarmed} ro={ro} onChange={(x) => set(key, { ...v, whoHarmed: x })} />
             <CommentField label="How is the risk controlled" value={v.controlled} ro={ro} onChange={(x) => set(key, { ...v, controlled: x })} />
             <CommentField label="Actions required" value={v.actions} ro={ro} onChange={(x) => set(key, { ...v, actions: x })} />
+          </div>
+        </div>
+      );
+    }
+
+    if (type === 'yesno') {
+      const v = yesno(key);
+      return (
+        <div key={key} className="py-2.5 border-b last:border-0">
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+            <span className="text-sm text-gray-800 flex-1 min-w-[220px]">
+              <span className="text-gray-400 mr-1.5">{idx + 1}.</span>{item.label}
+            </span>
+            {ro ? (
+              <span className={`text-xs font-bold ${v.v === 'YES' ? 'text-green-700' : v.v === 'NO' ? 'text-red-600' : 'text-gray-400'}`}>{v.v || '—'}</span>
+            ) : (
+              <div className="flex gap-1">
+                {(['YES', 'NO'] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => set(key, { ...v, v: v.v === opt ? '' : opt })}
+                    className={`px-3 py-1 rounded-md text-xs font-medium border ${
+                      v.v === opt
+                        ? opt === 'YES' ? 'bg-green-600 text-white border-green-600' : 'bg-red-600 text-white border-red-600'
+                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="mt-1.5">
+            <CommentField label="Comment" value={v.comment} ro={ro} onChange={(c) => set(key, { ...v, comment: c })} />
           </div>
         </div>
       );

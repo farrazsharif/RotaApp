@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { ServiceUser } from '../types';
-import { RaForm, RaSection, RaItem, RiskVal, HazardVal, keyForRaItem } from './riskAssessmentSchema';
+import { RaForm, RaSection, RaItem, RiskVal, HazardVal, YesNoVal, keyForRaItem } from './riskAssessmentSchema';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
 
 interface PrintOpts {
@@ -19,6 +19,7 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
 
   const risk = (key: string): RiskVal => (values[key] as RiskVal) || { level: '', comment: '', action: '' };
   const hazard = (key: string): HazardVal => (values[key] as HazardVal) || { level: '', whoHarmed: '', controlled: '', actions: '' };
+  const yesno = (key: string): YesNoVal => (values[key] as YesNoVal) || { v: '', comment: '' };
   const str = (key: string): string => (values[key] as string) || '';
   const HML_LABEL: Record<string, string> = { H: 'High', M: 'Medium', L: 'Low' };
 
@@ -63,6 +64,26 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
     </table>`;
   }
 
+  // Yes/No checklist table (Observation · Yes · No · Comments).
+  function yesnoTable(section: RaSection): string {
+    const rows = section.items.map((item, i) => {
+      const v = yesno(keyForRaItem(section.id, i));
+      return `<tr>
+        <td class="num">${i + 1}</td>
+        <td class="obs">${esc(item.label)}</td>
+        <td class="lvl">${v.v === 'YES' ? '✗' : ''}</td>
+        <td class="lvl">${v.v === 'NO' ? '✗' : ''}</td>
+        <td>${esc(v.comment)}</td>
+      </tr>`;
+    }).join('');
+    return `<table class="ra">
+      <thead>
+        <tr><th class="num"></th><th class="obs">Observation</th><th class="lvl">Yes</th><th class="lvl">No</th><th>Comments</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
   // Non-hazard sections (details / sign-off): simple label→value fields.
   function fieldsBlock(section: RaSection): string {
     return section.items.map((item: RaItem, i) => {
@@ -80,7 +101,8 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
   const sectionsHtml = form.sections.map((s) => {
     const allRisk = s.items.every((it) => (it.type || 'risk') === 'risk');
     const allHazard = s.items.every((it) => it.type === 'hazard');
-    const body = allRisk ? riskTable(s) : allHazard ? hazardTable(s) : `<div class="fields-grid">${fieldsBlock(s)}</div>`;
+    const allYesNo = s.items.every((it) => it.type === 'yesno');
+    const body = allRisk ? riskTable(s) : allHazard ? hazardTable(s) : allYesNo ? yesnoTable(s) : `<div class="fields-grid">${fieldsBlock(s)}</div>`;
     return `<div class="section">
       <h2>${esc(s.title)}</h2>
       ${s.intro ? `<p class="intro">${esc(s.intro)}</p>` : ''}
