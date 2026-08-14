@@ -1071,11 +1071,11 @@ function CarerTimeline({ users, days, shiftsInRange, needsStaff, missingCarers, 
   const gridCols = { gridTemplateColumns: `160px repeat(${days.length}, minmax(120px, 1fr))` };
 
   return (
-    <div className="card p-0 overflow-x-auto">
+    <div className="card p-0 overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
       <div className="min-w-max">
-        {/* Header */}
-        <div className="grid border-b border-gray-200 bg-gray-50 sticky top-0" style={gridCols}>
-          <div className="px-3 py-2 text-xs font-medium text-gray-500 sticky left-0 bg-gray-50 z-10">Carer</div>
+        {/* Header — pinned to the top while scrolling so the dates stay visible. */}
+        <div className="grid border-b border-gray-200 bg-gray-50 sticky top-0 z-20" style={gridCols}>
+          <div className="px-3 py-2 text-xs font-medium text-gray-500 sticky left-0 bg-gray-50 z-30">Carer</div>
           {days.map((d) => (
             <div key={dayKey(d)} className="px-2 py-2 text-xs font-medium text-gray-600 text-center border-l border-gray-100">{format(d, 'EEE dd/MM')}</div>
           ))}
