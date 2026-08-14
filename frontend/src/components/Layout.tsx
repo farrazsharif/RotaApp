@@ -13,6 +13,7 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; mana
   { to: '/platform', label: 'Platform Admin', icon: '🏢', platformOnly: true },
   { to: '/', label: 'Dashboard', icon: '🏠', exact: true },
   { to: '/schedule', label: 'Schedule', icon: '📅', capability: 'manage_schedule' },
+  { to: '/roster', label: 'Roster', icon: '🗓️', capability: 'manage_schedule' },
   { to: '/runs', label: 'Runs', icon: '🚐', capability: 'manage_schedule' },
   { to: '/service-users', label: 'Service Users', icon: '🧑‍🦽', capability: 'manage_service_users' },
   { to: '/care-plans', label: 'Care Plans', icon: '📋', capability: 'manage_service_users' },

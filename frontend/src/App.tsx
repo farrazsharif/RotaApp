@@ -7,6 +7,7 @@ import Signup from './pages/Signup';
 import SetPassword from './pages/SetPassword';
 import Dashboard from './pages/Dashboard';
 import Schedule from './pages/Schedule';
+import Roster from './pages/Roster';
 import TimeOff from './pages/TimeOff';
 import Attendance from './pages/Attendance';
 import Reports from './pages/Reports';
@@ -90,6 +91,7 @@ function AppRoutes() {
       >
         <Route index element={<Home />} />
         <Route path="schedule" element={<Schedule />} />
+        <Route path="roster" element={<ManagerRoute><Roster /></ManagerRoute>} />
         <Route path="service-users" element={<ServiceUsers />} />
         <Route path="service-users/new" element={<ManagerRoute><ServiceUserForm /></ManagerRoute>} />
         <Route path="service-users/:id" element={<ServiceUserDetail />} />
