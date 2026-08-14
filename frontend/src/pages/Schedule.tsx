@@ -362,6 +362,22 @@ export default function Schedule() {
     if (api && mode === 'calendar') api.changeView(FC_VIEW[viewKey], anchor);
   }, [viewKey, anchor, mode]);
 
+  // On mobile, FullCalendar fires a spurious dateClick when the app regains
+  // focus after you switch away — which would pop the Add Shift modal every
+  // time you come back. Record when the page last became visible/focused so
+  // dateClick can ignore anything that lands in that window.
+  const lastVisibleAt = useRef(0);
+  useEffect(() => {
+    const mark = () => { lastVisibleAt.current = Date.now(); };
+    const onVis = () => { if (document.visibilityState === 'visible') mark(); };
+    window.addEventListener('focus', mark);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('focus', mark);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+
   const shiftBy = (dir: number) => {
     if (dir > 0 && atFutureCap) return;
     setAnchor((a) => {
@@ -377,6 +393,9 @@ export default function Schedule() {
 
   const handleDateClick = useCallback((arg: DateClickArg) => {
     if (!isManager) return;
+    // Ignore the spurious dateClick FullCalendar fires when the app regains
+    // focus (mobile app-switch) — otherwise it opens Add Shift every return.
+    if (Date.now() - lastVisibleAt.current < 800) return;
     setSelectedShift(null); setSelectedDate(arg.dateStr); setModalOpen(true);
   }, [isManager]);
   const handleEventClick = useCallback((arg: EventClickArg) => {
