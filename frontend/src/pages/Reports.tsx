@@ -14,6 +14,7 @@ import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import CarerRota from '../components/CarerRota';
 import SearchableSelect from '../components/SearchableSelect';
 import PrintBrandingHeader from '../components/PrintBrandingHeader';
+import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
 type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm' | 'rota';
 
@@ -196,6 +197,59 @@ export default function Reports() {
     (r) => !term || r.employee.toLowerCase().includes(term) || r.serviceUser.toLowerCase().includes(term),
   );
   const filteredOvertime = overtimeData.filter((r) => !term || r.name.toLowerCase().includes(term));
+
+  // Branded, printable Crib Sheet — opens a new window with the company
+  // letterhead and the current (filtered) rows, then prints.
+  function printCrib() {
+    const esc = (s: string) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
+    const rangeLabel = `${format(parseISO(startDate), 'dd MMM yyyy')} – ${format(parseISO(endDate), 'dd MMM yyyy')}`;
+    const rows = filteredCrib.map((r) => `
+      <tr>
+        <td>${esc(r.employee)}</td>
+        <td>${esc(r.position)}</td>
+        <td>${esc(r.serviceUser)}</td>
+        <td>${esc(format(parseISO(r.date), 'dd-MM-yyyy'))}</td>
+        <td class="c">${esc(formatTime12h(r.startTime))}</td>
+        <td class="c">${r.clockIn ? esc(format(parseISO(r.clockIn), 'h:mm a')) : '—'}</td>
+        <td class="c">${esc(formatTime12h(r.endTime))}</td>
+        <td class="c">${r.clockOut ? esc(format(parseISO(r.clockOut), 'h:mm a')) : '—'}</td>
+        <td class="r">${r.totalHours}h</td>
+      </tr>`).join('');
+    const total = (Math.round(filteredCrib.reduce((s, r) => s + r.totalHours, 0) * 100) / 100).toFixed(1);
+    const html = `<!DOCTYPE html><html><head><title>Crib Sheet — ${esc(rangeLabel)}</title>
+      <style>
+        @page { size: landscape; margin: 12mm; }
+        body { font-family: Arial, sans-serif; color: #111; margin: 0; }
+        h1 { font-size: 18px; margin: 0 0 2px; }
+        .sub { color: #555; font-size: 12px; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th, td { border: 1px solid #999; padding: 5px 6px; text-align: left; }
+        th { background: #f3f3f3; }
+        td.c { text-align: center; } td.r { text-align: right; font-weight: bold; }
+        tfoot td { font-weight: bold; background: #f3f3f3; }
+        @media screen { html { background: #eef1f5; } body { max-width: 1100px; margin: 24px auto; padding: 20px 32px 44px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); } }
+        @media print { body { margin: 0; } .no-print { display: none !important; } }
+        ${BRANDING_PRINT_CSS}
+      </style></head><body>
+      <div class="no-print" style="margin-bottom:12px;display:flex;gap:8px">
+        <button onclick="window.print()" style="font:inherit;font-size:13px;padding:6px 14px;border-radius:6px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer">🖨 Print</button>
+        <button onclick="window.close()" style="font:inherit;font-size:13px;padding:6px 14px;border-radius:6px;border:1px solid #d1d5db;background:#fff;color:#374151;cursor:pointer">Close</button>
+      </div>
+      ${brandingHeaderHtml()}
+      <h1>Crib Sheet</h1>
+      <div class="sub">${esc(rangeLabel)} · ${filteredCrib.length} record${filteredCrib.length === 1 ? '' : 's'} · Generated ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
+      <table>
+        <thead><tr><th>Carer</th><th>Position</th><th>Service User</th><th>Date</th><th>Start</th><th>Clock In</th><th>End</th><th>Clock Out</th><th>Total</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="8">Total</td><td class="r">${total}h</td></tr></tfoot>
+      </table>
+      </body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) { alert('Please allow pop-ups to print.'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+  }
 
   // Unassigned hours are shown separately and excluded from the carer total.
   const schedAssigned = filteredScheduled.filter((r) => r.userId !== 'unassigned');
@@ -576,7 +630,12 @@ export default function Reports() {
 
       {/* Crib Sheet */}
       {tab === 'crib' && !loadingCrib && (
-        <div>
+        <div className="space-y-3">
+          {filteredCrib.length > 0 && (
+            <div className="flex justify-end">
+              <button onClick={printCrib} className="btn-secondary btn">🖨 Print / Save as PDF</button>
+            </div>
+          )}
           {filteredCrib.length === 0 ? (
             <div className="card text-center py-12 text-gray-400">{term ? 'No matching results' : 'No scheduled shifts in this period'}</div>
           ) : (
