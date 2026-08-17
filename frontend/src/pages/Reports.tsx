@@ -117,8 +117,8 @@ export default function Reports() {
   });
 
   const { data: cribData = [], isLoading: loadingCrib } = useQuery({
-    queryKey: ['report-crib-sheet', startDate, endDate],
-    queryFn: () => reportsApi.cribSheet({ startDate, endDate }),
+    queryKey: ['report-crib-sheet', startDate, endDate, siteIdParam, roleFilter, userIdParam, serviceUserIdParam],
+    queryFn: () => reportsApi.cribSheet({ startDate, endDate, siteId: siteIdParam, role: roleFilter || undefined, userId: userIdParam, serviceUserId: serviceUserIdParam }),
     enabled: tab === 'crib',
   });
 
@@ -348,7 +348,7 @@ export default function Reports() {
           <label className="label">End Date</label>
           <input type="date" value={endDate} onChange={(e) => { setTimeline(''); setEndDate(e.target.value); }} className="input" />
         </div>
-        {(tab === 'scheduled' || tab === 'ecm') && (
+        {(tab === 'scheduled' || tab === 'ecm' || tab === 'crib') && (
           <>
             <div className="w-44">
               <label className="label">Location Filter</label>
@@ -359,7 +359,7 @@ export default function Reports() {
                 allLabel="All Locations"
               />
             </div>
-            {tab === 'scheduled' && (
+            {(tab === 'scheduled' || tab === 'crib') && (
               <div className="w-44">
                 <label className="label">Position Filter</label>
                 <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="input">

@@ -46,7 +46,7 @@ export const reportsApi = {
     api.get<CoverageDay[]>('/reports/coverage', { params }).then((r) => r.data),
   scheduledHours: (params: { startDate: string; endDate: string; siteId?: string; role?: string; userId?: string; serviceUserId?: string; groupBy?: string }) =>
     api.get<ScheduledHoursRow[]>('/reports/scheduled-hours', { params }).then((r) => r.data),
-  cribSheet: (params: { startDate: string; endDate: string }) =>
+  cribSheet: (params: { startDate: string; endDate: string; siteId?: string; role?: string; userId?: string; serviceUserId?: string }) =>
     api.get<CribSheetRow[]>('/reports/crib-sheet', { params }).then((r) => r.data),
   shiftRoles: () => api.get<string[]>('/reports/shift-roles').then((r) => r.data),
   ecm: (params: { startDate: string; endDate: string; siteId?: string; userId?: string; serviceUserId?: string; view?: string }) =>

@@ -278,13 +278,29 @@ export async function scheduledHoursReport(req: AuthRequest, res: Response) {
 }
 
 export async function cribSheetReport(req: AuthRequest, res: Response) {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate, siteId, role, userId, serviceUserId } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
   const { start, end } = dayRange(startDate, endDate);
 
+  // Optional filters (Location / Position / Carer / Service User), mirroring the
+  // Hours Scheduled report.
+  const siteFilter = siteIdFilter(siteId);
+  const userIds = idList(userId);
+  const suIds = idList(serviceUserId);
+
+  const where: Record<string, unknown> = {
+    date: { gte: start, lte: end },
+    status: { not: 'CANCELLED' },
+    ...relatedServiceUserScopeWhere(req.user),
+  };
+  if (siteFilter) where.serviceUser = { siteId: siteFilter };
+  if (suIds) where.serviceUserId = { in: suIds };
+  if (role) where.role = String(role);
+  if (userIds) where.OR = [{ userId: { in: userIds } }, { coverCarers: { some: { id: { in: userIds } } } }];
+
   const shifts = await prisma.shift.findMany({
-    where: { date: { gte: start, lte: end }, status: { not: 'CANCELLED' }, ...relatedServiceUserScopeWhere(req.user) },
+    where,
     include: {
       user: { select: { id: true, firstName: true, lastName: true } },
       coverCarers: { select: { id: true, firstName: true, lastName: true } },
@@ -314,10 +330,13 @@ export async function cribSheetReport(req: AuthRequest, res: Response) {
     const suName = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : '—';
     const position = s.serviceUser?.site?.name ?? '—';
 
-    const carers = [
+    let carers = [
       ...(s.user ? [s.user] : []),
       ...s.coverCarers,
     ];
+    // When filtering by carer, only show that carer's row(s) on a double-up.
+    if (userIds) carers = carers.filter((c) => userIds.includes(c.id));
+    if (userIds && carers.length === 0) continue;
 
     const targets = carers.length > 0 ? carers : [{ id: 'unassigned', firstName: 'Unassigned', lastName: '' }];
 
