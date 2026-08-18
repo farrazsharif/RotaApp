@@ -13,7 +13,28 @@ import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
 import { ensureNotificationPermission, showClockedInNotification, clearClockedInNotification } from '../lib/clockNotification';
+import { settingsApi } from '../api/settings';
+import { resolveCallLogTasks, buildNoteFromTicks, parseCallLogTicks } from '../lib/callLogTasks';
+import type { CallLogTaskDef, CallLogTaskTick } from '../lib/callLogTasks';
 import type { MedAdminStatus, CallLogSignature, ClockRecord, DueDose } from '../types';
+
+// Green/amber chips summarising the tasks a carer ticked on a visit.
+function TaskBadges({ tasks }: { tasks?: string | null }) {
+  const ticks = parseCallLogTicks(tasks);
+  if (!ticks.length) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {ticks.map((t, i) => (
+        <span
+          key={i}
+          className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.refused ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}
+        >
+          {t.refused ? '✕' : '✓'} {t.label}{t.detail ? `: ${t.detail}` : ''}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -138,6 +159,9 @@ export default function CallDetail() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [note, setNote] = useState('');
+  // Visit-checklist ticks, keyed by task id. Present = ticked; refused flag set
+  // on the second tap. The visit note is auto-written from these.
+  const [ticks, setTicks] = useState<Record<string, CallLogTaskTick>>({});
   const [clockOutError, setClockOutError] = useState<{ message: string; pendingMeds: string[] } | null>(null);
   const [shortFix, setShortFix] = useState(false);
   const [logSent, setLogSent] = useState(false);
@@ -177,8 +201,44 @@ export default function CallDetail() {
     enabled: !!shift?.serviceUserId,
   });
 
+  // The company's configurable visit checklist (falls back to a sensible default).
+  const { data: orgSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get, staleTime: 5 * 60 * 1000 });
+  const taskDefs = resolveCallLogTasks(orgSettings?.callLogTasks);
+
   // Shared call log: one log per visit that every carer on the call signs.
   const sharedLog = callLogs.find((l) => l.shiftId === shift?.id);
+
+  // The note that gets saved = auto-written checklist sentence + the carer's own
+  // extra words. Tapping a chip cycles off → done → declined → off.
+  const tickList = Object.values(ticks);
+  const autoText = buildNoteFromTicks(tickList);
+  const finalNote = [autoText, note.trim()].filter(Boolean).join('\n\n');
+
+  const cycleTick = (def: CallLogTaskDef) => {
+    setTicks((prev) => {
+      const cur = prev[def.id];
+      const next = { ...prev };
+      if (!cur) next[def.id] = { id: def.id, label: def.label, phrase: def.phrase };
+      else if (!cur.refused) next[def.id] = { ...cur, refused: true };
+      else delete next[def.id];
+      return next;
+    });
+  };
+  const setTickDetail = (id: string, detail: string) => {
+    setTicks((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], detail } } : prev));
+  };
+  // Re-open a saved log for editing: restore the ticks and put any words the
+  // carer added beyond the auto-text back in the free-text box.
+  const loadForEdit = (log: { note: string; tasks?: string | null }) => {
+    const t = parseCallLogTicks(log.tasks);
+    const map: Record<string, CallLogTaskTick> = {};
+    t.forEach((x) => { map[x.id] = x; });
+    setTicks(map);
+    const auto = buildNoteFromTicks(t);
+    setNote(auto && log.note.startsWith(auto) ? log.note.slice(auto.length).trim() : (t.length ? '' : log.note));
+    setEditingLog(true);
+    setLogError(null);
+  };
 
   // Recent visit history: the last 7 days of this client's logs from OTHER
   // visits, so the incoming carer can see what previous carers did and continue
@@ -325,9 +385,10 @@ export default function CallDetail() {
 
   const logMut = useMutation({
     mutationFn: () =>
-      callLogsApi.create({ serviceUserId: shift!.serviceUserId!, shiftId: shift!.id, note: note.trim() }),
+      callLogsApi.create({ serviceUserId: shift!.serviceUserId!, shiftId: shift!.id, note: finalNote, tasks: tickList }),
     onSuccess: () => {
       setNote('');
+      setTicks({});
       setLogSent(true);
       setClockOutError(null);
       setEditingLog(false);
@@ -674,6 +735,7 @@ export default function CallDetail() {
                         {authors && <span className="text-xs text-gray-400 shrink-0">{authors}</span>}
                       </div>
                       <p className="text-sm text-gray-800 whitespace-pre-wrap">{l.note}</p>
+                      <TaskBadges tasks={l.tasks} />
                     </div>
                   );
                 })
@@ -697,24 +759,75 @@ export default function CallDetail() {
           {(!sharedLog && !done) || editingLog ? (
             /* Write / edit the note */
             <>
+              {/* Visit checklist — tick what you did and the note writes itself */}
+              {taskDefs.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">
+                    What did you do? <span className="font-normal text-gray-400">· tap once = done, twice = declined</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {taskDefs.map((def) => {
+                      const cur = ticks[def.id];
+                      const state = !cur ? 'off' : cur.refused ? 'refused' : 'done';
+                      return (
+                        <button
+                          key={def.id}
+                          type="button"
+                          onClick={() => cycleTick(def)}
+                          className={`text-sm px-3 py-1.5 rounded-full font-medium border ${
+                            state === 'done'
+                              ? 'bg-green-100 text-green-700 border-green-200'
+                              : state === 'refused'
+                                ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                : 'bg-gray-100 text-gray-600 border-gray-200'
+                          }`}
+                        >
+                          {state === 'done' ? '✓ ' : state === 'refused' ? '✕ ' : ''}{def.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Optional detail for ticked tasks that ask for it (e.g. what they ate) */}
+                  {tickList
+                    .filter((t) => !t.refused && taskDefs.find((d) => d.id === t.id)?.detail)
+                    .map((t) => (
+                      <input
+                        key={t.id}
+                        value={t.detail || ''}
+                        onChange={(e) => setTickDetail(t.id, e.target.value)}
+                        placeholder={`${t.label} — add detail (optional)`}
+                        className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm"
+                      />
+                    ))}
+
+                  {autoText && (
+                    <div className="mt-2 rounded-lg bg-gray-50 border border-gray-100 p-2.5">
+                      <p className="text-xs font-semibold text-gray-400 mb-0.5">Note preview</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{autoText}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Write a note about this visit…"
+                placeholder={autoText ? 'Add anything else about the visit… (optional)' : 'Write a note about this visit…'}
                 rows={3}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
               <div className="mt-2 flex gap-2">
                 <button
                   onClick={() => logMut.mutate()}
-                  disabled={!note.trim() || logMut.isPending}
+                  disabled={!finalNote.trim() || logMut.isPending}
                   className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40"
                 >
                   {logMut.isPending ? 'Saving…' : logSent ? 'Saved ✓' : isSharedCall ? 'Save & Sign' : 'Save Note'}
                 </button>
                 {editingLog && (
                   <button
-                    onClick={() => { setEditingLog(false); setNote(''); setLogError(null); }}
+                    onClick={() => { setEditingLog(false); setNote(''); setTicks({}); setLogError(null); }}
                     className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm"
                   >
                     Cancel
@@ -730,6 +843,7 @@ export default function CallDetail() {
             /* Read the shared note + sign */
             <>
               <p className="text-sm text-gray-800 whitespace-pre-wrap bg-gray-50 rounded-lg p-3 border border-gray-100">{sharedLog.note}</p>
+              <TaskBadges tasks={sharedLog.tasks} />
 
               {isSharedCall && (
                 <div className="mt-3">
@@ -759,7 +873,7 @@ export default function CallDetail() {
                       <span className="flex-1 text-sm font-semibold text-green-700 py-2.5">✓ You've signed this log</span>
                     )}
                     <button
-                      onClick={() => { setEditingLog(true); setNote(sharedLog.note); }}
+                      onClick={() => loadForEdit(sharedLog)}
                       className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm"
                     >
                       Edit note
@@ -776,7 +890,7 @@ export default function CallDetail() {
               {done && withinLogEditWindow && (
                 <div className="mt-3">
                   <button
-                    onClick={() => { setEditingLog(true); setNote(sharedLog.note); setLogError(null); }}
+                    onClick={() => loadForEdit(sharedLog)}
                     className="text-sm font-semibold text-blue-600"
                   >
                     ✏️ Edit note / add a missed task

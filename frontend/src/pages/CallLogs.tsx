@@ -8,6 +8,25 @@ import { CallLog, CallLogSignature, Shift } from '../types';
 import { format, startOfWeek, endOfWeek, subWeeks, subDays } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
+import { parseCallLogTicks } from '../lib/callLogTasks';
+
+// Green/amber chips summarising the tasks a carer ticked on the visit.
+function TaskBadges({ tasks }: { tasks?: string | null }) {
+  const ticks = parseCallLogTicks(tasks);
+  if (ticks.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {ticks.map((t, i) => (
+        <span
+          key={i}
+          className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.refused ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}
+        >
+          {t.refused ? '✕' : '✓'} {t.label}{t.detail ? `: ${t.detail}` : ''}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // Scheduled start/end of a shift (overnight-aware) — for the missing-logs view.
 function schedStart(s: Shift): Date {
@@ -483,7 +502,10 @@ export default function CallLogs() {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
+                <>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
+                  <TaskBadges tasks={log.tasks} />
+                </>
               )}
             </div>
           ))}

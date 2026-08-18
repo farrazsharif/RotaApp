@@ -691,6 +691,10 @@ model CallLog {
   serviceUserId String
   userId        String? // the carer who wrote (authored) the note
   note          String
+  // JSON array of the checklist tasks the carer ticked on this visit —
+  // [{ id, label, phrase?, detail?, refused? }]. The visit note is auto-written
+  // from these; kept structured here for reporting/CQC evidence.
+  tasks         String?  @default("[]")
   // For double/triple-up calls: JSON array of carers who have signed this
   // shared log — [{ userId, firstName, lastName, signedAt }]. The author is
   // added on create; co-carers append when they confirm & sign.
@@ -845,6 +849,7 @@ model OrgSettings {
   inviteExpiryDays  Int      @default(7)
   defaultRole       String   @default("EMPLOYEE")
   permissions       String   @default("{}") // JSON: { permissionKey: Role[] } overrides
+  callLogTasks      String   @default("[]") // JSON: [{ id, label, phrase?, detail? }] carer-app visit checklist
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

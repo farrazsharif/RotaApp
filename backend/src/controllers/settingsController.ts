@@ -55,9 +55,29 @@ export async function loadOrgSettings() {
 const STRING_FIELDS = ['companyName', 'logo', 'address', 'phone', 'email', 'cqcProviderId', 'icoNumber', 'timezone', 'defaultRole'] as const;
 const NUMBER_FIELDS = ['defaultHourlyRate', 'overtimeThreshold', 'inviteExpiryDays'] as const;
 
+// Clean the carer-app visit checklist into a stored JSON string: array of
+// { id, label, phrase?, detail? }. Anything malformed is dropped.
+function normalizeCallLogTasks(raw: unknown): string {
+  if (!Array.isArray(raw)) return '[]';
+  const clean = raw
+    .filter((t) => t && typeof t === 'object' && typeof (t as any).label === 'string' && String((t as any).label).trim())
+    .slice(0, 100)
+    .map((t: any, i: number) => ({
+      id: String(t.id || `task-${i}`).slice(0, 60),
+      label: String(t.label).trim().slice(0, 80),
+      ...(t.phrase && String(t.phrase).trim() ? { phrase: String(t.phrase).trim().slice(0, 160) } : {}),
+      ...(t.detail ? { detail: true } : {}),
+    }));
+  return JSON.stringify(clean);
+}
+
 export async function updateOrgSettings(req: AuthRequest, res: Response) {
   const body = req.body as Record<string, unknown>;
   const data: Record<string, unknown> = {};
+
+  if (body.callLogTasks !== undefined) {
+    data.callLogTasks = normalizeCallLogTasks(body.callLogTasks);
+  }
 
   for (const key of STRING_FIELDS) {
     if (body[key] !== undefined) {

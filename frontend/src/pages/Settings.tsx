@@ -12,10 +12,11 @@ import { OrgSettings, Role, Site, PermissionKey, PermissionMap } from '../types'
 import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
 import { fileToLogoDataUrl } from '../lib/image';
+import { CallLogTaskDef, DEFAULT_CALL_LOG_TASKS, resolveCallLogTasks, buildNoteFromTicks } from '../lib/callLogTasks';
 
 const TIMEZONES = ['Europe/London', 'UTC', 'Europe/Dublin', 'Europe/Paris'];
 
-type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles' | 'audit';
+type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles' | 'calllog' | 'audit';
 
 export default function Settings() {
   const { can } = usePermissions();
@@ -25,6 +26,7 @@ export default function Settings() {
     { key: 'sites' as const, label: 'Sites', show: can('manage_sites') },
     { key: 'staff' as const, label: 'Staff Defaults', show: can('manage_settings') },
     { key: 'roles' as const, label: 'Roles & Permissions', show: can('manage_permissions') },
+    { key: 'calllog' as const, label: 'Visit Checklist', show: can('manage_settings') },
     { key: 'audit' as const, label: 'Audit Log', show: can('view_audit_log') },
   ].filter((t) => t.show);
 
@@ -72,6 +74,7 @@ export default function Settings() {
           <RolesPermissionsTab />
         </div>
       )}
+      {tab === 'calllog' && <CallLogTasksTab />}
       {tab === 'audit' && <AuditLogTab />}
     </div>
   );
@@ -568,6 +571,119 @@ function OrganisationTab() {
         <Saved show={mut.isSuccess && !mut.isPending && !form} />
         <button className="btn-primary btn" disabled={mut.isPending || !s.companyName} onClick={() => mut.mutate(s)}>
           {mut.isPending ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Visit Checklist (carer-app call-log tasks) ---------------- */
+function taskSlug(label: string, i: number): string {
+  const base = label.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return base || `task-${i}`;
+}
+
+function CallLogTasksTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const [list, setList] = useState<CallLogTaskDef[] | null>(null);
+  const rows = list ?? (data ? resolveCallLogTasks(data.callLogTasks) : null);
+
+  const mut = useMutation({
+    mutationFn: (payload: CallLogTaskDef[]) => settingsApi.update({ callLogTasks: JSON.stringify(payload) }),
+    onSuccess: (updated) => { qc.setQueryData(['settings'], updated); setList(null); },
+  });
+
+  if (isLoading || !rows) return <div className="card text-gray-400">Loading…</div>;
+
+  const update = (next: CallLogTaskDef[]) => setList(next);
+  const setRow = (i: number, patch: Partial<CallLogTaskDef>) => update(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const removeRow = (i: number) => update(rows.filter((_, idx) => idx !== i));
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= rows.length) return;
+    const next = [...rows];
+    [next[i], next[j]] = [next[j], next[i]];
+    update(next);
+  };
+  const addRow = () => update([...rows, { id: `task-${Date.now()}`, label: '', phrase: '' }]);
+
+  // Clean ids from labels + drop blank rows before saving.
+  const cleaned = rows
+    .filter((r) => r.label.trim())
+    .map((r, i) => ({
+      id: taskSlug(r.label, i),
+      label: r.label.trim(),
+      ...(r.phrase && r.phrase.trim() ? { phrase: r.phrase.trim() } : {}),
+      ...(r.detail ? { detail: true } : {}),
+    }));
+
+  // Live preview of how a few ticks would auto-write the visit note.
+  const previewSource = cleaned.length ? cleaned : DEFAULT_CALL_LOG_TASKS;
+  const preview = buildNoteFromTicks(
+    previewSource.slice(0, 4).map((t, i) => ({ id: t.id, label: t.label, phrase: t.phrase, detail: i === 1 && t.detail ? 'porridge' : undefined })),
+  ) || 'Tick some tasks to see the note write itself.';
+
+  return (
+    <div className="card space-y-4 max-w-3xl">
+      <div>
+        <h2 className="font-semibold text-gray-900">Visit Checklist</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          The tasks carers can tick off on each visit. When they tick them, the visit note writes itself — the carer can still add their own words. Ticks are saved with the log for reporting.
+        </p>
+      </div>
+
+      <div className="rounded-lg bg-blue-50 border border-blue-100 p-3">
+        <p className="text-xs font-semibold text-blue-700 mb-1">Example auto-written note</p>
+        <p className="text-sm text-gray-700 italic">{preview}</p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="hidden sm:grid grid-cols-[1fr_1.4fr_auto_auto] gap-2 px-1 text-xs font-semibold text-gray-500">
+          <span>Tick label</span>
+          <span>Written as (optional)</span>
+          <span className="text-center">Detail?</span>
+          <span></span>
+        </div>
+        {rows.map((r, i) => (
+          <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr_auto_auto] gap-2 items-center border-b border-gray-100 sm:border-0 pb-2 sm:pb-0">
+            <input
+              value={r.label}
+              onChange={(e) => setRow(i, { label: e.target.value })}
+              placeholder="e.g. Breakfast"
+              className="input"
+            />
+            <input
+              value={r.phrase || ''}
+              onChange={(e) => setRow(i, { phrase: e.target.value })}
+              placeholder={r.label ? `Defaults to "${r.label}"` : 'e.g. Prepared breakfast'}
+              className="input"
+            />
+            <label className="flex items-center justify-center gap-1.5 text-xs text-gray-600 select-none">
+              <input type="checkbox" checked={!!r.detail} onChange={(e) => setRow(i, { detail: e.target.checked })} />
+              <span className="sm:hidden">Ask for detail</span>
+            </label>
+            <div className="flex items-center gap-1 justify-end">
+              <button className="text-gray-400 hover:text-gray-700 px-1.5" title="Move up" onClick={() => move(i, -1)}>↑</button>
+              <button className="text-gray-400 hover:text-gray-700 px-1.5" title="Move down" onClick={() => move(i, 1)}>↓</button>
+              <button className="text-red-500 hover:text-red-700 px-1.5" title="Remove" onClick={() => removeRow(i)}>✕</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button className="btn-secondary btn btn-sm" onClick={addRow}>+ Add task</button>
+        <button className="btn-secondary btn btn-sm" onClick={() => update(DEFAULT_CALL_LOG_TASKS.map((t) => ({ ...t })))}>Reset to defaults</button>
+      </div>
+
+      <div className="flex gap-3 pt-1 items-center border-t border-gray-100">
+        <p className="text-xs text-gray-400 flex-1">
+          “Written as” is the wording that appears in the note (e.g. <span className="italic">Prepared breakfast</span>). Tick “Detail?” to let carers add a note (e.g. what they ate). Declined tasks read as <span className="italic">Declined&nbsp;…</span>.
+        </p>
+        <Saved show={mut.isSuccess && !mut.isPending && !list} />
+        <button className="btn-primary btn" disabled={mut.isPending || cleaned.length === 0} onClick={() => mut.mutate(cleaned)}>
+          {mut.isPending ? 'Saving…' : 'Save Checklist'}
         </button>
       </div>
     </div>

@@ -148,6 +148,7 @@ export interface CallLog {
   serviceUserId: string;
   userId?: string | null;
   note: string;
+  tasks?: string | null; // JSON array of ticked checklist tasks
   signedBy?: string | null; // JSON array of CallLogSignature
   createdAt: string;
   // Returned by the list endpoint — used for the recent-visit history panel.

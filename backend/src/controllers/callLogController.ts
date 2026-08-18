@@ -24,6 +24,25 @@ const include = {
 
 type Signature = { userId: string; firstName: string; lastName: string; signedAt: string };
 
+// Normalise the ticked-tasks payload into a stored JSON string. Returns
+// undefined when the caller didn't send `tasks` at all (so we don't overwrite
+// an existing value), or a clean JSON array string otherwise.
+function normalizeTasks(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return '[]';
+  const clean = raw
+    .filter((t) => t && typeof t === 'object' && typeof (t as any).id === 'string')
+    .slice(0, 50)
+    .map((t: any) => ({
+      id: String(t.id),
+      label: String(t.label || ''),
+      ...(t.phrase ? { phrase: String(t.phrase) } : {}),
+      ...(t.detail ? { detail: String(t.detail).slice(0, 500) } : {}),
+      ...(t.refused ? { refused: true } : {}),
+    }));
+  return JSON.stringify(clean);
+}
+
 function parseSigs(raw: string | null): Signature[] {
   if (!raw) return [];
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v : []; } catch { return []; }
@@ -40,10 +59,11 @@ async function selfSignature(req: AuthRequest): Promise<Signature> {
 }
 
 export async function createCallLog(req: AuthRequest, res: Response) {
-  const { serviceUserId, shiftId, note } = req.body;
+  const { serviceUserId, shiftId, note, tasks } = req.body;
   if (!serviceUserId || !note || !String(note).trim()) {
     return res.status(400).json({ error: 'serviceUserId and note are required' });
   }
+  const tasksJson = normalizeTasks(tasks);
 
   // One shared log per visit: if a log already exists for this shift, funnel
   // the write into it (update note + re-sign) instead of creating a duplicate.
@@ -68,7 +88,11 @@ export async function createCallLog(req: AuthRequest, res: Response) {
       const noteChanged = String(note).trim() !== existing.note;
       const log = await prisma.callLog.update({
         where: { id: existing.id },
-        data: { note: String(note).trim(), signedBy: JSON.stringify([await selfSignature(req)]) },
+        data: {
+          note: String(note).trim(),
+          ...(tasksJson !== undefined ? { tasks: tasksJson } : {}),
+          signedBy: JSON.stringify([await selfSignature(req)]),
+        },
         include,
       });
       // Record post-save amendments to a care record so managers can see them.
@@ -86,6 +110,7 @@ export async function createCallLog(req: AuthRequest, res: Response) {
       shiftId: shiftId || null,
       userId: req.user!.id,
       note: String(note).trim(),
+      ...(tasksJson !== undefined ? { tasks: tasksJson } : {}),
       // Author signs on create.
       signedBy: JSON.stringify([await selfSignature(req)]),
     },
@@ -99,18 +124,20 @@ export async function createCallLog(req: AuthRequest, res: Response) {
 // (asUserId) and the change is audited. Creates the log, or updates the visit's
 // existing one.
 export async function createCallLogAsManager(req: AuthRequest, res: Response) {
-  const { serviceUserId, shiftId, note, asUserId } = req.body as { serviceUserId?: string; shiftId?: string; note?: string; asUserId?: string };
+  const { serviceUserId, shiftId, note, asUserId, tasks } = req.body as { serviceUserId?: string; shiftId?: string; note?: string; asUserId?: string; tasks?: unknown };
   if (!serviceUserId || !note || !String(note).trim()) {
     return res.status(400).json({ error: 'serviceUserId and note are required' });
   }
+  const tasksJson = normalizeTasks(tasks);
   const authorId = asUserId || req.user!.id;
   const author = await prisma.user.findUnique({ where: { id: authorId }, select: { firstName: true, lastName: true } });
   const sig: Signature = { userId: authorId, firstName: author?.firstName || '', lastName: author?.lastName || '', signedAt: new Date().toISOString() };
 
   const existing = shiftId ? await prisma.callLog.findFirst({ where: { shiftId } }) : null;
+  const taskData = tasksJson !== undefined ? { tasks: tasksJson } : {};
   const log = existing
-    ? await prisma.callLog.update({ where: { id: existing.id }, data: { note: String(note).trim(), userId: authorId, signedBy: JSON.stringify([sig]) }, include })
-    : await prisma.callLog.create({ data: { serviceUserId, shiftId: shiftId || null, userId: authorId, note: String(note).trim(), signedBy: JSON.stringify([sig]) }, include });
+    ? await prisma.callLog.update({ where: { id: existing.id }, data: { note: String(note).trim(), ...taskData, userId: authorId, signedBy: JSON.stringify([sig]) }, include })
+    : await prisma.callLog.create({ data: { serviceUserId, shiftId: shiftId || null, userId: authorId, note: String(note).trim(), ...taskData, signedBy: JSON.stringify([sig]) }, include });
 
   const who = log.serviceUser ? `${log.serviceUser.firstName} ${log.serviceUser.lastName}` : 'a service user';
   await logAudit(req, existing ? 'CALL_LOG_AMENDED' : 'CALL_LOG_ADDED', who, 'Office-entered call log');

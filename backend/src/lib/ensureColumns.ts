@@ -25,6 +25,11 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)`);
   // Shared call-log signatures for double/triple-up calls (JSON array).
   await prisma.$executeRawUnsafe(`ALTER TABLE "CallLog" ADD COLUMN IF NOT EXISTS "signedBy" TEXT`);
+  // Ticked checklist tasks the carer completed on the visit (JSON array); the
+  // visit note is auto-written from these.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "CallLog" ADD COLUMN IF NOT EXISTS "tasks" TEXT NOT NULL DEFAULT '[]'`);
+  // Company's configurable carer-app visit checklist (JSON array of task defs).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "callLogTasks" TEXT NOT NULL DEFAULT '[]'`);
   // Date the person started receiving care (nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "serviceStartDate" TIMESTAMP(3)`);
   // Council-agreed hours of care per week (care package) — for the required-vs-scheduled report.

@@ -64,6 +64,7 @@ export interface OrgSettings {
   overtimeThreshold: number;
   inviteExpiryDays: number;
   defaultRole: Role;
+  callLogTasks?: string | null; // JSON array of carer-app visit checklist task defs
   updatedAt: string;
 }
 
@@ -210,6 +211,7 @@ export interface CallLog {
   id: string;
   note: string;
   createdAt: string;
+  tasks?: string | null; // JSON array of ticked checklist tasks
   signedBy?: string | null; // JSON array of CallLogSignature
   user?: Pick<User, 'id' | 'firstName' | 'lastName'>;
   serviceUser?: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
