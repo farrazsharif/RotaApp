@@ -132,9 +132,12 @@ export default function Attendance() {
 
   // Scheduled visits in the same window, so we can surface ones that were never
   // attended (assigned, already over, but with no clock-in) as "Missed".
+  // includeCover so a carer's double/triple-up calls (where they're the 2nd/3rd
+  // carer, not the primary) are counted — without it those missed calls silently
+  // went missing from this report.
   const { data: shifts = [] } = useQuery({
     queryKey: ['shifts', 'attendance', startDate, endDate, carerId],
-    queryFn: () => shiftsApi.list({ startDate, endDate, userId: carerId || undefined }),
+    queryFn: () => shiftsApi.list({ startDate, endDate, userId: carerId || undefined, includeCover: true }),
   });
 
   const { data: carers = [] } = useQuery({
