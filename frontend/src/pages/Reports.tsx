@@ -11,6 +11,7 @@ import {
 } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 import MultiSelectDropdown from '../components/MultiSelectDropdown';
+import SingleSelectDropdown from '../components/SingleSelectDropdown';
 import CarerRota from '../components/CarerRota';
 import SearchableSelect from '../components/SearchableSelect';
 import PrintBrandingHeader from '../components/PrintBrandingHeader';
@@ -379,7 +380,7 @@ export default function Reports() {
             </div>
             <div className="w-44">
               <label className="label">Service User Filter</label>
-              <MultiSelectDropdown
+              <SingleSelectDropdown
                 options={[...filterServiceUsers]
                   .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
                   .map((s) => ({ value: s.id, label: `${s.firstName} ${s.lastName}` }))}
