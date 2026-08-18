@@ -103,7 +103,7 @@ export default function Attendance() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [inValue, setInValue] = useState('');
   const [outValue, setOutValue] = useState('');
-  const [recordShift, setRecordShift] = useState<Shift | null>(null);
+  const [recordTarget, setRecordTarget] = useState<{ shift: Shift; carerId: string } | null>(null);
 
   // Quick date-range presets. Weeks run Monday–Sunday, matching the default.
   function applyPreset(p: 'today' | 'yesterday' | 'thisweek' | 'lastweek') {
@@ -198,30 +198,45 @@ export default function Attendance() {
   const missingCount = records.filter((r) => !r.clockOut).length;
   const shortCount = records.filter(isShortVisit).length;
 
-  // Missed visits: an assigned, non-cancelled shift whose scheduled end has
-  // passed but that has no clock-in at all. When a carer is selected these are
-  // that carer's own shifts; otherwise a shift nobody clocked into.
-  const attendedShiftIds = new Set(records.map((r) => r.shift?.id).filter(Boolean) as string[]);
-  const isAssigned = (s: Shift) => !!s.userId || (s.coverCarers?.length ?? 0) > 0;
+  // Missed visits, judged PER ASSIGNED CARER. A visit counts as missed for a
+  // carer when they were assigned to it (as primary or as a 2nd/3rd cover carer),
+  // its scheduled end has passed, and that carer has no clock-in for it. On a
+  // double/triple-up call each carer is judged independently, so one carer
+  // attending never hides another's no-show. With a carer selected we only judge
+  // that carer; otherwise every assigned carer is checked.
   const now = Date.now();
-  const missedShifts = shifts.filter(
-    (s) => s.status !== 'CANCELLED' && isAssigned(s) && !attendedShiftIds.has(s.id) && scheduledEnd(s).getTime() < now,
+  const carerIdsFor = (s: Shift): string[] =>
+    [s.userId, ...(s.coverCarers?.map((c) => c.id) ?? [])].filter(Boolean) as string[];
+  // Which (shift, carer) pairs actually have a clock-in.
+  const attendedPairs = new Set(
+    records.filter((r) => r.shift?.id && r.userId).map((r) => `${r.shift!.id}:${r.userId}`),
   );
-  const missedCount = missedShifts.length;
+  const carerNameFor = (s: Shift, cid: string): string => {
+    if (s.user && s.user.id === cid) return `${s.user.firstName} ${s.user.lastName}`;
+    const cc = s.coverCarers?.find((c) => c.id === cid);
+    if (cc) return `${cc.firstName} ${cc.lastName}`;
+    const u = carers.find((x) => x.id === cid);
+    return u ? `${u.firstName} ${u.lastName}` : '—';
+  };
 
-  const selectedCarerName = (() => {
-    const c = carerId ? carers.find((x) => x.id === carerId) : null;
-    return c ? `${c.firstName} ${c.lastName}` : '';
-  })();
-  const missedCarerName = (s: Shift) =>
-    selectedCarerName || (s.user ? `${s.user.firstName} ${s.user.lastName}` : (s.coverCarers?.[0] ? `${s.coverCarers[0].firstName} ${s.coverCarers[0].lastName}` : '—'));
+  type MissedItem = { shift: Shift; carerId: string };
+  const missedItems: MissedItem[] = [];
+  for (const s of shifts) {
+    if (s.status === 'CANCELLED') continue;
+    if (scheduledEnd(s).getTime() >= now) continue;
+    const target = carerId ? carerIdsFor(s).filter((id) => id === carerId) : carerIdsFor(s);
+    for (const cid of target) {
+      if (!attendedPairs.has(`${s.id}:${cid}`)) missedItems.push({ shift: s, carerId: cid });
+    }
+  }
+  const missedCount = missedItems.length;
 
   // Unified, newest-first row list. Clock records and missed visits share the
   // table; the status filter narrows which appear (stats above still summarise
   // the whole period).
-  type Row = { key: string; t: number; kind: 'rec'; rec: ClockRecord } | { key: string; t: number; kind: 'missed'; shift: Shift };
+  type Row = { key: string; t: number; kind: 'rec'; rec: ClockRecord } | { key: string; t: number; kind: 'missed'; shift: Shift; carerId: string };
   const recRows: Row[] = records.map((r) => ({ key: r.id, t: new Date(r.clockIn).getTime(), kind: 'rec', rec: r }));
-  const missedRows: Row[] = missedShifts.map((s) => ({ key: `missed-${s.id}`, t: scheduledStart(s).getTime(), kind: 'missed', shift: s }));
+  const missedRows: Row[] = missedItems.map((m) => ({ key: `missed-${m.shift.id}-${m.carerId}`, t: scheduledStart(m.shift).getTime(), kind: 'missed', shift: m.shift, carerId: m.carerId }));
   let rows: Row[];
   if (statusFilter === 'missed') rows = missedRows;
   else if (statusFilter === 'missing') rows = recRows.filter((x) => x.kind === 'rec' && !x.rec.clockOut);
@@ -321,7 +336,7 @@ export default function Attendance() {
         </div>
       </div>
 
-      {records.length === 0 && missedShifts.length === 0 ? (
+      {records.length === 0 && missedItems.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
           <p className="text-4xl mb-3">⏱️</p>
           <p>No clock records or missed visits for this period</p>
@@ -348,7 +363,7 @@ export default function Attendance() {
                   const s = row.shift;
                   return (
                     <tr key={row.key} className="bg-red-50 hover:bg-red-100/60">
-                      {isManager && <td className="px-4 py-3 font-medium">{missedCarerName(s)}</td>}
+                      {isManager && <td className="px-4 py-3 font-medium">{carerNameFor(s, row.carerId)}</td>}
                       <td className="px-4 py-3 text-gray-600">{format(scheduledStart(s), 'EEE dd MMM')}</td>
                       <td className="px-4 py-3"><span className="badge-red badge">Missed</span></td>
                       <td className="px-4 py-3 text-gray-400">—</td>
@@ -360,7 +375,7 @@ export default function Attendance() {
                             {s.visitName ? `${s.visitName} · ` : ''}{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}
                           </span>
                           {canEdit && (
-                            <button onClick={() => setRecordShift(s)} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap">
+                            <button onClick={() => setRecordTarget({ shift: s, carerId: row.carerId })} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap">
                               Record visit →
                             </button>
                           )}
@@ -446,14 +461,14 @@ export default function Attendance() {
         </div>
       )}
 
-      {recordShift && (
+      {recordTarget && (
         <RecordVisitModal
-          shift={recordShift}
+          shift={recordTarget.shift}
           carer={{
-            id: (carerId || recordShift.userId || recordShift.coverCarers?.[0]?.id) as string,
-            name: missedCarerName(recordShift),
+            id: recordTarget.carerId,
+            name: carerNameFor(recordTarget.shift, recordTarget.carerId),
           }}
-          onClose={() => setRecordShift(null)}
+          onClose={() => setRecordTarget(null)}
         />
       )}
     </div>
