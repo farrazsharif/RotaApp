@@ -1,7 +1,12 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  // Call the Render API directly in production instead of routing every request
+  // through Vercel's /api rewrite — proxied REST (the carer app polls every
+  // ~15s) counted as a Vercel Edge Request each and was burning the free-tier
+  // quota. Sockets already connect straight to Render; this matches that. Dev
+  // keeps '/api' so the Vite proxy → localhost:4000 still works.
+  baseURL: import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://api.caremid.co.uk/api' : '/api'),
   headers: { 'Content-Type': 'application/json' },
 });
 
