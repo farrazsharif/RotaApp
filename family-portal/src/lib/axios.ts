@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+// NOTE: touch to force a family-portal rebuild on Vercel (its per-folder ignored
+// build step skips deploys that don't change this folder).
 const api = axios.create({
   // Call the Render API directly in production instead of routing every request
   // through Vercel's /api rewrite — proxied REST counted as a Vercel Edge
