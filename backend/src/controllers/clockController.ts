@@ -438,3 +438,64 @@ export async function createClockRecord(req: AuthRequest, res: Response) {
   await logAudit(req, existing ? 'CLOCK_RECORD_EDITED' : 'CLOCK_RECORD_ADDED', who, `office entry · in ${cin.toISOString()}${cout ? ` · out ${cout.toISOString()}` : ''}`);
   res.status(existing ? 200 : 201).json(record);
 }
+
+// A carer records a PAST visit they attended but forgot to clock in/out for —
+// creating the completed record themselves so it isn't left blank. Restricted
+// to their own assigned visits, past days only, within a 7-day window, and
+// audited as "recorded late" so managers can tell it wasn't a live clock-in.
+const SELF_RECORD_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+export async function createOwnClockRecord(req: AuthRequest, res: Response) {
+  const { shiftId, clockIn, clockOut } = req.body as { shiftId?: string; clockIn?: string; clockOut?: string };
+  if (!shiftId || !clockIn || !clockOut) {
+    return res.status(400).json({ error: 'shiftId, clockIn and clockOut are required' });
+  }
+
+  const shift = await prisma.shift.findUnique({
+    where: { id: shiftId },
+    include: { coverCarers: { select: { id: true } } },
+  });
+  if (!shift) return res.status(404).json({ error: 'Visit not found' });
+  if (!shift.published) return res.status(400).json({ error: 'This call has not been published yet' });
+
+  // Only a carer actually on the visit (primary or cover) may record it.
+  const assigned = shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id);
+  if (!assigned) return res.status(403).json({ error: 'You are not assigned to this call' });
+
+  // Past days only — today's calls use the normal Clock In.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  if (shift.date.getTime() >= startOfToday.getTime()) {
+    return res.status(400).json({ error: 'Use Clock In for today\'s calls' });
+  }
+  // Time-boxed: recent misses only; older visits are added by a manager.
+  if (Date.now() - shift.date.getTime() > SELF_RECORD_WINDOW_MS) {
+    return res.status(400).json({ error: 'This visit is too old to record here — ask your manager to add it.' });
+  }
+
+  // No duplicate — if a record already exists, they should fix its times instead.
+  const existing = await prisma.clockRecord.findFirst({ where: { shiftId, userId: req.user!.id } });
+  if (existing) return res.status(400).json({ error: 'You already have a record for this visit — use “Fix visit times”.' });
+
+  const cin = new Date(clockIn);
+  const cout = new Date(clockOut);
+  if (isNaN(cin.getTime()) || isNaN(cout.getTime())) return res.status(400).json({ error: 'Invalid times' });
+  const now = Date.now();
+  if (cin.getTime() > now + 60_000 || cout.getTime() > now + 60_000) return res.status(400).json({ error: 'Times can’t be in the future' });
+  if (cout.getTime() <= cin.getTime()) return res.status(400).json({ error: 'Clock-out must be after clock-in' });
+  if (cout.getTime() - cin.getTime() > 24 * 60 * 60 * 1000) return res.status(400).json({ error: 'Those times are too far apart' });
+  // Sanity: the recorded times must sit around the visit's day, not weeks off.
+  if (Math.abs(cin.getTime() - shift.date.getTime()) > 2 * 24 * 60 * 60 * 1000) {
+    return res.status(400).json({ error: 'Those times don’t match this visit’s date' });
+  }
+
+  const record = await prisma.clockRecord.create({
+    data: { userId: req.user!.id, shiftId, clockIn: cin, clockOut: cout },
+    include: { shift: { include: { serviceUser: { select: { id: true, firstName: true, lastName: true } } } } },
+  });
+
+  const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { firstName: true, lastName: true } });
+  const who = me ? `${me.firstName} ${me.lastName}` : 'A carer';
+  await logAudit(req, 'CLOCK_RECORD_ADDED', who, `carer self-recorded (late) · in ${cin.toISOString()} · out ${cout.toISOString()}`);
+
+  res.status(201).json(record);
+}

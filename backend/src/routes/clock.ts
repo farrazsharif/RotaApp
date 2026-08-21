@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { clockIn, clockOut, getClockStatus, listClockRecords, listActiveClockRecords, updateClockRecord, createClockRecord, setClockTimes, myCalls, dueMeds, shiftMeds } from '../controllers/clockController';
+import { clockIn, clockOut, getClockStatus, listClockRecords, listActiveClockRecords, updateClockRecord, createClockRecord, createOwnClockRecord, setClockTimes, myCalls, dueMeds, shiftMeds } from '../controllers/clockController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 
@@ -17,6 +17,9 @@ router.get('/active', requirePermission('manage_schedule'), listActiveClockRecor
 router.get('/records', listClockRecords);
 // Office backfill of a missed visit's clock in/out (carer had no signal).
 router.post('/records', requirePermission('manage_schedule'), createClockRecord);
+// Carer self-records a PAST visit they forgot to clock in/out for (own visits,
+// within a 7-day window). Audited as recorded-late.
+router.post('/records/self', createOwnClockRecord);
 // Carer corrects the actual start/end time on their own record (forgot to
 // clock in/out). /start kept for the previously-deployed app build.
 router.post('/records/:id/times', setClockTimes);

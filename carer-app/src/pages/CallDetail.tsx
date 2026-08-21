@@ -143,6 +143,78 @@ function AdjustTimes({ record, scheduledStart, scheduledEnd, onSaved, forceOpen 
   );
 }
 
+// Lets a carer record a PAST visit they forgot to clock in/out for entirely —
+// there's no existing record to adjust, so this creates a completed one. Times
+// are entered by the carer (a one-tap "use scheduled times" helper fills them).
+// Saved as recorded-late and visible to the office.
+function RecordMissedVisit({ shiftId, shiftDate, scheduledStart, scheduledEnd, onSaved }: { shiftId: string; shiftDate: string; scheduledStart: string; scheduledEnd: string; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [startVal, setStartVal] = useState('');
+  const [endVal, setEndVal] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+
+  const mut = useMutation({
+    mutationFn: (body: { clockIn: string; clockOut: string }) => clockApi.recordMissed(shiftId, body),
+    onSuccess: () => { setOpen(false); setErr(null); onSaved(); },
+    onError: (e: any) => setErr(e.response?.data?.error || 'Could not record this visit.'),
+  });
+
+  // Build an ISO timestamp on the visit's own date from an HH:mm time. An end
+  // time earlier than the start rolls to the next day (overnight call).
+  function toIso(hhmm: string, addDay = false): string {
+    const base = new Date(shiftDate);
+    const [h, m] = hhmm.split(':').map(Number);
+    base.setHours(h || 0, m || 0, 0, 0);
+    if (addDay) base.setDate(base.getDate() + 1);
+    return base.toISOString();
+  }
+
+  function save() {
+    setErr(null);
+    if (!startVal || !endVal) { setErr('Enter both a clock-in and clock-out time.'); return; }
+    mut.mutate({ clockIn: toIso(startVal), clockOut: toIso(endVal, endVal <= startVal) });
+  }
+
+  if (!open) {
+    return (
+      <div className="text-center">
+        <p className="text-sm text-gray-500 font-medium mb-2">You didn't clock in for this visit.</p>
+        <button onClick={() => { setStartVal(''); setEndVal(''); setErr(null); setOpen(true); }} className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold text-base">
+          🕑 Record this visit
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-left space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-700">Record the visit you did</p>
+        <p className="text-xs text-gray-400">Scheduled {formatTime12h(scheduledStart)}–{formatTime12h(scheduledEnd)}. Enter the times you actually attended.</p>
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-gray-500 mb-1.5">Clock in</p>
+        <input type="time" value={startVal} onChange={(e) => setStartVal(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-gray-500 mb-1.5">Clock out</p>
+        <input type="time" value={endVal} onChange={(e) => setEndVal(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+      </div>
+      <button onClick={() => { setStartVal(scheduledStart); setEndVal(scheduledEnd); }} className="text-sm font-medium text-blue-600">
+        Use scheduled times ({formatTime12h(scheduledStart)}–{formatTime12h(scheduledEnd)})
+      </button>
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      <div className="flex gap-2">
+        <button onClick={save} disabled={mut.isPending} className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold text-sm disabled:opacity-40">
+          {mut.isPending ? 'Saving…' : 'Record visit'}
+        </button>
+        <button onClick={() => setOpen(false)} className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm">Cancel</button>
+      </div>
+      <p className="text-xs text-gray-400">Saved as recorded late — the office can see it wasn't a live clock-in.</p>
+    </div>
+  );
+}
+
 const STATUS_OPTIONS: { value: MedAdminStatus; label: string; color: string }[] = [
   { value: 'GIVEN', label: 'Administered', color: 'bg-green-600' },
   { value: 'REFUSED', label: 'Refused', color: 'bg-orange-500' },
@@ -461,6 +533,13 @@ export default function CallDetail() {
   // amended by a manager. Mirrors the backend edit window.
   const withinLogEditWindow = Date.now() - new Date(shift.date).getTime() < 7 * 24 * 60 * 60 * 1000;
   const myCompletedRecord = shift.clockRecords?.find((r) => r.userId === user?.id && r.clockOut);
+  // A past visit the carer never clocked into at all — they can record it late
+  // themselves (own assigned visit, past day, within the 7-day window).
+  const myAnyRecord = shift.clockRecords?.find((r) => r.userId === user?.id);
+  const assignedToMe = shift.userId === user?.id || (shift.coverCarers ?? []).some((c) => c.id === user?.id);
+  const startOfTodayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  const isPastDay = new Date(shift.date).getTime() < startOfTodayMs;
+  const canRecordMissed = assignedToMe && isPastDay && withinLogEditWindow && !myAnyRecord;
   const totalTimeSpent = myCompletedRecord
     ? formatElapsed(new Date(myCompletedRecord.clockOut!).getTime() - new Date(myCompletedRecord.clockIn).getTime())
     : null;
@@ -557,9 +636,22 @@ export default function CallDetail() {
                   </p>
                 )}
               </>
+            ) : canRecordMissed ? (
+              <RecordMissedVisit
+                shiftId={shift.id}
+                shiftDate={shift.date}
+                scheduledStart={shift.startTime}
+                scheduledEnd={shift.endTime}
+                onSaved={() => {
+                  qc.invalidateQueries({ queryKey: ['shift', id] });
+                  qc.invalidateQueries({ queryKey: ['clock-status'] });
+                }}
+              />
             ) : !shiftIsToday ? (
               <p className="text-sm text-gray-500 font-medium text-center py-1">
-                You can only clock in to today's calls.
+                {isPastDay
+                  ? 'This visit is too old to record here — ask your manager.'
+                  : "You can only clock in to today's calls."}
               </p>
             ) : (
               <button

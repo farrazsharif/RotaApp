@@ -15,6 +15,10 @@ export const clockApi = {
   // clock in/out).
   setTimes: (recordId: string, body: { startTime?: string; endTime?: string }) =>
     api.post<ClockRecord>(`/clock/records/${recordId}/times`, body).then((r) => r.data),
+  // Record a PAST visit you forgot to clock in/out for — creates the completed
+  // record yourself (own assigned visits, within a 7-day window).
+  recordMissed: (shiftId: string, body: { clockIn: string; clockOut: string }) =>
+    api.post<ClockRecord>('/clock/records/self', { shiftId, ...body }).then((r) => r.data),
 };
 
 export interface ClockOutBlockedError {
