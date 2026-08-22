@@ -888,6 +888,16 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                 </button>
               )}
 
+              <div className="flex items-center justify-between">
+                <label className="label mb-0">Date & Time</label>
+                <span className="text-xs text-gray-500">Duration: {durationLabel(watchedStart, watchedEnd)}</span>
+              </div>
+              <input type="date" {...register('date', { required: true })} className="input" />
+              <div className="grid grid-cols-2 gap-3">
+                <input type="time" {...register('startTime', { required: true })} className="input" />
+                <input type="time" {...register('endTime', { required: true })} className="input" />
+              </div>
+
               <div>
                 <label className="label">Service User (Patient) *</label>
                 <select {...register('serviceUserId', { required: true })} value={watch('serviceUserId') ?? ''} className="input">
@@ -902,16 +912,6 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
               </div>
 
               {renderVisitNamePicker(false)}
-
-              <div className="flex items-center justify-between">
-                <label className="label mb-0">Date & Time</label>
-                <span className="text-xs text-gray-500">Duration: {durationLabel(watchedStart, watchedEnd)}</span>
-              </div>
-              <input type="date" {...register('date', { required: true })} className="input" />
-              <div className="grid grid-cols-2 gap-3">
-                <input type="time" {...register('startTime', { required: true })} className="input" />
-                <input type="time" {...register('endTime', { required: true })} className="input" />
-              </div>
 
               <div>
                 <label className="label">Cover</label>
@@ -950,26 +950,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                 </div>
               )}
 
-              {!cancelOpen ? (
-                <div className="flex items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={() => { setCancelMode('cancel'); setCancelOpen(true); }}
-                    disabled={deleteMut.isPending}
-                    className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"
-                  >
-                    🚫 Cancel Shift
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setCancelMode('delete'); setCancelOpen(true); }}
-                    disabled={deleteMut.isPending}
-                    className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-red-700"
-                  >
-                    🗑 Delete Shift
-                  </button>
-                </div>
-              ) : (
+              {cancelOpen && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-3">
                   <p className="text-sm font-medium text-red-800">{cancelMode === 'delete' ? 'Delete this shift' : 'Cancel this visit'}</p>
                   {cancelMode === 'delete' && (
@@ -1194,7 +1175,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
             </div>
           </div>
 
-          <div className="flex gap-3 p-6 border-t shrink-0">
+          <div className="flex items-center gap-3 p-6 border-t shrink-0">
             <div className="flex-1" />
             <button type="button" onClick={onClose} className="btn-secondary btn">Cancel</button>
             {!shift.published && (
@@ -1215,6 +1196,26 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
             >
               {isPending ? 'Saving…' : 'Update'}
             </button>
+            {!cancelOpen && (
+              <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => { setCancelMode('cancel'); setCancelOpen(true); }}
+                  disabled={deleteMut.isPending}
+                  className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"
+                >
+                  🚫 Cancel Shift
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCancelMode('delete'); setCancelOpen(true); }}
+                  disabled={deleteMut.isPending}
+                  className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-red-700"
+                >
+                  🗑 Delete Shift
+                </button>
+              </div>
+            )}
           </div>
         </form>
       </div>
