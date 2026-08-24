@@ -109,10 +109,11 @@ function SpotChecks() {
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
           <p className="font-semibold mb-1">⚠ {due.length} spot check{due.length > 1 ? 's' : ''} due</p>
           <ul className="list-disc list-inside space-y-0.5">
-            {due.map((r) => (
+            {due.slice(0, 6).map((r) => (
               <li key={r.carerId}>{r.carerName} — {r.nextDue ? `next check was due ${format(new Date(r.nextDue), 'dd MMM yyyy')}` : 'never checked'}</li>
             ))}
           </ul>
+          {due.length > 6 && <p className="mt-1 font-medium text-red-600">…and {due.length - 6} more — use the list below (each has a “📄 Paper” button to log a check already done on paper).</p>}
         </div>
       )}
 

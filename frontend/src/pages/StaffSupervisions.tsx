@@ -82,10 +82,11 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
         <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
           <p className="font-semibold mb-1">⚠ {overdue.length} supervision{overdue.length > 1 ? 's' : ''} overdue</p>
           <ul className="list-disc list-inside space-y-0.5">
-            {overdue.map((s) => (
+            {overdue.slice(0, 6).map((s) => (
               <li key={s.id}>{staffName(s)} — next supervision was due {format(new Date(s.nextReviewDate!), 'dd MMM yyyy')}</li>
             ))}
           </ul>
+          {overdue.length > 6 && <p className="mt-1 font-medium text-red-600">…and {overdue.length - 6} more — see the list below.</p>}
         </div>
       )}
 
