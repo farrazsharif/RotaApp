@@ -51,7 +51,7 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
       orderBy: { reviewDate: 'asc' },
     }),
     prisma.user.findMany({ where: { active: true, role: { notIn: [Role.ADMIN, Role.FAMILY_MEMBER] } }, select: { id: true, firstName: true, lastName: true } }),
-    prisma.spotCheck.findMany({ select: { id: true, carerId: true, date: true, observerName: true, answers: true }, orderBy: { date: 'desc' } }),
+    prisma.spotCheck.findMany({ select: { id: true, carerId: true, date: true, observerName: true, answers: true, source: true }, orderBy: { date: 'desc' } }),
     prisma.supervision.findMany({ select: { userId: true, nextReviewDate: true, date: true }, orderBy: { date: 'desc' } }),
   ]);
 
@@ -62,9 +62,9 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
   const supervisionsDueCount = [...latestSupByUser.values()].filter((d) => !!d && d <= now).length;
 
   // Latest spot check per carer (checks are newest-first, so first wins).
-  const latestByCarer = new Map<string, { id: string; date: Date; observerName: string | null; concerns: number }>();
+  const latestByCarer = new Map<string, { id: string; date: Date; observerName: string | null; concerns: number; source: string }>();
   for (const c of checks) {
-    if (!latestByCarer.has(c.carerId)) latestByCarer.set(c.carerId, { id: c.id, date: c.date, observerName: c.observerName, concerns: countConcerns(c.answers) });
+    if (!latestByCarer.has(c.carerId)) latestByCarer.set(c.carerId, { id: c.id, date: c.date, observerName: c.observerName, concerns: countConcerns(c.answers), source: c.source });
   }
   // One row per active carer: their last check, auto next-due date, and status.
   const spotRows = carers
@@ -77,6 +77,7 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
         carerName: `${c.firstName} ${c.lastName}`,
         lastCheck: last?.date ?? null,
         lastCheckId: last?.id ?? null,
+        lastSource: last?.source ?? null,
         observerName: last?.observerName ?? null,
         concerns: last?.concerns ?? null,
         nextDue,
@@ -118,7 +119,7 @@ export async function getSpotCheck(req: AuthRequest, res: Response) {
 }
 
 export async function createSpotCheck(req: AuthRequest, res: Response) {
-  const { carerId, serviceUserId, date, time, location, answers, generalComments, observerName, observerSignature } = req.body;
+  const { carerId, serviceUserId, date, time, location, answers, generalComments, observerName, observerSignature, source } = req.body;
   if (!carerId || !date) return res.status(400).json({ error: 'carerId and date are required' });
 
   // Confirm the carer (and optional service user) belong to this company — the
@@ -142,6 +143,7 @@ export async function createSpotCheck(req: AuthRequest, res: Response) {
       observerId: req.user!.id,
       observerName: observerName || null,
       observerSignature: observerSignature || null,
+      source: source === 'paper' ? 'paper' : 'form',
     },
     select: spotCheckSelect,
   });

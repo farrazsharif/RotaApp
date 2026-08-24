@@ -11,6 +11,7 @@ export interface SpotCheckRow {
   concerns: number | null;
   nextDue: string | null;
   due: boolean;
+  lastSource?: string | null; // 'form' | 'paper'
 }
 
 export interface SupervisionSummary {
@@ -32,6 +33,7 @@ export interface SpotCheck {
   generalComments?: string | null;
   observerName?: string | null;
   observerSignature?: string | null;
+  source?: string | null;
   createdAt: string;
   carer?: { firstName: string; lastName: string };
   serviceUser?: { firstName: string; lastName: string } | null;
@@ -47,6 +49,7 @@ export interface SpotCheckInput {
   generalComments?: string;
   observerName?: string;
   observerSignature?: string;
+  source?: string;
 }
 
 export const supervisionApi = {

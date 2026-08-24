@@ -12,6 +12,7 @@ export interface ReviewData {
   outcomes?: ReviewOutcome[];
   representativeName?: string;
   phoneConsent?: boolean;
+  source?: string;
 }
 
 export const reviewsApi = {

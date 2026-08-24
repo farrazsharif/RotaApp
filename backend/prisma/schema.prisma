@@ -435,6 +435,8 @@ model Review {
   outcomes           String    @default("[]")
   representativeName String?
   phoneConsent       Boolean   @default(false)
+  // "form" = full digital review; "paper" = historic date-only entry seeding the schedule.
+  source             String    @default("form")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -459,6 +461,8 @@ model SpotCheck {
   observerId        String?
   observerName      String?
   observerSignature String? // drawn signature as a data URL
+  // "form" = full digital spot check; "paper" = historic date-only entry seeding the schedule.
+  source            String   @default("form")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

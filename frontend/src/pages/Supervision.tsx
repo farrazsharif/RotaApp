@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { supervisionApi } from '../api/supervision';
 import SpotCheckModal from '../components/SpotCheckModal';
+import PaperSeedModal from '../components/PaperSeedModal';
 import Reviews from './Reviews';
 import StaffSupervisions from './StaffSupervisions';
 
@@ -85,6 +86,7 @@ function SpotChecks() {
   const [newFor, setNewFor] = useState<string | 'any' | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [paperFor, setPaperFor] = useState<{ carerId: string; carerName: string } | null>(null);
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => supervisionApi.deleteSpotCheck(id),
@@ -135,7 +137,10 @@ function SpotChecks() {
                 return (
                   <tr key={r.carerId} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{r.carerName}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.lastCheck ? format(new Date(r.lastCheck), 'dd MMM yyyy') : <span className="text-gray-300">Never</span>}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {r.lastCheck ? format(new Date(r.lastCheck), 'dd MMM yyyy') : <span className="text-gray-300">Never</span>}
+                      {r.lastSource === 'paper' && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Paper</span>}
+                    </td>
                     <td className="px-4 py-3">
                       {r.due ? (
                         <span className="badge-red badge">⚠ {overdays === null ? 'Never checked' : overdays > 0 ? `Overdue ${overdays}d` : 'Due today'}</span>
@@ -158,6 +163,9 @@ function SpotChecks() {
                       ) : (
                         <span className="flex gap-2 justify-end items-center">
                           <button className={`${r.due ? 'btn-primary' : 'btn-secondary'} btn btn-sm whitespace-nowrap`} onClick={() => setNewFor(r.carerId)}>Spot check</button>
+                          {!r.lastCheckId && (
+                            <button className="btn-secondary btn btn-sm whitespace-nowrap" title="Log a spot check already done on paper" onClick={() => setPaperFor({ carerId: r.carerId, carerName: r.carerName })}>📄 Paper</button>
+                          )}
                           {r.lastCheckId && <button className="btn-secondary btn btn-sm" onClick={() => setViewId(r.lastCheckId)}>View</button>}
                           {r.lastCheckId && <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(r.lastCheckId)}>Delete</button>}
                         </span>
@@ -173,6 +181,20 @@ function SpotChecks() {
 
       {newFor && <SpotCheckModal onClose={() => setNewFor(null)} carerId={newFor === 'any' ? undefined : newFor} />}
       {viewId && <SpotCheckModal onClose={() => setViewId(null)} viewId={viewId} />}
+      {paperFor && (
+        <PaperSeedModal
+          title="Record previous spot check"
+          subjectName={paperFor.carerName}
+          intro="Seed the schedule from a spot check held on paper"
+          dateLabel="Date checked (on paper)"
+          personLabel="Observer"
+          showNextDue={false}
+          intervalMonths={data.intervalMonths}
+          onSubmit={({ date, person, note }) => supervisionApi.createSpotCheck({ carerId: paperFor.carerId, date, observerName: person || undefined, generalComments: note || undefined, answers: {}, source: 'paper' })}
+          onSaved={() => qc.invalidateQueries({ queryKey: ['supervision-summary'] })}
+          onClose={() => setPaperFor(null)}
+        />
+      )}
     </div>
   );
 }

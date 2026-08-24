@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Review, ReviewType } from '../types';
 import { format } from 'date-fns';
 import ReviewFormModal from '../components/ReviewFormModal';
+import PaperSeedModal from '../components/PaperSeedModal';
 
 export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   const { isManager } = useAuth();
@@ -14,6 +15,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   const [newForUserId, setNewForUserId] = useState('');
   const [newType, setNewType] = useState<ReviewType>('SIX_WEEK');
   const [modal, setModal] = useState<{ serviceUserId: string; serviceUserName: string; reviewType: ReviewType; editReview: Review | null } | null>(null);
+  const [paperFor, setPaperFor] = useState<{ serviceUserId: string; serviceUserName: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const { data: reviews = [], isLoading } = useQuery({ queryKey: ['reviews'], queryFn: () => reviewsApi.list() });
@@ -98,6 +100,14 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
               <button className="btn-secondary btn whitespace-nowrap" disabled={!newForUserId} onClick={startNewReview}>
                 + New Review
               </button>
+              <button
+                className="btn-secondary btn whitespace-nowrap"
+                disabled={!newForUserId}
+                title="Log a review already held on paper, so the next one is scheduled"
+                onClick={() => { const su = serviceUsers.find((s) => s.id === newForUserId); if (su) setPaperFor({ serviceUserId: su.id, serviceUserName: `${su.firstName} ${su.lastName}` }); }}
+              >
+                📄 Record previous (paper)
+              </button>
             </div>
           )}
         </div>
@@ -147,7 +157,10 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                       {r.type === 'QUARTERLY' ? 'Quarterly' : '6-Week'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{format(new Date(r.reviewDate), 'dd MMM yyyy')}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {format(new Date(r.reviewDate), 'dd MMM yyyy')}
+                    {r.source === 'paper' && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Paper</span>}
+                  </td>
                   <td className="px-4 py-3">
                     {r.nextReviewDate ? (
                       isOverdue(r) ? (
@@ -204,6 +217,20 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
           reviewType={modal.reviewType}
           editReview={modal.editReview}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {paperFor && (
+        <PaperSeedModal
+          title="Record previous review"
+          subjectName={paperFor.serviceUserName}
+          intro="Seed the schedule from a review held on paper"
+          dateLabel="Review date (on paper)"
+          personLabel="Assessor"
+          showNextDue
+          onSubmit={({ date, person, note, nextDue }) => reviewsApi.create({ serviceUserId: paperFor.serviceUserId, type: 'QUARTERLY', reviewDate: date, nextReviewDate: nextDue || undefined, assessorName: person || undefined, otherInfo: note || undefined, source: 'paper' })}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ['reviews'] }); qc.invalidateQueries({ queryKey: ['supervision-summary'] }); }}
+          onClose={() => setPaperFor(null)}
         />
       )}
     </div>

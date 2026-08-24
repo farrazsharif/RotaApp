@@ -34,7 +34,7 @@ export async function getReview(req: AuthRequest, res: Response) {
 }
 
 export async function createReview(req: AuthRequest, res: Response) {
-  const { serviceUserId, type, reviewDate, nextReviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent } = req.body;
+  const { serviceUserId, type, reviewDate, nextReviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent, source } = req.body;
   if (!serviceUserId || !reviewDate) {
     return res.status(400).json({ error: 'serviceUserId and reviewDate are required' });
   }
@@ -53,6 +53,7 @@ export async function createReview(req: AuthRequest, res: Response) {
       outcomes: outcomes ? JSON.stringify(outcomes) : '[]',
       representativeName: representativeName || null,
       phoneConsent: !!phoneConsent,
+      source: source === 'paper' ? 'paper' : 'form',
     },
     include,
   });
