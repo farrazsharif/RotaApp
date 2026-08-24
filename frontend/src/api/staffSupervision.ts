@@ -12,6 +12,8 @@ export interface Supervision {
   assessorName?: string | null;
   assessorSignature?: string | null;
   staffSignature?: string | null;
+  source?: string | null; // 'form' | 'paper'
+  note?: string | null;
   createdAt: string;
   updatedAt?: string;
   user?: { firstName: string; lastName: string };
@@ -27,6 +29,9 @@ export interface SupervisionData {
   assessorName?: string;
   assessorSignature?: string;
   staffSignature?: string;
+  source?: string;
+  note?: string;
+  nextReviewDate?: string; // optional explicit override (else date + 3 months)
 }
 
 export const staffSupervisionApi = {

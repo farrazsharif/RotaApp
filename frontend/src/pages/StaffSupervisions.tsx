@@ -5,6 +5,7 @@ import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import SupervisionFormModal from '../components/SupervisionFormModal';
+import PaperSupervisionModal from '../components/PaperSupervisionModal';
 
 const staffName = (s: Supervision) => (s.user ? `${s.user.firstName} ${s.user.lastName}` : '—');
 
@@ -14,6 +15,7 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
   const [search, setSearch] = useState('');
   const [newForUserId, setNewForUserId] = useState('');
   const [modal, setModal] = useState<{ userId: string; staffName: string; edit: Supervision | null } | null>(null);
+  const [paperFor, setPaperFor] = useState<{ userId: string; staffName: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const { data: supervisions = [], isLoading } = useQuery({ queryKey: ['supervisions'], queryFn: () => staffSupervisionApi.list() });
@@ -63,6 +65,14 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                 {staff.map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
               </select>
               <button className="btn-secondary btn whitespace-nowrap" disabled={!newForUserId} onClick={startNew}>+ New Supervision</button>
+              <button
+                className="btn-secondary btn whitespace-nowrap"
+                disabled={!newForUserId}
+                title="Log a supervision already held on paper, so the next one is scheduled"
+                onClick={() => { const u = staff.find((x) => x.id === newForUserId); if (u) setPaperFor({ userId: u.id, staffName: `${u.firstName} ${u.lastName}` }); }}
+              >
+                📄 Record previous (paper)
+              </button>
             </div>
           )}
         </div>
@@ -102,7 +112,12 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
               {filtered.map((s) => (
                 <tr key={s.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{staffName(s)}</td>
-                  <td className="px-4 py-3 text-gray-600">{format(new Date(s.date), 'dd MMM yyyy')}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {format(new Date(s.date), 'dd MMM yyyy')}
+                    {s.source === 'paper' && (
+                      <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded" title={s.note || 'Recorded from a paper supervision'}>Paper</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     {s.nextReviewDate ? (
                       isOverdue(s)
@@ -145,6 +160,14 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
           editSupervision={modal.edit}
           readOnly={!isManager}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {paperFor && (
+        <PaperSupervisionModal
+          userId={paperFor.userId}
+          staffName={paperFor.staffName}
+          onClose={() => setPaperFor(null)}
         />
       )}
     </div>

@@ -675,6 +675,10 @@ model Supervision {
   assessorName      String?
   assessorSignature String? // drawn signature as a data URL
   staffSignature    String? // drawn signature as a data URL
+  // "form" = a full digital supervision; "paper" = a historic date-only entry
+  // seeding the schedule from a supervision that was held on paper.
+  source            String   @default("form")
+  note              String? // free-text note, used for paper/historic entries
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

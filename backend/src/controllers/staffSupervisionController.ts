@@ -12,7 +12,7 @@ function asJson(value: unknown, fallback = '{}'): string {
 
 function buildData(body: Record<string, unknown>) {
   const data: Record<string, unknown> = {};
-  for (const f of ['position', 'serviceUsers', 'assessorName', 'assessorSignature', 'staffSignature']) {
+  for (const f of ['position', 'serviceUsers', 'assessorName', 'assessorSignature', 'staffSignature', 'source', 'note']) {
     if (body[f] !== undefined) data[f] = body[f] || null;
   }
   if (body.date !== undefined) {
@@ -20,6 +20,12 @@ function buildData(body: Record<string, unknown>) {
     data.date = d;
     // Next supervision is due 3 months after this one.
     data.nextReviewDate = new Date(d.getFullYear(), d.getMonth() + 3, d.getDate());
+  }
+  // Optional explicit next-due override (a different cadence, or when seeding a
+  // historic paper supervision) — wins over the auto +3 months above.
+  if (body.nextReviewDate) {
+    const n = new Date(body.nextReviewDate as string);
+    if (!isNaN(n.getTime())) data.nextReviewDate = n;
   }
   if (body.answers !== undefined) data.answers = asJson(body.answers);
   if (body.observations !== undefined) data.observations = asJson(body.observations);
