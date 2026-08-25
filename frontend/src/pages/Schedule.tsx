@@ -135,7 +135,7 @@ export default function Schedule() {
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
   const [search, setSearch] = useState('');
-  const [assignFilter, setAssignFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+  const [assignFilter, setAssignFilter] = useState<'all' | 'assigned' | 'unassigned' | 'topublish'>('all');
   const [visitFilter, setVisitFilter] = useState<string[]>([]); // selected call types; empty = all
   const [callMenuOpen, setCallMenuOpen] = useState(false);
   const [pubResult, setPubResult] = useState<string | null>(null);
@@ -277,6 +277,8 @@ export default function Schedule() {
     .filter((s) => {
       if (assignFilter === 'assigned') return !needsStaff(s);
       if (assignFilter === 'unassigned') return needsStaff(s);
+      // Ready-to-publish: fully-staffed drafts (what the Publish button acts on).
+      if (assignFilter === 'topublish') return !s.published && missingCarers(s) === 0;
       return true;
     })
     .filter((s) => visitFilter.length === 0 || (s.visitName ? visitFilter.includes(s.visitName) : false))
@@ -610,14 +612,14 @@ export default function Schedule() {
           <div className="flex flex-wrap items-center gap-3">
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client or carer…" className="input w-56 text-sm" />
             <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden divide-x divide-gray-200">
-              {([{ k: 'all', label: 'All' }, { k: 'assigned', label: 'Assigned' }, { k: 'unassigned', label: `Unassigned${unassignedCount ? ` · ${unassignedCount}` : ''}` }] as const).map((opt) => (
+              {([{ k: 'all', label: 'All' }, { k: 'assigned', label: 'Assigned' }, { k: 'unassigned', label: `Unassigned${unassignedCount ? ` · ${unassignedCount}` : ''}` }, { k: 'topublish', label: `To publish${readyInRange.length ? ` · ${readyInRange.length}` : ''}` }] as const).map((opt) => (
                 <button
                   key={opt.k}
                   onClick={() => setAssignFilter(opt.k)}
                   className={`px-3 py-1.5 text-sm transition-colors ${
                     assignFilter === opt.k
-                      ? opt.k === 'unassigned' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'
-                      : `bg-white hover:bg-gray-50 ${opt.k === 'unassigned' && unassignedCount ? 'text-red-600' : 'text-gray-600'}`
+                      ? opt.k === 'unassigned' ? 'bg-red-600 text-white' : opt.k === 'topublish' ? 'bg-amber-600 text-white' : 'bg-blue-600 text-white'
+                      : `bg-white hover:bg-gray-50 ${opt.k === 'unassigned' && unassignedCount ? 'text-red-600' : opt.k === 'topublish' && readyInRange.length ? 'text-amber-600' : 'text-gray-600'}`
                   }`}
                 >
                   {opt.label}
