@@ -56,10 +56,15 @@ const STRING_FIELDS = ['companyName', 'logo', 'address', 'phone', 'email', 'cqcP
 const NUMBER_FIELDS = ['defaultHourlyRate', 'overtimeThreshold', 'inviteExpiryDays'] as const;
 
 // Clean the carer-app visit checklist into a stored JSON string: array of
-// { id, label, phrase?, detail? }. Anything malformed is dropped.
+// { id, label, phrase?, detail? }. Anything malformed is dropped. Accepts either
+// an array or a JSON-string of one (the Settings form sends a stringified list).
 function normalizeCallLogTasks(raw: unknown): string {
-  if (!Array.isArray(raw)) return '[]';
-  const clean = raw
+  let arr: unknown = raw;
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr); } catch { return '[]'; }
+  }
+  if (!Array.isArray(arr)) return '[]';
+  const clean = arr
     .filter((t) => t && typeof t === 'object' && typeof (t as any).label === 'string' && String((t as any).label).trim())
     .slice(0, 100)
     .map((t: any, i: number) => ({
