@@ -14,6 +14,7 @@ import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
 import { parseCategories } from '../lib/supportCategories';
 import CarePlanModal from '../components/CarePlanModal';
+import ContractOfCareModal from '../components/ContractOfCareModal';
 import LikesDislikesModal from '../components/LikesDislikesModal';
 import { likesDislikesApi } from '../api/likesDislikes';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
@@ -76,6 +77,7 @@ export default function ServiceUserDetail() {
   const qc = useQueryClient();
   const { isManager } = useAuth();
   const [carePlanOpen, setCarePlanOpen] = useState(false);
+  const [contractOpen, setContractOpen] = useState(false);
   const [likesDislikesOpen, setLikesDislikesOpen] = useState(false);
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
   const [raType, setRaType] = useState<string | null>(null);
@@ -601,6 +603,27 @@ export default function ServiceUserDetail() {
         </div>
       </Section>
 
+      {/* Contract of Care */}
+      <Section
+        title="Contract of Care"
+        action={
+          <button className="btn-secondary btn btn-sm" onClick={() => setContractOpen(true)}>
+            {isManager ? (riskAssessments.some((r) => r.type === 'CONTRACT_OF_CARE') ? 'Open / Edit' : 'Start') : 'Open'}
+          </button>
+        }
+      >
+        {(() => {
+          const summary = riskAssessments.find((r) => r.type === 'CONTRACT_OF_CARE');
+          return (
+            <p className="text-sm text-gray-500">
+              {summary
+                ? `Signed agreement of weekly visits — last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}.`
+                : 'Pick the weekly visits, auto-total the hours, and capture service user & manager signatures.'}
+            </p>
+          );
+        })()}
+      </Section>
+
       {/* Risk Assessments */}
       <Section title="Risk Assessments">
         <div className="space-y-2">
@@ -701,6 +724,7 @@ export default function ServiceUserDetail() {
       )}
 
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
+      {contractOpen && <ContractOfCareModal serviceUser={su} onClose={() => setContractOpen(false)} />}
       {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}
       {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}
       {raType && FORM_BY_TYPE[raType] && <RiskAssessmentModal serviceUser={su} form={FORM_BY_TYPE[raType]} onClose={() => setRaType(null)} />}

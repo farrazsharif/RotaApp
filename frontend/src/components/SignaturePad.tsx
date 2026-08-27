@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
 
-// A simple draw-to-sign canvas. `value` is a PNG data URL (empty = unsigned).
-// In read-only mode it renders the saved signature as an image.
+// A draw-to-sign canvas. Emits a PNG data URL on each stroke end; renders the
+// stored image read-only when `ro`. Shared by risk assessments and the
+// contract of care.
 export default function SignaturePad({ value, ro, onChange }: { value: string; ro: boolean; onChange: (dataUrl: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const last = useRef<{ x: number; y: number } | null>(null);
 
-  // Render an existing signature onto the canvas when it loads/changes.
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
