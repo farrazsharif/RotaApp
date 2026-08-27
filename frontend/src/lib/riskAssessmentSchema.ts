@@ -440,14 +440,6 @@ export const RA_ONE_PAGE_PROFILE: RaForm = {
         { label: 'How you can communicate with me', type: 'longtext' },
       ],
     },
-    {
-      id: 'signoff',
-      title: 'Sign-off',
-      items: [
-        { label: 'Completed by (signature)', type: 'signature' },
-        { label: 'Date completed', type: 'date' },
-      ],
-    },
   ],
 };
 
