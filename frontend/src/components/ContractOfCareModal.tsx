@@ -114,7 +114,10 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
     return { totalMins: mins, visitCount: count, hasAnyVisit: any };
   }, [schedule]);
 
-  const totalHours = totalMins / 60;
+  // Double-up = two carers on each visit, so the total care hours delivered are
+  // doubled. Single = the visit hours as-is.
+  const staffMultiplier = d.staffing === 'double' ? 2 : 1;
+  const totalHours = (totalMins * staffMultiplier) / 60;
   const hoursLabel = Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(2);
 
   useEffect(() => {
