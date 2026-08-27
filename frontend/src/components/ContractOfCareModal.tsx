@@ -1,29 +1,65 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
+import { carePlansApi } from '../api/carePlans';
 import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import SignaturePad from './SignaturePad';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
-// Stored under the generic assessment store, type 'CONTRACT_OF_CARE'. No backend
-// change — same shape as risk assessments (a JSON blob keyed by our own fields).
+// Stored under the generic assessment store, type 'CONTRACT_OF_CARE'. The weekly
+// visits (and the hours total) are read live from the client's Care Plan Weekly
+// Visit Profile — so the contract always matches the current care plan.
 const TYPE = 'CONTRACT_OF_CARE';
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Other'] as const;
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 const SLOTS = [
   { key: 'morning', label: 'Morning' },
   { key: 'lunch', label: 'Lunch' },
   { key: 'tea', label: 'Tea' },
   { key: 'bed', label: 'Bed' },
 ] as const;
-const DEFAULT_MINS = 30; // applied when a visit is first ticked
 
-const cellKey = (day: string, slot: string) => `${day}|${slot}`;
+type Schedule = Record<string, Record<string, string>>;
+
+// Parse a visit time range like "9.30-10.00am", "8.00-8.45am", "2–3pm" into a
+// duration in minutes. Tolerant of ., :, am/pm on either end, en/em dashes.
+// Returns 0 if it can't be parsed (the cell still shows the raw text).
+function parseMinutes(range: string): number {
+  if (!range) return 0;
+  const s = range.toLowerCase().replace(/[–—]/g, '-').replace(/\s+/g, '');
+  const parts = s.split('-');
+  if (parts.length < 2) return 0;
+  const tok = (raw: string): { h: number; m: number; mer: 'am' | 'pm' | null } | null => {
+    let t = raw;
+    let mer: 'am' | 'pm' | null = null;
+    if (t.endsWith('am')) { mer = 'am'; t = t.slice(0, -2); }
+    else if (t.endsWith('pm')) { mer = 'pm'; t = t.slice(0, -2); }
+    t = t.replace(':', '.');
+    if (!t) return null;
+    const seg = t.split('.');
+    const h = parseInt(seg[0], 10);
+    if (isNaN(h)) return null;
+    const m = seg[1] ? parseInt(seg[1].padEnd(2, '0').slice(0, 2), 10) : 0;
+    return { h, m: isNaN(m) ? 0 : m, mer };
+  };
+  const a = tok(parts[0]);
+  const b = tok(parts[1]);
+  if (!a || !b) return 0;
+  if (!a.mer && b.mer) a.mer = b.mer; // "9.30-10.00am" → start is am too
+  const to24 = (x: { h: number; m: number; mer: 'am' | 'pm' | null }) => {
+    let h = x.mer ? x.h % 12 : x.h;
+    if (x.mer === 'pm') h += 12;
+    if (x.mer === 'am' && x.h === 12) h = 0;
+    return h * 60 + x.m;
+  };
+  let diff = to24(b) - to24(a);
+  if (diff <= 0) diff += 720; // crosses the 12h boundary (e.g. 11.30-12.15pm)
+  return diff > 0 && diff < 720 ? diff : Math.max(0, diff);
+}
 
 interface ContractData {
-  grid: Record<string, number>; // cellKey -> minutes (absent / 0 = not selected)
   staffing: 'single' | 'double';
   serviceUserSig: string;
   managerName: string;
@@ -36,7 +72,7 @@ interface ContractData {
 }
 
 const emptyData = (): ContractData => ({
-  grid: {}, staffing: 'single', serviceUserSig: '', managerName: '', managerSig: '', signedDate: '',
+  staffing: 'single', serviceUserSig: '', managerName: '', managerSig: '', signedDate: '',
   medAuth: false, medServiceUserSig: '', medManagerSig: '', medDate: '',
 });
 
@@ -59,11 +95,33 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
     queryFn: () => riskAssessmentsApi.get(serviceUser.id, TYPE),
   });
 
+  // Weekly visits come from the Care Plan.
+  const { data: carePlan } = useQuery({
+    queryKey: ['care-plan', serviceUser.id],
+    queryFn: () => carePlansApi.get(serviceUser.id),
+  });
+
+  const schedule: Schedule = useMemo(() => {
+    try { return carePlan?.schedule ? JSON.parse(carePlan.schedule) : {}; } catch { return {}; }
+  }, [carePlan]);
+
+  const { totalMins, visitCount, hasAnyVisit } = useMemo(() => {
+    let mins = 0, count = 0, any = false;
+    for (const day of DAYS) for (const s of SLOTS) {
+      const t = schedule[day]?.[s.key]?.trim();
+      if (t) { any = true; count += 1; mins += parseMinutes(t); }
+    }
+    return { totalMins: mins, visitCount: count, hasAnyVisit: any };
+  }, [schedule]);
+
+  const totalHours = totalMins / 60;
+  const hoursLabel = Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(2);
+
   useEffect(() => {
     if (record?.data) {
       try {
         const parsed = JSON.parse(record.data);
-        setD({ ...emptyData(), ...parsed, grid: parsed.grid || {} });
+        setD({ ...emptyData(), ...parsed });
       } catch { setD(emptyData()); }
     } else {
       setD({ ...emptyData(), managerName: currentUserName });
@@ -79,29 +137,12 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
     },
   });
 
-  const totalMins = useMemo(() => Object.values(d.grid).reduce((a, b) => a + (Number(b) || 0), 0), [d.grid]);
-  const totalHours = totalMins / 60;
-  const visitCount = useMemo(() => Object.values(d.grid).filter((m) => (Number(m) || 0) > 0).length, [d.grid]);
-  const hoursLabel = Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(2);
-
-  const setCell = (day: string, slot: string, mins: number) =>
-    setD((prev) => {
-      const grid = { ...prev.grid };
-      if (mins > 0) grid[cellKey(day, slot)] = mins;
-      else delete grid[cellKey(day, slot)];
-      return { ...prev, grid };
-    });
-  const toggleCell = (day: string, slot: string) => {
-    const key = cellKey(day, slot);
-    setCell(day, slot, (d.grid[key] || 0) > 0 ? 0 : DEFAULT_MINS);
-  };
-
   function printContract() {
     const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
     const rows = DAYS.map((day) => {
       const cells = SLOTS.map((s) => {
-        const m = d.grid[cellKey(day, s.key)] || 0;
-        return `<td class="cell">${m > 0 ? `<span class="tick">✓</span><span class="mins">${m}m</span>` : ''}</td>`;
+        const t = schedule[day]?.[s.key]?.trim() || '';
+        return `<td class="cell">${t ? esc(t) : ''}</td>`;
       }).join('');
       return `<tr><th class="day">${esc(day)}</th>${cells}</tr>`;
     }).join('');
@@ -118,16 +159,13 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
         .statement { font-size: 13px; line-height: 1.6; margin: 12px 0 18px; }
         .statement b { border-bottom: 1px solid #111; padding: 0 4px; }
         table.coc { width: 100%; border-collapse: collapse; margin: 8px 0 6px; }
-        table.coc th, table.coc td { border: 1px solid #999; padding: 6px 8px; text-align: center; }
+        table.coc th, table.coc td { border: 1px solid #999; padding: 6px 8px; text-align: center; font-size: 11px; }
         table.coc thead th { background: #f3f3f3; }
         table.coc .day { text-align: left; background: #fafafa; width: 120px; }
         table.coc .cell { height: 26px; }
-        table.coc .tick { color: #16a34a; font-weight: bold; margin-right: 4px; }
-        table.coc .mins { color: #555; font-size: 10px; }
         .totals { font-size: 13px; margin: 8px 0 20px; }
         .totals b { font-size: 15px; }
         .sigrow { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-top: 10px; }
-        .sigbox { }
         .sig-label { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 0.02em; }
         .sig { max-height: 60px; max-width: 100%; display: block; margin-top: 4px; }
         .sig-empty { height: 46px; border-bottom: 1px solid #111; margin-top: 4px; }
@@ -206,57 +244,47 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
               )}{' '}staff.
             </p>
 
-            {/* Visit picker grid */}
+            {/* Weekly visits — pulled from the Care Plan */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-gray-900">Weekly visits {ro ? '' : '— tick each visit and set its length'}</h3>
+                <h3 className="text-sm font-semibold text-gray-900">Weekly visits <span className="font-normal text-gray-400">— from the Care Plan</span></h3>
                 <div className="text-sm text-gray-700">
                   <span className="text-gray-500">Total</span> <span className="font-bold text-blue-700">{hoursLabel} hrs/week</span>
                   <span className="text-gray-400"> · {visitCount} visit{visitCount === 1 ? '' : 's'}</span>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr>
-                      <th className="border p-2 bg-gray-50 text-left w-28"></th>
-                      {SLOTS.map((s) => <th key={s.key} className="border p-2 bg-gray-50 font-medium">{s.label}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {DAYS.map((day) => (
-                      <tr key={day}>
-                        <th className="border p-2 bg-gray-50 text-left font-medium text-gray-700">{day}</th>
-                        {SLOTS.map((s) => {
-                          const key = cellKey(day, s.key);
-                          const mins = d.grid[key] || 0;
-                          const on = mins > 0;
-                          return (
-                            <td key={s.key} className={`border p-1.5 text-center ${on ? 'bg-blue-50' : ''}`}>
-                              {ro ? (
-                                on ? <span className="text-green-700 font-semibold">✓ <span className="text-gray-400 text-xs">{mins}m</span></span> : <span className="text-gray-300">—</span>
-                              ) : (
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <input type="checkbox" checked={on} onChange={() => toggleCell(day, s.key)} className="h-4 w-4 accent-blue-600" />
-                                  {on && (
-                                    <input
-                                      type="number" min={5} step={5} value={mins}
-                                      onChange={(e) => setCell(day, s.key, Math.max(0, Number(e.target.value) || 0))}
-                                      className="w-14 border rounded px-1 py-0.5 text-xs text-center"
-                                      title="Minutes"
-                                    />
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
+              {!hasAnyVisit ? (
+                <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  No weekly visits on the Care Plan yet. Add the visit times to this client's <span className="font-medium">Care Plan → Weekly Visit Profile</span> and they'll appear here automatically.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr>
+                        <th className="border p-2 bg-gray-50 text-left w-28"></th>
+                        {SLOTS.map((s) => <th key={s.key} className="border p-2 bg-gray-50 font-medium">{s.label}</th>)}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {!ro && <p className="text-xs text-gray-400 mt-1">Minutes are per visit; the weekly total updates automatically.</p>}
+                    </thead>
+                    <tbody>
+                      {DAYS.map((day) => (
+                        <tr key={day}>
+                          <th className="border p-2 bg-gray-50 text-left font-medium text-gray-700">{day}</th>
+                          {SLOTS.map((s) => {
+                            const t = schedule[day]?.[s.key]?.trim() || '';
+                            return (
+                              <td key={s.key} className={`border p-2 text-center ${t ? 'bg-blue-50 text-gray-800' : 'text-gray-300'}`}>
+                                {t || '—'}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="text-xs text-gray-400 mt-1">Times and hours are taken from the Care Plan — edit them there and they update here.</p>
             </div>
 
             {/* Signatures */}
