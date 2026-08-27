@@ -391,7 +391,6 @@ export const RA_ONE_PAGE_PROFILE: RaForm = {
         { label: 'Name of person', type: 'text' },
         { label: 'Completed by (field supervisor)', type: 'text' },
         { label: 'Date of profile', type: 'date' },
-        { label: 'Photograph at the heart — on file, with consent?', type: 'text', hint: 'e.g. “Yes — photo added to Documents with consent”' },
       ],
     },
     {
