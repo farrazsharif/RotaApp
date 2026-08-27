@@ -8,6 +8,9 @@ const SLOTS = [
   { key: 'lunch', label: 'Lunch' },
   { key: 'tea', label: 'Tea' },
   { key: 'bed', label: 'Bed' },
+  { key: 'domestic', label: 'Domestic' },
+  { key: 'shopping', label: 'Shopping' },
+  { key: 'other', label: 'Other' },
 ] as const;
 
 type SlotKey = typeof SLOTS[number]['key'];

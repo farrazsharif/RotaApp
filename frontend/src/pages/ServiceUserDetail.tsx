@@ -179,7 +179,7 @@ export default function ServiceUserDetail() {
   let carePlanSchedule: Record<string, Record<string, string>> = {};
   try { carePlanSchedule = carePlan?.schedule ? JSON.parse(carePlan.schedule) : {}; } catch { carePlanSchedule = {}; }
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const SLOTS: [string, string][] = [['morning', 'Morning'], ['lunch', 'Lunch'], ['tea', 'Tea'], ['bed', 'Bed']];
+  const SLOTS: [string, string][] = [['morning', 'Morning'], ['lunch', 'Lunch'], ['tea', 'Tea'], ['bed', 'Bed'], ['domestic', 'Domestic'], ['shopping', 'Shopping'], ['other', 'Other']];
   const scheduleRows = DAYS.filter((d) => SLOTS.some(([k]) => carePlanSchedule[d]?.[k]?.trim()));
   const hasCarePlan = !!carePlan && (scheduleRows.length > 0 || !!carePlan.tasksMorning || !!carePlan.tasksLunch || !!carePlan.tasksTea || !!carePlan.tasksBed || !!carePlan.carePackageInfo);
 
