@@ -155,9 +155,11 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
       · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}
     </div>
     ${sectionsHtml}
-    <div class="fields-grid" style="margin-top:16px">
+    ${form.sections.some((s) => s.items.some((it) => (it.type || 'risk') === 'risk' || it.type === 'hazard'))
+      ? `<div class="fields-grid" style="margin-top:16px">
       <div><span class="field-label">Risk key</span><div class="field-value">Low / Medium / High — mark the perceived degree of risk for each observation.</div></div>
-    </div>
+    </div>`
+      : ''}
     </body></html>`;
 
   const w = window.open('', '_blank');

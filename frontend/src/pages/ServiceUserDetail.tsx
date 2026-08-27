@@ -19,7 +19,7 @@ import { likesDislikesApi } from '../api/likesDislikes';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
 import RiskAssessmentModal from '../components/RiskAssessmentModal';
 import { riskAssessmentsApi } from '../api/riskAssessments';
-import { RA_FORMS, RA_TYPES } from '../lib/riskAssessmentSchema';
+import { RA_TYPES, PROFILE_TYPES, FORM_BY_TYPE } from '../lib/riskAssessmentSchema';
 import EmarModal from '../components/EmarModal';
 import MarChartModal from '../components/MarChartModal';
 import CallLogsModal from '../components/CallLogsModal';
@@ -577,6 +577,30 @@ export default function ServiceUserDetail() {
         </p>
       </Section>
 
+      {/* One Page Profile (person-centred) */}
+      <Section title="One Page Profile">
+        <div className="space-y-2">
+          {PROFILE_TYPES.map((t) => {
+            const summary = riskAssessments.find((r) => r.type === t.type);
+            return (
+              <div key={t.type} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{t.title}</p>
+                  <p className="text-xs text-gray-500">
+                    {summary
+                      ? `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`
+                      : 'Not started yet.'}
+                  </p>
+                </div>
+                <button className="btn-secondary btn btn-sm shrink-0" onClick={() => setRaType(t.type)}>
+                  {isManager ? (summary ? 'Open / Edit' : 'Start') : 'Open'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
       {/* Risk Assessments */}
       <Section title="Risk Assessments">
         <div className="space-y-2">
@@ -679,7 +703,7 @@ export default function ServiceUserDetail() {
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
       {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}
       {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}
-      {raType && RA_FORMS[raType] && <RiskAssessmentModal serviceUser={su} form={RA_FORMS[raType]} onClose={() => setRaType(null)} />}
+      {raType && FORM_BY_TYPE[raType] && <RiskAssessmentModal serviceUser={su} form={FORM_BY_TYPE[raType]} onClose={() => setRaType(null)} />}
       {emarOpen && <EmarModal serviceUser={su} onClose={() => setEmarOpen(false)} />}
       {marChartOpen && <MarChartModal serviceUser={su} onClose={() => setMarChartOpen(false)} />}
       {logsOpen && <CallLogsModal serviceUser={su} onClose={() => setLogsOpen(false)} />}

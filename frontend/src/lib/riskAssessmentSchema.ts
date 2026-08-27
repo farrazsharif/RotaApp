@@ -374,7 +374,93 @@ export const RA_BATHING: RaForm = {
   ],
 };
 
+// Person-Centred One Page Profile. Not a risk assessment — a strengths-based
+// summary of the person, completed by the field supervisor at the assessment
+// visit. Reuses the same form engine (all free-text) and the generic
+// assessment store (keyed by type), so it needs no backend changes. Mirrors the
+// Care 24 "Person Centred One Page Profile" template.
+export const RA_ONE_PAGE_PROFILE: RaForm = {
+  type: 'ONE_PAGE_PROFILE',
+  title: 'Person-Centred One Page Profile',
+  sections: [
+    {
+      id: 'details',
+      title: 'Profile Details',
+      intro: 'A one-page summary of the person: their strengths, what matters to them, and how best to support them. Complete with the person (and family where appropriate) at the assessment visit.',
+      items: [
+        { label: 'Name of person', type: 'text' },
+        { label: 'Completed by (field supervisor)', type: 'text' },
+        { label: 'Date of profile', type: 'date' },
+        { label: 'Photograph at the heart — on file, with consent?', type: 'text', hint: 'e.g. “Yes — photo added to Documents with consent”' },
+      ],
+    },
+    {
+      id: 'aboutme',
+      title: 'About Me',
+      items: [
+        { label: 'A bit about me / social history (including protected characteristics)', type: 'longtext' },
+        { label: 'My sensory needs', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'enjoy',
+      title: 'What I Enjoy & What I Want',
+      items: [
+        { label: 'What I enjoy', type: 'longtext' },
+        { label: 'What I want to happen', type: 'longtext' },
+        { label: "What I don't enjoy", type: 'longtext' },
+        { label: "What I don't want to happen", type: 'longtext' },
+      ],
+    },
+    {
+      id: 'people',
+      title: 'People & Interests',
+      items: [
+        { label: 'Who is important to me?', type: 'longtext' },
+        { label: 'What is important to me?', type: 'longtext' },
+        { label: 'What am I passionate about?', type: 'longtext' },
+        { label: 'What are my topics of interest?', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'aspire',
+      title: 'Aspirations & Support',
+      items: [
+        { label: 'What inspires me?', type: 'longtext' },
+        { label: 'What I aim to achieve', type: 'longtext' },
+        { label: 'How best to support me', type: 'longtext' },
+        { label: 'What care and support looks like to me', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'comms',
+      title: 'Communication',
+      items: [
+        { label: 'How I communicate with you', type: 'longtext' },
+        { label: 'How you can communicate with me', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Completed by (signature)', type: 'signature' },
+        { label: 'Date completed', type: 'date' },
+      ],
+    },
+  ],
+};
+
 // Registry — add future risk assessments (Manual Handling, Smoking…) here.
 export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, BATHING: RA_BATHING };
 
 export const RA_TYPES: { type: string; title: string }[] = Object.values(RA_FORMS).map((f) => ({ type: f.type, title: f.title }));
+
+// Person-centred profiles — shown in their own section, not under "Risk
+// Assessments", but they use the same modal, print and store.
+export const PROFILE_FORMS: Record<string, RaForm> = { ONE_PAGE_PROFILE: RA_ONE_PAGE_PROFILE };
+
+export const PROFILE_TYPES: { type: string; title: string }[] = Object.values(PROFILE_FORMS).map((f) => ({ type: f.type, title: f.title }));
+
+// Combined lookup for the modal (which opens any form by its type id).
+export const FORM_BY_TYPE: Record<string, RaForm> = { ...RA_FORMS, ...PROFILE_FORMS };
