@@ -469,6 +469,7 @@ export interface CarePlan {
   id: string;
   serviceUserId: string;
   schedule: string; // JSON: { Monday: { morning, lunch, tea, bed }, ... }
+  extraCalls?: string; // JSON array of { name, when }
   tasksMorning?: string;
   tasksLunch?: string;
   tasksTea?: string;

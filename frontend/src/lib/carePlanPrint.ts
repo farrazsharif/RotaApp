@@ -8,9 +8,6 @@ const SLOTS = [
   { key: 'lunch', label: 'Lunch' },
   { key: 'tea', label: 'Tea' },
   { key: 'bed', label: 'Bed' },
-  { key: 'domestic', label: 'Domestic' },
-  { key: 'shopping', label: 'Shopping' },
-  { key: 'other', label: 'Other' },
 ] as const;
 
 type SlotKey = typeof SLOTS[number]['key'];
@@ -19,6 +16,7 @@ export type CarePlanSchedule = Partial<Record<typeof DAYS[number], DaySchedule>>
 
 export interface CarePlanPrintData {
   schedule: CarePlanSchedule;
+  extraCalls?: { name: string; when: string }[];
   tasksMorning: string;
   tasksLunch: string;
   tasksTea: string;
@@ -121,6 +119,12 @@ export function printCarePlan(serviceUser: ServiceUser, data: CarePlanPrintData,
       <thead><tr><th>Day</th>${SLOTS.map((s) => `<th>${esc(s.label)}</th>`).join('')}</tr></thead>
       <tbody>${scheduleRows}</tbody>
     </table>
+    ${(data.extraCalls && data.extraCalls.length)
+      ? `<p style="font-size:11px;font-weight:bold;color:#555;margin:8px 0 4px;">ADDITIONAL CALLS</p>
+    <table>
+      <tbody>${data.extraCalls.map((c) => `<tr><td style="width:35%;font-weight:bold;">${esc(c.name || '—')}</td><td>${esc(c.when || '')}</td></tr>`).join('')}</tbody>
+    </table>`
+      : ''}
 
     <h2>Care Package Details</h2>
     <div class="fields-grid">

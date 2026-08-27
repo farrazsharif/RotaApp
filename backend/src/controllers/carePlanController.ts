@@ -61,6 +61,15 @@ export async function upsertCarePlan(req: AuthRequest, res: Response) {
       return res.status(400).json({ error: 'schedule must be valid JSON' });
     }
   }
+  if ('extraCalls' in req.body) {
+    const raw = typeof req.body.extraCalls === 'string' ? req.body.extraCalls : JSON.stringify(req.body.extraCalls);
+    try {
+      const parsed = JSON.parse(raw);
+      data.extraCalls = Array.isArray(parsed) ? raw : '[]';
+    } catch {
+      return res.status(400).json({ error: 'extraCalls must be valid JSON' });
+    }
+  }
 
   const before = await prisma.carePlan.findUnique({ where: { serviceUserId }, select: { serviceUserId: true } });
   const plan = await prisma.carePlan.upsert({

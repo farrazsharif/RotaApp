@@ -179,9 +179,14 @@ export default function ServiceUserDetail() {
   let carePlanSchedule: Record<string, Record<string, string>> = {};
   try { carePlanSchedule = carePlan?.schedule ? JSON.parse(carePlan.schedule) : {}; } catch { carePlanSchedule = {}; }
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const SLOTS: [string, string][] = [['morning', 'Morning'], ['lunch', 'Lunch'], ['tea', 'Tea'], ['bed', 'Bed'], ['domestic', 'Domestic'], ['shopping', 'Shopping'], ['other', 'Other']];
+  const SLOTS: [string, string][] = [['morning', 'Morning'], ['lunch', 'Lunch'], ['tea', 'Tea'], ['bed', 'Bed']];
   const scheduleRows = DAYS.filter((d) => SLOTS.some(([k]) => carePlanSchedule[d]?.[k]?.trim()));
-  const hasCarePlan = !!carePlan && (scheduleRows.length > 0 || !!carePlan.tasksMorning || !!carePlan.tasksLunch || !!carePlan.tasksTea || !!carePlan.tasksBed || !!carePlan.carePackageInfo);
+  let carePlanExtraCalls: { name: string; when: string }[] = [];
+  try {
+    const parsed = carePlan?.extraCalls ? JSON.parse(carePlan.extraCalls) : [];
+    if (Array.isArray(parsed)) carePlanExtraCalls = parsed.filter((c) => c && (c.name || c.when)).map((c) => ({ name: String(c.name || ''), when: String(c.when || '') }));
+  } catch { carePlanExtraCalls = []; }
+  const hasCarePlan = !!carePlan && (scheduleRows.length > 0 || carePlanExtraCalls.length > 0 || !!carePlan.tasksMorning || !!carePlan.tasksLunch || !!carePlan.tasksTea || !!carePlan.tasksBed || !!carePlan.carePackageInfo);
 
   return (
     <div className="space-y-6">
@@ -525,6 +530,19 @@ export default function ServiceUserDetail() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {carePlanExtraCalls.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Additional Calls</p>
+                <div className="space-y-1">
+                  {carePlanExtraCalls.map((c, i) => (
+                    <p key={i} className="text-sm text-gray-800">
+                      <span className="font-medium">{c.name || '—'}</span>
+                      {c.when && <span className="text-gray-500"> · {c.when}</span>}
+                    </p>
+                  ))}
+                </div>
               </div>
             )}
             <div className="grid gap-4 sm:grid-cols-2">

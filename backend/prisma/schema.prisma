@@ -365,6 +365,9 @@ model CarePlan {
   serviceUserId   String    @unique
   // Weekly visit profile — JSON: { Monday: { morning, lunch, tea, bed }, ... }
   schedule        String    @default("{}")
+  // Extra named calls beyond the four standard slots — JSON array of
+  // { name, when } (e.g. Shopping, Domestic, GP appointment).
+  extraCalls      String    @default("[]")
   // Tasks required at each visit
   tasksMorning    String?
   tasksLunch      String?

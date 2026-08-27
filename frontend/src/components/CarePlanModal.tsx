@@ -17,10 +17,11 @@ const SLOTS = [
   { key: 'lunch', label: 'Lunch' },
   { key: 'tea', label: 'Tea' },
   { key: 'bed', label: 'Bed' },
-  { key: 'domestic', label: 'Domestic' },
-  { key: 'shopping', label: 'Shopping' },
-  { key: 'other', label: 'Other' },
 ] as const;
+
+// An extra, named call beyond the four standard slots (e.g. Shopping, Domestic,
+// GP appointment). Free-form so the office can add whatever the package needs.
+interface ExtraCall { name: string; when: string }
 
 type SlotKey = typeof SLOTS[number]['key'];
 type DaySchedule = Partial<Record<SlotKey, string>>;
@@ -28,6 +29,7 @@ type Schedule = Partial<Record<typeof DAYS[number], DaySchedule>>;
 
 interface FormState {
   schedule: Schedule;
+  extraCalls: ExtraCall[];
   tasksMorning: string;
   tasksLunch: string;
   tasksTea: string;
@@ -39,7 +41,7 @@ interface FormState {
 }
 
 const emptyForm = (): FormState => ({
-  schedule: {}, tasksMorning: '', tasksLunch: '', tasksTea: '', tasksBed: '',
+  schedule: {}, extraCalls: [], tasksMorning: '', tasksLunch: '', tasksTea: '', tasksBed: '',
   numberOfCarers: '', carePackageInfo: '', otherNotes: '', reviewDate: '',
 });
 
@@ -65,8 +67,13 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
     if (plan) {
       let schedule: Schedule = {};
       try { schedule = plan.schedule ? JSON.parse(plan.schedule) : {}; } catch { schedule = {}; }
+      let extraCalls: ExtraCall[] = [];
+      try {
+        const parsed = plan.extraCalls ? JSON.parse(plan.extraCalls) : [];
+        if (Array.isArray(parsed)) extraCalls = parsed.filter((c) => c && typeof c === 'object').map((c) => ({ name: String(c.name || ''), when: String(c.when || '') }));
+      } catch { extraCalls = []; }
       setForm({
-        schedule,
+        schedule, extraCalls,
         tasksMorning: plan.tasksMorning || '', tasksLunch: plan.tasksLunch || '',
         tasksTea: plan.tasksTea || '', tasksBed: plan.tasksBed || '',
         numberOfCarers: plan.numberOfCarers || '', carePackageInfo: plan.carePackageInfo || '',
@@ -78,9 +85,13 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
     }
   }, [plan]);
 
+  // Drop rows with no name before persisting.
+  const cleanExtraCalls = () => form.extraCalls.filter((c) => c.name.trim() || c.when.trim());
+
   const saveMut = useMutation({
     mutationFn: () => carePlansApi.save(serviceUser.id, {
       schedule: JSON.stringify(form.schedule),
+      extraCalls: JSON.stringify(cleanExtraCalls()),
       tasksMorning: form.tasksMorning, tasksLunch: form.tasksLunch, tasksTea: form.tasksTea, tasksBed: form.tasksBed,
       numberOfCarers: form.numberOfCarers, carePackageInfo: form.carePackageInfo, otherNotes: form.otherNotes,
       reviewDate: form.reviewDate || undefined,
@@ -91,10 +102,16 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
   const setCell = (day: typeof DAYS[number], slot: SlotKey, val: string) =>
     setForm((f) => ({ ...f, schedule: { ...f.schedule, [day]: { ...f.schedule[day], [slot]: val } } }));
 
+  const addExtraCall = () => setForm((f) => ({ ...f, extraCalls: [...f.extraCalls, { name: '', when: '' }] }));
+  const setExtraCall = (i: number, patch: Partial<ExtraCall>) =>
+    setForm((f) => ({ ...f, extraCalls: f.extraCalls.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
+  const removeExtraCall = (i: number) => setForm((f) => ({ ...f, extraCalls: f.extraCalls.filter((_, j) => j !== i) }));
+
   const reviewOverdue = plan?.reviewDate ? new Date(plan.reviewDate) < new Date() : false;
 
   const printPlan = () => printCarePlan(serviceUser, {
     schedule: form.schedule,
+    extraCalls: cleanExtraCalls(),
     tasksMorning: form.tasksMorning, tasksLunch: form.tasksLunch, tasksTea: form.tasksTea, tasksBed: form.tasksBed,
     numberOfCarers: form.numberOfCarers, carePackageInfo: form.carePackageInfo, otherNotes: form.otherNotes,
     reviewDate: form.reviewDate,
@@ -169,6 +186,43 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Additional named calls (e.g. Shopping, Domestic) */}
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-gray-500 mb-1">Additional Calls</p>
+                  {form.extraCalls.length === 0 && ro && <p className="text-sm text-gray-400">None recorded.</p>}
+                  <div className="space-y-2">
+                    {form.extraCalls.map((c, i) => (
+                      <div key={i} className="flex flex-wrap items-center gap-2">
+                        {ro ? (
+                          <p className="text-sm text-gray-800">
+                            <span className="font-medium">{c.name || '—'}</span>
+                            {c.when && <span className="text-gray-500"> · {c.when}</span>}
+                          </p>
+                        ) : (
+                          <>
+                            <input
+                              value={c.name}
+                              onChange={(e) => setExtraCall(i, { name: e.target.value })}
+                              placeholder="Name of call (e.g. Shopping)"
+                              className="input py-1 text-sm flex-1 min-w-[160px]"
+                            />
+                            <input
+                              value={c.when}
+                              onChange={(e) => setExtraCall(i, { when: e.target.value })}
+                              placeholder="When / details (e.g. Wed & Fri, 2–3pm)"
+                              className="input py-1 text-sm flex-1 min-w-[180px]"
+                            />
+                            <button type="button" onClick={() => removeExtraCall(i)} className="text-gray-400 hover:text-red-600 px-1 text-lg leading-none" title="Remove">×</button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {!ro && (
+                    <button type="button" onClick={addExtraCall} className="mt-2 text-sm text-blue-600 hover:underline">+ Add call</button>
+                  )}
                 </div>
               </section>
 
