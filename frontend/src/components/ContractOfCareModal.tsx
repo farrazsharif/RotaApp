@@ -59,8 +59,13 @@ function parseMinutes(range: string): number {
   return diff > 0 && diff < 720 ? diff : Math.max(0, diff);
 }
 
+type Staffing = 'single' | 'double' | 'triple';
+const STAFF_MULTIPLIER: Record<Staffing, number> = { single: 1, double: 2, triple: 3 };
+const staffingLabel = (s: Staffing) =>
+  s === 'triple' ? 'triple-up (3 carers)' : s === 'double' ? 'double-up (2 carers)' : 'single';
+
 interface ContractData {
-  staffing: 'single' | 'double';
+  staffing: Staffing;
   serviceUserSig: string;
   managerName: string;
   managerSig: string;
@@ -114,9 +119,9 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
     return { totalMins: mins, visitCount: count, hasAnyVisit: any };
   }, [schedule]);
 
-  // Double-up = two carers on each visit, so the total care hours delivered are
-  // doubled. Single = the visit hours as-is.
-  const staffMultiplier = d.staffing === 'double' ? 2 : 1;
+  // Double/triple-up = 2/3 carers on each visit, so the total care hours
+  // delivered are multiplied accordingly. Single = the visit hours as-is.
+  const staffMultiplier = STAFF_MULTIPLIER[d.staffing] || 1;
   const totalHours = (totalMins * staffMultiplier) / 60;
   const hoursLabel = Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(2);
 
@@ -188,7 +193,7 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
       ${brandingHeaderHtml()}
       <h1>Contract of Care</h1>
       <div class="sub">${esc(suName)} · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
-      <p class="statement">I, <b>${esc(suName)}</b>, have agreed to the terms and conditions outlined in this contract of care. I will be receiving <b>${esc(hoursLabel)}</b> hours of care per week from <b>${esc(d.staffing === 'double' ? 'double-up (2 carers)' : 'single')}</b> staff.</p>
+      <p class="statement">I, <b>${esc(suName)}</b>, have agreed to the terms and conditions outlined in this contract of care. I will be receiving <b>${esc(hoursLabel)}</b> hours of care per week from <b>${esc(staffingLabel(d.staffing))}</b> staff.</p>
       <table class="coc">
         <thead><tr><th></th>${SLOTS.map((s) => `<th>${esc(s.label)}</th>`).join('')}</tr></thead>
         <tbody>${rows}</tbody>
@@ -238,11 +243,12 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
               I, <span className="font-semibold underline">{suName}</span>, have agreed to the terms and conditions outlined in this contract of care.
               I will be receiving <span className="font-semibold underline">{hoursLabel}</span> hours of care per week from{' '}
               {ro ? (
-                <span className="font-semibold underline">{d.staffing === 'double' ? 'double-up (2 carers)' : 'single'}</span>
+                <span className="font-semibold underline">{staffingLabel(d.staffing)}</span>
               ) : (
-                <select className="input inline-block w-auto py-0.5 text-sm align-baseline" value={d.staffing} onChange={(e) => setD({ ...d, staffing: e.target.value as 'single' | 'double' })}>
+                <select className="input inline-block w-auto py-0.5 text-sm align-baseline" value={d.staffing} onChange={(e) => setD({ ...d, staffing: e.target.value as Staffing })}>
                   <option value="single">single</option>
                   <option value="double">double-up (2 carers)</option>
+                  <option value="triple">triple-up (3 carers)</option>
                 </select>
               )}{' '}staff.
             </p>
