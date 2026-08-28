@@ -391,8 +391,9 @@ export default function CallDetail() {
   const carerCount = Math.max(assignedCarerCount, 1);
   const isSharedCall = carerCount > 1;
   const iSigned = !!sharedLog && (sharedLog.userId === user?.id || signatures.some((s) => s.userId === user?.id));
-  // A carer can clock out once they've written or signed this visit's log.
-  const hasLoggedThisVisit = clockedIn && iSigned;
+  // A carer can clock out once they've logged the visit — for supported living
+  // that's at least one running support-log entry; otherwise the signed call log.
+  const hasLoggedThisVisit = clockedIn && (isSLClient ? supportLog.length > 0 : iSigned);
 
   const clockInMut = useMutation({
     mutationFn: () => clockApi.clockIn(id),
@@ -683,7 +684,7 @@ export default function CallDetail() {
                 </button>
                 {!hasLoggedThisVisit && (
                   <p className="text-xs text-orange-600 font-medium mt-2 text-center">
-                    Write a call log entry below before you can clock out.
+                    {isSLClient ? 'Add a support log entry above before you can clock out.' : 'Write a call log entry below before you can clock out.'}
                   </p>
                 )}
               </>
@@ -938,7 +939,8 @@ export default function CallDetail() {
           </div>
         )}
 
-        {/* Call log */}
+        {/* Call log — hidden for supported living, which uses the Support Log above */}
+        {!isSLClient && (
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
           <h2 className="font-semibold text-gray-800 mb-1 flex flex-wrap items-center gap-x-2">
             {isSharedCall ? 'Shared Call Log' : 'Call Log'}
@@ -1119,6 +1121,7 @@ export default function CallDetail() {
             <p className="text-sm text-gray-400">No call log was recorded for this visit.</p>
           )}
         </div>
+        )}
       </div>
     </Layout>
   );
