@@ -33,6 +33,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // Care plan: extra named calls beyond the four standard slots (JSON array of
   // { name, when }) — e.g. Shopping, Domestic, GP appointment.
   await prisma.$executeRawUnsafe(`ALTER TABLE "CarePlan" ADD COLUMN IF NOT EXISTS "extraCalls" TEXT NOT NULL DEFAULT '[]'`);
+  // Live-in care: which delivery model a client is on (visit-based vs live-in).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "careType" TEXT NOT NULL DEFAULT 'DOMICILIARY'`);
   // Date the person started receiving care (nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "serviceStartDate" TIMESTAMP(3)`);
   // Council-agreed hours of care per week (care package) — for the required-vs-scheduled report.
@@ -174,6 +176,29 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   `);
   await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "RiskAssessment_serviceUserId_type_key" ON "RiskAssessment"("serviceUserId", "type")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "RiskAssessment_companyId_idx" ON "RiskAssessment"("companyId")`);
+
+  // Placement — a live-in carer's stay block for a client. No DB-level FK
+  // (Prisma resolves via the scalar ids); created here to keep the deploy
+  // migration-free and idempotent.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Placement" (
+      "id"            TEXT PRIMARY KEY,
+      "companyId"     TEXT,
+      "serviceUserId" TEXT NOT NULL,
+      "carerId"       TEXT NOT NULL,
+      "startDate"     TIMESTAMP(3) NOT NULL,
+      "endDate"       TIMESTAMP(3) NOT NULL,
+      "nightType"     TEXT NOT NULL DEFAULT 'SLEEP_IN',
+      "status"        TEXT NOT NULL DEFAULT 'SCHEDULED',
+      "note"          TEXT,
+      "createdById"   TEXT,
+      "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Placement_companyId_idx" ON "Placement"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Placement_serviceUserId_idx" ON "Placement"("serviceUserId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Placement_carerId_idx" ON "Placement"("carerId")`);
 
   // ServiceUserNote — per-client office notes (council / social-work updates etc.).
   await prisma.$executeRawUnsafe(`

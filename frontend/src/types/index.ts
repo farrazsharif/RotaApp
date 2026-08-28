@@ -407,6 +407,23 @@ export interface AgedDebt {
   }[];
 }
 
+export type PlacementNightType = 'SLEEP_IN' | 'WAKING';
+export type PlacementStatus = 'SCHEDULED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+
+export interface Placement {
+  id: string;
+  serviceUserId: string;
+  carerId: string;
+  startDate: string; // ISO (date-only, midnight)
+  endDate: string;   // ISO (inclusive last day)
+  nightType: PlacementNightType;
+  status: PlacementStatus;
+  note?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ServiceUser {
   id: string;
   firstName: string;
@@ -417,6 +434,7 @@ export interface ServiceUser {
   ethnicOrigin?: string;
   dateOfBirth: string;
   serviceStartDate?: string;
+  careType?: 'DOMICILIARY' | 'LIVE_IN';
   photo?: string;
   siteId?: string;
   site?: Site;

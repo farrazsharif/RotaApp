@@ -85,7 +85,7 @@ function ageFromDob(dob?: string): number | null {
 }
 
 const emptyForm: FormState = {
-  firstName: '', lastName: '', title: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', serviceStartDate: '', photo: '', siteId: '', nhsNumber: '', packageId: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
+  firstName: '', lastName: '', title: '', preferredName: '', gender: '', ethnicOrigin: '', dateOfBirth: '', serviceStartDate: '', careType: 'DOMICILIARY', photo: '', siteId: '', nhsNumber: '', packageId: '', address: '', postcode: '', keySafe: '', medsSafeCode: '',
   phone: '', email: '', emergencyContactName: '', emergencyContactPhone: '', emergencyContactMobile: '', emergencyContactAddress: '', emergencyContactRelation: '', emergencyContactEmail: '',
   nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '', nextOfKinEmail: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
@@ -130,6 +130,7 @@ export default function ServiceUserForm() {
       preferredName: su.preferredName || '', gender: su.gender || '', ethnicOrigin: su.ethnicOrigin || '',
       dateOfBirth: su.dateOfBirth ? format(new Date(su.dateOfBirth), 'yyyy-MM-dd') : '',
       serviceStartDate: su.serviceStartDate ? format(new Date(su.serviceStartDate), 'yyyy-MM-dd') : '',
+      careType: su.careType === 'LIVE_IN' ? 'LIVE_IN' : 'DOMICILIARY',
       photo: su.photo || '',
       siteId: su.siteId || '',
       nhsNumber: su.nhsNumber || '', packageId: su.packageId || '', address: su.address || '', postcode: su.postcode || '', keySafe: su.keySafe || '', medsSafeCode: su.medsSafeCode || '',
@@ -309,6 +310,14 @@ export default function ServiceUserForm() {
           <div>
             <label className="label">Service Start Date</label>
             <input type="date" value={form.serviceStartDate || ''} onChange={(e) => setForm({ ...form, serviceStartDate: e.target.value })} className="input" />
+          </div>
+          <div>
+            <label className="label">Care Type</label>
+            <select value={form.careType || 'DOMICILIARY'} onChange={(e) => setForm({ ...form, careType: e.target.value as 'DOMICILIARY' | 'LIVE_IN' })} className="input">
+              <option value="DOMICILIARY">Domiciliary (visit-based)</option>
+              <option value="LIVE_IN">Live-in</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Live-in clients are rostered on the Live-in board instead of the call schedule.</p>
           </div>
         </div>
       </Section>

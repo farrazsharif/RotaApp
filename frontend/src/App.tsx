@@ -27,6 +27,7 @@ import ServicePlans from './pages/ServicePlans';
 import Handovers from './pages/Handovers';
 import Announcements from './pages/Announcements';
 import Runs from './pages/Runs';
+import LiveIn from './pages/LiveIn';
 import { usePermissions } from './hooks/usePermissions';
 import Finances from './pages/Finances';
 import Settings from './pages/Settings';
@@ -107,6 +108,7 @@ function AppRoutes() {
         <Route path="handovers" element={<ManagerRoute><Handovers /></ManagerRoute>} />
         <Route path="announcements" element={<ManagerRoute><Announcements /></ManagerRoute>} />
         <Route path="runs" element={<ManagerRoute><Runs /></ManagerRoute>} />
+        <Route path="live-in" element={<ManagerRoute><LiveIn /></ManagerRoute>} />
         <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
         <Route path="late-checkins" element={<ManagerRoute><LateCheckins /></ManagerRoute>} />
         <Route path="missed-meds" element={<ManagerRoute><MissedMeds /></ManagerRoute>} />

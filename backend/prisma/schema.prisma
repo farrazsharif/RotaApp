@@ -169,6 +169,7 @@ model ServiceUser {
   visits                   String   @default("[]") // JSON array of { type, duration }
   supportCategories        String   @default("[]") // JSON array of Capacity Tracker category labels
   active                   Boolean  @default(true)
+  careType                 String   @default("DOMICILIARY") // DOMICILIARY (visit-based) | LIVE_IN
   status                   String   @default("ACTIVE") // ACTIVE, ON_HOLD, HOSPITALISED, DISCHARGED, DECEASED
   statusUpdatedAt          DateTime @default(now()) // when the current status took effect (mirrors the latest statusChanges entry)
   createdAt                DateTime @default(now())
@@ -418,6 +419,28 @@ model LikesDislikes {
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
 
   @@index([companyId])
+}
+
+// A live-in care placement: one carer living in a client's home for a block of
+// days. The live-in equivalent of a "call". Scalar refs (no DB FK) so the deploy
+// stays migration-free; the app resolves carer/client via the scalar ids.
+model Placement {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  serviceUserId String
+  carerId       String
+  startDate     DateTime // first day of the placement (date-only, midnight)
+  endDate       DateTime // last day of the placement (inclusive, date-only)
+  nightType     String   @default("SLEEP_IN") // SLEEP_IN | WAKING
+  status        String   @default("SCHEDULED") // SCHEDULED | ACTIVE | COMPLETED | CANCELLED
+  note          String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([serviceUserId])
+  @@index([carerId])
 }
 
 // 6-week (and subsequent) service review. Question answers are stored as

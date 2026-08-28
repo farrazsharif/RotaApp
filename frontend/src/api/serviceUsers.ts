@@ -10,6 +10,7 @@ export interface ServiceUserData {
   ethnicOrigin?: string;
   dateOfBirth: string;
   serviceStartDate?: string;
+  careType?: 'DOMICILIARY' | 'LIVE_IN';
   photo?: string;
   siteId?: string;
   nhsNumber?: string;

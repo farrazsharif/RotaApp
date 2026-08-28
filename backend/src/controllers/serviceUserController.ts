@@ -103,6 +103,7 @@ function buildData(body: Record<string, unknown>) {
   }
   if (body.dateOfBirth !== undefined) data.dateOfBirth = new Date(body.dateOfBirth as string);
   if (body.serviceStartDate !== undefined) data.serviceStartDate = body.serviceStartDate ? new Date(body.serviceStartDate as string) : null;
+  if (body.careType !== undefined) data.careType = body.careType === 'LIVE_IN' ? 'LIVE_IN' : 'DOMICILIARY';
   if (body.needsMedication !== undefined) data.needsMedication = !!body.needsMedication;
   if (body.needsMobility !== undefined) data.needsMobility = !!body.needsMobility;
   if (body.needsPersonalCare !== undefined) data.needsPersonalCare = !!body.needsPersonalCare;
