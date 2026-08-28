@@ -97,13 +97,15 @@ function buildData(body: Record<string, unknown>) {
     'nextOfKinName', 'nextOfKinPhone', 'nextOfKinMobile', 'nextOfKinAddress', 'nextOfKinRelation', 'nextOfKinEmail', 'careNotes',
     'gpName', 'gpPractice', 'gpPhone', 'gpAddress',
     'pharmacyName', 'pharmacyPhone', 'pharmacyAddress',
+    'housingProvider', 'housingScheme', 'housingOfficerName', 'housingOfficerPhone', 'housingOfficerEmail', 'tenancyRef',
   ];
   for (const f of stringFields) {
     if (body[f] !== undefined) data[f] = body[f] || null;
   }
   if (body.dateOfBirth !== undefined) data.dateOfBirth = new Date(body.dateOfBirth as string);
   if (body.serviceStartDate !== undefined) data.serviceStartDate = body.serviceStartDate ? new Date(body.serviceStartDate as string) : null;
-  if (body.careType !== undefined) data.careType = body.careType === 'LIVE_IN' ? 'LIVE_IN' : 'DOMICILIARY';
+  if (body.careType !== undefined) data.careType = body.careType === 'SUPPORTED_LIVING' ? 'SUPPORTED_LIVING' : 'DOMICILIARY';
+  if (body.tenancyStartDate !== undefined) data.tenancyStartDate = body.tenancyStartDate ? new Date(body.tenancyStartDate as string) : null;
   if (body.needsMedication !== undefined) data.needsMedication = !!body.needsMedication;
   if (body.needsMobility !== undefined) data.needsMobility = !!body.needsMobility;
   if (body.needsPersonalCare !== undefined) data.needsPersonalCare = !!body.needsPersonalCare;

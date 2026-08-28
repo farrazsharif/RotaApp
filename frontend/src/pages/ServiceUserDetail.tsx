@@ -15,6 +15,7 @@ import Avatar from '../components/Avatar';
 import { parseCategories } from '../lib/supportCategories';
 import CarePlanModal from '../components/CarePlanModal';
 import ContractOfCareModal from '../components/ContractOfCareModal';
+import SupportedLivingPlanModal from '../components/SupportedLivingPlanModal';
 import LikesDislikesModal from '../components/LikesDislikesModal';
 import { likesDislikesApi } from '../api/likesDislikes';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
@@ -78,6 +79,7 @@ export default function ServiceUserDetail() {
   const { isManager } = useAuth();
   const [carePlanOpen, setCarePlanOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+  const [slPlanOpen, setSlPlanOpen] = useState(false);
   const [likesDislikesOpen, setLikesDislikesOpen] = useState(false);
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
   const [raType, setRaType] = useState<string | null>(null);
@@ -597,6 +599,43 @@ export default function ServiceUserDetail() {
         </p>
       </Section>
 
+      {/* Supported Living — housing provider & support plan */}
+      {su.careType === 'SUPPORTED_LIVING' && (
+        <>
+          <Section title="Housing Provider (Supported Living)">
+            {su.housingProvider || su.housingScheme || su.housingOfficerName || su.tenancyRef || su.tenancyStartDate ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {su.housingProvider && <div><p className="text-xs text-gray-400">Housing provider</p><p className="text-sm text-gray-800">{su.housingProvider}</p></div>}
+                {su.housingScheme && <div><p className="text-xs text-gray-400">Scheme / house</p><p className="text-sm text-gray-800">{su.housingScheme}</p></div>}
+                {su.housingOfficerName && <div><p className="text-xs text-gray-400">Housing officer</p><p className="text-sm text-gray-800">{su.housingOfficerName}</p></div>}
+                {su.housingOfficerPhone && <div><p className="text-xs text-gray-400">Officer phone</p><p className="text-sm text-gray-800">{su.housingOfficerPhone}</p></div>}
+                {su.housingOfficerEmail && <div><p className="text-xs text-gray-400">Officer email</p><p className="text-sm text-gray-800">{su.housingOfficerEmail}</p></div>}
+                {su.tenancyRef && <div><p className="text-xs text-gray-400">Tenancy ref</p><p className="text-sm text-gray-800">{su.tenancyRef}</p></div>}
+                {su.tenancyStartDate && <div><p className="text-xs text-gray-400">Tenancy start</p><p className="text-sm text-gray-800">{format(new Date(su.tenancyStartDate), 'dd MMM yyyy')}</p></div>}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">No housing provider recorded. {isManager && 'Add it on the edit page.'}</p>
+            )}
+          </Section>
+
+          <Section
+            title="Support Plan"
+            action={<button className="btn-secondary btn btn-sm" onClick={() => setSlPlanOpen(true)}>{isManager ? 'Open / Edit' : 'Open'}</button>}
+          >
+            {(() => {
+              const summary = riskAssessments.find((r) => r.type === 'SL_SUPPORT_PLAN');
+              return (
+                <p className="text-sm text-gray-500">
+                  {summary
+                    ? `Enablement support plan — last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}.`
+                    : 'Record how this person is supported across budgeting, medication, cooking, benefits, mental health, behaviour, de-escalation and more.'}
+                </p>
+              );
+            })()}
+          </Section>
+        </>
+      )}
+
       {/* One Page Profile (person-centred) */}
       <Section title="One Page Profile">
         <div className="space-y-2">
@@ -743,6 +782,7 @@ export default function ServiceUserDetail() {
 
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
       {contractOpen && <ContractOfCareModal serviceUser={su} onClose={() => setContractOpen(false)} />}
+      {slPlanOpen && <SupportedLivingPlanModal serviceUser={su} onClose={() => setSlPlanOpen(false)} />}
       {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}
       {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}
       {raType && FORM_BY_TYPE[raType] && <RiskAssessmentModal serviceUser={su} form={FORM_BY_TYPE[raType]} onClose={() => setRaType(null)} />}

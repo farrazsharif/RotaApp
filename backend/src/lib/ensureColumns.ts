@@ -33,8 +33,15 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // Care plan: extra named calls beyond the four standard slots (JSON array of
   // { name, when }) — e.g. Shopping, Domestic, GP appointment.
   await prisma.$executeRawUnsafe(`ALTER TABLE "CarePlan" ADD COLUMN IF NOT EXISTS "extraCalls" TEXT NOT NULL DEFAULT '[]'`);
-  // Live-in care: which delivery model a client is on (visit-based vs live-in).
+  // Care delivery model (visit-based domiciliary vs supported living).
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "careType" TEXT NOT NULL DEFAULT 'DOMICILIARY'`);
+  // Renamed the non-domiciliary model from live-in to supported living.
+  await prisma.$executeRawUnsafe(`UPDATE "ServiceUser" SET "careType"='SUPPORTED_LIVING' WHERE "careType"='LIVE_IN'`);
+  // Supported living: separate housing provider / tenancy details.
+  for (const col of ['housingProvider', 'housingScheme', 'housingOfficerName', 'housingOfficerPhone', 'housingOfficerEmail', 'tenancyRef']) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "${col}" TEXT`);
+  }
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "tenancyStartDate" TIMESTAMP(3)`);
   // Date the person started receiving care (nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "serviceStartDate" TIMESTAMP(3)`);
   // Council-agreed hours of care per week (care package) — for the required-vs-scheduled report.

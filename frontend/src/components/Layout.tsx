@@ -15,7 +15,7 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; mana
   { to: '/schedule', label: 'Schedule', icon: '📅', capability: 'manage_schedule' },
   { to: '/roster', label: 'Roster', icon: '🗓️', capability: 'manage_schedule' },
   { to: '/runs', label: 'Runs', icon: '🚐', capability: 'manage_schedule' },
-  { to: '/live-in', label: 'Live-in', icon: '🛏️', capability: 'manage_schedule' },
+  { to: '/supported-living', label: 'Supported Living', icon: '🏘️', capability: 'manage_service_users' },
   { to: '/service-users', label: 'Service Users', icon: '🧑‍🦽', capability: 'manage_service_users' },
   { to: '/care-plans', label: 'Care Plans', icon: '📋', capability: 'manage_service_users' },
   { to: '/service-plans', label: 'Service Plans', icon: '🗂️', capability: 'manage_service_users' },

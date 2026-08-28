@@ -169,7 +169,16 @@ model ServiceUser {
   visits                   String   @default("[]") // JSON array of { type, duration }
   supportCategories        String   @default("[]") // JSON array of Capacity Tracker category labels
   active                   Boolean  @default(true)
-  careType                 String   @default("DOMICILIARY") // DOMICILIARY (visit-based) | LIVE_IN
+  careType                 String   @default("DOMICILIARY") // DOMICILIARY (visit-based) | SUPPORTED_LIVING
+  // Supported living — the housing provider is a separate company to the care
+  // provider, so record the landlord/scheme details here.
+  housingProvider          String? // landlord / housing association name
+  housingScheme            String? // scheme / house name (for shared schemes)
+  housingOfficerName       String?
+  housingOfficerPhone      String?
+  housingOfficerEmail      String?
+  tenancyStartDate         DateTime?
+  tenancyRef               String?
   status                   String   @default("ACTIVE") // ACTIVE, ON_HOLD, HOSPITALISED, DISCHARGED, DECEASED
   statusUpdatedAt          DateTime @default(now()) // when the current status took effect (mirrors the latest statusChanges entry)
   createdAt                DateTime @default(now())
