@@ -12,7 +12,7 @@ import { logAudit } from '../lib/audit';
 const shiftInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
   coverCarers: { select: { id: true, firstName: true, lastName: true } },
-  serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true, status: true, statusUpdatedAt: true, statusChanges: { select: { status: true, effectiveAt: true }, orderBy: { effectiveAt: 'asc' as const } }, site: { select: { id: true, name: true, color: true, order: true } } } },
+  serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true, careType: true, status: true, statusUpdatedAt: true, statusChanges: { select: { status: true, effectiveAt: true }, orderBy: { effectiveAt: 'asc' as const } }, site: { select: { id: true, name: true, color: true, order: true } } } },
   run: { select: { id: true, name: true, color: true } },
   clockRecords: { select: { id: true, userId: true, clockIn: true, clockOut: true } },
 };

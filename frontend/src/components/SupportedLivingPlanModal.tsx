@@ -5,26 +5,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
+import { SUPPORT_DOMAINS as SL_DOMAINS } from '../lib/supportDomains';
 
 // Stored in the generic assessment store, type 'SL_SUPPORT_PLAN' — no backend
 // change needed (same as the Contract of Care).
 const TYPE = 'SL_SUPPORT_PLAN';
-
-// The supported-living support domains (Care 24's list). Add here to extend.
-export const SL_DOMAINS: { key: string; label: string }[] = [
-  { key: 'budgeting', label: 'Budgeting & money' },
-  { key: 'benefits', label: 'Benefits & claims' },
-  { key: 'medication', label: 'Medication' },
-  { key: 'cooking', label: 'Cooking & meal prep' },
-  { key: 'cleaning', label: 'Cleaning & household' },
-  { key: 'shopping', label: 'Shopping' },
-  { key: 'appointments', label: 'Appointments (managing & attending)' },
-  { key: 'social', label: 'Social & community access' },
-  { key: 'emotional', label: 'Emotional support' },
-  { key: 'mentalHealth', label: 'Mental health' },
-  { key: 'behaviour', label: 'Behaviour monitoring' },
-  { key: 'deescalation', label: 'De-escalation' },
-];
 
 const LEVELS: { v: string; label: string }[] = [
   { v: 'PROMPT', label: 'Prompt only' },

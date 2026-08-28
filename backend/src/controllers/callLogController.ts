@@ -43,6 +43,15 @@ function normalizeTasks(raw: unknown): string | undefined {
   return JSON.stringify(clean);
 }
 
+// Normalise the supported-living session-log domains: a JSON array of string
+// keys. Returns undefined when the caller didn't send it (don't overwrite).
+function normalizeDomains(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return '[]';
+  const clean = [...new Set(raw.filter((k) => typeof k === 'string').map((k) => String(k).slice(0, 40)))].slice(0, 30);
+  return JSON.stringify(clean);
+}
+
 function parseSigs(raw: string | null): Signature[] {
   if (!raw) return [];
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v : []; } catch { return []; }
@@ -59,11 +68,12 @@ async function selfSignature(req: AuthRequest): Promise<Signature> {
 }
 
 export async function createCallLog(req: AuthRequest, res: Response) {
-  const { serviceUserId, shiftId, note, tasks } = req.body;
+  const { serviceUserId, shiftId, note, tasks, supportDomains } = req.body;
   if (!serviceUserId || !note || !String(note).trim()) {
     return res.status(400).json({ error: 'serviceUserId and note are required' });
   }
   const tasksJson = normalizeTasks(tasks);
+  const domainsJson = normalizeDomains(supportDomains);
 
   // One shared log per visit: if a log already exists for this shift, funnel
   // the write into it (update note + re-sign) instead of creating a duplicate.
@@ -91,6 +101,7 @@ export async function createCallLog(req: AuthRequest, res: Response) {
         data: {
           note: String(note).trim(),
           ...(tasksJson !== undefined ? { tasks: tasksJson } : {}),
+          ...(domainsJson !== undefined ? { supportDomains: domainsJson } : {}),
           signedBy: JSON.stringify([await selfSignature(req)]),
         },
         include,
@@ -111,6 +122,7 @@ export async function createCallLog(req: AuthRequest, res: Response) {
       userId: req.user!.id,
       note: String(note).trim(),
       ...(tasksJson !== undefined ? { tasks: tasksJson } : {}),
+      ...(domainsJson !== undefined ? { supportDomains: domainsJson } : {}),
       // Author signs on create.
       signedBy: JSON.stringify([await selfSignature(req)]),
     },

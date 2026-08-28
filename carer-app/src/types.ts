@@ -16,6 +16,7 @@ export interface ServiceUserBrief {
   address?: string | null;
   postcode?: string | null;
   phone?: string | null;
+  careType?: 'DOMICILIARY' | 'SUPPORTED_LIVING';
   site?: { id: string; name: string; color: string } | null;
 }
 
@@ -149,6 +150,7 @@ export interface CallLog {
   userId?: string | null;
   note: string;
   tasks?: string | null; // JSON array of ticked checklist tasks
+  supportDomains?: string | null; // JSON array of supported-living domain keys
   signedBy?: string | null; // JSON array of CallLogSignature
   createdAt: string;
   // Returned by the list endpoint — used for the recent-visit history panel.

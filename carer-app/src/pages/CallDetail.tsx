@@ -15,6 +15,7 @@ import { mapsUrl } from '../lib/maps';
 import { ensureNotificationPermission, showClockedInNotification, clearClockedInNotification } from '../lib/clockNotification';
 import { settingsApi } from '../api/settings';
 import { resolveCallLogTasks, buildNoteFromTicks, parseCallLogTicks } from '../lib/callLogTasks';
+import { SUPPORT_DOMAINS, domainLabel, parseDomains } from '../lib/supportDomains';
 import type { CallLogTaskDef, CallLogTaskTick } from '../lib/callLogTasks';
 import type { MedAdminStatus, CallLogSignature, ClockRecord, DueDose } from '../types';
 
@@ -31,6 +32,19 @@ function TaskBadges({ tasks }: { tasks?: string | null }) {
         >
           {t.refused ? '✕' : '✓'} {t.label}{t.detail ? `: ${t.detail}` : ''}
         </span>
+      ))}
+    </div>
+  );
+}
+
+// Blue chips summarising the supported-living domains helped with on a visit.
+function DomainBadges({ supportDomains }: { supportDomains?: string | null }) {
+  const keys = parseDomains(supportDomains);
+  if (!keys.length) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {keys.map((k) => (
+        <span key={k} className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">🤝 {domainLabel(k)}</span>
       ))}
     </div>
   );
@@ -234,6 +248,8 @@ export default function CallDetail() {
   // Visit-checklist ticks, keyed by task id. Present = ticked; refused flag set
   // on the second tap. The visit note is auto-written from these.
   const [ticks, setTicks] = useState<Record<string, CallLogTaskTick>>({});
+  // Supported-living session log: which support domains the worker helped with.
+  const [supportKeys, setSupportKeys] = useState<string[]>([]);
   const [clockOutError, setClockOutError] = useState<{ message: string; pendingMeds: string[] } | null>(null);
   const [shortFix, setShortFix] = useState(false);
   const [logSent, setLogSent] = useState(false);
@@ -284,7 +300,13 @@ export default function CallDetail() {
   // extra words. Tapping a chip cycles off → done → declined → off.
   const tickList = Object.values(ticks);
   const autoText = buildNoteFromTicks(tickList);
-  const finalNote = [autoText, note.trim()].filter(Boolean).join('\n\n');
+  // Supported-living client → offer the support-domain chips and fold a summary
+  // line into the saved note so the office/history shows what was supported.
+  const isSL = shift?.serviceUser?.careType === 'SUPPORTED_LIVING';
+  const slAutoText = isSL && supportKeys.length ? `Supported with: ${supportKeys.map(domainLabel).join(', ')}.` : '';
+  const toggleDomain = (key: string) =>
+    setSupportKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  const finalNote = [autoText, slAutoText, note.trim()].filter(Boolean).join('\n\n');
 
   const cycleTick = (def: CallLogTaskDef) => {
     setTicks((prev) => {
@@ -301,13 +323,20 @@ export default function CallDetail() {
   };
   // Re-open a saved log for editing: restore the ticks and put any words the
   // carer added beyond the auto-text back in the free-text box.
-  const loadForEdit = (log: { note: string; tasks?: string | null }) => {
+  const loadForEdit = (log: { note: string; tasks?: string | null; supportDomains?: string | null }) => {
     const t = parseCallLogTicks(log.tasks);
     const map: Record<string, CallLogTaskTick> = {};
     t.forEach((x) => { map[x.id] = x; });
     setTicks(map);
+    const domains = parseDomains(log.supportDomains);
+    setSupportKeys(domains);
+    // Strip the auto-written checklist + support-summary lines from the free text.
     const auto = buildNoteFromTicks(t);
-    setNote(auto && log.note.startsWith(auto) ? log.note.slice(auto.length).trim() : (t.length ? '' : log.note));
+    const sl = domains.length ? `Supported with: ${domains.map(domainLabel).join(', ')}.` : '';
+    let rest = log.note;
+    if (auto && rest.startsWith(auto)) rest = rest.slice(auto.length).trim();
+    if (sl && rest.startsWith(sl)) rest = rest.slice(sl.length).trim();
+    setNote(rest === auto || rest === sl ? '' : rest);
     setEditingLog(true);
     setLogError(null);
   };
@@ -457,7 +486,7 @@ export default function CallDetail() {
 
   const logMut = useMutation({
     mutationFn: () =>
-      callLogsApi.create({ serviceUserId: shift!.serviceUserId!, shiftId: shift!.id, note: finalNote, tasks: tickList }),
+      callLogsApi.create({ serviceUserId: shift!.serviceUserId!, shiftId: shift!.id, note: finalNote, tasks: tickList, ...(isSL ? { supportDomains: supportKeys } : {}) }),
     onSuccess: () => {
       setNote('');
       setTicks({});
@@ -828,6 +857,7 @@ export default function CallDetail() {
                       </div>
                       <p className="text-sm text-gray-800 whitespace-pre-wrap">{l.note}</p>
                       <TaskBadges tasks={l.tasks} />
+                      <DomainBadges supportDomains={l.supportDomains} />
                     </div>
                   );
                 })
@@ -851,6 +881,28 @@ export default function CallDetail() {
           {(!sharedLog && !done) || editingLog ? (
             /* Write / edit the note */
             <>
+              {/* Supported-living session log — which support areas you helped with */}
+              {isSL && (
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Support given today <span className="font-normal text-gray-400">· tap the areas you helped with</span></p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SUPPORT_DOMAINS.map((d) => {
+                      const on = supportKeys.includes(d.key);
+                      return (
+                        <button
+                          key={d.key}
+                          type="button"
+                          onClick={() => toggleDomain(d.key)}
+                          className={`text-sm px-3 py-1.5 rounded-full font-medium border ${on ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}
+                        >
+                          {on ? '✓ ' : ''}{d.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Visit checklist — tick what you did and the note writes itself */}
               {taskDefs.length > 0 && (
                 <div className="mb-3">
@@ -936,6 +988,7 @@ export default function CallDetail() {
             <>
               <p className="text-sm text-gray-800 whitespace-pre-wrap bg-gray-50 rounded-lg p-3 border border-gray-100">{sharedLog.note}</p>
               <TaskBadges tasks={sharedLog.tasks} />
+              <DomainBadges supportDomains={sharedLog.supportDomains} />
 
               {isSharedCall && (
                 <div className="mt-3">

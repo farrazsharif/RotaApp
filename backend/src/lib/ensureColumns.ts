@@ -28,6 +28,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // Ticked checklist tasks the carer completed on the visit (JSON array); the
   // visit note is auto-written from these.
   await prisma.$executeRawUnsafe(`ALTER TABLE "CallLog" ADD COLUMN IF NOT EXISTS "tasks" TEXT NOT NULL DEFAULT '[]'`);
+  // Supported-living per-visit session log: which support domains were helped with.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "CallLog" ADD COLUMN IF NOT EXISTS "supportDomains" TEXT NOT NULL DEFAULT '[]'`);
   // Company's configurable carer-app visit checklist (JSON array of task defs).
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "callLogTasks" TEXT NOT NULL DEFAULT '[]'`);
   // Care plan: extra named calls beyond the four standard slots (JSON array of

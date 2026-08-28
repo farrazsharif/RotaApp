@@ -757,6 +757,9 @@ model CallLog {
   // [{ id, label, phrase?, detail?, refused? }]. The visit note is auto-written
   // from these; kept structured here for reporting/CQC evidence.
   tasks         String?  @default("[]")
+  // Supported-living session log: JSON array of support-domain keys the worker
+  // helped with on this visit (e.g. ["budgeting","medication"]).
+  supportDomains String? @default("[]")
   // For double/triple-up calls: JSON array of carers who have signed this
   // shared log — [{ userId, firstName, lastName, signedAt }]. The author is
   // added on create; co-carers append when they confirm & sign.
