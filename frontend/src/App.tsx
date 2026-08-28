@@ -11,6 +11,7 @@ import Roster from './pages/Roster';
 import TimeOff from './pages/TimeOff';
 import Attendance from './pages/Attendance';
 import Reports from './pages/Reports';
+import Cqc from './pages/Cqc';
 import LateCheckins from './pages/LateCheckins';
 import MissedMeds from './pages/MissedMeds';
 import Users from './pages/Users';
@@ -110,6 +111,7 @@ function AppRoutes() {
         <Route path="runs" element={<ManagerRoute><Runs /></ManagerRoute>} />
         <Route path="supported-living" element={<SupportedLiving />} />
         <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
+        <Route path="cqc" element={<ManagerRoute><Cqc /></ManagerRoute>} />
         <Route path="late-checkins" element={<ManagerRoute><LateCheckins /></ManagerRoute>} />
         <Route path="missed-meds" element={<ManagerRoute><MissedMeds /></ManagerRoute>} />
         <Route path="finances" element={<Finances />} />

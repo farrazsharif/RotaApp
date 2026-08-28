@@ -9,6 +9,7 @@ export type PermissionKey =
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
   | 'manage_supervision'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
+  | 'manage_cqc'
   | 'manage_billing'
   | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data' | 'view_audit_log';
 
@@ -39,6 +40,8 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'manage_schedule',       label: 'Create & edit shifts, edit clock records', group: 'Scheduling', default: AM },
   { key: 'manage_time_off',       label: 'Review & decide time-off requests', group: 'Scheduling', default: AM },
   { key: 'view_reports',          label: 'View reports',                     group: 'Scheduling', default: AM },
+
+  { key: 'manage_cqc',            label: 'CQC compliance dashboard',         group: 'Compliance', default: AM },
 
   { key: 'manage_billing',        label: 'Manage funders & service-user billing', group: 'Billing', default: AM },
 

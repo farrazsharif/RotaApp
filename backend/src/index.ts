@@ -53,6 +53,7 @@ import serviceUserNoteRoutes from './routes/serviceUserNotes';
 import respiteRoutes from './routes/respite';
 import placementRoutes from './routes/placements';
 import supportLogRoutes from './routes/supportLog';
+import cqcRoutes from './routes/cqc';
 import { backfillAllCompanyRoles } from './lib/defaultRoles';
 import { normalizeVisitNames } from './lib/normalizeVisitNames';
 import { ensureServiceUserColumns } from './lib/ensureColumns';
@@ -164,6 +165,7 @@ app.use('/api/service-user-notes', serviceUserNoteRoutes);
 app.use('/api/respite', respiteRoutes);
 app.use('/api/placements', placementRoutes);
 app.use('/api/support-log', supportLogRoutes);
+app.use('/api/cqc', cqcRoutes);
 
 app.use(errorHandler);
 
