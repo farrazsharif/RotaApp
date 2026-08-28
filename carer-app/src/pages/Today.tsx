@@ -5,6 +5,7 @@ import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import Layout from '../components/Layout';
 import CoverRequests from '../components/CoverRequests';
 import AnnouncementBanner from '../components/AnnouncementBanner';
+import LiveInPlacementCard from '../components/LiveInPlacementCard';
 import { clockApi } from '../api/clock';
 import { handoversApi } from '../api/handovers';
 import { myShiftsQuery } from '../lib/shiftsQuery';
@@ -124,6 +125,8 @@ export default function Today() {
   return (
     <Layout title={`Today · ${format(new Date(), 'EEE d MMM')}`} onRefresh={refresh} refreshing={refreshing}>
       <AnnouncementBanner />
+
+      <LiveInPlacementCard />
 
       {/* Hours summary */}
       <div className="grid grid-cols-2 gap-3 mb-4">

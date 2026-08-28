@@ -200,6 +200,24 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Placement_serviceUserId_idx" ON "Placement"("serviceUserId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Placement_carerId_idx" ON "Placement"("carerId")`);
 
+  // LiveInDailyLog — the live-in carer's daily diary, one row per (placement, day).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "LiveInDailyLog" (
+      "id"            TEXT PRIMARY KEY,
+      "companyId"     TEXT,
+      "placementId"   TEXT NOT NULL,
+      "serviceUserId" TEXT NOT NULL,
+      "carerId"       TEXT NOT NULL,
+      "date"          TIMESTAMP(3) NOT NULL,
+      "data"          TEXT NOT NULL DEFAULT '{}',
+      "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "LiveInDailyLog_placementId_date_key" ON "LiveInDailyLog"("placementId", "date")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "LiveInDailyLog_companyId_idx" ON "LiveInDailyLog"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "LiveInDailyLog_placementId_idx" ON "LiveInDailyLog"("placementId")`);
+
   // ServiceUserNote — per-client office notes (council / social-work updates etc.).
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "ServiceUserNote" (

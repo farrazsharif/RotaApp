@@ -8,6 +8,7 @@ import SetPassword from './pages/SetPassword';
 import Today from './pages/Today';
 import Rota from './pages/Rota';
 import CallDetail from './pages/CallDetail';
+import LiveInPlacement from './pages/LiveInPlacement';
 import ServiceUserDetail from './pages/ServiceUserDetail';
 import Profile from './pages/Profile';
 import TimeOff from './pages/TimeOff';
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
           <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
           <Route path="/call/:id" element={<ProtectedRoute><CallDetail /></ProtectedRoute>} />
+          <Route path="/placement/:id" element={<ProtectedRoute><LiveInPlacement /></ProtectedRoute>} />
           <Route path="/client/:id" element={<ProtectedRoute><ServiceUserDetail /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/time-off" element={<ProtectedRoute><TimeOff /></ProtectedRoute>} />

@@ -443,6 +443,25 @@ model Placement {
   @@index([carerId])
 }
 
+// A live-in carer's daily diary entry for a placement — one row per (placement,
+// day). `data` is a JSON blob of the day's record (personal care, meals, mood,
+// meds, night, incidents, notes). Scalar refs, no DB FK (migration-free).
+model LiveInDailyLog {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  placementId   String
+  serviceUserId String
+  carerId       String
+  date          DateTime // date-only (midnight)
+  data          String   @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([placementId, date])
+  @@index([companyId])
+  @@index([placementId])
+}
+
 // 6-week (and subsequent) service review. Question answers are stored as
 // JSON keyed by question id: { q1: { answer: "YES"|"NO"|"NA", comment: "" } }.
 // Agreed outcomes is a JSON array: [{ action, outcome, timescale, actionBy, completion }].
