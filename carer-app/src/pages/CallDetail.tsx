@@ -16,6 +16,7 @@ import { ensureNotificationPermission, showClockedInNotification, clearClockedIn
 import { settingsApi } from '../api/settings';
 import { resolveCallLogTasks, buildNoteFromTicks, parseCallLogTicks } from '../lib/callLogTasks';
 import { SUPPORT_DOMAINS, domainLabel, parseDomains } from '../lib/supportDomains';
+import { supportLogApi } from '../api/supportLog';
 import type { CallLogTaskDef, CallLogTaskTick } from '../lib/callLogTasks';
 import type { MedAdminStatus, CallLogSignature, ClockRecord, DueDose } from '../types';
 
@@ -250,6 +251,9 @@ export default function CallDetail() {
   const [ticks, setTicks] = useState<Record<string, CallLogTaskTick>>({});
   // Supported-living session log: which support domains the worker helped with.
   const [supportKeys, setSupportKeys] = useState<string[]>([]);
+  // Running support-log composer (SL clients log through the shift as they go).
+  const [entryText, setEntryText] = useState('');
+  const [entryDomains, setEntryDomains] = useState<string[]>([]);
   const [clockOutError, setClockOutError] = useState<{ message: string; pendingMeds: string[] } | null>(null);
   const [shortFix, setShortFix] = useState(false);
   const [logSent, setLogSent] = useState(false);
@@ -288,6 +292,24 @@ export default function CallDetail() {
     queryFn: () => callLogsApi.list(shift!.serviceUserId!),
     enabled: !!shift?.serviceUserId,
   });
+
+  // Supported-living running support log for this visit.
+  const isSLClient = shift?.serviceUser?.careType === 'SUPPORTED_LIVING';
+  const { data: supportLog = [] } = useQuery({
+    queryKey: ['support-log', shift?.id],
+    queryFn: () => supportLogApi.list(shift!.id),
+    enabled: isSLClient && !!shift?.id,
+    refetchInterval: () => (clockStatus?.clockedIn ? 20000 : false),
+  });
+  const addEntryMut = useMutation({
+    mutationFn: () => supportLogApi.create({ serviceUserId: shift!.serviceUserId!, shiftId: shift!.id, body: entryText.trim(), domains: entryDomains }),
+    onSuccess: () => {
+      setEntryText(''); setEntryDomains([]);
+      qc.invalidateQueries({ queryKey: ['support-log', shift?.id] });
+    },
+  });
+  const toggleEntryDomain = (key: string) =>
+    setEntryDomains((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
   // The company's configurable visit checklist (falls back to a sensible default).
   const { data: orgSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get, staleTime: 5 * 60 * 1000 });
@@ -865,6 +887,56 @@ export default function CallDetail() {
             </div>
           )}
         </div>
+
+        {/* Supported-living running support log — add entries through the shift */}
+        {isSLClient && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+            <h2 className="font-semibold text-gray-800 mb-1">Support Log</h2>
+            <p className="text-xs text-gray-400 mb-3">Log tasks as you complete them through the shift — each entry is time-stamped.</p>
+
+            {supportLog.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {supportLog.map((e) => (
+                  <div key={e.id} className="rounded-lg border border-gray-100 bg-gray-50 p-2.5">
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-0.5">
+                      <span className="font-medium text-gray-700">{e.userName}</span>
+                      <span>{formatTime12h(new Date(e.createdAt).toTimeString().slice(0, 5))}</span>
+                    </div>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{e.body}</p>
+                    <DomainBadges supportDomains={e.domains} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <textarea
+              value={entryText}
+              onChange={(e) => setEntryText(e.target.value)}
+              placeholder="What did you just do / help with?"
+              rows={2}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {SUPPORT_DOMAINS.map((d) => {
+                const on = entryDomains.includes(d.key);
+                return (
+                  <button key={d.key} type="button" onClick={() => toggleEntryDomain(d.key)}
+                    className={`text-xs px-2.5 py-1 rounded-full font-medium border ${on ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                    {on ? '✓ ' : ''}{d.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => addEntryMut.mutate()}
+              disabled={!entryText.trim() || addEntryMut.isPending}
+              className="mt-2 w-full bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40"
+            >
+              {addEntryMut.isPending ? 'Adding…' : '+ Add log entry'}
+            </button>
+            {addEntryMut.isError && <p className="text-xs text-red-600 mt-1">Could not add — try again.</p>}
+          </div>
+        )}
 
         {/* Call log */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">

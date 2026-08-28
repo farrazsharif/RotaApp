@@ -452,6 +452,25 @@ model Placement {
   @@index([carerId])
 }
 
+// A single timestamped entry in a supported-living running support log. Workers
+// add many of these through a shift as they complete tasks (a diary), rather
+// than one note at the end. Scalar refs (no DB FK), author name denormalised.
+model SupportLogEntry {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  serviceUserId String
+  shiftId       String?
+  userId        String?
+  userName      String // denormalised author name for display
+  body          String
+  domains       String   @default("[]") // JSON array of support-domain keys
+  createdAt     DateTime @default(now())
+
+  @@index([companyId])
+  @@index([serviceUserId])
+  @@index([shiftId])
+}
+
 // A live-in carer's daily diary entry for a placement — one row per (placement,
 // day). `data` is a JSON blob of the day's record (personal care, meals, mood,
 // meds, night, incidents, notes). Scalar refs, no DB FK (migration-free).

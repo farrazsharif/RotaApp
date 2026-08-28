@@ -16,6 +16,8 @@ import { parseCategories } from '../lib/supportCategories';
 import CarePlanModal from '../components/CarePlanModal';
 import ContractOfCareModal from '../components/ContractOfCareModal';
 import SupportedLivingPlanModal from '../components/SupportedLivingPlanModal';
+import { supportLogApi } from '../api/supportLog';
+import { domainLabel } from '../lib/supportDomains';
 import LikesDislikesModal from '../components/LikesDislikesModal';
 import { likesDislikesApi } from '../api/likesDislikes';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
@@ -120,6 +122,7 @@ export default function ServiceUserDetail() {
   const { data: likesDislikes } = useQuery({ queryKey: ['likes-dislikes', id], queryFn: () => likesDislikesApi.get(id), enabled: !!id });
   const { data: servicePlan } = useQuery({ queryKey: ['service-plan', id], queryFn: () => servicePlansApi.get(id), enabled: !!id });
   const { data: riskAssessments = [] } = useQuery({ queryKey: ['risk-assessments', id], queryFn: () => riskAssessmentsApi.list(id), enabled: !!id });
+  const { data: supportLogEntries = [] } = useQuery({ queryKey: ['support-log-su', id], queryFn: () => supportLogApi.list(id), enabled: !!id && su?.careType === 'SUPPORTED_LIVING' });
   const { data: meds = [] } = useQuery({ queryKey: ['medications', id], queryFn: () => medicationsApi.list(id), enabled: !!id });
   const { data: logs = [] } = useQuery({ queryKey: ['call-logs', id], queryFn: () => callLogsApi.list(id), enabled: !!id });
   const { data: respitePeriods = [] } = useQuery({ queryKey: ['respite', id], queryFn: () => respiteApi.list(id), enabled: !!id });
@@ -632,6 +635,34 @@ export default function ServiceUserDetail() {
                 </p>
               );
             })()}
+          </Section>
+
+          <Section title="Support Log">
+            {supportLogEntries.length === 0 ? (
+              <p className="text-sm text-gray-400">No support-log entries yet. Support workers add time-stamped entries through their shift.</p>
+            ) : (
+              <div className="space-y-3">
+                {[...supportLogEntries].reverse().slice(0, 20).map((e) => {
+                  let keys: string[] = [];
+                  try { const v = JSON.parse(e.domains); if (Array.isArray(v)) keys = v; } catch { /* ignore */ }
+                  return (
+                    <div key={e.id} className="border-b last:border-0 pb-3 last:pb-0">
+                      <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                        <span className="font-medium text-gray-700">{e.userName}</span>
+                        <span>{format(new Date(e.createdAt), 'EEE dd MMM yyyy, h:mm a')}</span>
+                      </div>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{e.body}</p>
+                      {keys.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {keys.map((k) => <span key={k} className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">🤝 {domainLabel(k)}</span>)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {supportLogEntries.length > 20 && <p className="text-xs text-gray-400">Showing the latest 20 of {supportLogEntries.length} entries.</p>}
+              </div>
+            )}
           </Section>
         </>
       )}

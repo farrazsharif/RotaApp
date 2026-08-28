@@ -209,6 +209,24 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Placement_serviceUserId_idx" ON "Placement"("serviceUserId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Placement_carerId_idx" ON "Placement"("carerId")`);
 
+  // SupportLogEntry — supported-living running support log (many per shift).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SupportLogEntry" (
+      "id"            TEXT PRIMARY KEY,
+      "companyId"     TEXT,
+      "serviceUserId" TEXT NOT NULL,
+      "shiftId"       TEXT,
+      "userId"        TEXT,
+      "userName"      TEXT NOT NULL,
+      "body"          TEXT NOT NULL,
+      "domains"       TEXT NOT NULL DEFAULT '[]',
+      "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SupportLogEntry_companyId_idx" ON "SupportLogEntry"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SupportLogEntry_serviceUserId_idx" ON "SupportLogEntry"("serviceUserId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SupportLogEntry_shiftId_idx" ON "SupportLogEntry"("shiftId")`);
+
   // LiveInDailyLog — the live-in carer's daily diary, one row per (placement, day).
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "LiveInDailyLog" (
