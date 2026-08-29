@@ -257,23 +257,35 @@ export async function clockOut(req: AuthRequest, res: Response) {
     });
   }
 
-  // Compulsory call log: the carer must have written OR signed the visit's log
-  // before clocking out. On double/triple-up calls the log is shared, so a
-  // co-carer signs the note the first carer wrote rather than writing their own.
+  // Compulsory visit record before clocking out. Supported-living visits are
+  // logged through a running Support Log (there is no call log for them), so
+  // require at least one support-log entry for the shift instead. Domiciliary
+  // visits require the carer to have written OR signed the shared call log.
   if (record.shiftId) {
-    const logs = await prisma.callLog.findMany({
-      where: { shiftId: record.shiftId },
-      select: { userId: true, signedBy: true },
+    const shift = await prisma.shift.findUnique({
+      where: { id: record.shiftId },
+      select: { serviceUser: { select: { careType: true } } },
     });
-    const signed = logs.some((l) => {
-      if (l.userId === req.user!.id) return true;
-      try {
-        const sigs = JSON.parse(l.signedBy || '[]');
-        return Array.isArray(sigs) && sigs.some((s: { userId?: string }) => s?.userId === req.user!.id);
-      } catch { return false; }
-    });
-    if (!signed) {
-      return res.status(400).json({ error: 'Sign the call log before clocking out' });
+    if (shift?.serviceUser?.careType === 'SUPPORTED_LIVING') {
+      const entries = await prisma.supportLogEntry.count({ where: { shiftId: record.shiftId } });
+      if (entries === 0) {
+        return res.status(400).json({ error: 'Add a support log entry before clocking out' });
+      }
+    } else {
+      const logs = await prisma.callLog.findMany({
+        where: { shiftId: record.shiftId },
+        select: { userId: true, signedBy: true },
+      });
+      const signed = logs.some((l) => {
+        if (l.userId === req.user!.id) return true;
+        try {
+          const sigs = JSON.parse(l.signedBy || '[]');
+          return Array.isArray(sigs) && sigs.some((s: { userId?: string }) => s?.userId === req.user!.id);
+        } catch { return false; }
+      });
+      if (!signed) {
+        return res.status(400).json({ error: 'Sign the call log before clocking out' });
+      }
     }
   }
 
