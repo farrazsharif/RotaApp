@@ -57,9 +57,11 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
   const startDate = format(monthDate, 'yyyy-MM-01');
   const endDate = format(new Date(monthDate.getFullYear(), monthDate.getMonth(), daysInMonth), 'yyyy-MM-dd');
 
+  // Include discontinued meds so the chart still shows the weeks they were given
+  // (then greys out after the discontinue date) — a MAR record must not vanish.
   const { data: meds = [] } = useQuery({
-    queryKey: ['medications', serviceUser.id],
-    queryFn: () => medicationsApi.list(serviceUser.id),
+    queryKey: ['medications', serviceUser.id, 'mar'],
+    queryFn: () => medicationsApi.list(serviceUser.id, true),
   });
 
   const { data: admins = [] } = useQuery({
@@ -92,10 +94,35 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
     return admins.find((a) => a.medicationId === medicationId && new Date(a.scheduledFor).getTime() === target);
   };
 
-  const charts = useMemo(
-    () => meds.map((med: Medication) => ({ med, times: parseTimes(med.times), days: parseDays(med.daysOfWeek) })),
-    [meds]
-  );
+  // Day-granularity UTC helpers (dose matching everywhere uses UTC).
+  const dUTC = (iso: string) => { const d = new Date(iso); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
+  const monthStartUTC = Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const monthEndUTC = Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), daysInMonth);
+
+  // Should this med appear on the chart for the displayed month? Active meds
+  // always; a discontinued med only in the months its [start, discontinue]
+  // window overlaps (legacy discontinued meds with no end date show in any
+  // month they have an administration record).
+  const medActiveInMonth = (med: Medication): boolean => {
+    if (med.active) return true;
+    const startUTC = med.startDate ? dUTC(med.startDate) : (med.createdAt ? dUTC(med.createdAt) : null);
+    const endUTC = med.endDate ? dUTC(med.endDate) : null;
+    if (endUTC != null) return (startUTC == null || startUTC <= monthEndUTC) && endUTC >= monthStartUTC;
+    return admins.some((a) => a.medicationId === med.id);
+  };
+  // A day before the med commenced or after it was discontinued — greyed out.
+  const outsideActiveWindow = (med: Medication, day: number): boolean => {
+    const dayUTC = Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), day);
+    const startUTC = med.startDate ? dUTC(med.startDate) : null;
+    const endUTC = med.endDate ? dUTC(med.endDate) : null;
+    if (startUTC != null && dayUTC < startUTC) return true;
+    if (endUTC != null && dayUTC > endUTC) return true;
+    return false;
+  };
+
+  const charts = meds
+    .filter(medActiveInMonth)
+    .map((med: Medication) => ({ med, times: parseTimes(med.times), days: parseDays(med.daysOfWeek) }));
 
   // Is day `d` of this month one the med is scheduled for? Empty list = every
   // day. Weekday derived in UTC to match how doses are recorded/matched.
@@ -108,7 +135,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
 
     const tables = charts.map(({ med, times, days: medDays }) => `
       <div class="med-block">
-      <h2>${esc(med.name)}${med.dose ? ` · ${esc(med.dose)}` : ''}${med.route ? ` · ${esc(med.route)}` : ''}</h2>
+      <h2>${esc(med.name)}${med.dose ? ` · ${esc(med.dose)}` : ''}${med.route ? ` · ${esc(med.route)}` : ''}${!med.active ? ` <span style="color:#dc2626;font-size:11px">— DISCONTINUED${med.endDate ? ' ' + esc(format(new Date(med.endDate), 'dd MMM yyyy')) : ''}</span>` : ''}</h2>
       ${med.instructions ? `<p class="instructions">${esc(med.instructions)}</p>` : ''}
       <table>
         <thead>
@@ -116,12 +143,13 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         </thead>
         <tbody>
           ${times.length === 0
-            ? `<tr><td class="time-col">PRN</td>${days.map((d) => `<td${d > daysInMonth ? ' class="invalid-day"' : ''}></td>`).join('')}</tr>`
+            ? `<tr><td class="time-col">PRN</td>${days.map((d) => `<td${d > daysInMonth || outsideActiveWindow(med, d) ? ' class="invalid-day"' : ''}></td>`).join('')}</tr>`
             : times.map((t) => `
               <tr>
                 <td class="time-col">${esc(formatTime12h(t))}</td>
                 ${days.map((d) => {
                   if (d > daysInMonth) return '<td class="invalid-day"></td>';
+                  if (outsideActiveWindow(med, d)) return '<td class="invalid-day" title="Not active on this date"></td>';
                   if (!dueOn(medDays, d)) return '<td style="background:#eef2f7"></td>';
                   const rec = recordFor(med.id, d, t);
                   if (!rec) return isCancelled(med.id, d, t) ? '<td style="color:#6b7280;font-weight:bold;" title="Visit cancelled">C</td>' : '<td></td>';
@@ -204,12 +232,17 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
 
         <div className="p-6 space-y-6">
           {charts.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No active medications for this client</p>
+            <p className="text-sm text-gray-400 text-center py-8">No medications to show for this month</p>
           ) : (
             charts.map(({ med, times, days: medDays }) => (
               <div key={med.id} className="overflow-x-auto">
-                <h3 className="font-semibold text-gray-900 mb-1">
-                  {med.name}{med.dose ? ` · ${med.dose}` : ''}{med.route ? ` · ${med.route}` : ''}
+                <h3 className="font-semibold text-gray-900 mb-1 flex flex-wrap items-center gap-2">
+                  <span>{med.name}{med.dose ? ` · ${med.dose}` : ''}{med.route ? ` · ${med.route}` : ''}</span>
+                  {!med.active && (
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                      Discontinued{med.endDate ? ` ${format(new Date(med.endDate), 'dd MMM yyyy')}` : ''}
+                    </span>
+                  )}
                 </h3>
                 {med.instructions && <p className="text-xs text-gray-500 mb-2">{med.instructions}</p>}
                 <table className="border-collapse text-xs">
@@ -225,7 +258,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                     {times.length === 0 ? (
                       <tr>
                         <td className="border border-gray-300 px-2 py-1.5 font-medium">PRN</td>
-                        {days.map((d) => <td key={d} className={`border border-gray-300 ${d > daysInMonth ? 'bg-gray-200' : ''}`} />)}
+                        {days.map((d) => <td key={d} className={`border border-gray-300 ${d > daysInMonth || outsideActiveWindow(med, d) ? 'bg-gray-200' : ''}`} />)}
                       </tr>
                     ) : (
                       times.map((t) => (
@@ -233,6 +266,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                           <td className="border border-gray-300 px-2 py-1.5 font-medium whitespace-nowrap">{formatTime12h(t)}</td>
                           {days.map((d) => {
                             if (d > daysInMonth) return <td key={d} className="border border-gray-300 bg-gray-200" />;
+                            if (outsideActiveWindow(med, d)) return <td key={d} className="border border-gray-300 bg-gray-200" title="Not active on this date" />;
                             if (!dueOn(medDays, d)) return <td key={d} className="border border-gray-300 bg-blue-50" />;
                             const rec = recordFor(med.id, d, t);
                             const cancelled = !rec && isCancelled(med.id, d, t);

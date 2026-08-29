@@ -17,8 +17,8 @@ export interface MedicationData {
 }
 
 export const medicationsApi = {
-  list: (serviceUserId: string) =>
-    api.get<Medication[]>('/medications', { params: { serviceUserId } }).then((r) => r.data),
+  list: (serviceUserId: string, includeInactive = false) =>
+    api.get<Medication[]>('/medications', { params: { serviceUserId, ...(includeInactive ? { includeInactive: true } : {}) } }).then((r) => r.data),
   create: (data: MedicationData) => api.post<Medication>('/medications', data).then((r) => r.data),
   update: (id: string, data: Partial<MedicationData> & { active?: boolean }) =>
     api.put<Medication>(`/medications/${id}`, data).then((r) => r.data),

@@ -48,12 +48,14 @@ function parseApplicationSites(input: unknown): string {
 }
 
 export async function listMedications(req: AuthRequest, res: Response) {
-  const { serviceUserId } = req.query;
+  const { serviceUserId, includeInactive } = req.query;
   if (!serviceUserId) return res.status(400).json({ error: 'serviceUserId required' });
-  const meds = await prisma.medication.findMany({
-    where: { serviceUserId: String(serviceUserId), active: true },
-    orderBy: { name: 'asc' },
-  });
+  // The MAR chart passes includeInactive=true so discontinued meds still show
+  // their history (the weeks they were given) alongside the discontinue date.
+  // Everywhere else (eMAR, med lists) keeps showing only active meds.
+  const where: Record<string, unknown> = { serviceUserId: String(serviceUserId) };
+  if (String(includeInactive) !== 'true') where.active = true;
+  const meds = await prisma.medication.findMany({ where, orderBy: { name: 'asc' } });
   res.json(meds);
 }
 
@@ -125,8 +127,12 @@ export async function updateMedication(req: AuthRequest, res: Response) {
 }
 
 export async function deleteMedication(req: AuthRequest, res: Response) {
-  const med = await prisma.medication.findUnique({ where: { id: req.params.id }, select: { name: true, serviceUserId: true } });
-  await prisma.medication.update({ where: { id: req.params.id }, data: { active: false } });
+  const med = await prisma.medication.findUnique({ where: { id: req.params.id }, select: { name: true, serviceUserId: true, endDate: true } });
+  // Discontinue = soft-delete (keeps the administration history) and stamp the
+  // discontinue date so the MAR chart shows it was given up to today, then ends.
+  const today = new Date();
+  const endDate = !med?.endDate || med.endDate > today ? today : med.endDate;
+  await prisma.medication.update({ where: { id: req.params.id }, data: { active: false, endDate } });
   if (med) await logAudit(req, 'MEDICATION_DISCONTINUED', med.name, await forPatient(med.serviceUserId));
   res.json({ message: 'Medication discontinued' });
 }
