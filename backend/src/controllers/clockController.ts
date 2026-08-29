@@ -178,11 +178,37 @@ export async function shiftMeds(req: AuthRequest, res: Response) {
 export async function clockIn(req: AuthRequest, res: Response) {
   const { shiftId } = req.body;
 
-  // Check not already clocked in
+  // Check not already clocked in. A record left open from a PREVIOUS day is a
+  // forgotten clock-out; on its own it would block the carer from ever clocking
+  // in again. So auto-close a stale prior-day record (at its scheduled shift
+  // end, or — for a record with no call — at its own clock-in time, so no
+  // phantom hours are created) and let the new clock-in proceed. A same-day open
+  // record still blocks, so carers are nudged to clock out properly.
   const existing = await prisma.clockRecord.findFirst({
     where: { userId: req.user!.id, clockOut: null },
+    include: { shift: { select: { date: true, endTime: true } } },
   });
-  if (existing) return res.status(400).json({ error: 'Already clocked in' });
+  if (existing) {
+    const nowD = new Date();
+    const sameDay =
+      existing.clockIn.getFullYear() === nowD.getFullYear() &&
+      existing.clockIn.getMonth() === nowD.getMonth() &&
+      existing.clockIn.getDate() === nowD.getDate();
+    if (sameDay) return res.status(400).json({ error: 'Already clocked in' });
+
+    let autoOut = existing.clockIn; // no call → zero duration, no phantom hours
+    if (existing.shift?.endTime) {
+      const [eh, em] = String(existing.shift.endTime).split(':').map(Number);
+      if (Number.isFinite(eh)) {
+        const s = existing.shift;
+        let end = new Date(Date.UTC(s.date.getUTCFullYear(), s.date.getUTCMonth(), s.date.getUTCDate(), eh, em || 0, 0));
+        if (end <= existing.clockIn) end = existing.clockIn; // overnight / edge guard
+        autoOut = end;
+      }
+    }
+    await prisma.clockRecord.update({ where: { id: existing.id }, data: { clockOut: autoOut } });
+    await logAudit(req, 'CLOCK_RECORD_AUTO_CLOSED', 'Own clock record', 'Stale open clock-in from a previous day auto-closed on next clock-in');
+  }
 
   // Carers can only clock in to today's calls — not future or past ones.
   if (shiftId) {
