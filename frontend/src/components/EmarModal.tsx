@@ -187,9 +187,12 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
     });
   }
 
+  // Include discontinued meds so they stay listed (below), where the last-given
+  // / discontinued date can be corrected. Distinct cache key from the active-only
+  // list used elsewhere.
   const { data: meds = [] } = useQuery({
-    queryKey: ['medications', serviceUser.id],
-    queryFn: () => medicationsApi.list(serviceUser.id),
+    queryKey: ['medications', serviceUser.id, 'emar'],
+    queryFn: () => medicationsApi.list(serviceUser.id, true),
   });
 
   const { data: admins = [] } = useQuery({
@@ -234,6 +237,9 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
 
   const adminFor = (medicationId: string, when: Date) =>
     admins.find((a) => a.medicationId === medicationId && new Date(a.scheduledFor).getTime() === when.getTime());
+
+  const activeMeds = meds.filter((m: Medication) => m.active);
+  const discontinuedMeds = meds.filter((m: Medication) => !m.active);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -372,11 +378,11 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
             </div>
           )}
 
-          {meds.length === 0 ? (
+          {activeMeds.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">No active medications for this client</p>
           ) : (
             <div className="space-y-4">
-              {meds.map((med: Medication) => {
+              {activeMeds.map((med: Medication) => {
                 const times = parseTimes(med.times);
                 const days = parseDays(med.daysOfWeek);
                 // Weekday of the selected date (UTC, matching the server) — used
@@ -469,6 +475,17 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
               })}
             </div>
           )}
+
+          {discontinuedMeds.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-gray-500 mb-2">Discontinued</h3>
+              <div className="space-y-3">
+                {discontinuedMeds.map((med: Medication) => (
+                  <DiscontinuedMedRow key={med.id} med={med} serviceUserId={serviceUser.id} isManager={isManager} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -483,6 +500,47 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// A discontinued med, kept visible below the active list. The last-given /
+// discontinued date can be corrected here, and a manager can reactivate it.
+function DiscontinuedMedRow({ med, serviceUserId, isManager }: { med: Medication; serviceUserId: string; isManager: boolean }) {
+  const qc = useQueryClient();
+  const [endDate, setEndDate] = useState(med.endDate ? format(new Date(med.endDate), 'yyyy-MM-dd') : '');
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['medications', serviceUserId] });
+  const saveMut = useMutation({ mutationFn: () => medicationsApi.update(med.id, { endDate }), onSuccess: invalidate });
+  const reactivateMut = useMutation({ mutationFn: () => medicationsApi.update(med.id, { active: true, endDate: '' }), onSuccess: invalidate });
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-gray-700 flex items-center gap-2 flex-wrap">
+            {med.name}{med.dose && <span className="text-gray-400 font-normal">· {med.dose}</span>}
+            <span className="text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">Discontinued</span>
+          </p>
+          <p className="text-xs text-gray-400">{med.route || 'Oral'}{med.instructions ? ` · ${med.instructions}` : ''}</p>
+          {med.startDate && <p className="text-xs text-purple-500 mt-0.5">📅 Commenced {format(new Date(med.startDate), 'd MMM yyyy')}</p>}
+        </div>
+        {isManager && (
+          <button className="text-xs text-blue-600 hover:underline shrink-0" disabled={reactivateMut.isPending} onClick={() => reactivateMut.mutate()}>
+            {reactivateMut.isPending ? '…' : 'Reactivate'}
+          </button>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <div>
+          <label className="block text-xs text-gray-500 mb-0.5">Last given / discontinued date</label>
+          <input type="date" value={endDate} disabled={!isManager} onChange={(e) => setEndDate(e.target.value)} className="input py-1 text-sm w-44" />
+        </div>
+        {isManager && (
+          <button className="btn-secondary btn btn-sm" disabled={saveMut.isPending || !endDate} onClick={() => saveMut.mutate()}>
+            {saveMut.isPending ? 'Saving…' : saveMut.isSuccess ? 'Saved ✓' : 'Save date'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
