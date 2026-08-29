@@ -14,7 +14,7 @@ const durMin = (s: Shift) => { let d = toMin(s.endTime) - toMin(s.startTime); if
 const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);
 const weekKey = (d: Date) => format(d, 'yyyy-MM-dd');
 
-// "My Hours": the carer's scheduled hours across a 6-week window (previous 3
+// "My Hours": the carer's scheduled hours across an 11-week window (previous 8
 // weeks, this week, and the next 2). Each week has a checkbox; the top bar
 // totals the selected weeks. Default selection is the current week.
 export default function History() {
@@ -23,8 +23,8 @@ export default function History() {
   const [refreshing, setRefreshing] = useState(false);
 
   const thisWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const firstWeekStart = addWeeks(thisWeekStart, -3); // 3 weeks back
-  const WEEK_COUNT = 8;                               // 3 past + current + 4 ahead
+  const firstWeekStart = addWeeks(thisWeekStart, -8); // 8 weeks back
+  const WEEK_COUNT = 11;                              // 8 past + current + 2 ahead
 
   const [selected, setSelected] = useState<Set<string>>(() => new Set([weekKey(thisWeekStart)]));
   const toggle = (key: string) => setSelected((prev) => {
