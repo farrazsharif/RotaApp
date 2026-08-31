@@ -10,6 +10,8 @@ import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
 
+const fmtSpent = (mins: number) => { const h = Math.floor(mins / 60); const m = Math.round(mins % 60); return h ? `${h}h ${m}m` : `${m}m`; };
+
 export default function Rota() {
   const { user } = useAuth();
   const userId = user?.id;
@@ -56,8 +58,16 @@ export default function Rota() {
   const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);
   const minsFor = (list: Shift[]) => list.reduce((sum, s) => sum + durMin(s), 0);
 
+  // Actual time the carer clocked on a visit (sums their completed records).
+  const spentMins = (s: Shift): number | null => {
+    const recs = (s.clockRecords ?? []).filter((r) => r.userId === userId && r.clockOut);
+    if (!recs.length) return null;
+    return recs.reduce((sum, r) => sum + (new Date(r.clockOut!).getTime() - new Date(r.clockIn).getTime()) / 60000, 0);
+  };
+
   const selectedShifts = callsForDay(selected);
   const selectedMins = minsFor(selectedShifts);
+  const daySpentMins = selectedShifts.reduce((sum, s) => sum + (spentMins(s) ?? 0), 0);
   const weekMins = minsFor(shifts.filter((s) => {
     const d = new Date(s.date);
     return d >= weekStart && d < addDays(weekStart, 7) && s.status !== 'CANCELLED';
@@ -121,6 +131,7 @@ export default function Rota() {
         <>
           <p className={`text-sm font-bold mb-2 ${isToday(selected) ? 'text-blue-600' : 'text-gray-500'}`}>
             {isToday(selected) ? 'Today · ' : ''}{format(selected, 'EEEE d MMM')}
+            {daySpentMins > 0 && <span className="font-normal text-gray-400"> · {fmtSpent(daySpentMins)} spent</span>}
           </p>
           {selectedShifts.length === 0 ? (
             <div className="text-center text-gray-400 py-12">
@@ -130,7 +141,7 @@ export default function Rota() {
           ) : (
             <div className="space-y-2">
               {selectedShifts.map((s) => (
-                <RotaRow key={s.id} shift={s} done={isCallDone(s, userId)} coverRequested={coverRequestedIds.has(s.id)} onClick={() => navigate(`/call/${s.id}`)} />
+                <RotaRow key={s.id} shift={s} done={isCallDone(s, userId)} spent={spentMins(s)} coverRequested={coverRequestedIds.has(s.id)} onClick={() => navigate(`/call/${s.id}`)} />
               ))}
             </div>
           )}
@@ -140,7 +151,7 @@ export default function Rota() {
   );
 }
 
-function RotaRow({ shift, done, coverRequested, onClick }: { shift: Shift; done: boolean; coverRequested: boolean; onClick: () => void }) {
+function RotaRow({ shift, done, spent, coverRequested, onClick }: { shift: Shift; done: boolean; spent: number | null; coverRequested: boolean; onClick: () => void }) {
   const su = shift.serviceUser;
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
   return (
@@ -169,7 +180,11 @@ function RotaRow({ shift, done, coverRequested, onClick }: { shift: Shift; done:
       </div>
       <div className="text-right">
         <p className="text-sm font-bold text-gray-700">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</p>
-        {done && <p className="text-xs text-green-600 font-semibold">✓ Done</p>}
+        {done ? (
+          <p className="text-xs text-green-600 font-semibold">✓ Done{spent != null ? ` · ${fmtSpent(spent)}` : ''}</p>
+        ) : spent != null ? (
+          <p className="text-xs text-gray-500">{fmtSpent(spent)} spent</p>
+        ) : null}
       </div>
     </button>
   );
