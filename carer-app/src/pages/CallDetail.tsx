@@ -651,7 +651,7 @@ export default function CallDetail() {
                 <p className="text-2xl font-bold text-green-700 tabular-nums">{totalTimeSpent}</p>
               </div>
             )}
-            {myCompletedRecord && isToday(new Date(myCompletedRecord.clockIn)) && (
+            {myCompletedRecord && withinLogEditWindow && (
               <AdjustTimes
                 record={myCompletedRecord}
                 scheduledStart={shift.startTime}
