@@ -317,52 +317,11 @@ export default function ServiceUserForm() {
             <label className="label">Service Start Date</label>
             <input type="date" value={form.serviceStartDate || ''} onChange={(e) => setForm({ ...form, serviceStartDate: e.target.value })} className="input" />
           </div>
-          <div>
-            <label className="label">Care Type</label>
-            <select value={form.careType || 'DOMICILIARY'} onChange={(e) => setForm({ ...form, careType: e.target.value as 'DOMICILIARY' | 'SUPPORTED_LIVING' })} className="input">
-              <option value="DOMICILIARY">Domiciliary (visit-based)</option>
-              <option value="SUPPORTED_LIVING">Supported living</option>
-            </select>
-            <p className="text-xs text-gray-400 mt-1">Supported-living clients have a separate housing provider and an enablement support plan.</p>
+          <div className="sm:col-span-2">
+            <p className="text-xs text-gray-400">Supported-living clients are set by their <span className="font-medium">Site</span> — assign them to a site marked as a supported-living scheme (Settings → Sites).</p>
           </div>
         </div>
       </Section>
-
-      {form.careType === 'SUPPORTED_LIVING' && (
-        <Section title="Housing Provider (Supported Living)">
-          <p className="text-xs text-gray-500 -mt-1">The landlord / housing association is a separate company to the care provider.</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="label">Housing provider / landlord</label>
-              <input value={form.housingProvider || ''} onChange={(e) => setForm({ ...form, housingProvider: e.target.value })} className="input" placeholder="e.g. Riverside Housing Association" />
-            </div>
-            <div>
-              <label className="label">Scheme / house name</label>
-              <input value={form.housingScheme || ''} onChange={(e) => setForm({ ...form, housingScheme: e.target.value })} className="input" placeholder="For shared schemes" />
-            </div>
-            <div>
-              <label className="label">Housing officer</label>
-              <input value={form.housingOfficerName || ''} onChange={(e) => setForm({ ...form, housingOfficerName: e.target.value })} className="input" />
-            </div>
-            <div>
-              <label className="label">Housing officer phone</label>
-              <input value={form.housingOfficerPhone || ''} onChange={(e) => setForm({ ...form, housingOfficerPhone: e.target.value })} className="input" />
-            </div>
-            <div>
-              <label className="label">Housing officer email</label>
-              <input value={form.housingOfficerEmail || ''} onChange={(e) => setForm({ ...form, housingOfficerEmail: e.target.value })} className="input" />
-            </div>
-            <div>
-              <label className="label">Tenancy reference</label>
-              <input value={form.tenancyRef || ''} onChange={(e) => setForm({ ...form, tenancyRef: e.target.value })} className="input" />
-            </div>
-            <div>
-              <label className="label">Tenancy start date</label>
-              <input type="date" value={form.tenancyStartDate || ''} onChange={(e) => setForm({ ...form, tenancyStartDate: e.target.value })} className="input" />
-            </div>
-          </div>
-        </Section>
-      )}
 
       <Section title="Contact & Address">
         <div className="space-y-4">

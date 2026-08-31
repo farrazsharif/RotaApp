@@ -606,18 +606,16 @@ export default function ServiceUserDetail() {
       {su.careType === 'SUPPORTED_LIVING' && (
         <>
           <Section title="Housing Provider (Supported Living)">
-            {su.housingProvider || su.housingScheme || su.housingOfficerName || su.tenancyRef || su.tenancyStartDate ? (
+            {su.site?.housingProvider || su.site?.housingOfficerName || su.site?.housingOfficerPhone || su.site?.housingOfficerEmail ? (
               <div className="grid gap-3 sm:grid-cols-2">
-                {su.housingProvider && <div><p className="text-xs text-gray-400">Housing provider</p><p className="text-sm text-gray-800">{su.housingProvider}</p></div>}
-                {su.housingScheme && <div><p className="text-xs text-gray-400">Scheme / house</p><p className="text-sm text-gray-800">{su.housingScheme}</p></div>}
-                {su.housingOfficerName && <div><p className="text-xs text-gray-400">Housing officer</p><p className="text-sm text-gray-800">{su.housingOfficerName}</p></div>}
-                {su.housingOfficerPhone && <div><p className="text-xs text-gray-400">Officer phone</p><p className="text-sm text-gray-800">{su.housingOfficerPhone}</p></div>}
-                {su.housingOfficerEmail && <div><p className="text-xs text-gray-400">Officer email</p><p className="text-sm text-gray-800">{su.housingOfficerEmail}</p></div>}
-                {su.tenancyRef && <div><p className="text-xs text-gray-400">Tenancy ref</p><p className="text-sm text-gray-800">{su.tenancyRef}</p></div>}
-                {su.tenancyStartDate && <div><p className="text-xs text-gray-400">Tenancy start</p><p className="text-sm text-gray-800">{format(new Date(su.tenancyStartDate), 'dd MMM yyyy')}</p></div>}
+                <div><p className="text-xs text-gray-400">Scheme</p><p className="text-sm text-gray-800">{su.site?.name}</p></div>
+                {su.site?.housingProvider && <div><p className="text-xs text-gray-400">Housing provider</p><p className="text-sm text-gray-800">{su.site.housingProvider}</p></div>}
+                {su.site?.housingOfficerName && <div><p className="text-xs text-gray-400">Housing officer</p><p className="text-sm text-gray-800">{su.site.housingOfficerName}</p></div>}
+                {su.site?.housingOfficerPhone && <div><p className="text-xs text-gray-400">Officer phone</p><p className="text-sm text-gray-800">{su.site.housingOfficerPhone}</p></div>}
+                {su.site?.housingOfficerEmail && <div><p className="text-xs text-gray-400">Officer email</p><p className="text-sm text-gray-800">{su.site.housingOfficerEmail}</p></div>}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">No housing provider recorded. {isManager && 'Add it on the edit page.'}</p>
+              <p className="text-sm text-gray-400">No housing provider recorded on the scheme. {isManager && 'Add it on the site (Settings → Sites).'}</p>
             )}
           </Section>
 

@@ -111,6 +111,13 @@ model Site {
   name      String   @unique
   color     String   @default("#3b82f6")
   order     Int      @default(0) // display order on the schedule (lower = first)
+  // A supported-living scheme/house: clients on this site are supported-living,
+  // and the scheme's housing provider (a separate company) is recorded here.
+  supportedLiving     Boolean @default(false)
+  housingProvider     String?
+  housingOfficerName  String?
+  housingOfficerPhone String?
+  housingOfficerEmail String?
   createdAt DateTime @default(now())
 
   serviceUsers ServiceUser[]

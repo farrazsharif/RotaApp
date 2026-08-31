@@ -294,6 +294,11 @@ export interface Site {
   name: string;
   color: string;
   order?: number;
+  supportedLiving?: boolean;
+  housingProvider?: string | null;
+  housingOfficerName?: string | null;
+  housingOfficerPhone?: string | null;
+  housingOfficerEmail?: string | null;
   _count?: { serviceUsers: number };
 }
 

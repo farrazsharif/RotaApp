@@ -32,7 +32,7 @@ function changedFields(original: Record<string, unknown>, data: Record<string, u
 
 const include = {
   preferredCaregivers: { select: { id: true, firstName: true, lastName: true } },
-  site: { select: { id: true, name: true, color: true } },
+  site: { select: { id: true, name: true, color: true, supportedLiving: true, housingProvider: true, housingOfficerName: true, housingOfficerPhone: true, housingOfficerEmail: true } },
 };
 
 export async function listServiceUsers(req: AuthRequest, res: Response) {
@@ -97,15 +97,12 @@ function buildData(body: Record<string, unknown>) {
     'nextOfKinName', 'nextOfKinPhone', 'nextOfKinMobile', 'nextOfKinAddress', 'nextOfKinRelation', 'nextOfKinEmail', 'careNotes',
     'gpName', 'gpPractice', 'gpPhone', 'gpAddress',
     'pharmacyName', 'pharmacyPhone', 'pharmacyAddress',
-    'housingProvider', 'housingScheme', 'housingOfficerName', 'housingOfficerPhone', 'housingOfficerEmail', 'tenancyRef',
   ];
   for (const f of stringFields) {
     if (body[f] !== undefined) data[f] = body[f] || null;
   }
   if (body.dateOfBirth !== undefined) data.dateOfBirth = new Date(body.dateOfBirth as string);
   if (body.serviceStartDate !== undefined) data.serviceStartDate = body.serviceStartDate ? new Date(body.serviceStartDate as string) : null;
-  if (body.careType !== undefined) data.careType = body.careType === 'SUPPORTED_LIVING' ? 'SUPPORTED_LIVING' : 'DOMICILIARY';
-  if (body.tenancyStartDate !== undefined) data.tenancyStartDate = body.tenancyStartDate ? new Date(body.tenancyStartDate as string) : null;
   if (body.needsMedication !== undefined) data.needsMedication = !!body.needsMedication;
   if (body.needsMobility !== undefined) data.needsMobility = !!body.needsMobility;
   if (body.needsPersonalCare !== undefined) data.needsPersonalCare = !!body.needsPersonalCare;
@@ -133,6 +130,14 @@ function buildData(body: Record<string, unknown>) {
   return data;
 }
 
+// Supported-living is driven by the site: a client on a supported-living scheme
+// is supported-living. Returns the careType a given site implies.
+async function careTypeForSite(siteId: unknown): Promise<'SUPPORTED_LIVING' | 'DOMICILIARY'> {
+  if (!siteId || typeof siteId !== 'string') return 'DOMICILIARY';
+  const site = await prisma.site.findUnique({ where: { id: siteId }, select: { supportedLiving: true } });
+  return site?.supportedLiving ? 'SUPPORTED_LIVING' : 'DOMICILIARY';
+}
+
 export async function createServiceUser(req: AuthRequest, res: Response) {
   const { firstName, lastName, dateOfBirth, preferredCaregiverIds } = req.body;
   if (!firstName || !lastName || !dateOfBirth) {
@@ -140,6 +145,7 @@ export async function createServiceUser(req: AuthRequest, res: Response) {
   }
 
   const data = buildData(req.body);
+  data.careType = await careTypeForSite(data.siteId);
   // firstName/lastName/dateOfBirth are required on create
   data.firstName = firstName;
   data.lastName = lastName;
@@ -169,6 +175,15 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
   // Prevent moving a service user out of the caller's sites.
   if (data.siteId !== undefined && !siteAllowed(req, data.siteId)) {
     return res.status(403).json({ error: 'You can only assign this person to one of your sites' });
+  }
+  // Re-derive supported-living status only when the site actually changes — the
+  // form always sends siteId, so editing other fields must never flip an
+  // existing client's status.
+  if (data.siteId !== undefined) {
+    const cur = await prisma.serviceUser.findUnique({ where: { id: req.params.id }, select: { siteId: true } });
+    if (!cur || cur.siteId !== data.siteId) {
+      data.careType = await careTypeForSite(data.siteId);
+    }
   }
 
   if (Array.isArray(preferredCaregiverIds)) {

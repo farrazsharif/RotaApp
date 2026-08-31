@@ -696,15 +696,31 @@ function SitesTab({ isManager }: { isManager: boolean }) {
   const { data: sites = [], isLoading } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
   const [name, setName] = useState('');
   const [color, setColor] = useState('#3b82f6');
+  const [supportedLiving, setSupportedLiving] = useState(false);
+  const [hProvider, setHProvider] = useState('');
+  const [hOfficer, setHOfficer] = useState('');
+  const [hPhone, setHPhone] = useState('');
+  const [hEmail, setHEmail] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
-  const reset = () => { setName(''); setColor('#3b82f6'); setEditingId(null); setError(''); };
+  const reset = () => { setName(''); setColor('#3b82f6'); setSupportedLiving(false); setHProvider(''); setHOfficer(''); setHPhone(''); setHEmail(''); setEditingId(null); setError(''); };
   const invalidate = () => qc.invalidateQueries({ queryKey: ['sites'] });
 
+  const loadForEdit = (site: Site) => {
+    setEditingId(site.id); setName(site.name); setColor(site.color);
+    setSupportedLiving(!!site.supportedLiving);
+    setHProvider(site.housingProvider || ''); setHOfficer(site.housingOfficerName || '');
+    setHPhone(site.housingOfficerPhone || ''); setHEmail(site.housingOfficerEmail || '');
+    setError('');
+  };
+
   const saveMut = useMutation({
-    mutationFn: () => (editingId ? sitesApi.update(editingId, { name, color }) : sitesApi.create({ name, color })),
+    mutationFn: () => {
+      const payload = { name, color, supportedLiving, housingProvider: hProvider || null, housingOfficerName: hOfficer || null, housingOfficerPhone: hPhone || null, housingOfficerEmail: hEmail || null };
+      return editingId ? sitesApi.update(editingId, payload) : sitesApi.create(payload);
+    },
     onSuccess: () => { invalidate(); reset(); },
     onError: (err: unknown) => {
       const e = err as { response?: { data?: { error?: string } } };
@@ -731,7 +747,10 @@ function SitesTab({ isManager }: { isManager: boolean }) {
               <div className="flex items-center gap-3">
                 <span className="h-5 w-5 rounded-full border" style={{ backgroundColor: site.color }} />
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{site.name}</p>
+                  <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                    {site.name}
+                    {site.supportedLiving && <span className="text-[10px] font-semibold uppercase tracking-wide bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">Supported living</span>}
+                  </p>
                   <p className="text-xs text-gray-400">{site._count?.serviceUsers ?? 0} service users</p>
                 </div>
               </div>
@@ -744,7 +763,7 @@ function SitesTab({ isManager }: { isManager: boolean }) {
                   </span>
                 ) : (
                   <span className="flex gap-2">
-                    <button className="text-blue-600 text-xs hover:underline" onClick={() => { setEditingId(site.id); setName(site.name); setColor(site.color); }}>Edit</button>
+                    <button className="text-blue-600 text-xs hover:underline" onClick={() => loadForEdit(site)}>Edit</button>
                     <button className="text-red-600 text-xs hover:underline" onClick={() => setConfirmDeleteId(site.id)}>Delete</button>
                   </span>
                 )
@@ -759,9 +778,25 @@ function SitesTab({ isManager }: { isManager: boolean }) {
           <h3 className="font-semibold text-gray-900">{editingId ? 'Edit Location' : 'Add Location'}</h3>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
           <div className="flex items-end gap-3">
-            <div className="flex-1"><label className="label">Name *</label><input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="e.g. North Team" /></div>
+            <div className="flex-1"><label className="label">Name *</label><input value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="e.g. North Team, or Supported Living (M8 5RU)" /></div>
             <div><label className="label">Colour</label><input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-10 w-14 rounded border p-1" /></div>
           </div>
+          <label className="flex items-center gap-2 text-sm text-gray-800">
+            <input type="checkbox" checked={supportedLiving} onChange={(e) => setSupportedLiving(e.target.checked)} className="h-4 w-4 accent-purple-600" />
+            This is a supported-living scheme
+            <span className="text-xs text-gray-400">— clients on this site become supported-living</span>
+          </label>
+          {supportedLiving && (
+            <div className="rounded-lg border border-purple-200 bg-purple-50/40 p-3 space-y-3">
+              <p className="text-xs text-gray-500">Housing provider for this scheme (a separate company to the care provider).</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div><label className="label">Housing provider / landlord</label><input value={hProvider} onChange={(e) => setHProvider(e.target.value)} className="input" placeholder="e.g. Riverside HA" /></div>
+                <div><label className="label">Housing officer</label><input value={hOfficer} onChange={(e) => setHOfficer(e.target.value)} className="input" /></div>
+                <div><label className="label">Officer phone</label><input value={hPhone} onChange={(e) => setHPhone(e.target.value)} className="input" /></div>
+                <div><label className="label">Officer email</label><input value={hEmail} onChange={(e) => setHEmail(e.target.value)} className="input" /></div>
+              </div>
+            </div>
+          )}
           <div className="flex gap-3">
             {editingId && <button className="btn-secondary btn" onClick={reset}>Cancel Edit</button>}
             <div className="flex-1" />
