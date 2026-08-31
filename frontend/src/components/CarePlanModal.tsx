@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { carePlansApi } from '../api/carePlans';
 import { printCarePlan } from '../lib/carePlanPrint';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 
@@ -53,8 +53,8 @@ const TASK_FIELDS: { key: keyof FormState; label: string }[] = [
 ];
 
 export default function CarePlanModal({ serviceUser, onClose }: Props) {
-  const { isManager } = useAuth();
-  const ro = !isManager;
+  const canEdit = usePermissions().can('manage_service_users');
+  const ro = !canEdit;
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState>(emptyForm());
 
@@ -271,11 +271,11 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
         </div>
 
         <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
-          {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+          {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
           <div className="flex-1" />
           <button onClick={printPlan} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {isManager && (
+          {canEdit && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : 'Save Care Plan'}
             </button>

@@ -7,7 +7,7 @@ import { runsApi } from '../api/runs';
 import { CancelBillingFields, CancelBillingValue, emptyCancelBilling, toCancelBilling } from './CancelBillingFields';
 import UpdateSeriesModal from './UpdateSeriesModal';
 import { serviceUsersApi } from '../api/serviceUsers';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { Shift } from '../types';
 import { format } from 'date-fns';
 import { VISIT_PRESETS } from '../lib/visits';
@@ -54,8 +54,8 @@ function StatusBadge({ active }: { active: boolean }) {
 
 export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }: Props) {
   const qc = useQueryClient();
-  const { isManager } = useAuth();
-  const readOnly = !isManager;
+  const canEdit = usePermissions().can('manage_schedule');
+  const readOnly = !canEdit;
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>();
   const cover = Number(watch('cover')) || 1;
   const [coverCarerIds, setCoverCarerIds] = useState<string[]>([]);
@@ -129,7 +129,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
   // Include inactive staff too so they can still be assigned; each row shows an Active/Inactive badge.
   const { data: users = [] } = useQuery({ queryKey: ['users', 'all'], queryFn: () => usersApi.list() });
   // Runs are a manager-only concept; carers open the modal read-only.
-  const { data: runs = [] } = useQuery({ queryKey: ['runs'], queryFn: runsApi.list, enabled: isManager });
+  const { data: runs = [] } = useQuery({ queryKey: ['runs'], queryFn: runsApi.list, enabled: canEdit });
   const { data: serviceUsersRaw = [] } = useQuery({ queryKey: ['service-users', ''], queryFn: () => serviceUsersApi.list() });
   const serviceUsers = [...serviceUsersRaw].sort((a, b) =>
     `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' })

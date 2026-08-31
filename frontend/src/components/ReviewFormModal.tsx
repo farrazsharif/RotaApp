@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { reviewsApi } from '../api/reviews';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { Review, ReviewOutcome, ReviewType } from '../types';
 import { format, addMonths } from 'date-fns';
 
@@ -152,8 +152,8 @@ function parseOutcomes(json?: string): ReviewOutcome[] {
 }
 
 export default function ReviewFormModal({ serviceUserId, serviceUserName, reviewType, editReview, onClose }: Props) {
-  const { isManager } = useAuth();
-  const ro = !isManager;
+  const canEdit = usePermissions().can('manage_reviews');
+  const ro = !canEdit;
   const qc = useQueryClient();
   const sections = reviewType === 'QUARTERLY' ? QUARTERLY_SECTIONS : SIX_WEEK_SECTIONS;
 
@@ -367,7 +367,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
         <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
           <div className="flex-1" />
           <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {isManager && (
+          {canEdit && (
             <button className="btn-primary btn" disabled={saveMut.isPending || !reviewDate} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : editReview ? 'Save Changes' : 'Save Review'}
             </button>

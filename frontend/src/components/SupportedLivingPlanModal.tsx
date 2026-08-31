@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
@@ -28,8 +28,8 @@ const emptyPlan = (): PlanData => ({ summary: '', domains: {} });
 interface Props { serviceUser: ServiceUser; onClose: () => void }
 
 export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props) {
-  const { isManager } = useAuth();
-  const ro = !isManager;
+  const canEdit = usePermissions().can('manage_service_users');
+  const ro = !canEdit;
   const qc = useQueryClient();
   const [plan, setPlan] = useState<PlanData>(emptyPlan());
   const suName = `${serviceUser.firstName} ${serviceUser.lastName}`.trim();
@@ -171,12 +171,12 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
         )}
 
         <div className="flex items-center gap-3 p-4 border-t">
-          {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
+          {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
           <div className="flex-1" />
           <button onClick={printPlan} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {isManager && (
+          {canEdit && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : 'Save'}
             </button>

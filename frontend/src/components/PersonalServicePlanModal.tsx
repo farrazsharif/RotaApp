@@ -4,7 +4,7 @@ import { servicePlansApi } from '../api/servicePlans';
 import { servicePlanTemplateApi } from '../api/servicePlanTemplate';
 import { servicePlanVersionsApi } from '../api/servicePlanVersions';
 import ServicePlanHistory from './ServicePlanHistory';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { defaultTemplateSections, keyForItem, PspItem, PspSection } from '../lib/servicePlanSchema';
 import { printServicePlan } from '../lib/servicePlanPrint';
@@ -29,8 +29,8 @@ type EquipVal = {
 };
 
 export default function PersonalServicePlanModal({ serviceUser, onClose }: Props) {
-  const { isManager } = useAuth();
-  const ro = !isManager;
+  const canEdit = usePermissions().can('manage_service_users');
+  const ro = !canEdit;
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [activeSection, setActiveSection] = useState('');
@@ -416,16 +416,16 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
         )}
 
         <div className="flex items-center gap-3 p-4 border-t">
-          {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
+          {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
           <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 History</button>
-          {isManager && (
+          {canEdit && (
             <button onClick={() => setPanel((p) => (p === 'finalise' ? 'none' : 'finalise'))} className="btn-secondary btn">🔒 Finalise &amp; Sign</button>
           )}
           <div className="flex-1" />
           <button onClick={printPlan} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {isManager && (
+          {canEdit && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : 'Save Plan'}
             </button>

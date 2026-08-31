@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem } from '../lib/riskAssessmentSchema';
 import { printRiskAssessment } from '../lib/riskAssessmentPrint';
@@ -27,8 +27,8 @@ const HML: { v: HazardVal['level']; label: string; on: string }[] = [
 ];
 
 export default function RiskAssessmentModal({ serviceUser, form, onClose }: Props) {
-  const { isManager } = useAuth();
-  const ro = !isManager;
+  const canEdit = usePermissions().can('manage_service_users');
+  const ro = !canEdit;
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [activeSection, setActiveSection] = useState(form.sections[0].id);
@@ -265,12 +265,12 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
         )}
 
         <div className="flex items-center gap-3 p-4 border-t">
-          {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
+          {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
           <div className="flex-1" />
           <button onClick={doPrint} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {isManager && (
+          {canEdit && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : 'Save'}
             </button>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { medicationsApi } from '../api/medications';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser, Medication, MedStatus, BodyMapPoint } from '../types';
 import { format } from 'date-fns';
 import { formatTime12h } from '../lib/time';
@@ -161,7 +161,7 @@ function parseScheduledVisitTypes(visitsJson?: string): string[] {
 }
 
 export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Props) {
-  const { isManager } = useAuth();
+  const canEdit = usePermissions().can('manage_medications');
   const qc = useQueryClient();
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [showAdd, setShowAdd] = useState(!!defaultShowAdd);
@@ -258,14 +258,14 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
               <label className="label">Date</label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
             </div>
-            {isManager && (
+            {canEdit && (
               <button className="btn-secondary btn ml-auto" onClick={() => setShowAdd((s) => !s)}>
                 {showAdd ? 'Cancel' : '+ Add Medication'}
               </button>
             )}
           </div>
 
-          {isManager && showAdd && (
+          {canEdit && showAdd && (
             <div className="rounded-lg border border-gray-200 p-3 space-y-3">
               <label className="flex items-center gap-2 text-sm font-medium text-gray-800 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2">
                 <input
@@ -424,12 +424,12 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                             🗺 Body Map ({medSites.length})
                           </button>
                         )}
-                        {isManager && (
+                        {canEdit && (
                           <button className="text-xs text-blue-600 hover:underline" onClick={() => setEditingId(med.id)}>
                             Edit
                           </button>
                         )}
-                        {isManager && (
+                        {canEdit && (
                           <button className="text-xs text-red-600 hover:underline" onClick={() => discontinueMut.mutate(med.id)}>
                             Discontinue
                           </button>
@@ -481,7 +481,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
               <h3 className="text-sm font-semibold text-gray-500 mb-2">Discontinued</h3>
               <div className="space-y-3">
                 {discontinuedMeds.map((med: Medication) => (
-                  <DiscontinuedMedRow key={med.id} med={med} serviceUserId={serviceUser.id} isManager={isManager} />
+                  <DiscontinuedMedRow key={med.id} med={med} serviceUserId={serviceUser.id} canEdit={canEdit} />
                 ))}
               </div>
             </div>
@@ -506,7 +506,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
 
 // A discontinued med, kept visible below the active list. The last-given /
 // discontinued date can be corrected here, and a manager can reactivate it.
-function DiscontinuedMedRow({ med, serviceUserId, isManager }: { med: Medication; serviceUserId: string; isManager: boolean }) {
+function DiscontinuedMedRow({ med, serviceUserId, canEdit }: { med: Medication; serviceUserId: string; canEdit: boolean }) {
   const qc = useQueryClient();
   const [endDate, setEndDate] = useState(med.endDate ? format(new Date(med.endDate), 'yyyy-MM-dd') : '');
   const invalidate = () => qc.invalidateQueries({ queryKey: ['medications', serviceUserId] });
@@ -524,7 +524,7 @@ function DiscontinuedMedRow({ med, serviceUserId, isManager }: { med: Medication
           <p className="text-xs text-gray-400">{med.route || 'Oral'}{med.instructions ? ` · ${med.instructions}` : ''}</p>
           {med.startDate && <p className="text-xs text-purple-500 mt-0.5">📅 Commenced {format(new Date(med.startDate), 'd MMM yyyy')}</p>}
         </div>
-        {isManager && (
+        {canEdit && (
           <button className="text-xs text-blue-600 hover:underline shrink-0" disabled={reactivateMut.isPending} onClick={() => reactivateMut.mutate()}>
             {reactivateMut.isPending ? '…' : 'Reactivate'}
           </button>
@@ -533,9 +533,9 @@ function DiscontinuedMedRow({ med, serviceUserId, isManager }: { med: Medication
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <div>
           <label className="block text-xs text-gray-500 mb-0.5">Last given / discontinued date</label>
-          <input type="date" value={endDate} disabled={!isManager} onChange={(e) => setEndDate(e.target.value)} className="input py-1 text-sm w-44" />
+          <input type="date" value={endDate} disabled={!canEdit} onChange={(e) => setEndDate(e.target.value)} className="input py-1 text-sm w-44" />
         </div>
-        {isManager && (
+        {canEdit && (
           <button className="btn-secondary btn btn-sm" disabled={saveMut.isPending || !endDate} onClick={() => saveMut.mutate()}>
             {saveMut.isPending ? 'Saving…' : saveMut.isSuccess ? 'Saved ✓' : 'Save date'}
           </button>

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
 import { carePlansApi } from '../api/carePlans';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import SignaturePad from './SignaturePad';
@@ -87,8 +88,9 @@ interface Props {
 }
 
 export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
-  const { user, isManager } = useAuth();
-  const ro = !isManager;
+  const { user } = useAuth();
+  const canEdit = usePermissions().can('manage_service_users');
+  const ro = !canEdit;
   const qc = useQueryClient();
   const [d, setD] = useState<ContractData>(emptyData());
 
@@ -357,12 +359,12 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
         )}
 
         <div className="flex items-center gap-3 p-4 border-t">
-          {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
+          {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
           <div className="flex-1" />
           <button onClick={printContract} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {isManager && (
+          {canEdit && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : 'Save'}
             </button>

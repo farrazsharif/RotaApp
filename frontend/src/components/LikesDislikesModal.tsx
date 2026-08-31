@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { likesDislikesApi } from '../api/likesDislikes';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
@@ -39,8 +39,11 @@ const FIELDS: { key: keyof FormState; label: string }[] = [
 ];
 
 export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
-  const { isManager } = useAuth();
-  const ro = !isManager;
+  // Edit rights follow the actual capability, not the coarse base-role
+  // "manager" flag — a custom manager role (e.g. Field Supervisor) that holds
+  // manage_service_users can edit even though their base role isn't MANAGER.
+  const canEdit = usePermissions().can('manage_service_users');
+  const ro = !canEdit;
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState>(emptyForm());
 
@@ -62,9 +65,11 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
     }
   }, [record]);
 
+  const [saveError, setSaveError] = useState<string | null>(null);
   const saveMut = useMutation({
     mutationFn: () => likesDislikesApi.save(serviceUser.id, form),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['likes-dislikes', serviceUser.id] }),
+    onSuccess: () => { setSaveError(null); qc.invalidateQueries({ queryKey: ['likes-dislikes', serviceUser.id] }); },
+    onError: (e: { response?: { data?: { error?: string } } }) => setSaveError(e?.response?.data?.error || 'Could not save — please try again.'),
   });
 
   function printSheet() {
@@ -136,11 +141,12 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
         </div>
 
         <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
-          {isManager && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+          {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+          {saveError && <span className="text-sm text-red-600 self-center">{saveError}</span>}
           <div className="flex-1" />
           <button onClick={printSheet} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {isManager && (
+          {canEdit && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : 'Save'}
             </button>

@@ -4,7 +4,7 @@ import { medicationsApi } from '../api/medications';
 import { ServiceUser, Medication, MedAdministration, MedStatus } from '../types';
 import { format, getDaysInMonth, parse } from 'date-fns';
 import { formatTime12h } from '../lib/time';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import RecordMedModal from './RecordMedModal';
 
@@ -44,7 +44,7 @@ function initialsFor(rec: MedAdministration): string {
 }
 
 export default function MarChartModal({ serviceUser, onClose }: Props) {
-  const { isManager } = useAuth();
+  const canEdit = usePermissions().can('manage_medications');
   const [month, setMonth] = useState(format(new Date(), 'yyyy-MM'));
   // A cell the office is recording/correcting (managers only).
   const [cell, setCell] = useState<{ med: Medication; time: string; scheduledFor: string; existing: MedAdministration | null } | null>(null);
@@ -220,7 +220,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
           <div>
             <h2 className="text-lg font-semibold">MAR Chart — {serviceUser.firstName} {serviceUser.lastName}</h2>
             <p className="text-xs text-gray-500">
-              Medication Administration Record · carer initials as signature{isManager ? ' · click a cell to record or correct a dose' : ''}
+              Medication Administration Record · carer initials as signature{canEdit ? ' · click a cell to record or correct a dose' : ''}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -275,16 +275,16 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                             return (
                               <td
                                 key={d}
-                                className={`border border-gray-300 text-center font-bold ${cancelled ? 'bg-gray-50' : ''} ${isManager ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                className={`border border-gray-300 text-center font-bold ${cancelled ? 'bg-gray-50' : ''} ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                                 style={rec ? { color: STATUS_COLOR[rec.status] } : cancelled ? { color: '#6b7280' } : undefined}
                                 title={
                                   rec
-                                    ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${isManager ? ' · click to edit' : ''}`
+                                    ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${canEdit ? ' · click to edit' : ''}`
                                     : cancelled
-                                      ? `Visit cancelled${isManager ? ' · click to record' : ''}`
-                                      : isManager ? 'Click to record this dose' : undefined
+                                      ? `Visit cancelled${canEdit ? ' · click to record' : ''}`
+                                      : canEdit ? 'Click to record this dose' : undefined
                                 }
-                                onClick={isManager ? () => setCell({ med, time: t, scheduledFor, existing: rec ?? null }) : undefined}
+                                onClick={canEdit ? () => setCell({ med, time: t, scheduledFor, existing: rec ?? null }) : undefined}
                               >
                                 {rec ? initialsFor(rec) : cancelled ? 'C' : ''}
                               </td>
