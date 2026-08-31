@@ -82,7 +82,7 @@ function LiveShiftTimer({ since }: { since: string }) {
 // their own record — for when they did the visit but forgot to clock in/out and
 // recorded it late, which would otherwise show the wrong duration. One tap fills
 // the scheduled time; a manual time is also allowed.
-function AdjustTimes({ record, scheduledStart, scheduledEnd, onSaved, forceOpen }: { record: ClockRecord; scheduledStart: string; scheduledEnd: string; onSaved: () => void; forceOpen?: boolean }) {
+function AdjustTimes({ record, shiftDate, scheduledStart, scheduledEnd, onSaved, forceOpen }: { record: ClockRecord; shiftDate: string; scheduledStart: string; scheduledEnd: string; onSaved: () => void; forceOpen?: boolean }) {
   const hasOut = !!record.clockOut;
   const [open, setOpen] = useState(false);
   const [startVal, setStartVal] = useState(() => format(new Date(record.clockIn), 'HH:mm'));
@@ -95,17 +95,26 @@ function AdjustTimes({ record, scheduledStart, scheduledEnd, onSaved, forceOpen 
     onError: (e: any) => setErr(e.response?.data?.error || 'Could not update the times.'),
   });
 
-  function toIso(hhmm: string, ref: string): string {
-    const base = new Date(ref);
+  // Anchor the corrected times to the VISIT's date, not the record's existing
+  // clock timestamps (which may be wrong — e.g. an auto-closed phantom record).
+  // This keeps a past visit's times in the past instead of tripping the
+  // "can't be in the future" guard.
+  const mins = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+  function toIsoOnVisitDate(hhmm: string, addDay = false): string {
+    const base = new Date(shiftDate);
     const [h, m] = hhmm.split(':').map(Number);
-    base.setHours(h || 0, m || 0, 0, 0);
-    return base.toISOString();
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + (addDay ? 1 : 0), h || 0, m || 0, 0, 0);
+    return d.toISOString();
   }
 
   function save() {
     const body: { startTime?: string; endTime?: string } = {};
-    if (startVal) body.startTime = toIso(startVal, record.clockIn);
-    if (hasOut && endVal) body.endTime = toIso(endVal, record.clockOut!);
+    if (startVal) body.startTime = toIsoOnVisitDate(startVal);
+    if (hasOut && endVal) {
+      // Overnight visit (e.g. 22:00–06:00): the finish rolls into the next day.
+      const overnight = !!startVal && mins(endVal) <= mins(startVal);
+      body.endTime = toIsoOnVisitDate(endVal, overnight);
+    }
     if (!body.startTime && !body.endTime) return;
     mut.mutate(body);
   }
@@ -654,6 +663,7 @@ export default function CallDetail() {
             {myCompletedRecord && withinLogEditWindow && (
               <AdjustTimes
                 record={myCompletedRecord}
+                shiftDate={shift.date}
                 scheduledStart={shift.startTime}
                 scheduledEnd={shift.endTime}
                 onSaved={() => qc.invalidateQueries({ queryKey: ['shift', id] })}
@@ -667,6 +677,7 @@ export default function CallDetail() {
               <div className="text-center">
                 <AdjustTimes
                   record={clockStatus.record}
+                  shiftDate={shift.date}
                   scheduledStart={shift.startTime}
                   scheduledEnd={shift.endTime}
                   forceOpen={shortFix}
