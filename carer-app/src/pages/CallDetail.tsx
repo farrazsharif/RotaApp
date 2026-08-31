@@ -603,6 +603,7 @@ export default function CallDetail() {
   const assignedToMe = shift.userId === user?.id || (shift.coverCarers ?? []).some((c) => c.id === user?.id);
   const startOfTodayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
   const isPastDay = new Date(shift.date).getTime() < startOfTodayMs;
+  const isFutureDay = !shiftIsToday && !isPastDay;
   const canRecordMissed = assignedToMe && isPastDay && withinLogEditWindow && !myAnyRecord;
   const totalTimeSpent = myCompletedRecord
     ? formatElapsed(new Date(myCompletedRecord.clockOut!).getTime() - new Date(myCompletedRecord.clockIn).getTime())
@@ -919,7 +920,7 @@ export default function CallDetail() {
         </div>
 
         {/* Supported-living running support log — add entries through the shift */}
-        {isSLClient && (
+        {isSLClient && !isFutureDay && (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
             <h2 className="font-semibold text-gray-800 mb-1">Support Log</h2>
             <p className="text-xs text-gray-400 mb-3">Log tasks as you complete them through the shift — each entry is time-stamped.</p>
@@ -968,8 +969,9 @@ export default function CallDetail() {
           </div>
         )}
 
-        {/* Call log — hidden for supported living, which uses the Support Log above */}
-        {!isSLClient && (
+        {/* Call log — hidden for supported living, which uses the Support Log
+            above, and hidden for future visits (nothing to log until it's due) */}
+        {!isSLClient && !isFutureDay && (
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
           <h2 className="font-semibold text-gray-800 mb-1 flex flex-wrap items-center gap-x-2">
             {isSharedCall ? 'Shared Call Log' : 'Call Log'}

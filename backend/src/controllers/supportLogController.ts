@@ -31,9 +31,17 @@ export async function createSupportLogEntry(req: AuthRequest, res: Response) {
   // Access: an EMPLOYEE must be assigned to the shift; managers/admins may add.
   if (req.user!.role === 'EMPLOYEE') {
     if (!shiftId) return res.status(403).json({ error: 'You can only log against your own visit' });
-    const shift = await prisma.shift.findUnique({ where: { id: shiftId }, select: { userId: true, coverCarers: { select: { id: true } } } });
+    const shift = await prisma.shift.findUnique({ where: { id: shiftId }, select: { userId: true, date: true, coverCarers: { select: { id: true } } } });
     const onCall = !!shift && (shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id));
     if (!onCall) return res.status(403).json({ error: 'You are not assigned to this visit' });
+    // Can't log a future-dated visit before it's due.
+    if (shift) {
+      const now = new Date();
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      if (shift.date.getTime() > endOfToday.getTime()) {
+        return res.status(400).json({ error: "You can't log a visit before it's due." });
+      }
+    }
   }
 
   const u = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { firstName: true, lastName: true } });

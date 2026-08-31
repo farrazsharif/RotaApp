@@ -75,6 +75,19 @@ export async function createCallLog(req: AuthRequest, res: Response) {
   const tasksJson = normalizeTasks(tasks);
   const domainsJson = normalizeDomains(supportDomains);
 
+  // A call log documents a visit that has happened — you can't log (or pre-sign)
+  // a future-dated call before it's due.
+  if (shiftId) {
+    const sh = await prisma.shift.findUnique({ where: { id: shiftId }, select: { date: true } });
+    if (sh) {
+      const now = new Date();
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      if (sh.date.getTime() > endOfToday.getTime()) {
+        return res.status(400).json({ error: "You can't log a visit before it's due." });
+      }
+    }
+  }
+
   // One shared log per visit: if a log already exists for this shift, funnel
   // the write into it (update note + re-sign) instead of creating a duplicate.
   // This is also the path a carer takes to amend a saved log later.
