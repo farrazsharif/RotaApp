@@ -612,6 +612,9 @@ export default function CallDetail() {
   return (
     <Layout title={name}>
       <div className="space-y-4">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm font-medium text-blue-600 -mt-1">
+          ‹ Back
+        </button>
         <div className={`rounded-2xl p-4 shadow-sm border ${done ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">

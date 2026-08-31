@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfWeek, addDays, isSameDay, isToday } from 'date-fns';
@@ -20,9 +20,18 @@ export default function Rota() {
   const [refreshing, setRefreshing] = useState(false);
 
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  // Remember the date the carer was viewing so returning from a call lands back
+  // on the same day, not today.
+  const initialSelected = (() => {
+    const s = sessionStorage.getItem('rota_selected');
+    if (!s) return new Date();
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? new Date() : d;
+  })();
   // The Monday of the week on show, and the day selected within it.
-  const [weekStart, setWeekStart] = useState(currentWeekStart);
-  const [selected, setSelected] = useState(new Date());
+  const [weekStart, setWeekStart] = useState(startOfWeek(initialSelected, { weekStartsOn: 1 }));
+  const [selected, setSelected] = useState(initialSelected);
+  useEffect(() => { sessionStorage.setItem('rota_selected', selected.toISOString()); }, [selected]);
 
   async function refresh() {
     setRefreshing(true);
