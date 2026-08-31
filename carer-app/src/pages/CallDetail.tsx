@@ -255,6 +255,7 @@ export default function CallDetail() {
   const [entryText, setEntryText] = useState('');
   const [entryDomains, setEntryDomains] = useState<string[]>([]);
   const [clockOutError, setClockOutError] = useState<{ message: string; pendingMeds: string[] } | null>(null);
+  const [clockInError, setClockInError] = useState<string | null>(null);
   const [shortFix, setShortFix] = useState(false);
   const [logSent, setLogSent] = useState(false);
   const [showHandover, setShowHandover] = useState(false);
@@ -397,7 +398,9 @@ export default function CallDetail() {
 
   const clockInMut = useMutation({
     mutationFn: () => clockApi.clockIn(id),
+    onError: (err: any) => setClockInError(err?.response?.data?.error || 'Could not clock in. Please try again.'),
     onSuccess: async () => {
+      setClockInError(null);
       qc.invalidateQueries({ queryKey: ['clock-status'] });
       qc.invalidateQueries({ queryKey: ['shift-meds', id] });
       // Pin a "still clocked in" notification so the carer doesn't forget to
@@ -671,9 +674,7 @@ export default function CallDetail() {
                 />
               </div>
             )}
-            {clockedInElsewhere ? (
-              <p className="text-sm text-orange-600 font-medium">You're clocked in on another call. Clock out there first.</p>
-            ) : clockedIn ? (
+            {clockedIn ? (
               <>
                 <button
                   onClick={() => clockOutMut.mutate()}
@@ -706,13 +707,25 @@ export default function CallDetail() {
                   : "You can only clock in to today's calls."}
               </p>
             ) : (
-              <button
-                onClick={() => clockInMut.mutate()}
-                disabled={clockInMut.isPending}
-                className="w-full bg-green-600 text-white rounded-xl py-3.5 font-bold text-base disabled:opacity-50"
-              >
-                {clockInMut.isPending ? 'Clocking in…' : '▶ Clock In'}
-              </button>
+              <>
+                {clockedInElsewhere && (
+                  <p className="text-xs text-orange-600 font-medium mb-2 text-center">
+                    You're still clocked in on another call — clocking in here will close that one.
+                  </p>
+                )}
+                <button
+                  onClick={() => clockInMut.mutate()}
+                  disabled={clockInMut.isPending}
+                  className="w-full bg-green-600 text-white rounded-xl py-3.5 font-bold text-base disabled:opacity-50"
+                >
+                  {clockInMut.isPending ? 'Clocking in…' : '▶ Clock In'}
+                </button>
+              </>
+            )}
+            {clockInError && (
+              <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-700 font-medium">{clockInError}</p>
+              </div>
             )}
             {clockOutError && (
               <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">

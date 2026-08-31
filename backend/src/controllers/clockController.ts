@@ -178,36 +178,42 @@ export async function shiftMeds(req: AuthRequest, res: Response) {
 export async function clockIn(req: AuthRequest, res: Response) {
   const { shiftId } = req.body;
 
-  // Check not already clocked in. A record left open from a PREVIOUS day is a
-  // forgotten clock-out; on its own it would block the carer from ever clocking
-  // in again. So auto-close a stale prior-day record (at its scheduled shift
-  // end, or — for a record with no call — at its own clock-in time, so no
-  // phantom hours are created) and let the new clock-in proceed. A same-day open
-  // record still blocks, so carers are nudged to clock out properly.
+  // Don't let a stale open record permanently block clocking in. A record is
+  // "stale" when it has no call, was left open from a previous day, or its call
+  // has already ended — in every one of those cases the carer has moved on, so
+  // auto-close it (at the call's scheduled end, or its own clock-in time when
+  // there's no call, so no phantom hours) and let the new clock-in proceed. Only
+  // a genuinely CURRENT overlapping call (same day, not yet ended) still blocks.
   const existing = await prisma.clockRecord.findFirst({
     where: { userId: req.user!.id, clockOut: null },
-    include: { shift: { select: { date: true, endTime: true } } },
+    include: { shift: { select: { id: true, date: true, endTime: true } } },
   });
   if (existing) {
+    if (shiftId && existing.shiftId === shiftId) {
+      return res.status(400).json({ error: 'Already clocked in' });
+    }
     const nowD = new Date();
-    const sameDay =
-      existing.clockIn.getFullYear() === nowD.getFullYear() &&
-      existing.clockIn.getMonth() === nowD.getMonth() &&
-      existing.clockIn.getDate() === nowD.getDate();
-    if (sameDay) return res.status(400).json({ error: 'Already clocked in' });
-
-    let autoOut = existing.clockIn; // no call → zero duration, no phantom hours
+    let shiftEnd: Date | null = null;
     if (existing.shift?.endTime) {
       const [eh, em] = String(existing.shift.endTime).split(':').map(Number);
       if (Number.isFinite(eh)) {
         const s = existing.shift;
-        let end = new Date(Date.UTC(s.date.getUTCFullYear(), s.date.getUTCMonth(), s.date.getUTCDate(), eh, em || 0, 0));
-        if (end <= existing.clockIn) end = existing.clockIn; // overnight / edge guard
-        autoOut = end;
+        shiftEnd = new Date(Date.UTC(s.date.getUTCFullYear(), s.date.getUTCMonth(), s.date.getUTCDate(), eh, em || 0, 0));
       }
     }
+    const sameDay =
+      existing.clockIn.getFullYear() === nowD.getFullYear() &&
+      existing.clockIn.getMonth() === nowD.getMonth() &&
+      existing.clockIn.getDate() === nowD.getDate();
+    const shiftEnded = shiftEnd != null && shiftEnd <= nowD;
+    const resolvable = !existing.shift || !sameDay || shiftEnded;
+    if (!resolvable) {
+      return res.status(400).json({ error: "You're still clocked in on your current call — clock out of it first." });
+    }
+    let autoOut = existing.clockIn; // no call → zero duration, no phantom hours
+    if (shiftEnd) autoOut = shiftEnd < existing.clockIn ? existing.clockIn : shiftEnd;
     await prisma.clockRecord.update({ where: { id: existing.id }, data: { clockOut: autoOut } });
-    await logAudit(req, 'CLOCK_RECORD_AUTO_CLOSED', 'Own clock record', 'Stale open clock-in from a previous day auto-closed on next clock-in');
+    await logAudit(req, 'CLOCK_RECORD_AUTO_CLOSED', 'Own clock record', 'Stale open clock-in auto-closed on next clock-in');
   }
 
   // Carers can only clock in to today's calls — not future or past ones.
