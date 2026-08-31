@@ -613,7 +613,12 @@ export default function CallDetail() {
       <div className="space-y-4">
         <div className={`rounded-2xl p-4 shadow-sm border ${done ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</p>
+            <p className="text-sm text-gray-500">
+              <span className={`font-semibold ${shiftIsToday ? 'text-blue-600' : 'text-gray-700'}`}>
+                {shiftIsToday ? 'Today' : format(new Date(shift.date), 'EEE d MMM yyyy')}
+              </span>
+              {' · '}{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}
+            </p>
             {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Visit Completed</span>}
           </div>
           {shift.visitName && <p className="font-semibold text-gray-800">{shift.visitName}</p>}
