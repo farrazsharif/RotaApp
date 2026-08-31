@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect, useCallback, memo } from 'react';
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { shiftsApi } from '../api/shifts';
@@ -289,7 +289,7 @@ export default function Roster() {
                   return (
                     <div
                       key={dk}
-                      onDragOver={(e) => { e.preventDefault(); setDropTarget(cellKey); }}
+                      onDragOver={(e) => { e.preventDefault(); setDropTarget((t) => (t === cellKey ? t : cellKey)); }}
                       onDragLeave={() => setDropTarget((t) => (t === cellKey ? null : t))}
                       onDrop={onDrop}
                       className={`border-l border-gray-100 p-1 space-y-1 min-h-[52px] transition-colors ${isTarget ? 'bg-blue-100 ring-2 ring-inset ring-blue-400' : ''}`}
@@ -417,6 +417,8 @@ type DragSession = {
 };
 type Preview = { id: string; deltaMin: number; targetUserId: string };
 
+type LaneData = { u: User; list: Shift[]; rowOf: Map<string, number>; laneH: number; hasClash: boolean };
+
 function HoursTimeline({ staff, dayShifts, clashIds, fixing, onFixClashes, onCommit }: {
   staff: User[];
   dayShifts: Shift[];
@@ -428,24 +430,50 @@ function HoursTimeline({ staff, dayShifts, clashIds, fixing, onFixClashes, onCom
   const sessionRef = useRef<DragSession | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
 
+  // Lane layout (which calls sit on which carer, packed into sub-rows) depends
+  // only on the data, not on the live drag preview — compute it once so a drag
+  // in progress doesn't re-run packing for every lane on every mouse move.
+  const lanes = useMemo<LaneData[]>(() => staff.map((u) => {
+    const list = dayShifts.filter((s) => carries(s, u.id));
+    const { rowOf, rowCount } = packLane(list);
+    const laneH = rowCount * (ROW_H + ROW_GAP) + ROW_GAP;
+    const hasClash = list.some((s) => clashIds.has(s.id));
+    return { u, list, rowOf, laneH, hasClash };
+  }), [staff, dayShifts, clashIds]);
+
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    // Coalesce mouse moves to one update per animation frame, and skip the
+    // update entirely when the snapped position/lane hasn't changed. With
+    // 5-minute snapping this means most small moves cost nothing.
+    let raf: number | null = null;
+    let pending: { x: number; y: number } | null = null;
+    const process = () => {
+      raf = null;
       const sess = sessionRef.current;
-      if (!sess) return;
-      const rawDelta = (e.clientX - sess.startX) / PX_PER_MIN;
+      const pt = pending;
+      if (!sess || !pt) return;
+      const rawDelta = (pt.x - sess.startX) / PX_PER_MIN;
       let deltaMin = Math.round(rawDelta / SNAP) * SNAP;
       // Keep the block inside the visible day.
       const clampedStart = Math.min(DAY_END - sess.duration, Math.max(DAY_START, sess.origStartMin + deltaMin));
       deltaMin = clampedStart - sess.origStartMin;
       // Which carer lane is under the cursor (block has pointer-events off while dragging).
-      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const el = document.elementFromPoint(pt.x, pt.y);
       const lane = el && (el as HTMLElement).closest('[data-lane-user]');
       const targetUserId = (lane as HTMLElement | null)?.dataset.laneUser || sess.origUserId;
       sess.lastDelta = deltaMin;
       sess.lastTarget = targetUserId;
-      setPreview({ id: sess.id, deltaMin, targetUserId });
+      setPreview((p) =>
+        p && p.deltaMin === deltaMin && p.targetUserId === targetUserId ? p : { id: sess.id, deltaMin, targetUserId },
+      );
+    };
+    const onMove = (e: MouseEvent) => {
+      if (!sessionRef.current) return;
+      pending = { x: e.clientX, y: e.clientY };
+      if (raf == null) raf = requestAnimationFrame(process);
     };
     const onUp = () => {
+      if (raf != null) { cancelAnimationFrame(raf); raf = null; }
       const sess = sessionRef.current;
       sessionRef.current = null;
       setPreview(null);
@@ -459,10 +487,11 @@ function HoursTimeline({ staff, dayShifts, clashIds, fixing, onFixClashes, onCom
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (raf != null) cancelAnimationFrame(raf);
     };
   }, [onCommit]);
 
-  const startDrag = (e: ReactMouseEvent, s: Shift) => {
+  const startDrag = useCallback((e: ReactMouseEvent, s: Shift) => {
     e.preventDefault();
     sessionRef.current = {
       id: s.id,
@@ -474,7 +503,7 @@ function HoursTimeline({ staff, dayShifts, clashIds, fixing, onFixClashes, onCom
       lastTarget: s.userId || '',
     };
     setPreview({ id: s.id, deltaMin: 0, targetUserId: s.userId || '' });
-  };
+  }, []);
 
   const hours: number[] = [];
   for (let h = DAY_START / 60; h <= DAY_END / 60; h++) hours.push(h);
@@ -503,13 +532,9 @@ function HoursTimeline({ staff, dayShifts, clashIds, fixing, onFixClashes, onCom
         </div>
 
         {/* One lane per carer */}
-        {staff.length === 0 ? (
+        {lanes.length === 0 ? (
           <div className="p-6 text-sm text-gray-400 text-center">No staff to show.</div>
-        ) : staff.map((u) => {
-          const list = dayShifts.filter((s) => carries(s, u.id));
-          const { rowOf, rowCount } = packLane(list);
-          const laneH = rowCount * (ROW_H + ROW_GAP) + ROW_GAP;
-          const hasClash = list.some((s) => clashIds.has(s.id));
+        ) : lanes.map(({ u, list, rowOf, laneH, hasClash }) => {
           const isTargetLane = !!preview && preview.targetUserId === u.id && preview.id !== '' &&
             !list.some((s) => s.id === preview.id);
           return (
@@ -539,36 +564,17 @@ function HoursTimeline({ staff, dayShifts, clashIds, fixing, onFixClashes, onCom
                     style={{ left: (h * 60 - DAY_START) * PX_PER_MIN }} />
                 ))}
                 {/* Call blocks */}
-                {list.map((s) => {
-                  const dragging = preview?.id === s.id;
-                  const startMin = hhmmToMin(s.startTime) + (dragging ? preview!.deltaMin : 0);
-                  const dur = shiftMins(s);
-                  const left = (startMin - DAY_START) * PX_PER_MIN;
-                  const width = Math.max(30, dur * PX_PER_MIN);
-                  const top = (rowOf.get(s.id) ?? 0) * (ROW_H + ROW_GAP) + ROW_GAP;
-                  const color = s.serviceUser?.site?.color || '#3b82f6';
-                  const clash = clashIds.has(s.id);
-                  const client = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : (s.visitName || 'Call');
-                  return (
-                    <div
-                      key={s.id}
-                      onMouseDown={(e) => startDrag(e, s)}
-                      title={`${client} · ${formatTime12h(minToHHMM(startMin))}–${formatTime12h(minToHHMM(startMin + dur))}${clash ? ' · CLASH' : ''}`}
-                      className={`absolute rounded px-1.5 py-0.5 text-[10px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing shadow-sm ${clash ? 'ring-2 ring-red-500' : 'ring-1 ring-black/5'} ${dragging ? 'opacity-90 z-30 shadow-lg' : ''} ${!s.published ? 'opacity-90' : ''}`}
-                      style={{
-                        left, width, top, height: ROW_H,
-                        backgroundColor: clash ? '#fee2e2' : `${color}22`,
-                        pointerEvents: dragging ? 'none' : 'auto',
-                      }}
-                    >
-                      <div className="font-semibold text-gray-800 truncate">
-                        {clash && <span title="Overlapping call">⚠ </span>}
-                        {formatTime12h(minToHHMM(startMin))}
-                      </div>
-                      <div className="truncate text-gray-600">{client}</div>
-                    </div>
-                  );
-                })}
+                {list.map((s) => (
+                  <CallBlock
+                    key={s.id}
+                    s={s}
+                    top={(rowOf.get(s.id) ?? 0) * (ROW_H + ROW_GAP) + ROW_GAP}
+                    clash={clashIds.has(s.id)}
+                    deltaMin={preview?.id === s.id ? preview.deltaMin : 0}
+                    dragging={preview?.id === s.id}
+                    onMouseDown={startDrag}
+                  />
+                ))}
                 {list.length === 0 && (
                   <div className="absolute inset-y-0 left-2 flex items-center text-[11px] text-gray-300">—</div>
                 )}
@@ -580,3 +586,40 @@ function HoursTimeline({ staff, dayShifts, clashIds, fixing, onFixClashes, onCom
     </div>
   );
 }
+
+// A single call block on the timeline. Memoized so that while one block is being
+// dragged, the others (whose props are unchanged) skip re-rendering entirely —
+// only the dragged block, which gets a live `deltaMin`, updates each frame.
+const CallBlock = memo(function CallBlock({ s, top, clash, deltaMin, dragging, onMouseDown }: {
+  s: Shift;
+  top: number;
+  clash: boolean;
+  deltaMin: number;
+  dragging: boolean;
+  onMouseDown: (e: ReactMouseEvent, s: Shift) => void;
+}) {
+  const dur = shiftMins(s);
+  const startMin = hhmmToMin(s.startTime) + deltaMin;
+  const left = (startMin - DAY_START) * PX_PER_MIN;
+  const width = Math.max(30, dur * PX_PER_MIN);
+  const color = s.serviceUser?.site?.color || '#3b82f6';
+  const client = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : (s.visitName || 'Call');
+  return (
+    <div
+      onMouseDown={(e) => onMouseDown(e, s)}
+      title={`${client} · ${formatTime12h(minToHHMM(startMin))}–${formatTime12h(minToHHMM(startMin + dur))}${clash ? ' · CLASH' : ''}`}
+      className={`absolute rounded px-1.5 py-0.5 text-[10px] leading-tight overflow-hidden cursor-grab active:cursor-grabbing shadow-sm ${clash ? 'ring-2 ring-red-500' : 'ring-1 ring-black/5'} ${dragging ? 'opacity-90 z-30 shadow-lg' : ''} ${!s.published ? 'opacity-90' : ''}`}
+      style={{
+        left, width, top, height: ROW_H,
+        backgroundColor: clash ? '#fee2e2' : `${color}22`,
+        pointerEvents: dragging ? 'none' : 'auto',
+      }}
+    >
+      <div className="font-semibold text-gray-800 truncate">
+        {clash && <span title="Overlapping call">⚠ </span>}
+        {formatTime12h(minToHHMM(startMin))}
+      </div>
+      <div className="truncate text-gray-600">{client}</div>
+    </div>
+  );
+});
