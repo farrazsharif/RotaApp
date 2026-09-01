@@ -102,14 +102,18 @@ export default function Rota() {
 
       {/* Week navigator */}
       <div className="flex items-center justify-between mb-2">
-        <button onClick={() => shiftWeek(-1)} aria-label="Previous week" className="flex items-center justify-center h-11 w-11 -ml-1 text-3xl leading-none text-blue-600 border border-gray-200 active:bg-blue-50 rounded-full">‹</button>
+        <button onClick={() => shiftWeek(-1)} aria-label="Previous week" className="flex items-center justify-center h-11 w-11 -ml-1 text-blue-600 border border-gray-200 active:bg-blue-50 rounded-full">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+        </button>
         <div className="text-sm font-semibold text-gray-700">
           {format(weekStart, 'd MMM')} – {format(addDays(weekStart, 6), 'd MMM')}
           {!isCurrentWeek && (
             <button onClick={goToday} className="ml-2 text-xs font-medium text-blue-600">Today</button>
           )}
         </div>
-        <button onClick={() => shiftWeek(1)} aria-label="Next week" className="flex items-center justify-center h-11 w-11 -mr-1 text-3xl leading-none text-blue-600 border border-gray-200 active:bg-blue-50 rounded-full">›</button>
+        <button onClick={() => shiftWeek(1)} aria-label="Next week" className="flex items-center justify-center h-11 w-11 -mr-1 text-blue-600 border border-gray-200 active:bg-blue-50 rounded-full">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+        </button>
       </div>
 
       {/* Day strip */}
