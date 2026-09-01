@@ -131,8 +131,13 @@ export default function ServiceUserDetail() {
     const t = Date.now();
     return p.type !== 'HOSPITAL' && t >= new Date(p.startAt).getTime() && t < new Date(p.endAt).getTime();
   });
-  // An open hospital admission — drives the header pill + management banner.
-  const activeHospital = respitePeriods.find((p) => p.type === 'HOSPITAL' && Date.now() < new Date(p.endAt).getTime());
+  // The current hospital admission — drives the header pill + management banner.
+  // While the client is hospitalised it's the latest HOSPITAL period, even if
+  // the expected return date has already passed (so the office can still extend
+  // it when they haven't come back yet); otherwise the most recent open one.
+  const activeHospital = su?.status === 'HOSPITALISED'
+    ? [...respitePeriods].filter((p) => p.type === 'HOSPITAL').sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime())[0]
+    : respitePeriods.find((p) => p.type === 'HOSPITAL' && Date.now() < new Date(p.endAt).getTime());
 
   const statusMut = useMutation({
     mutationFn: (vars: { status: ServiceUserStatus; effectiveAt?: string; hospitalReturnDate?: string }) =>
