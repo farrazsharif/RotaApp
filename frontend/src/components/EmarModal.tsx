@@ -256,7 +256,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
           <div className="flex items-center gap-3 flex-wrap">
             <div>
               <label className="label">Date</label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input" />
+              <input type="date" value={date} onChange={(e) => { if (e.target.value) setDate(e.target.value); }} className="input" />
             </div>
             {canEdit && (
               <button className="btn-secondary btn ml-auto" onClick={() => setShowAdd((s) => !s)}>

@@ -49,7 +49,11 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
   // A cell the office is recording/correcting (managers only).
   const [cell, setCell] = useState<{ med: Medication; time: string; scheduledFor: string; existing: MedAdministration | null } | null>(null);
 
-  const monthDate = parse(month, 'yyyy-MM', new Date());
+  // A <input type="month"> can briefly emit '' while editing, which parses to an
+  // Invalid Date — and format() throws on that, blanking the page. Fall back to
+  // the current month so the chart never crashes.
+  const parsedMonth = parse(month, 'yyyy-MM', new Date());
+  const monthDate = isNaN(parsedMonth.getTime()) ? new Date() : parsedMonth;
   const daysInMonth = getDaysInMonth(monthDate);
   // Always show all 31 columns, like the paper chart — short months just
   // have trailing columns greyed out since those dates don't exist.
@@ -224,7 +228,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="input" />
+            <input type="month" value={month} onChange={(e) => { if (e.target.value) setMonth(e.target.value); }} className="input" />
             <button className="btn-primary btn" onClick={exportPdf} disabled={charts.length === 0}>Export PDF</button>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
           </div>
