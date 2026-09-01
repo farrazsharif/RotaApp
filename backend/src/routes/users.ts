@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listUsers, getUser, createUser, updateUser, deleteUser, reactivateUser, permanentDeleteUser, resendInvite } from '../controllers/userController';
+import { listUsers, getUser, createUser, updateUser, deleteUser, reactivateUser, permanentDeleteUser, resendInvite, setUserPermissions } from '../controllers/userController';
 import { adminResetPassword, impersonateUser } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
@@ -12,6 +12,7 @@ router.get('/', listUsers);
 router.get('/:id', getUser);
 router.post('/', requirePermission('manage_staff'), createUser);
 router.put('/:id', requirePermission('manage_staff'), updateUser);
+router.put('/:id/permissions', requirePermission('manage_permissions'), setUserPermissions);
 router.post('/:id/reset-password', requirePermission('reset_staff_passwords'), adminResetPassword);
 router.post('/:id/impersonate', requirePermission('manage_staff'), impersonateUser);
 router.post('/:id/resend-invite', requirePermission('manage_staff'), resendInvite);

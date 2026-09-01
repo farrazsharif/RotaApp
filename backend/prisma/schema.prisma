@@ -46,6 +46,10 @@ model User {
   lastName                 String
   role                     String   @default("EMPLOYEE")
   customRoleId             String?
+  // Per-person permission override (JSON array of capability keys). When set, it
+  // fully replaces the role's permissions for this individual. Null = follow the
+  // role (base matrix or custom role).
+  permissionsOverride      String?
   hourlyRate               Float    @default(0)
   phone                    String?
   photo                    String? // profile picture as a base64 data URL

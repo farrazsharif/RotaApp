@@ -8,16 +8,23 @@ import { createPasswordSetupToken, portalUrlForRole } from './authController';
 import { sendEmail, setPasswordEmail } from '../lib/email';
 import { isScoped, staffInScope } from '../lib/scope';
 import { logAudit } from '../lib/audit';
+import { capabilitiesFor, sanitiseCapabilityList } from '../middleware/permissions';
 
 const userSelect = {
   id: true, email: true, firstName: true, lastName: true, role: true,
   hourlyRate: true, phone: true, photo: true, active: true, createdAt: true,
-  customRoleId: true,
-  customRole: { select: { id: true, name: true, baseType: true } },
+  customRoleId: true, permissionsOverride: true,
+  customRole: { select: { id: true, name: true, baseType: true, permissions: true } },
   sites: { select: { id: true, name: true, color: true } },
   emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true,
   fitForWork: true,
 };
+
+// Parse a user's stored permission override (JSON array) or null if unset.
+function parseOverride(raw: string | null | undefined): string[] | null {
+  if (raw == null) return null;
+  try { const v = JSON.parse(raw); return Array.isArray(v) ? v : null; } catch { return null; }
+}
 
 // Resolves an optional custom-role id to a base account type, so an assigned
 // role keeps a consistent base `role`. Throws a 400-style marker on bad id.
@@ -69,7 +76,36 @@ export async function getUser(req: AuthRequest, res: Response) {
   const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: userSelect });
   if (!user) return res.status(404).json({ error: 'User not found' });
   const token = await prisma.passwordSetupToken.findFirst({ where: { userId: user.id }, select: { id: true } });
-  res.json({ ...user, pendingSetup: !user.active && !!token });
+  // Effective capabilities (per-person override > custom role > base matrix) and
+  // the raw override, so the staff page can show and edit per-person permissions.
+  const override = parseOverride(user.permissionsOverride);
+  const roleCaps = (() => { try { return user.customRole ? JSON.parse(user.customRole.permissions) as string[] : null; } catch { return null; } })();
+  const capabilities = await capabilitiesFor(user.role as Role, override ?? roleCaps);
+  const { permissionsOverride, customRole, ...rest } = user;
+  res.json({ ...rest, customRole: customRole ? { id: customRole.id, name: customRole.name, baseType: customRole.baseType } : null, permissionsOverride: override, capabilities, pendingSetup: !user.active && !!token });
+}
+
+// PUT /api/users/:id/permissions — set (or clear) this person's per-person
+// permission override. Body { permissions: string[] | null }. Null reverts them
+// to their role. Not allowed on full admins (they must stay full).
+export async function setUserPermissions(req: AuthRequest, res: Response) {
+  if (!(await staffInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { role: true, firstName: true, lastName: true } });
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (target.role === Role.ADMIN) {
+    return res.status(400).json({ error: "Admins keep full access — set custom permissions on managers and staff instead." });
+  }
+  const raw = (req.body as { permissions?: unknown }).permissions;
+  const value = raw == null ? null : JSON.stringify(sanitiseCapabilityList(raw));
+  await prisma.user.update({ where: { id: req.params.id }, data: { permissionsOverride: value } });
+  await logAudit(req, 'PERMISSIONS_UPDATED', `${target.firstName} ${target.lastName}`, value == null ? 'Reverted to role permissions' : 'Custom per-person permissions set');
+  const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: userSelect });
+  const override = parseOverride(user!.permissionsOverride);
+  const roleCaps = (() => { try { return user!.customRole ? JSON.parse(user!.customRole.permissions) as string[] : null; } catch { return null; } })();
+  const capabilities = await capabilitiesFor(user!.role as Role, override ?? roleCaps);
+  res.json({ permissionsOverride: override, capabilities });
 }
 
 export async function createUser(req: AuthRequest, res: Response) {

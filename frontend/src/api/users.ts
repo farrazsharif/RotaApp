@@ -1,7 +1,10 @@
 import api from '../lib/axios';
-import { User } from '../types';
+import { User, PermissionKey } from '../types';
 
 export const usersApi = {
+  // Set (array) or clear (null) a person's per-person permission override.
+  setPermissions: (id: string, permissions: PermissionKey[] | null) =>
+    api.put<{ permissionsOverride: PermissionKey[] | null; capabilities: PermissionKey[] }>(`/users/${id}/permissions`, { permissions }).then((r) => r.data),
   list: (params?: { role?: string; active?: boolean }) =>
     api.get<User[]>('/users', { params }).then((r) => r.data),
   get: (id: string) => api.get<User>(`/users/${id}`).then((r) => r.data),

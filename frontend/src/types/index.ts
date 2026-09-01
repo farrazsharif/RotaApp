@@ -83,7 +83,8 @@ export interface User {
   pendingSetup?: boolean; // invited but hasn't set a password yet
   customRoleId?: string | null;
   customRole?: { id: string; name: string; baseType: Role } | null;
-  capabilities?: PermissionKey[]; // effective capabilities (from /auth/me)
+  capabilities?: PermissionKey[]; // effective capabilities (from /auth/me or staff page)
+  permissionsOverride?: PermissionKey[] | null; // per-person override (null = follow role)
   sites?: { id: string; name: string; color: string }[]; // scoped sites (empty = org-wide)
   emergencyContactName?: string;
   emergencyContactPhone?: string;

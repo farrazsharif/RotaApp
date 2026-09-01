@@ -31,7 +31,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, companyId: true, role: true, email: true, active: true, platformAdmin: true, customRole: { select: { permissions: true } }, sites: { select: { id: true } } },
+      select: { id: true, companyId: true, role: true, email: true, active: true, platformAdmin: true, permissionsOverride: true, customRole: { select: { permissions: true } }, sites: { select: { id: true } } },
     });
     if (!user || !user.active) {
       return res.status(401).json({ error: 'Account not found or inactive' });
@@ -54,8 +54,12 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         return res.status(402).json({ error: 'Your subscription is inactive', code: 'SUBSCRIPTION_INACTIVE' });
       }
     }
+    // Per-person override wins outright; otherwise a custom role's list; else the
+    // base-role matrix (customPermissions stays null).
     let customPermissions: string[] | null = null;
-    if (user.customRole) {
+    if (user.permissionsOverride != null) {
+      try { customPermissions = JSON.parse(user.permissionsOverride); } catch { customPermissions = []; }
+    } else if (user.customRole) {
       try { customPermissions = JSON.parse(user.customRole.permissions); } catch { customPermissions = []; }
     }
     req.user = { id: user.id, companyId: user.companyId, role: user.role as Role, email: user.email, platformAdmin: user.platformAdmin, customPermissions, siteIds: user.sites.map((s) => s.id) };

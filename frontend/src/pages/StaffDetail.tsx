@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
+import { settingsApi } from '../api/settings';
 import { trainingApi, TrainingData } from '../api/training';
 import { importantDatesApi, ImportantDateData } from '../api/importantDates';
 import { staffSupervisionApi, Supervision } from '../api/staffSupervision';
 import SupervisionFormModal from '../components/SupervisionFormModal';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
-import { Role, Training, ImportantDate, FitForWork, YesNo, User, roleLabel } from '../types';
+import { Role, Training, ImportantDate, FitForWork, YesNo, User, PermissionKey, roleLabel } from '../types';
 import { format } from 'date-fns';
 import CarerRota from '../components/CarerRota';
 import StaffFormModal from '../components/StaffFormModal';
@@ -24,7 +25,7 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-const TABS = ['Details', 'Rota', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'Supervision', 'Documents'] as const;
+const TABS = ['Details', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'Supervision', 'Documents'] as const;
 type Tab = typeof TABS[number];
 
 // The health-declaration checklist from the paper "Fit for Work Declaration".
@@ -196,7 +197,7 @@ export default function StaffDetail() {
 
       <div className="border-b border-gray-200">
         <nav className="flex flex-wrap gap-1 -mb-px">
-          {TABS.map((t) => (
+          {TABS.filter((t) => t !== 'Permissions' || (can('manage_permissions') && user.role !== 'ADMIN')).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -232,6 +233,9 @@ export default function StaffDetail() {
         </div>
       )}
 
+      {tab === 'Permissions' && can('manage_permissions') && user.role !== 'ADMIN' && (
+        <PermissionsTab userId={user.id} initial={user} />
+      )}
       {tab === 'Rota' && <CarerRota userId={user.id} staffName={`${user.firstName} ${user.lastName}`} />}
       {tab === 'Training' && <TrainingTab userId={user.id} isManager={isManager} />}
       {tab === 'Important Dates' && <ImportantDatesTab userId={user.id} isManager={isManager} />}
@@ -435,6 +439,58 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PermissionsTab({ userId, initial }: { userId: string; initial: User }) {
+  const qc = useQueryClient();
+  const { data: perm } = useQuery({ queryKey: ['permissions'], queryFn: settingsApi.getPermissions });
+  const defs = perm?.definitions ?? [];
+  const groups = [...new Set(defs.map((d) => d.group))];
+  const [custom, setCustom] = useState(!!initial.permissionsOverride);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initial.permissionsOverride ?? initial.capabilities ?? []));
+  const [saved, setSaved] = useState(false);
+
+  const toggle = (k: string) => { setSaved(false); setSelected((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; }); };
+  const saveMut = useMutation({
+    mutationFn: () => usersApi.setPermissions(userId, custom ? ([...selected] as PermissionKey[]) : null),
+    onSuccess: () => { setSaved(true); qc.invalidateQueries({ queryKey: ['user', userId] }); },
+  });
+
+  return (
+    <div className="card space-y-4 max-w-2xl">
+      <div>
+        <h2 className="font-semibold text-gray-900">Permissions — {initial.firstName} {initial.lastName}</h2>
+        <p className="text-sm text-gray-500">By default this person follows their role ({initial.customRole?.name || roleLabel(initial.role)}). Turn on custom permissions to set exactly what they can do.</p>
+      </div>
+      <label className="flex items-center gap-2 text-sm text-gray-800">
+        <input type="checkbox" checked={custom} onChange={(e) => { setCustom(e.target.checked); setSaved(false); }} className="h-4 w-4 accent-blue-600" />
+        Set custom permissions for this person
+      </label>
+      {custom && (
+        <div className="space-y-4">
+          {groups.map((g) => (
+            <div key={g}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">{g}</p>
+              <div className="space-y-1.5">
+                {defs.filter((d) => d.group === g).map((d) => (
+                  <label key={d.key} className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={selected.has(d.key)} onChange={() => toggle(d.key)} className="h-4 w-4 accent-blue-600" />
+                    {d.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-3 border-t pt-3">
+        {saved && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
+        {saveMut.isError && <span className="text-sm text-red-600">{(saveMut.error as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Could not save.'}</span>}
+        <div className="flex-1" />
+        <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>{saveMut.isPending ? 'Saving…' : 'Save permissions'}</button>
+      </div>
     </div>
   );
 }
