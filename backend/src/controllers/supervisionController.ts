@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
+import { isScoped, relatedServiceUserScopeWhere } from '../lib/scope';
 
 // How often each active carer should be spot-checked. Constant for Phase 1;
 // can move to an org setting later.
@@ -35,22 +36,25 @@ const spotCheckSelect = {
 };
 
 // GET /api/supervision/summary — everything the supervision dashboard needs.
-export async function supervisionSummary(_req: AuthRequest, res: Response) {
+export async function supervisionSummary(req: AuthRequest, res: Response) {
   const now = new Date();
   const soon = new Date(now.getTime() + SOON_DAYS * DAY);
+  // Site-scoped managers only see clients/staff on their sites.
+  const suScope = relatedServiceUserScopeWhere(req.user);
+  const staffScope = isScoped(req.user) ? { sites: { some: { id: { in: req.user!.siteIds } } } } : {};
 
   const [reviews, carePlans, carers, checks, supervisions] = await Promise.all([
     prisma.review.findMany({
-      where: { nextReviewDate: { not: null, lte: soon } },
+      where: { nextReviewDate: { not: null, lte: soon }, ...suScope },
       select: { id: true, serviceUserId: true, nextReviewDate: true, serviceUser: { select: { firstName: true, lastName: true } } },
       orderBy: { nextReviewDate: 'asc' },
     }),
     prisma.carePlan.findMany({
-      where: { reviewDate: { not: null, lte: soon } },
+      where: { reviewDate: { not: null, lte: soon }, ...suScope },
       select: { serviceUserId: true, reviewDate: true, serviceUser: { select: { firstName: true, lastName: true } } },
       orderBy: { reviewDate: 'asc' },
     }),
-    prisma.user.findMany({ where: { active: true, role: { notIn: [Role.ADMIN, Role.FAMILY_MEMBER] } }, select: { id: true, firstName: true, lastName: true } }),
+    prisma.user.findMany({ where: { active: true, role: { notIn: [Role.ADMIN, Role.FAMILY_MEMBER] }, ...staffScope }, select: { id: true, firstName: true, lastName: true } }),
     prisma.spotCheck.findMany({ select: { id: true, carerId: true, date: true, observerName: true, answers: true, source: true }, orderBy: { date: 'desc' } }),
     prisma.supervision.findMany({ select: { userId: true, nextReviewDate: true, date: true }, orderBy: { date: 'desc' } }),
   ]);
@@ -59,7 +63,8 @@ export async function supervisionSummary(_req: AuthRequest, res: Response) {
   // date (auto-set to +3 months) has passed.
   const latestSupByUser = new Map<string, Date | null>();
   for (const s of supervisions) if (!latestSupByUser.has(s.userId)) latestSupByUser.set(s.userId, s.nextReviewDate);
-  const supervisionsDueCount = [...latestSupByUser.values()].filter((d) => !!d && d <= now).length;
+  // Only count staff within scope (the carers list is already site-filtered).
+  const supervisionsDueCount = carers.filter((c) => { const d = latestSupByUser.get(c.id); return !!d && d <= now; }).length;
 
   // Latest spot check per carer (checks are newest-first, so first wins).
   const latestByCarer = new Map<string, { id: string; date: Date; observerName: string | null; concerns: number; source: string }>();
@@ -108,6 +113,8 @@ export async function listSpotChecks(req: AuthRequest, res: Response) {
   const { carerId } = req.query;
   const where: Record<string, unknown> = {};
   if (typeof carerId === 'string') where.carerId = carerId;
+  // Site-scoped managers only see spot checks for carers on their sites.
+  if (isScoped(req.user)) where.carer = { sites: { some: { id: { in: req.user!.siteIds } } } };
   const items = await prisma.spotCheck.findMany({ where, orderBy: { date: 'desc' }, select: spotCheckSelect });
   res.json(items);
 }

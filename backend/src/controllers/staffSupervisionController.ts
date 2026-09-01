@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { isScoped } from '../lib/scope';
 
 // answers / observations are stored as JSON strings. Accept either a string or
 // an object from the client and always persist a valid JSON string.
@@ -36,6 +37,8 @@ export async function listSupervisions(req: AuthRequest, res: Response) {
   const { userId } = req.query;
   const where: Record<string, unknown> = {};
   if (userId) where.userId = String(userId);
+  // Site-scoped managers only see supervisions for staff on their sites.
+  if (isScoped(req.user)) where.user = { sites: { some: { id: { in: req.user!.siteIds } } } };
   const items = await prisma.supervision.findMany({
     where,
     orderBy: { date: 'desc' },
