@@ -14,9 +14,19 @@ import { logAudit } from '../lib/audit';
 // Which front-end a password/invite link should open in, by the user's role:
 //   FAMILY_MEMBER → family portal, EMPLOYEE (carer) → Caremid Carer app,
 //   ADMIN/MANAGER → main Caremid app.
+// Derive a sibling app's URL from CLIENT_URL by swapping the first subdomain
+// label (portal.caremid.co.uk -> carer.caremid.co.uk), so reset/invite links
+// still work when CARER_APP_URL / FAMILY_PORTAL_URL aren't set — never localhost
+// in production.
+function siblingUrl(sub: string): string | null {
+  const base = process.env.CLIENT_URL;
+  if (!base) return null;
+  try { const u = new URL(base); u.host = u.host.replace(/^[^.]+\./, `${sub}.`); return u.origin; } catch { return null; }
+}
+
 export function portalUrlForRole(role: string): string {
-  if (role === Role.FAMILY_MEMBER) return process.env.FAMILY_PORTAL_URL || 'http://localhost:5175';
-  if (role === Role.EMPLOYEE) return process.env.CARER_APP_URL || 'http://localhost:5174';
+  if (role === Role.FAMILY_MEMBER) return process.env.FAMILY_PORTAL_URL || siblingUrl('family') || 'http://localhost:5175';
+  if (role === Role.EMPLOYEE) return process.env.CARER_APP_URL || siblingUrl('carer') || 'http://localhost:5174';
   return process.env.CLIENT_URL || 'http://localhost:5173';
 }
 
@@ -152,10 +162,14 @@ export async function adminResetPassword(req: AuthRequest, res: Response) {
     return res.json({ message: 'Password updated' });
   }
 
-  // Default: email a reset link.
+  // Default: email a reset link. Await the send and surface a real failure so
+  // the admin isn't told "sent" when delivery actually failed.
   const token = await createPasswordSetupToken(id);
   const link = `${portalUrlForRole(user.role)}/set-password?token=${token}`;
-  sendEmail(user.email, 'Reset your Caremid password', resetPasswordEmail(user.firstName, link));
+  const sent = await sendEmail(user.email, 'Reset your Caremid password', resetPasswordEmail(user.firstName, link));
+  if (!sent) {
+    return res.status(502).json({ error: 'Reset link could not be emailed — check the mail settings. You can set a password manually instead.' });
+  }
   await logAudit(req, 'PASSWORD_RESET_SENT', `${user.firstName} ${user.lastName}`, user.email);
   res.json({ message: 'Reset email sent', email: user.email });
 }

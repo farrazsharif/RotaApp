@@ -55,10 +55,13 @@ async function sendViaBrevo(to: string, subject: string, html: string) {
   }
 }
 
-export async function sendEmail(to: string, subject: string, html: string) {
+// Returns true if the message was sent (or console-logged in dev), false if a
+// configured transport failed — so callers can surface a real delivery failure
+// instead of reporting a false success.
+export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   if (!process.env.BREVO_API_KEY && !process.env.SMTP_HOST) {
     console.log(`[EMAIL] To: ${to} | Subject: ${subject}`);
-    return;
+    return true;
   }
   try {
     if (process.env.BREVO_API_KEY) {
@@ -71,8 +74,10 @@ export async function sendEmail(to: string, subject: string, html: string) {
         html,
       });
     }
+    return true;
   } catch (err) {
     console.error('Email send failed:', err);
+    return false;
   }
 }
 

@@ -254,11 +254,13 @@ function PasswordCard({ userId, email }: { userId: string; email: string }) {
   const [mode, setMode] = useState<'idle' | 'set'>('idle');
   const [pw, setPw] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const readErr = (e: unknown) => (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
 
   const emailMut = useMutation({
     mutationFn: () => usersApi.resetPassword(userId, { mode: 'email' }),
     onSuccess: (r) => { setMsg(`Reset link sent to ${r.email || email}.`); },
-    onError: () => setMsg('Could not send reset email. Check the mail settings.'),
+    onError: (e) => setErr(readErr(e) || 'Could not send reset email — check the mail settings.'),
   });
 
   const setMut = useMutation({
@@ -271,7 +273,7 @@ function PasswordCard({ userId, email }: { userId: string; email: string }) {
       setMsg('Password set and account activated. Share the password with them securely — they can log in now.');
       setPw(''); setMode('idle');
     },
-    onError: () => setMsg('Could not update password.'),
+    onError: (e) => setErr(readErr(e) || 'Could not update password.'),
   });
 
   return (
@@ -283,10 +285,10 @@ function PasswordCard({ userId, email }: { userId: string; email: string }) {
 
       {mode === 'idle' ? (
         <div className="flex flex-wrap gap-3">
-          <button className="btn-primary btn" disabled={emailMut.isPending} onClick={() => { setMsg(null); emailMut.mutate(); }}>
+          <button className="btn-primary btn" disabled={emailMut.isPending} onClick={() => { setMsg(null); setErr(null); emailMut.mutate(); }}>
             {emailMut.isPending ? 'Sending…' : 'Send reset email'}
           </button>
-          <button className="btn-secondary btn" onClick={() => { setMsg(null); setMode('set'); }}>
+          <button className="btn-secondary btn" onClick={() => { setMsg(null); setErr(null); setMode('set'); }}>
             Set password manually
           </button>
         </div>
@@ -296,7 +298,7 @@ function PasswordCard({ userId, email }: { userId: string; email: string }) {
             <label className="label">New password (min 6 chars)</label>
             <input type="text" value={pw} onChange={(e) => setPw(e.target.value)} className="input w-64" placeholder="Type a new password" />
           </div>
-          <button className="btn-primary btn" disabled={pw.length < 6 || setMut.isPending} onClick={() => { setMsg(null); setMut.mutate(); }}>
+          <button className="btn-primary btn" disabled={pw.length < 6 || setMut.isPending} onClick={() => { setMsg(null); setErr(null); setMut.mutate(); }}>
             {setMut.isPending ? 'Saving…' : 'Save password'}
           </button>
           <button className="btn-secondary btn" onClick={() => { setMode('idle'); setPw(''); }}>Cancel</button>
@@ -304,6 +306,7 @@ function PasswordCard({ userId, email }: { userId: string; email: string }) {
       )}
 
       {msg && <p className="text-sm text-green-700">{msg}</p>}
+      {err && <p className="text-sm text-red-600">{err}</p>}
     </div>
   );
 }
