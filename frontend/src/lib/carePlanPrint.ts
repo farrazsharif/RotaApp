@@ -109,6 +109,10 @@ export function printCarePlan(serviceUser: ServiceUser, data: CarePlanPrintData,
       <div class="field"><div class="field-label">NHS Number</div><div class="field-value">${esc(serviceUser.nhsNumber || '—')}</div></div>
       <div class="field"><div class="field-label">Phone</div><div class="field-value">${esc(serviceUser.phone || '—')}</div></div>
       <div class="field"><div class="field-label">Address</div><div class="field-value">${esc([serviceUser.address, serviceUser.postcode].filter(Boolean).join(', ') || '—')}</div></div>
+      <div class="field"><div class="field-label">Package ID</div><div class="field-value">${esc(serviceUser.packageId || '—')}</div></div>
+      <div class="field"><div class="field-label">GP</div><div class="field-value">${esc([serviceUser.gpName, serviceUser.gpPractice, serviceUser.gpPhone].filter(Boolean).join(' · ') || '—')}</div></div>
+      <div class="field"><div class="field-label">Emergency Contact</div><div class="field-value">${esc([serviceUser.emergencyContactName, serviceUser.emergencyContactRelation ? `(${serviceUser.emergencyContactRelation})` : '', serviceUser.emergencyContactPhone || serviceUser.emergencyContactMobile].filter(Boolean).join(' · ') || '—')}</div></div>
+      <div class="field"><div class="field-label">Next of Kin</div><div class="field-value">${esc([serviceUser.nextOfKinName, serviceUser.nextOfKinRelation ? `(${serviceUser.nextOfKinRelation})` : '', serviceUser.nextOfKinPhone || serviceUser.nextOfKinMobile].filter(Boolean).join(' · ') || '—')}</div></div>
     </div>
 
     <h2>Profile</h2>
