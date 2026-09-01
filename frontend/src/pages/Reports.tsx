@@ -17,7 +17,7 @@ import SearchableSelect from '../components/SearchableSelect';
 import PrintBrandingHeader from '../components/PrintBrandingHeader';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
-type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm' | 'rota';
+type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm' | 'rota' | 'clientdb';
 
 const TIMELINE_PRESETS = [
   'Next Week', 'This Week', 'Last Week', 'Two Weeks Ago',
@@ -126,7 +126,7 @@ export default function Reports() {
   const { data: activeServiceUsers = [] } = useQuery({
     queryKey: ['service-users', 'active'],
     queryFn: () => serviceUsersApi.list({ active: true }),
-    enabled: tab === 'capacity',
+    enabled: tab === 'capacity' || tab === 'clientdb',
   });
 
   const { data: ecmData = [], isLoading: loadingEcm } = useQuery({
@@ -187,6 +187,7 @@ export default function Reports() {
     { key: 'coverage', label: 'Shift Coverage' },
     { key: 'ecm', label: 'ECM' },
     { key: 'capacity', label: 'CQC PIR' },
+    { key: 'clientdb', label: 'Client Database' },
   ];
 
   const term = search.trim().toLowerCase();
@@ -198,6 +199,53 @@ export default function Reports() {
     (r) => !term || r.employee.toLowerCase().includes(term) || r.serviceUser.toLowerCase().includes(term),
   );
   const filteredOvertime = overtimeData.filter((r) => !term || r.name.toLowerCase().includes(term));
+
+  // --- Client Database report (matches the "Active Client Database" sheet) ---
+  const parseVisitCover = (json?: string): number => {
+    try { const a = JSON.parse(json || '[]'); return Array.isArray(a) ? Math.max(1, ...a.map((v: { cover?: number }) => Number(v.cover) || 1)) : 1; } catch { return 1; }
+  };
+  const clientActivity = (su: { needsPersonalCare?: boolean; needsMedication?: boolean; needsMobility?: boolean; visits?: string }): string => {
+    const parts: string[] = [];
+    if (su.needsPersonalCare) parts.push('Personal Care');
+    if (su.needsMedication) parts.push('Medication');
+    if (su.needsMobility) parts.push('Mobility');
+    let s = parts.join(', ');
+    const cover = parseVisitCover(su.visits);
+    if (cover >= 2) s += `${s ? ' - ' : ''}${cover} Carers`;
+    return s;
+  };
+  const fmtDate = (d?: string) => (d ? format(parseISO(d), 'dd/MM/yyyy') : '');
+  const clientRows = activeServiceUsers
+    .filter((su) => su.status !== 'DISCHARGED' && su.status !== 'DECEASED')
+    .filter((su) => siteFilter.length === 0 || (su.siteId && siteFilter.includes(su.siteId)))
+    .filter((su) => !term || `${su.firstName} ${su.lastName}`.toLowerCase().includes(term))
+    .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`));
+  const clientTotalHours = clientRows.reduce((sum, su) => sum + (Number(su.contractedWeeklyHours) || 0), 0);
+  const clientDbSiteLabel = siteFilter.length === 1 ? (sites.find((s) => s.id === siteFilter[0])?.name || '') : siteFilter.length ? `${siteFilter.length} Locations` : 'All Locations';
+
+  function exportClientDb() {
+    const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const headers = ['Package ID', 'Name', 'DOB', 'Address', 'Contact No', 'Activity', 'Planned Package Hours Per Week', 'Key Safe', 'Start Date', 'End Date'];
+    const lines: string[] = [];
+    lines.push(q(`Active Client Database - ${clientDbSiteLabel}`));
+    lines.push(`${q('Total Hours')},${q(clientTotalHours)}`);
+    lines.push('');
+    lines.push(headers.map(q).join(','));
+    for (const su of clientRows) {
+      lines.push([
+        su.packageId, `${su.firstName} ${su.lastName}`, fmtDate(su.dateOfBirth),
+        [su.address, su.postcode].filter(Boolean).join(', '), su.phone, clientActivity(su),
+        su.contractedWeeklyHours ?? '', su.keySafe, fmtDate(su.serviceStartDate), '',
+      ].map(q).join(','));
+    }
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `client-database_${clientDbSiteLabel.replace(/[^a-z0-9]+/gi, '-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // Branded, printable Crib Sheet — opens a new window with the company
   // letterhead and the current (filtered) rows, then prints.
@@ -349,7 +397,7 @@ export default function Reports() {
           <label className="label">End Date</label>
           <input type="date" value={endDate} onChange={(e) => { setTimeline(''); setEndDate(e.target.value); }} className="input" />
         </div>
-        {(tab === 'scheduled' || tab === 'ecm' || tab === 'crib') && (
+        {(tab === 'scheduled' || tab === 'ecm' || tab === 'crib' || tab === 'clientdb') && (
           <>
             <div className="w-44">
               <label className="label">Location Filter</label>
@@ -475,6 +523,56 @@ export default function Reports() {
             {unknownAgeCount > 0 && (
               <p className="text-xs text-amber-600 mt-2">{unknownAgeCount} active service user{unknownAgeCount > 1 ? 's have' : ' has'} no date of birth recorded and {unknownAgeCount > 1 ? 'are' : 'is'} not included in the age brackets.</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Client Database — active clients + care package, exportable per site */}
+      {tab === 'clientdb' && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-gray-900">Active Client Database — {clientDbSiteLabel}</h2>
+              <p className="text-sm text-gray-500">{clientRows.length} client{clientRows.length === 1 ? '' : 's'} · Total planned hours/week: <span className="font-semibold text-gray-700">{clientTotalHours}</span></p>
+            </div>
+            <button className="btn-primary btn" disabled={clientRows.length === 0} onClick={exportClientDb}>⭳ Export CSV</button>
+          </div>
+          <div className="card p-0 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-left text-xs text-gray-500">
+                  <th className="px-3 py-2">Package ID</th>
+                  <th className="px-3 py-2">Name</th>
+                  <th className="px-3 py-2">DOB</th>
+                  <th className="px-3 py-2">Address</th>
+                  <th className="px-3 py-2">Contact No</th>
+                  <th className="px-3 py-2">Activity</th>
+                  <th className="px-3 py-2 text-right">Planned Hrs/Wk</th>
+                  <th className="px-3 py-2">Key Safe</th>
+                  <th className="px-3 py-2">Start Date</th>
+                  <th className="px-3 py-2">End Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clientRows.map((su) => (
+                  <tr key={su.id} className="border-t">
+                    <td className="px-3 py-2 text-gray-600">{su.packageId || '—'}</td>
+                    <td className="px-3 py-2 font-medium text-gray-900">{su.firstName} {su.lastName}</td>
+                    <td className="px-3 py-2 text-gray-600">{fmtDate(su.dateOfBirth)}</td>
+                    <td className="px-3 py-2 text-gray-600">{[su.address, su.postcode].filter(Boolean).join(', ') || '—'}</td>
+                    <td className="px-3 py-2 text-gray-600">{su.phone || '—'}</td>
+                    <td className="px-3 py-2 text-gray-600">{clientActivity(su) || '—'}</td>
+                    <td className="px-3 py-2 text-right text-gray-600">{su.contractedWeeklyHours ?? '—'}</td>
+                    <td className="px-3 py-2 text-gray-600">{su.keySafe || '—'}</td>
+                    <td className="px-3 py-2 text-gray-600">{fmtDate(su.serviceStartDate) || '—'}</td>
+                    <td className="px-3 py-2 text-gray-600">—</td>
+                  </tr>
+                ))}
+                {clientRows.length === 0 && (
+                  <tr><td colSpan={10} className="px-3 py-8 text-center text-gray-400">No active clients for this location.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
