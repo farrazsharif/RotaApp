@@ -89,6 +89,7 @@ export interface User {
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
+  emergencyContactAddress?: string;
   fitForWork?: FitForWork | null;
   createdAt: string;
 }

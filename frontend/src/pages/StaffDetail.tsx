@@ -595,18 +595,20 @@ function ImportantDatesTab({ userId, isManager }: { userId: string; isManager: b
   );
 }
 
-function EmergencyContactTab({ userId, isManager, initial }: { userId: string; isManager: boolean; initial: { emergencyContactName?: string; emergencyContactPhone?: string; emergencyContactRelation?: string } }) {
+function EmergencyContactTab({ userId, isManager, initial }: { userId: string; isManager: boolean; initial: { emergencyContactName?: string; emergencyContactPhone?: string; emergencyContactRelation?: string; emergencyContactAddress?: string } }) {
   const qc = useQueryClient();
   const ro = !isManager;
   const [name, setName] = useState(initial.emergencyContactName || '');
   const [phone, setPhone] = useState(initial.emergencyContactPhone || '');
   const [relation, setRelation] = useState(initial.emergencyContactRelation || '');
+  const [address, setAddress] = useState(initial.emergencyContactAddress || '');
 
   const saveMut = useMutation({
     mutationFn: () => usersApi.update(userId, {
       emergencyContactName: name || undefined,
       emergencyContactPhone: phone || undefined,
       emergencyContactRelation: relation || undefined,
+      emergencyContactAddress: address || undefined,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['user', userId] }); },
   });
@@ -624,6 +626,10 @@ function EmergencyContactTab({ userId, isManager, initial }: { userId: string; i
       <div>
         <label className="label">Relationship</label>
         {ro ? <p className="text-sm text-gray-800">{relation || '—'}</p> : <input value={relation} onChange={(e) => setRelation(e.target.value)} className="input" />}
+      </div>
+      <div>
+        <label className="label">Address</label>
+        {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{address || '—'}</p> : <textarea value={address} rows={2} onChange={(e) => setAddress(e.target.value)} className="input resize-none" />}
       </div>
       {isManager && (
         <div className="flex gap-3 pt-2">

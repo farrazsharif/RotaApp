@@ -16,7 +16,7 @@ const userSelect = {
   customRoleId: true, permissionsOverride: true,
   customRole: { select: { id: true, name: true, baseType: true, permissions: true } },
   sites: { select: { id: true, name: true, color: true } },
-  emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true,
+  emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true, emergencyContactAddress: true,
   fitForWork: true,
 };
 
@@ -161,7 +161,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (!(await staffInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, fitForWork } = req.body;
+  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, emergencyContactAddress, fitForWork } = req.body;
   const data: Record<string, unknown> = {};
   // Changing the login email — must stay unique. Only admins may change the
   // email of another admin account.
@@ -201,6 +201,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (emergencyContactName !== undefined) data.emergencyContactName = emergencyContactName || null;
   if (emergencyContactPhone !== undefined) data.emergencyContactPhone = emergencyContactPhone || null;
   if (emergencyContactRelation !== undefined) data.emergencyContactRelation = emergencyContactRelation || null;
+  if (emergencyContactAddress !== undefined) data.emergencyContactAddress = emergencyContactAddress || null;
   if (fitForWork !== undefined) data.fitForWork = fitForWork ?? null;
 
   const user = await prisma.user.update({ where: { id: req.params.id }, data, select: userSelect });

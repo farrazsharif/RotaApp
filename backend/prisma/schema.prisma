@@ -60,6 +60,7 @@ model User {
   emergencyContactName     String?
   emergencyContactPhone    String?
   emergencyContactRelation String?
+  emergencyContactAddress  String?
   // Fit for Work Declaration (staff health questionnaire + signature),
   // stored as one JSON blob. See FitForWork type on the frontend.
   fitForWork               Json?
