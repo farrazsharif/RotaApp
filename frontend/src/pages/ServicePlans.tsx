@@ -58,10 +58,12 @@ export default function ServicePlans() {
   }
 
   const term = search.trim().toLowerCase();
-  const filtered = serviceUsers.filter((su) => !term || `${su.firstName} ${su.lastName}`.toLowerCase().includes(term));
+  // Exclude clients whose care has ended (discharged / deceased).
+  const onCaseload = serviceUsers.filter((su) => su.status !== 'DISCHARGED' && su.status !== 'DECEASED');
+  const filtered = onCaseload.filter((su) => !term || `${su.firstName} ${su.lastName}`.toLowerCase().includes(term));
 
-  const totalClients = serviceUsers.length;
-  const withPlan = serviceUsers.filter((su) => planMap.has(su.id)).length;
+  const totalClients = onCaseload.length;
+  const withPlan = onCaseload.filter((su) => planMap.has(su.id)).length;
   const missingPlan = totalClients - withPlan;
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
