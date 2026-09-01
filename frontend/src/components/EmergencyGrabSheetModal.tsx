@@ -122,14 +122,8 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
               <Row label="Forename" value={su.firstName} />
               <Row label="Surname" value={su.lastName} />
               <Row label="Preferred Name" value={su.preferredName} />
-              <div className="grid grid-cols-3 border-b border-gray-300">
-                <div className="col-span-1 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 border-r border-gray-300">Social Service Ref No.</div>
-                <div className="col-span-2 px-3 py-1.5">
-                  {canManage
-                    ? <input value={g.socialServiceRef || ''} onChange={(e) => set('socialServiceRef', e.target.value)} className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm print:border-0" />
-                    : <span className="text-sm">{g.socialServiceRef || '—'}</span>}
-                </div>
-              </div>
+              <Row label="Package ID" value={su.packageId} />
+              <Row label="NHS No" value={su.nhsNumber} />
               <Row label="Home Address" value={su.address} />
               <Row label="Postcode" value={su.postcode} />
               <Row label="Telephone Number" value={su.phone} />
