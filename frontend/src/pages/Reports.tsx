@@ -223,28 +223,69 @@ export default function Reports() {
   const clientTotalHours = clientRows.reduce((sum, su) => sum + (Number(su.contractedWeeklyHours) || 0), 0);
   const clientDbSiteLabel = siteFilter.length === 1 ? (sites.find((s) => s.id === siteFilter[0])?.name || '') : siteFilter.length ? `${siteFilter.length} Locations` : 'All Locations';
 
-  function exportClientDb() {
-    const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const headers = ['Package ID', 'Name', 'DOB', 'Address', 'Contact No', 'Activity', 'Planned Package Hours Per Week', 'Key Safe', 'Start Date', 'End Date'];
-    const lines: string[] = [];
-    lines.push(q(`Active Client Database - ${clientDbSiteLabel}`));
-    lines.push(`${q('Total Hours')},${q(clientTotalHours)}`);
-    lines.push('');
-    lines.push(headers.map(q).join(','));
-    for (const su of clientRows) {
-      lines.push([
-        su.packageId, `${su.firstName} ${su.lastName}`, fmtDate(su.dateOfBirth),
-        [su.address, su.postcode].filter(Boolean).join(', '), su.phone, clientActivity(su),
-        su.contractedWeeklyHours ?? '', su.keySafe, fmtDate(su.serviceStartDate), '',
-      ].map(q).join(','));
+  const [exporting, setExporting] = useState(false);
+  async function exportClientDb() {
+    setExporting(true);
+    try {
+      const ExcelJS = (await import('exceljs')).default;
+      const headers = ['Package ID', 'Name', 'DOB', 'Address', 'Contact No', 'Activity', 'Planned Package Hours Per Week', 'Key Safe', 'Start Date', 'End Date'];
+      const widths = [14, 26, 12, 42, 16, 26, 16, 14, 12, 12];
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Client Database', { views: [{ state: 'frozen', ySplit: 4 }] });
+      ws.columns = widths.map((w) => ({ width: w }));
+      const thin = { style: 'thin' as const, color: { argb: 'FFCFCFCF' } };
+      const border = { top: thin, bottom: thin, left: thin, right: thin };
+
+      ws.mergeCells(1, 1, 1, headers.length);
+      const title = ws.getCell(1, 1);
+      title.value = `Active Client Database - ${clientDbSiteLabel}`;
+      title.font = { bold: true, size: 14, color: { argb: 'FF1F4E79' } };
+      ws.getRow(1).height = 24;
+
+      ws.getCell(2, 1).value = 'Total Hours';
+      ws.getCell(2, 1).font = { bold: true };
+      const totalCell = ws.getCell(2, 2);
+      totalCell.value = clientTotalHours;
+      totalCell.font = { bold: true };
+
+      const headerRow = ws.getRow(4);
+      headers.forEach((h, i) => {
+        const c = headerRow.getCell(i + 1);
+        c.value = h;
+        c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F5496' } };
+        c.alignment = { vertical: 'middle', wrapText: true };
+        c.border = border;
+      });
+      headerRow.height = 30;
+
+      clientRows.forEach((su, idx) => {
+        const r = ws.getRow(5 + idx);
+        const vals: (string | number)[] = [
+          su.packageId || '', `${su.firstName} ${su.lastName}`, fmtDate(su.dateOfBirth),
+          [su.address, su.postcode].filter(Boolean).join(', '), su.phone || '', clientActivity(su),
+          su.contractedWeeklyHours ?? '', su.keySafe || '', fmtDate(su.serviceStartDate), '',
+        ];
+        vals.forEach((v, i) => {
+          const c = r.getCell(i + 1);
+          c.value = v;
+          c.border = border;
+          c.alignment = { vertical: 'top', wrapText: i === 3 };
+        });
+        r.getCell(7).alignment = { horizontal: 'right', vertical: 'top' };
+      });
+
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `client-database_${clientDbSiteLabel.replace(/[^a-z0-9]+/gi, '-')}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
     }
-    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `client-database_${clientDbSiteLabel.replace(/[^a-z0-9]+/gi, '-')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   // Branded, printable Crib Sheet — opens a new window with the company
@@ -535,7 +576,7 @@ export default function Reports() {
               <h2 className="font-semibold text-gray-900">Active Client Database — {clientDbSiteLabel}</h2>
               <p className="text-sm text-gray-500">{clientRows.length} client{clientRows.length === 1 ? '' : 's'} · Total planned hours/week: <span className="font-semibold text-gray-700">{clientTotalHours}</span></p>
             </div>
-            <button className="btn-primary btn" disabled={clientRows.length === 0} onClick={exportClientDb}>⭳ Export CSV</button>
+            <button className="btn-primary btn" disabled={clientRows.length === 0 || exporting} onClick={exportClientDb}>{exporting ? 'Exporting…' : '⭳ Export Excel'}</button>
           </div>
           <div className="card p-0 overflow-x-auto">
             <table className="w-full text-sm">
