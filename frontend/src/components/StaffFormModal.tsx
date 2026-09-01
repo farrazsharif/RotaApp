@@ -65,6 +65,10 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
 
   const onSuccess = (user: User) => {
     qc.invalidateQueries({ queryKey: ['users'] });
+    // Also refresh the individual staff record so the detail page (and this
+    // modal's initial data) reflect the change immediately — otherwise the save
+    // succeeds but the page shows stale sites/details until a later refetch.
+    qc.invalidateQueries({ queryKey: ['user', user.id] });
     onSaved?.(user);
     onClose();
   };
