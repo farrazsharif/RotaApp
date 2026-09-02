@@ -31,10 +31,15 @@ function userColor(userId: string | undefined, users: { id: string }[]): string 
   return COLORS[idx % COLORS.length] || '#3b82f6';
 }
 
-function isPastShift(date: string | Date, endTime: string): boolean {
+function isPastShift(date: string | Date, startTime: string, endTime: string): boolean {
   const d = new Date(date);
+  const [sh, sm] = (startTime || '00:00').split(':').map(Number);
   const [eh, em] = endTime.split(':').map(Number);
   const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em, 0);
+  // Overnight call (end at/after midnight, e.g. 11:30 PM–12:00 AM) — its end is
+  // on the next day, otherwise it'd look like it ended 23.5h before it started
+  // and get wrongly flagged as "past".
+  if (eh * 60 + em <= sh * 60 + sm) end.setDate(end.getDate() + 1);
   return end.getTime() <= Date.now();
 }
 
@@ -454,7 +459,7 @@ export default function Schedule() {
       classNames: [
         ...(unassigned ? ['unassigned-shift'] : []),
         ...(!s.published ? ['draft-shift'] : []),
-        ...(isPastShift(s.date, s.endTime) ? ['past-shift'] : []),
+        ...(isPastShift(s.date, s.startTime, s.endTime) ? ['past-shift'] : []),
         ...(groupStartIds.has(s.id) ? ['site-group-start'] : []),
       ],
     };
