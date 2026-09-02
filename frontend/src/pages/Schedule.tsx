@@ -445,19 +445,22 @@ export default function Schedule() {
     const unassigned = needsStaff(s);
     const baseColor = s.serviceUser?.site?.color || userColor(s.userId, users);
     const dateStr = format(new Date(s.date), 'yyyy-MM-dd');
-    // An overnight call (end at/before start, e.g. 11:30 PM–12:00 AM) ends the
-    // next day — otherwise the calendar gets an end before the start and draws a
-    // giant malformed block instead of a short 30-min one.
+    // An overnight call (end at/before start, e.g. 11:30 PM–12:00 AM or an
+    // 8 PM–8 AM night) is kept on its START day — end clamped to just before
+    // midnight. Otherwise the multi-week day grid would either draw a malformed
+    // block (end before start) or sprawl the shift across into the next day's
+    // column. The visible times/label come from the shift data, so they still
+    // read "8:00 PM–8:00 AM · 12 hours" correctly.
     const [sh, sm] = (s.startTime || '00:00').split(':').map(Number);
     const [eh, em] = (s.endTime || '00:00').split(':').map(Number);
-    const endDateStr = eh * 60 + em <= sh * 60 + sm ? format(addDays(new Date(s.date), 1), 'yyyy-MM-dd') : dateStr;
+    const overnight = eh * 60 + em <= sh * 60 + sm;
     return {
       id: s.id,
       title: isManager
         ? `${s.user ? `${s.user.firstName} ${s.user.lastName}` : 'Unassigned'}${s.visitName ? ` · ${s.visitName}` : s.role ? ` · ${s.role}` : ''}`
         : s.visitName || s.role || 'Shift',
       start: `${dateStr}T${s.startTime}:00`,
-      end: `${endDateStr}T${s.endTime}:00`,
+      end: overnight ? `${dateStr}T23:59:00` : `${dateStr}T${s.endTime}:00`,
       extendedProps: { shift: s, siteRank: siteRankOf(s) },
       backgroundColor: baseColor,
       borderColor: baseColor,
