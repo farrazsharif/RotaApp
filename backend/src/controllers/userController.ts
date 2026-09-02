@@ -9,6 +9,7 @@ import { sendEmail, setPasswordEmail } from '../lib/email';
 import { isScoped, staffInScope } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { capabilitiesFor, sanitiseCapabilityList } from '../middleware/permissions';
+import { evaluateCompliance, ComplianceInput } from '../lib/staffCompliance';
 
 const userSelect = {
   id: true, email: true, firstName: true, lastName: true, role: true,
@@ -106,6 +107,83 @@ export async function setUserPermissions(req: AuthRequest, res: Response) {
   const roleCaps = (() => { try { return user!.customRole ? JSON.parse(user!.customRole.permissions) as string[] : null; } catch { return null; } })();
   const capabilities = await capabilitiesFor(user!.role as Role, override ?? roleCaps);
   res.json({ permissionsOverride: override, capabilities });
+}
+
+// Builds a userId -> Set<category> map of document categories held, for the
+// given staff ids. Used by both compliance endpoints.
+async function docCategoriesByUser(userIds: string[]): Promise<Map<string, Set<string>>> {
+  const map = new Map<string, Set<string>>();
+  if (userIds.length === 0) return map;
+  const docs = await prisma.document.findMany({
+    where: { ownerType: 'USER', ownerId: { in: userIds } },
+    select: { ownerId: true, category: true },
+  });
+  for (const d of docs) {
+    if (!d.category) continue;
+    let s = map.get(d.ownerId);
+    if (!s) { s = new Set(); map.set(d.ownerId, s); }
+    s.add(d.category);
+  }
+  return map;
+}
+
+// GET /api/users/compliance — staff-file completeness for every in-scope active
+// staff member, so the Staff list can flag anyone with missing documents.
+export async function staffComplianceSummary(req: AuthRequest, res: Response) {
+  const where: Record<string, unknown> = { role: { not: Role.FAMILY_MEMBER }, active: true };
+  if (isScoped(req.user)) {
+    where.OR = [
+      { sites: { some: { id: { in: req.user!.siteIds } } } },
+      { id: req.user!.id },
+    ];
+  }
+  const users = await prisma.user.findMany({
+    where,
+    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true },
+  });
+  const ids = users.map((u) => u.id);
+  const [cats, training] = await Promise.all([
+    docCategoriesByUser(ids),
+    prisma.training.groupBy({ by: ['userId'], where: { userId: { in: ids } }, _count: { _all: true } }),
+  ]);
+  const trainCount = new Map(training.map((t) => [t.userId, t._count._all]));
+  const result = users.map((u) => {
+    const input: ComplianceInput = {
+      photo: u.photo,
+      fitForWork: u.fitForWork,
+      emergencyContactName: u.emergencyContactName,
+      docCategories: cats.get(u.id) || new Set(),
+      trainingCount: trainCount.get(u.id) || 0,
+    };
+    const r = evaluateCompliance(input);
+    return { userId: u.id, complete: r.complete, present: r.present, total: r.total, missing: r.missing };
+  });
+  res.json(result);
+}
+
+// GET /api/users/:id/compliance — the full checklist breakdown for one staff
+// member (used by the Compliance tab on their file).
+export async function staffCompliance(req: AuthRequest, res: Response) {
+  if (!(await staffInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true },
+  });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const [cats, trainingCount] = await Promise.all([
+    docCategoriesByUser([user.id]),
+    prisma.training.count({ where: { userId: user.id } }),
+  ]);
+  const result = evaluateCompliance({
+    photo: user.photo,
+    fitForWork: user.fitForWork,
+    emergencyContactName: user.emergencyContactName,
+    docCategories: cats.get(user.id) || new Set(),
+    trainingCount,
+  });
+  res.json(result);
 }
 
 export async function createUser(req: AuthRequest, res: Response) {

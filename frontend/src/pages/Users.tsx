@@ -26,15 +26,25 @@ export default function Users() {
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
 
+  const [incompleteOnly, setIncompleteOnly] = useState(false);
+
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users', 'all'],
     queryFn: () => usersApi.list(),
   });
 
-  const filtered = users.filter((u) =>
-    `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase())
-  );
+  // Staff-file document compliance, keyed by userId (active staff only).
+  const { data: complianceRows = [] } = useQuery({
+    queryKey: ['users-compliance'],
+    queryFn: () => usersApi.compliance(),
+  });
+  const complianceByUser = new Map(complianceRows.map((r) => [r.userId, r]));
 
+  const filtered = users
+    .filter((u) => `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase()))
+    .filter((u) => !incompleteOnly || complianceByUser.get(u.id)?.complete === false);
+
+  const incompleteCount = complianceRows.filter((r) => !r.complete).length;
   const counts = {
     total: users.length,
     active: users.filter((u) => u.active).length,
@@ -54,7 +64,7 @@ export default function Users() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="card p-4">
           <div className="text-2xl font-bold text-gray-900">{counts.total}</div>
           <div className="text-xs text-gray-500 mt-0.5">Total staff</div>
@@ -71,7 +81,23 @@ export default function Users() {
           <div className="text-2xl font-bold text-red-600">{counts.inactive}</div>
           <div className="text-xs text-gray-500 mt-0.5">Inactive</div>
         </div>
+        <button
+          type="button"
+          onClick={() => setIncompleteOnly((v) => !v)}
+          title="Active staff with a missing document in their file — click to filter"
+          className={`card p-4 text-left transition-colors ${incompleteOnly ? 'ring-2 ring-red-400' : ''} ${incompleteCount ? 'hover:bg-red-50' : ''}`}
+        >
+          <div className={`text-2xl font-bold ${incompleteCount ? 'text-red-600' : 'text-green-600'}`}>{incompleteCount}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{incompleteCount ? 'Files incomplete' : 'Files complete'}</div>
+        </button>
       </div>
+
+      {incompleteOnly && (
+        <div className="flex items-center gap-2 text-sm text-red-700">
+          <span>Showing staff with missing documents only.</span>
+          <button className="text-blue-600 hover:underline" onClick={() => setIncompleteOnly(false)}>Show all</button>
+        </div>
+      )}
 
       <div className="card p-0 overflow-x-auto">
         <table className="w-full text-sm">
@@ -82,6 +108,7 @@ export default function Users() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">Rate/hr</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">File</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -101,6 +128,15 @@ export default function Users() {
                 <td className="px-4 py-3 text-right text-gray-600">£{u.hourlyRate.toFixed(2)}</td>
                 <td className="px-4 py-3">
                   {(() => { const s = statusInfo(u); return <span className={s.cls}>{s.label}</span>; })()}
+                </td>
+                <td className="px-4 py-3">
+                  {(() => {
+                    const c = complianceByUser.get(u.id);
+                    if (!c) return <span className="text-gray-300">—</span>;
+                    return c.complete
+                      ? <span className="badge-green badge" title="All required documents in place">✓ Complete</span>
+                      : <span className="badge-red badge" title={`Missing: ${c.missing.join(', ')}`}>⚠ {c.missing.length} missing</span>;
+                  })()}
                 </td>
                 <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                   <button className="text-xs text-blue-600 hover:underline" onClick={() => navigate(`/users/${u.id}`)}>View →</button>

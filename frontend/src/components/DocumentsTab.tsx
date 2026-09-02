@@ -37,6 +37,7 @@ export default function DocumentsTab({ ownerType, ownerId, canManage }: { ownerT
     mutationFn: () => documentsApi.upload(ownerType, ownerId, file!, effectiveCategory),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['documents', ownerType, ownerId] });
+      if (ownerType === 'USER') qc.invalidateQueries({ queryKey: ['user-compliance', ownerId] });
       setFile(null); setCategory(''); setCustomCategory(''); setError(null);
       if (fileRef.current) fileRef.current.value = '';
     },
@@ -48,7 +49,11 @@ export default function DocumentsTab({ ownerType, ownerId, canManage }: { ownerT
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => documentsApi.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['documents', ownerType, ownerId] }); setConfirmDeleteId(null); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['documents', ownerType, ownerId] });
+      if (ownerType === 'USER') qc.invalidateQueries({ queryKey: ['user-compliance', ownerId] });
+      setConfirmDeleteId(null);
+    },
   });
 
   async function download(doc: DocumentMeta) {

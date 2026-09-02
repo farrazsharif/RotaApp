@@ -25,7 +25,7 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-const TABS = ['Details', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'Supervision', 'Documents'] as const;
+const TABS = ['Details', 'Compliance', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'Supervision', 'Documents'] as const;
 type Tab = typeof TABS[number];
 
 // The health-declaration checklist from the paper "Fit for Work Declaration".
@@ -80,6 +80,13 @@ export default function StaffDetail() {
   const { data: user, isLoading, isError } = useQuery({
     queryKey: ['user', id],
     queryFn: () => usersApi.get(id),
+    enabled: !!id,
+  });
+
+  // Staff-file document compliance — drives the header pill and Compliance tab.
+  const { data: compliance } = useQuery({
+    queryKey: ['user-compliance', id],
+    queryFn: () => usersApi.complianceFor(id),
     enabled: !!id,
   });
 
@@ -142,6 +149,16 @@ export default function StaffDetail() {
                       <span key={s.id} className="badge" style={{ backgroundColor: `${s.color}22`, color: s.color }}>📍 {s.name}</span>
                     ))
                   : <span className="badge-gray badge">All sites</span>}
+                {compliance && (
+                  <button
+                    type="button"
+                    onClick={() => setTab('Compliance')}
+                    title={compliance.complete ? 'All required documents in place' : `Missing: ${compliance.missing.join(', ')}`}
+                    className={`badge ${compliance.complete ? 'badge-green' : 'badge-red'} hover:opacity-80`}
+                  >
+                    {compliance.complete ? '✓ File complete' : `⚠ ${compliance.missing.length} missing`}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -233,6 +250,7 @@ export default function StaffDetail() {
         </div>
       )}
 
+      {tab === 'Compliance' && <ComplianceTab userId={user.id} onGoToTab={(t) => setTab(t)} />}
       {tab === 'Permissions' && can('manage_permissions') && user.role !== 'ADMIN' && (
         <PermissionsTab userId={user.id} initial={user} />
       )}
@@ -311,6 +329,72 @@ function PasswordCard({ userId, email }: { userId: string; email: string }) {
   );
 }
 
+// Maps each compliance requirement to the staff-file tab where it's fixed, so
+// "Missing" rows can deep-link the user straight to the right place.
+const COMPLIANCE_TAB: Record<string, Tab> = {
+  identity: 'Documents',
+  dbs: 'Documents',
+  references: 'Documents',
+  rightToWork: 'Documents',
+  contract: 'Documents',
+  training: 'Training',
+  fitForWork: 'Fit for Work',
+  emergencyContact: 'Emergency Contact',
+};
+
+function ComplianceTab({ userId, onGoToTab }: { userId: string; onGoToTab: (t: Tab) => void }) {
+  const { data, isLoading } = useQuery({ queryKey: ['user-compliance', userId], queryFn: () => usersApi.complianceFor(userId) });
+
+  if (isLoading || !data) {
+    return <div className="flex justify-center p-8"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>;
+  }
+
+  return (
+    <div className="card space-y-5 max-w-2xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="font-semibold text-gray-900">Staff file compliance</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            The documents and records a personnel file needs to meet CQC Regulation 19 (fit and proper persons). Anything missing is flagged below.
+          </p>
+        </div>
+        <span className={`badge shrink-0 ${data.complete ? 'badge-green' : 'badge-red'}`}>
+          {data.present}/{data.total} in place
+        </span>
+      </div>
+
+      {data.complete ? (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          ✓ All required documents are in place for this staff member.
+        </div>
+      ) : (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          ⚠ {data.missing.length} item{data.missing.length === 1 ? '' : 's'} missing: {data.missing.join(', ')}.
+        </div>
+      )}
+
+      <div className="divide-y border rounded-lg">
+        {data.items.map((it) => (
+          <div key={it.id} className="flex items-start justify-between gap-3 p-3">
+            <div className="flex items-start gap-3">
+              <StatusIcon ok={it.ok} />
+              <div>
+                <p className={`text-sm font-medium ${it.ok ? 'text-gray-900' : 'text-red-700'}`}>{it.label}</p>
+                {!it.ok && <p className="text-xs text-gray-500 mt-0.5">{it.hint}</p>}
+              </div>
+            </div>
+            {!it.ok && COMPLIANCE_TAB[it.id] && (
+              <button className="text-blue-600 text-xs hover:underline shrink-0" onClick={() => onGoToTab(COMPLIANCE_TAB[it.id])}>
+                Fix in {COMPLIANCE_TAB[it.id]} →
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean }) {
   const qc = useQueryClient();
   const [showAll, setShowAll] = useState(false);
@@ -336,12 +420,12 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
       const data: TrainingData = { userId, course: form.course, date: form.date, expiresAt: form.expiresAt || undefined, accredited: form.accredited, description: form.description || undefined };
       return editingId ? trainingApi.update(editingId, data) : trainingApi.create(data);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['training', userId] }); resetForm(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['training', userId] }); qc.invalidateQueries({ queryKey: ['user-compliance', userId] }); resetForm(); },
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => trainingApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['training', userId] }); setConfirmDeleteId(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['training', userId] }); qc.invalidateQueries({ queryKey: ['user-compliance', userId] }); setConfirmDeleteId(null); },
   });
 
   function startEdit(t: Training) {
@@ -610,7 +694,7 @@ function EmergencyContactTab({ userId, isManager, initial }: { userId: string; i
       emergencyContactRelation: relation || undefined,
       emergencyContactAddress: address || undefined,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['user', userId] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['user', userId] }); qc.invalidateQueries({ queryKey: ['user-compliance', userId] }); },
   });
 
   return (
@@ -746,7 +830,7 @@ function FitForWorkTab({ userId, isManager, initial }: { userId: string; isManag
 
   const saveMut = useMutation({
     mutationFn: () => usersApi.update(userId, { fitForWork: { ...form, updatedAt: new Date().toISOString() } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['user', userId] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['user', userId] }); qc.invalidateQueries({ queryKey: ['user-compliance', userId] }); },
   });
 
   // A labelled free-text block. Called as a plain function (not <TextBlock/>) so
