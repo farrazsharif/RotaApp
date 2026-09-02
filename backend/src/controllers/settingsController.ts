@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { PERMISSIONS, getEffectivePermissions, sanitisePermissions, clearPermissionCache } from '../middleware/permissions';
 import { logAudit } from '../lib/audit';
 import { getTenant } from '../lib/tenantContext';
+import { normaliseRequirements } from '../lib/staffCompliance';
 
 // The company whose settings we're reading/writing. The tenant extension scopes
 // every query, but upsert/create still need the companyId value explicitly.
@@ -76,12 +77,28 @@ function normalizeCallLogTasks(raw: unknown): string {
   return JSON.stringify(clean);
 }
 
+// Clean the editable staff-file compliance checklist into a stored JSON string.
+// Accepts an array or a JSON-string of one. An empty array is stored as '[]',
+// which the reader treats as "use the built-in defaults".
+function normalizeStaffFileRequirements(raw: unknown): string {
+  let arr: unknown = raw;
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr); } catch { return '[]'; }
+  }
+  if (!Array.isArray(arr)) return '[]';
+  return JSON.stringify(normaliseRequirements(arr));
+}
+
 export async function updateOrgSettings(req: AuthRequest, res: Response) {
   const body = req.body as Record<string, unknown>;
   const data: Record<string, unknown> = {};
 
   if (body.callLogTasks !== undefined) {
     data.callLogTasks = normalizeCallLogTasks(body.callLogTasks);
+  }
+
+  if (body.staffFileRequirements !== undefined) {
+    data.staffFileRequirements = normalizeStaffFileRequirements(body.staffFileRequirements);
   }
 
   for (const key of STRING_FIELDS) {

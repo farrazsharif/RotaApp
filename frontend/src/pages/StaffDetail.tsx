@@ -329,18 +329,9 @@ function PasswordCard({ userId, email }: { userId: string; email: string }) {
   );
 }
 
-// Maps each compliance requirement to the staff-file tab where it's fixed, so
-// "Missing" rows can deep-link the user straight to the right place.
-const COMPLIANCE_TAB: Record<string, Tab> = {
-  identity: 'Documents',
-  dbs: 'Documents',
-  references: 'Documents',
-  rightToWork: 'Documents',
-  contract: 'Documents',
-  training: 'Training',
-  fitForWork: 'Fit for Work',
-  emergencyContact: 'Emergency Contact',
-};
+// The staff-file tab each requirement is fixed in comes from the backend
+// (item.tab); only tabs that exist here are turned into a deep-link.
+const KNOWN_TABS = new Set<string>(TABS);
 
 function ComplianceTab({ userId, onGoToTab }: { userId: string; onGoToTab: (t: Tab) => void }) {
   const { data, isLoading } = useQuery({ queryKey: ['user-compliance', userId], queryFn: () => usersApi.complianceFor(userId) });
@@ -383,9 +374,9 @@ function ComplianceTab({ userId, onGoToTab }: { userId: string; onGoToTab: (t: T
                 {!it.ok && <p className="text-xs text-gray-500 mt-0.5">{it.hint}</p>}
               </div>
             </div>
-            {!it.ok && COMPLIANCE_TAB[it.id] && (
-              <button className="text-blue-600 text-xs hover:underline shrink-0" onClick={() => onGoToTab(COMPLIANCE_TAB[it.id])}>
-                Fix in {COMPLIANCE_TAB[it.id]} →
+            {!it.ok && it.tab && KNOWN_TABS.has(it.tab) && (
+              <button className="text-blue-600 text-xs hover:underline shrink-0" onClick={() => onGoToTab(it.tab as Tab)}>
+                Fix in {it.tab} →
               </button>
             )}
           </div>

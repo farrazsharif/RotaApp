@@ -1,7 +1,7 @@
 import api from '../lib/axios';
 import { User, PermissionKey } from '../types';
 
-export interface ComplianceItem { id: string; label: string; ok: boolean; hint: string; }
+export interface ComplianceItem { id: string; label: string; ok: boolean; hint: string; tab?: string; }
 export interface ComplianceResult { items: ComplianceItem[]; missing: string[]; total: number; present: number; complete: boolean; }
 export interface ComplianceSummaryRow { userId: string; complete: boolean; present: number; total: number; missing: string[]; }
 

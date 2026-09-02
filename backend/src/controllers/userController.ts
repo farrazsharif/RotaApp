@@ -9,7 +9,8 @@ import { sendEmail, setPasswordEmail } from '../lib/email';
 import { isScoped, staffInScope } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { capabilitiesFor, sanitiseCapabilityList } from '../middleware/permissions';
-import { evaluateCompliance, ComplianceInput } from '../lib/staffCompliance';
+import { evaluateCompliance, parseRequirements, ComplianceInput } from '../lib/staffCompliance';
+import { loadOrgSettings } from './settingsController';
 
 const userSelect = {
   id: true, email: true, firstName: true, lastName: true, role: true,
@@ -109,10 +110,10 @@ export async function setUserPermissions(req: AuthRequest, res: Response) {
   res.json({ permissionsOverride: override, capabilities });
 }
 
-// Builds a userId -> Set<category> map of document categories held, for the
-// given staff ids. Used by both compliance endpoints.
-async function docCategoriesByUser(userIds: string[]): Promise<Map<string, Set<string>>> {
-  const map = new Map<string, Set<string>>();
+// Builds a userId -> { category: count } map of documents held, for the given
+// staff ids. Used by both compliance endpoints.
+async function docCountsByUser(userIds: string[]): Promise<Map<string, Record<string, number>>> {
+  const map = new Map<string, Record<string, number>>();
   if (userIds.length === 0) return map;
   const docs = await prisma.document.findMany({
     where: { ownerType: 'USER', ownerId: { in: userIds } },
@@ -120,9 +121,9 @@ async function docCategoriesByUser(userIds: string[]): Promise<Map<string, Set<s
   });
   for (const d of docs) {
     if (!d.category) continue;
-    let s = map.get(d.ownerId);
-    if (!s) { s = new Set(); map.set(d.ownerId, s); }
-    s.add(d.category);
+    let counts = map.get(d.ownerId);
+    if (!counts) { counts = {}; map.set(d.ownerId, counts); }
+    counts[d.category] = (counts[d.category] || 0) + 1;
   }
   return map;
 }
@@ -142,20 +143,22 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
     select: { id: true, photo: true, fitForWork: true, emergencyContactName: true },
   });
   const ids = users.map((u) => u.id);
-  const [cats, training] = await Promise.all([
-    docCategoriesByUser(ids),
+  const [counts, training, settings] = await Promise.all([
+    docCountsByUser(ids),
     prisma.training.groupBy({ by: ['userId'], where: { userId: { in: ids } }, _count: { _all: true } }),
+    loadOrgSettings(),
   ]);
+  const requirements = parseRequirements(settings.staffFileRequirements);
   const trainCount = new Map(training.map((t) => [t.userId, t._count._all]));
   const result = users.map((u) => {
     const input: ComplianceInput = {
       photo: u.photo,
       fitForWork: u.fitForWork,
       emergencyContactName: u.emergencyContactName,
-      docCategories: cats.get(u.id) || new Set(),
+      docCounts: counts.get(u.id) || {},
       trainingCount: trainCount.get(u.id) || 0,
     };
-    const r = evaluateCompliance(input);
+    const r = evaluateCompliance(input, requirements);
     return { userId: u.id, complete: r.complete, present: r.present, total: r.total, missing: r.missing };
   });
   res.json(result);
@@ -172,17 +175,18 @@ export async function staffCompliance(req: AuthRequest, res: Response) {
     select: { id: true, photo: true, fitForWork: true, emergencyContactName: true },
   });
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const [cats, trainingCount] = await Promise.all([
-    docCategoriesByUser([user.id]),
+  const [counts, trainingCount, settings] = await Promise.all([
+    docCountsByUser([user.id]),
     prisma.training.count({ where: { userId: user.id } }),
+    loadOrgSettings(),
   ]);
   const result = evaluateCompliance({
     photo: user.photo,
     fitForWork: user.fitForWork,
     emergencyContactName: user.emergencyContactName,
-    docCategories: cats.get(user.id) || new Set(),
+    docCounts: counts.get(user.id) || {},
     trainingCount,
-  });
+  }, parseRequirements(settings.staffFileRequirements));
   res.json(result);
 }
 

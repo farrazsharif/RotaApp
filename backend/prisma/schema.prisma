@@ -947,6 +947,7 @@ model OrgSettings {
   permissions       String   @default("{}") // JSON: { permissionKey: Role[] } overrides
   callLogTasks      String   @default("[]") // JSON: [{ id, label, phrase?, detail? }] carer-app visit checklist
   cqcSelfAssessment String   @default("{}") // JSON: { statementKey: { rating, note } } manual CQC self-assessment
+  staffFileRequirements String @default("[]") // JSON: [{ id, label, hint, type, required, category?, minCount? }] editable staff-file compliance checklist
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

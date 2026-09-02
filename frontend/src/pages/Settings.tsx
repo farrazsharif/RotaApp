@@ -13,10 +13,11 @@ import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
 import { fileToLogoDataUrl } from '../lib/image';
 import { CallLogTaskDef, DEFAULT_CALL_LOG_TASKS, resolveCallLogTasks, buildNoteFromTicks } from '../lib/callLogTasks';
+import { Requirement, RequirementType, REQUIREMENT_TYPE_LABELS, TYPE_USES_CATEGORY, TYPE_USES_COUNT, USER_DOC_CATEGORIES, DEFAULT_REQUIREMENTS, resolveRequirements } from '../lib/staffCompliance';
 
 const TIMEZONES = ['Europe/London', 'UTC', 'Europe/Dublin', 'Europe/Paris'];
 
-type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles' | 'calllog' | 'audit';
+type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles' | 'calllog' | 'stafffiles' | 'audit';
 
 export default function Settings() {
   const { can } = usePermissions();
@@ -27,6 +28,7 @@ export default function Settings() {
     { key: 'staff' as const, label: 'Staff Defaults', show: can('manage_settings') },
     { key: 'roles' as const, label: 'Roles & Permissions', show: can('manage_permissions') },
     { key: 'calllog' as const, label: 'Visit Checklist', show: can('manage_settings') },
+    { key: 'stafffiles' as const, label: 'Staff File Checklist', show: can('manage_settings') },
     { key: 'audit' as const, label: 'Audit Log', show: can('view_audit_log') },
   ].filter((t) => t.show);
 
@@ -75,6 +77,7 @@ export default function Settings() {
         </div>
       )}
       {tab === 'calllog' && <CallLogTasksTab />}
+      {tab === 'stafffiles' && <StaffFileChecklistTab />}
       {tab === 'audit' && <AuditLogTab />}
     </div>
   );
@@ -680,6 +683,128 @@ function CallLogTasksTab() {
       <div className="flex gap-3 pt-1 items-center border-t border-gray-100">
         <p className="text-xs text-gray-400 flex-1">
           “Written as” is the wording that appears in the note (e.g. <span className="italic">Prepared breakfast</span>). Tick “Detail?” to let carers add a note (e.g. what they ate). Declined tasks read as <span className="italic">Declined&nbsp;…</span>.
+        </p>
+        <Saved show={mut.isSuccess && !mut.isPending && !list} />
+        <button className="btn-primary btn" disabled={mut.isPending || cleaned.length === 0} onClick={() => mut.mutate(cleaned)}>
+          {mut.isPending ? 'Saving…' : 'Save Checklist'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Staff File Checklist ---------------- */
+function StaffFileChecklistTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const [list, setList] = useState<Requirement[] | null>(null);
+  const rows = list ?? (data ? resolveRequirements(data.staffFileRequirements) : null);
+
+  const mut = useMutation({
+    mutationFn: (payload: Requirement[]) => settingsApi.update({ staffFileRequirements: JSON.stringify(payload) }),
+    onSuccess: (updated) => {
+      qc.setQueryData(['settings'], updated);
+      setList(null);
+      // Badges everywhere depend on this list — refresh them.
+      qc.invalidateQueries({ queryKey: ['users-compliance'] });
+      qc.invalidateQueries({ queryKey: ['user-compliance'] });
+    },
+  });
+
+  if (isLoading || !rows) return <div className="card text-gray-400">Loading…</div>;
+
+  const update = (next: Requirement[]) => setList(next);
+  const setRow = (i: number, patch: Partial<Requirement>) => update(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const removeRow = (i: number) => update(rows.filter((_, idx) => idx !== i));
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= rows.length) return;
+    const next = [...rows];
+    [next[i], next[j]] = [next[j], next[i]];
+    update(next);
+  };
+  const addRow = () => update([...rows, {
+    id: `req-${Date.now()}`, label: '', hint: '', type: 'document', required: true,
+    category: USER_DOC_CATEGORIES[0], minCount: 1, tab: 'Documents',
+  }]);
+
+  const activeCount = rows.filter((r) => r.required && r.label.trim()).length;
+  // Drop blank rows before saving; the backend re-validates too.
+  const cleaned = rows.filter((r) => r.label.trim() && (r.type !== 'document' || (r.category && r.category.trim())));
+
+  return (
+    <div className="card space-y-4 max-w-3xl">
+      <div>
+        <h2 className="font-semibold text-gray-900">Staff File Checklist</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          The documents and records every staff file must have. Each active item is checked automatically — anything missing is flagged on the staff member’s file and on the Staff list. Defaults follow CQC Regulation 19 (fit and proper persons). Turn items off, relabel them, require more than one reference, or add your own document requirements.
+        </p>
+        <p className="text-xs text-gray-400 mt-1">{activeCount} active requirement{activeCount === 1 ? '' : 's'}.</p>
+      </div>
+
+      <div className="space-y-3">
+        {rows.map((r, i) => {
+          const builtIn = r.type !== 'document';
+          return (
+            <div key={r.id} className={`rounded-lg border p-3 ${r.required ? 'border-gray-200' : 'border-gray-100 bg-gray-50 opacity-70'}`}>
+              <div className="flex items-start gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-gray-600 select-none pt-2 shrink-0" title="Include this item in the check">
+                  <input type="checkbox" checked={r.required} onChange={(e) => setRow(i, { required: e.target.checked })} />
+                  Required
+                </label>
+                <div className="flex-1 grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <label className="label">Label</label>
+                    <input value={r.label} onChange={(e) => setRow(i, { label: e.target.value })} placeholder="e.g. DBS certificate" className="input" />
+                  </div>
+                  <div>
+                    <label className="label">Type of check</label>
+                    <select value={r.type} onChange={(e) => setRow(i, { type: e.target.value as RequirementType })} className="input">
+                      {(Object.keys(REQUIREMENT_TYPE_LABELS) as RequirementType[]).map((t) => (
+                        <option key={t} value={t}>{REQUIREMENT_TYPE_LABELS[t]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {TYPE_USES_CATEGORY[r.type] && (
+                    <div>
+                      <label className="label">Document category</label>
+                      <select value={r.category || ''} onChange={(e) => setRow(i, { category: e.target.value })} className="input">
+                        {USER_DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <p className="text-xs text-gray-400 mt-0.5">Matches the category used when uploading in Documents.</p>
+                    </div>
+                  )}
+                  {TYPE_USES_COUNT[r.type] && (
+                    <div>
+                      <label className="label">How many required</label>
+                      <input type="number" min={1} max={20} value={r.minCount || 1} onChange={(e) => setRow(i, { minCount: Math.max(1, Number(e.target.value) || 1) })} className="input w-28" />
+                    </div>
+                  )}
+                  <div className="sm:col-span-2">
+                    <label className="label">Note when missing (optional)</label>
+                    <input value={r.hint || ''} onChange={(e) => setRow(i, { hint: e.target.value })} placeholder="Guidance shown to the office when this is missing" className="input" />
+                  </div>
+                </div>
+                <div className="flex flex-col items-center gap-1 pt-5 shrink-0">
+                  <button className="text-gray-400 hover:text-gray-700 px-1.5" title="Move up" onClick={() => move(i, -1)}>↑</button>
+                  <button className="text-gray-400 hover:text-gray-700 px-1.5" title="Move down" onClick={() => move(i, 1)}>↓</button>
+                  <button className="text-red-500 hover:text-red-700 px-1.5" title="Remove" onClick={() => removeRow(i)}>✕</button>
+                </div>
+              </div>
+              {builtIn && <p className="text-xs text-gray-400 mt-1">Built-in check — satisfied automatically from the staff member’s records.</p>}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button className="btn-secondary btn btn-sm" onClick={addRow}>+ Add requirement</button>
+        <button className="btn-secondary btn btn-sm" onClick={() => update(DEFAULT_REQUIREMENTS.map((r) => ({ ...r })))}>Reset to CQC defaults</button>
+      </div>
+
+      <div className="flex gap-3 pt-1 items-center border-t border-gray-100">
+        <p className="text-xs text-gray-400 flex-1">
+          Unchecking “Required” keeps an item in the list but stops it being counted. Custom “document” requirements are met by uploading a file of the chosen category on the staff member’s Documents tab.
         </p>
         <Saved show={mut.isSuccess && !mut.isPending && !list} />
         <button className="btn-primary btn" disabled={mut.isPending || cleaned.length === 0} onClick={() => mut.mutate(cleaned)}>

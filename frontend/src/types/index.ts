@@ -66,6 +66,7 @@ export interface OrgSettings {
   inviteExpiryDays: number;
   defaultRole: Role;
   callLogTasks?: string | null; // JSON array of carer-app visit checklist task defs
+  staffFileRequirements?: string | null; // JSON array of editable staff-file compliance requirements
   updatedAt: string;
 }
 
