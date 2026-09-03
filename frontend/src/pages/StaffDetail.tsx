@@ -142,6 +142,9 @@ export default function StaffDetail() {
               <p className="text-sm text-gray-500">{user.email}{user.phone && ` · ${user.phone}`}</p>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <span className={roleBadge[user.role]}>{user.customRole?.name || roleLabel(user.role)}</span>
+                {user.staffType === 'OVERSEAS'
+                  ? <span className="badge-purple badge">🌍 Overseas</span>
+                  : <span className="badge-gray badge">Local</span>}
                 <span className={statusInfo(user).cls}>{statusInfo(user).label}</span>
                 <span className="badge-blue badge">£{user.hourlyRate.toFixed(2)}/hr</span>
                 {user.sites && user.sites.length > 0

@@ -19,6 +19,7 @@ const userSelect = {
   customRole: { select: { id: true, name: true, baseType: true, permissions: true } },
   sites: { select: { id: true, name: true, color: true } },
   emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true, emergencyContactAddress: true,
+  staffType: true,
   fitForWork: true,
 };
 
@@ -140,7 +141,7 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
   }
   const users = await prisma.user.findMany({
     where,
-    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true },
+    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true },
   });
   const ids = users.map((u) => u.id);
   const [counts, training, settings] = await Promise.all([
@@ -157,6 +158,7 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
       emergencyContactName: u.emergencyContactName,
       docCounts: counts.get(u.id) || {},
       trainingCount: trainCount.get(u.id) || 0,
+      staffType: (u.staffType as 'LOCAL' | 'OVERSEAS') || 'LOCAL',
     };
     const r = evaluateCompliance(input, requirements);
     return { userId: u.id, complete: r.complete, present: r.present, total: r.total, missing: r.missing };
@@ -172,7 +174,7 @@ export async function staffCompliance(req: AuthRequest, res: Response) {
   }
   const user = await prisma.user.findUnique({
     where: { id: req.params.id },
-    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true },
+    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true },
   });
   if (!user) return res.status(404).json({ error: 'User not found' });
   const [counts, trainingCount, settings] = await Promise.all([
@@ -186,12 +188,13 @@ export async function staffCompliance(req: AuthRequest, res: Response) {
     emergencyContactName: user.emergencyContactName,
     docCounts: counts.get(user.id) || {},
     trainingCount,
+    staffType: (user.staffType as 'LOCAL' | 'OVERSEAS') || 'LOCAL',
   }, parseRequirements(settings.staffFileRequirements));
   res.json(result);
 }
 
 export async function createUser(req: AuthRequest, res: Response) {
-  const { email, password, firstName, lastName, role, hourlyRate, phone, photo, sendInvite, customRoleId, siteIds } = req.body;
+  const { email, password, firstName, lastName, role, hourlyRate, phone, photo, sendInvite, customRoleId, siteIds, staffType } = req.body;
   if (!email || !firstName || !lastName) {
     return res.status(400).json({ error: 'email, firstName, lastName required' });
   }
@@ -221,6 +224,7 @@ export async function createUser(req: AuthRequest, res: Response) {
       hourlyRate: hourlyRate ? Number(hourlyRate) : 0,
       phone: phone || null,
       photo: photo || null,
+      staffType: staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL',
       // Invited users stay inactive (and can't log in) until they set their
       // own password via the emailed link; setPassword flips them active.
       active: sendInvite ? false : true,
@@ -243,7 +247,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (!(await staffInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, emergencyContactAddress, fitForWork } = req.body;
+  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, emergencyContactAddress, fitForWork, staffType } = req.body;
   const data: Record<string, unknown> = {};
   // Changing the login email — must stay unique. Only admins may change the
   // email of another admin account.
@@ -264,6 +268,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (hourlyRate !== undefined) data.hourlyRate = Number(hourlyRate);
   if (phone !== undefined) data.phone = phone || null;
   if (photo !== undefined) data.photo = photo || null;
+  if (staffType !== undefined) data.staffType = staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL';
   if (active !== undefined && req.user!.role === Role.ADMIN) data.active = active;
   // Assigning a custom role also fixes the base account type. Only admins may
   // assign an admin-level role (prevents privilege escalation by managers).

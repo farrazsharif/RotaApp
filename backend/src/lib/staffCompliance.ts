@@ -18,12 +18,22 @@ export type RequirementType =
   | 'identity' | 'dbs' | 'references' | 'rightToWork' | 'contract'
   | 'training' | 'fitForWork' | 'emergencyContact' | 'document';
 
+// Local (UK-based) vs Overseas (international recruitment) staff. Overseas staff
+// carry extra right-to-work / sponsorship paperwork.
+export type StaffType = 'LOCAL' | 'OVERSEAS';
+export const StaffTypes: StaffType[] = ['LOCAL', 'OVERSEAS'];
+
+// Which staff a requirement applies to: everyone, only local, or only overseas.
+export type AppliesTo = 'ALL' | 'LOCAL' | 'OVERSEAS';
+export const AppliesToValues: AppliesTo[] = ['ALL', 'LOCAL', 'OVERSEAS'];
+
 export interface Requirement {
   id: string;
   label: string;
   hint: string;
   type: RequirementType;
   required: boolean; // false = not counted (kept for easy re-enable)
+  appliesTo?: AppliesTo; // ALL (default) | LOCAL | OVERSEAS
   category?: string; // document category (for type 'document', and reference/training overrides)
   minCount?: number; // how many of that document are needed (references / document)
   tab?: string; // staff-file tab to fix it in (frontend deep-link)
@@ -35,6 +45,7 @@ export interface ComplianceInput {
   emergencyContactName?: string | null;
   docCounts: Record<string, number>; // document category -> number held
   trainingCount: number; // number of training records held
+  staffType: StaffType; // LOCAL | OVERSEAS — decides which requirements apply
 }
 
 export interface ComplianceItem {
@@ -58,29 +69,45 @@ export const RequirementTypes: RequirementType[] = [
   'training', 'fitForWork', 'emergencyContact', 'document',
 ];
 
-// The document categories the Documents tab offers for staff (USER owner).
+// The document categories the Documents tab offers for staff (USER owner). The
+// second row is the extra paperwork typically held for overseas recruits.
 export const USER_DOC_CATEGORIES = [
   'DBS Certificate', 'Contract', 'Reference', 'Right to Work',
-  'Training Certificate', 'ID / Passport', 'Fit for Work', 'Other',
+  'Training Certificate', 'ID / Passport', 'Fit for Work',
+  'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check',
+  'Other',
 ];
 
 export const DEFAULT_REQUIREMENTS: Requirement[] = [
-  { id: 'identity', label: 'Proof of identity', type: 'identity', required: true, tab: 'Documents',
+  { id: 'identity', label: 'Proof of identity', type: 'identity', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Add a profile photo, or upload an ID / Passport document.' },
-  { id: 'dbs', label: 'DBS certificate', type: 'dbs', required: true, tab: 'Documents',
+  { id: 'dbs', label: 'DBS certificate', type: 'dbs', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Upload the DBS certificate in Documents.' },
-  { id: 'references', label: 'Reference(s)', type: 'references', required: true, minCount: 1, tab: 'Documents',
+  { id: 'references', label: 'Reference(s)', type: 'references', required: true, appliesTo: 'ALL', minCount: 1, tab: 'Documents',
     hint: 'Upload the required number of references in Documents.' },
-  { id: 'rightToWork', label: 'Right to work', type: 'rightToWork', required: true, tab: 'Documents',
+  { id: 'rightToWork', label: 'Right to work', type: 'rightToWork', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Upload right-to-work evidence (passport / visa / share code) in Documents.' },
-  { id: 'contract', label: 'Employment contract', type: 'contract', required: true, tab: 'Documents',
+  { id: 'contract', label: 'Employment contract', type: 'contract', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Upload the signed contract of employment in Documents.' },
-  { id: 'training', label: 'Qualifications / training', type: 'training', required: true, tab: 'Training',
+  { id: 'training', label: 'Qualifications / training', type: 'training', required: true, appliesTo: 'ALL', tab: 'Training',
     hint: 'Add a training record, or upload a training certificate in Documents.' },
-  { id: 'fitForWork', label: 'Fit for work declaration', type: 'fitForWork', required: true, tab: 'Fit for Work',
+  { id: 'fitForWork', label: 'Fit for work declaration', type: 'fitForWork', required: true, appliesTo: 'ALL', tab: 'Fit for Work',
     hint: 'Complete and sign the Fit for Work declaration, or upload the signed form.' },
-  { id: 'emergencyContact', label: 'Emergency contact', type: 'emergencyContact', required: true, tab: 'Emergency Contact',
+  { id: 'emergencyContact', label: 'Emergency contact', type: 'emergencyContact', required: true, appliesTo: 'ALL', tab: 'Emergency Contact',
     hint: 'Record a next-of-kin / emergency contact name on the Emergency Contact tab.' },
+  // Overseas-only paperwork — counted only for staff marked as Overseas.
+  { id: 'os-passport', label: 'Passport (valid)', type: 'document', category: 'Passport', required: true, appliesTo: 'OVERSEAS', tab: 'Documents',
+    hint: 'Upload the passport photo page in Documents.' },
+  { id: 'os-visa', label: 'Visa / BRP', type: 'document', category: 'Visa / BRP', required: true, appliesTo: 'OVERSEAS', tab: 'Documents',
+    hint: 'Upload the visa / Biometric Residence Permit (or share code) in Documents.' },
+  { id: 'os-cos', label: 'Certificate of Sponsorship', type: 'document', category: 'Certificate of Sponsorship', required: true, appliesTo: 'OVERSEAS', tab: 'Documents',
+    hint: 'Upload the Certificate of Sponsorship (CoS) in Documents.' },
+  { id: 'os-english', label: 'English language evidence', type: 'document', category: 'English Language Test', required: true, appliesTo: 'OVERSEAS', tab: 'Documents',
+    hint: 'Upload the approved English language test / evidence in Documents.' },
+  { id: 'os-tb', label: 'TB test certificate', type: 'document', category: 'TB Test Certificate', required: true, appliesTo: 'OVERSEAS', tab: 'Documents',
+    hint: 'Upload the TB test certificate (required from listed countries) in Documents.' },
+  { id: 'os-police', label: 'Overseas police clearance', type: 'document', category: 'Overseas Police Check', required: true, appliesTo: 'OVERSEAS', tab: 'Documents',
+    hint: 'Upload the overseas criminal-record / police clearance in Documents.' },
 ];
 
 // True when the Fit for Work declaration has actually been signed off (a blank
@@ -138,12 +165,14 @@ export function normaliseRequirements(arr: unknown[]): Requirement[] {
       if (type === 'document' && !category) return null;
       const minRaw = Number(r.minCount);
       const minCount = Number.isFinite(minRaw) && minRaw > 0 ? Math.min(20, Math.round(minRaw)) : undefined;
+      const appliesTo = AppliesToValues.includes(r.appliesTo as AppliesTo) ? (r.appliesTo as AppliesTo) : 'ALL';
       return {
         id: String(r.id || `req-${idx}`).slice(0, 60),
         label: label.slice(0, 80),
         hint: String(r.hint || '').trim().slice(0, 200),
         type,
         required: r.required !== false,
+        appliesTo,
         ...(category ? { category } : {}),
         ...(minCount ? { minCount } : {}),
         tab: r.tab ? String(r.tab).slice(0, 40) : (type === 'document' ? 'Documents' : undefined),
@@ -153,8 +182,16 @@ export function normaliseRequirements(arr: unknown[]): Requirement[] {
     .slice(0, 40);
 }
 
+// A requirement applies to this staff member when it's required AND its
+// appliesTo matches their staff type (ALL matches everyone).
+function appliesToStaff(req: Requirement, staffType: StaffType): boolean {
+  if (!req.required) return false;
+  const scope = req.appliesTo || 'ALL';
+  return scope === 'ALL' || scope === staffType;
+}
+
 export function evaluateCompliance(input: ComplianceInput, requirements: Requirement[] = DEFAULT_REQUIREMENTS): ComplianceResult {
-  const active = requirements.filter((r) => r.required);
+  const active = requirements.filter((r) => appliesToStaff(r, input.staffType));
   const items: ComplianceItem[] = active.map((r) => ({
     id: r.id,
     label: r.label,

@@ -87,6 +87,7 @@ export interface User {
   capabilities?: PermissionKey[]; // effective capabilities (from /auth/me or staff page)
   permissionsOverride?: PermissionKey[] | null; // per-person override (null = follow role)
   sites?: { id: string; name: string; color: string }[]; // scoped sites (empty = org-wide)
+  staffType?: 'LOCAL' | 'OVERSEAS'; // recruitment category
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;

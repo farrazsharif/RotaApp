@@ -25,17 +25,18 @@ interface FormState {
   hourlyRate: string;
   phone: string;
   photo: string;
+  staffType: 'LOCAL' | 'OVERSEAS';
   sendInvite: boolean;
 }
 
 const emptyForm: FormState = {
   email: '', password: '', firstName: '', lastName: '',
-  role: 'EMPLOYEE', customRoleId: '', siteIds: [], hourlyRate: '', phone: '', photo: '', sendInvite: true,
+  role: 'EMPLOYEE', customRoleId: '', siteIds: [], hourlyRate: '', phone: '', photo: '', staffType: 'LOCAL', sendInvite: true,
 };
 
 function initialForm(u: User | null): FormState {
   if (!u) return emptyForm;
-  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', siteIds: (u.sites || []).map((s) => s.id), hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', sendInvite: false };
+  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', siteIds: (u.sites || []).map((s) => s.id), hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', staffType: u.staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL', sendInvite: false };
 }
 
 export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
@@ -199,6 +200,22 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
               </p>
             </div>
           )}
+          <div>
+            <label className="label">Recruitment</label>
+            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+              {(['LOCAL', 'OVERSEAS'] as const).map((t) => (
+                <button
+                  type="button"
+                  key={t}
+                  onClick={() => setForm({ ...form, staffType: t })}
+                  className={`px-4 py-1.5 border-l first:border-l-0 border-gray-300 ${form.staffType === t ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >
+                  {t === 'LOCAL' ? 'Local' : 'Overseas'}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Overseas staff have extra required documents (visa/BRP, sponsorship, etc.) checked in their file.</p>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Hourly Rate (£)</label>

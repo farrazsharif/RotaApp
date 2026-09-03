@@ -27,6 +27,7 @@ export default function Users() {
   const [search, setSearch] = useState('');
 
   const [incompleteOnly, setIncompleteOnly] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<'all' | 'LOCAL' | 'OVERSEAS'>('all');
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users', 'all'],
@@ -42,7 +43,10 @@ export default function Users() {
 
   const filtered = users
     .filter((u) => `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase()))
-    .filter((u) => !incompleteOnly || complianceByUser.get(u.id)?.complete === false);
+    .filter((u) => !incompleteOnly || complianceByUser.get(u.id)?.complete === false)
+    .filter((u) => typeFilter === 'all' || (u.staffType || 'LOCAL') === typeFilter);
+
+  const overseasCount = users.filter((u) => u.staffType === 'OVERSEAS').length;
 
   const incompleteCount = complianceRows.filter((r) => !r.complete).length;
   const counts = {
@@ -59,6 +63,17 @@ export default function Users() {
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Staff</h1>
         <div className="flex gap-3">
+          <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+            {([{ k: 'all', label: 'All' }, { k: 'LOCAL', label: 'Local' }, { k: 'OVERSEAS', label: `Overseas${overseasCount ? ` · ${overseasCount}` : ''}` }] as const).map((t) => (
+              <button
+                key={t.k}
+                onClick={() => setTypeFilter(t.k)}
+                className={`px-3 py-1.5 border-l first:border-l-0 border-gray-200 ${typeFilter === t.k ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="input w-48" />
           {can('manage_staff') && <button className="btn-primary btn" onClick={() => setShowModal(true)}>+ Add Staff</button>}
         </div>
@@ -106,6 +121,7 @@ export default function Users() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">Rate/hr</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">File</th>
@@ -124,6 +140,11 @@ export default function Users() {
                 <td className="px-4 py-3 text-gray-600">{u.email}</td>
                 <td className="px-4 py-3">
                   <span className={roleBadge[u.role]}>{u.customRole?.name || roleLabel(u.role)}</span>
+                </td>
+                <td className="px-4 py-3">
+                  {u.staffType === 'OVERSEAS'
+                    ? <span className="badge-purple badge">🌍 Overseas</span>
+                    : <span className="badge-gray badge">Local</span>}
                 </td>
                 <td className="px-4 py-3 text-right text-gray-600">£{u.hourlyRate.toFixed(2)}</td>
                 <td className="px-4 py-3">

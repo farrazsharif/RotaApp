@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { documentsApi, DocumentOwnerType, DocumentMeta } from '../api/documents';
 
 const CATEGORIES: Record<DocumentOwnerType, string[]> = {
-  USER: ['DBS Certificate', 'Contract', 'Reference', 'Right to Work', 'Training Certificate', 'ID / Passport', 'Fit for Work', 'Other'],
+  USER: ['DBS Certificate', 'Contract', 'Reference', 'Right to Work', 'Training Certificate', 'ID / Passport', 'Fit for Work', 'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check', 'Other'],
   SERVICE_USER: ['Care Assessment', 'GP Letter', 'Hospital Discharge', 'DoLS / Legal', 'Funding', 'Medication Chart', 'Consent', 'Other'],
 };
 

@@ -40,6 +40,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "permissionsOverride" TEXT`);
   // Staff emergency contact address.
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emergencyContactAddress" TEXT`);
+  // Recruitment category (LOCAL | OVERSEAS) — drives overseas-only staff-file docs.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "staffType" TEXT NOT NULL DEFAULT 'LOCAL'`);
   // Care plan: extra named calls beyond the four standard slots (JSON array of
   // { name, when }) — e.g. Shopping, Domestic, GP appointment.
   await prisma.$executeRawUnsafe(`ALTER TABLE "CarePlan" ADD COLUMN IF NOT EXISTS "extraCalls" TEXT NOT NULL DEFAULT '[]'`);

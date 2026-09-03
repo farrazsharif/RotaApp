@@ -57,6 +57,8 @@ model User {
   // Platform owner: can see the cross-company admin dashboard. Kept separate
   // from the per-company ADMIN role.
   platformAdmin            Boolean  @default(false)
+  // Recruitment category — decides which staff-file documents are required.
+  staffType                String   @default("LOCAL") // LOCAL | OVERSEAS
   emergencyContactName     String?
   emergencyContactPhone    String?
   emergencyContactRelation String?

@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
 import { fileToLogoDataUrl } from '../lib/image';
 import { CallLogTaskDef, DEFAULT_CALL_LOG_TASKS, resolveCallLogTasks, buildNoteFromTicks } from '../lib/callLogTasks';
-import { Requirement, RequirementType, REQUIREMENT_TYPE_LABELS, TYPE_USES_CATEGORY, TYPE_USES_COUNT, USER_DOC_CATEGORIES, DEFAULT_REQUIREMENTS, resolveRequirements } from '../lib/staffCompliance';
+import { Requirement, RequirementType, AppliesTo, APPLIES_TO_LABEL, REQUIREMENT_TYPE_LABELS, TYPE_USES_CATEGORY, TYPE_USES_COUNT, USER_DOC_CATEGORIES, DEFAULT_REQUIREMENTS, resolveRequirements } from '../lib/staffCompliance';
 
 const TIMEZONES = ['Europe/London', 'UTC', 'Europe/Dublin', 'Europe/Paris'];
 
@@ -764,6 +764,15 @@ function StaffFileChecklistTab() {
                         <option key={t} value={t}>{REQUIREMENT_TYPE_LABELS[t]}</option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label className="label">Applies to</label>
+                    <select value={r.appliesTo || 'ALL'} onChange={(e) => setRow(i, { appliesTo: e.target.value as AppliesTo })} className="input">
+                      {(Object.keys(APPLIES_TO_LABEL) as AppliesTo[]).map((a) => (
+                        <option key={a} value={a}>{APPLIES_TO_LABEL[a]}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-0.5">Overseas-only items are checked only for overseas staff.</p>
                   </div>
                   {TYPE_USES_CATEGORY[r.type] && (
                     <div>
