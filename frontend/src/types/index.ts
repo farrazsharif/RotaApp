@@ -67,6 +67,7 @@ export interface OrgSettings {
   defaultRole: Role;
   callLogTasks?: string | null; // JSON array of carer-app visit checklist task defs
   staffFileRequirements?: string | null; // JSON array of editable staff-file compliance requirements
+  trainingCourses?: string | null; // JSON array of editable training-course names
   updatedAt: string;
 }
 

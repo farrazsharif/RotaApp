@@ -950,6 +950,7 @@ model OrgSettings {
   callLogTasks      String   @default("[]") // JSON: [{ id, label, phrase?, detail? }] carer-app visit checklist
   cqcSelfAssessment String   @default("{}") // JSON: { statementKey: { rating, note } } manual CQC self-assessment
   staffFileRequirements String @default("[]") // JSON: [{ id, label, hint, type, required, category?, minCount? }] editable staff-file compliance checklist
+  trainingCourses   String   @default("[]") // JSON: string[] editable training-course list ('[]' = built-in defaults)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

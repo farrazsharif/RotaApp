@@ -14,10 +14,11 @@ import PhotoUpload from '../components/PhotoUpload';
 import { fileToLogoDataUrl } from '../lib/image';
 import { CallLogTaskDef, DEFAULT_CALL_LOG_TASKS, resolveCallLogTasks, buildNoteFromTicks } from '../lib/callLogTasks';
 import { Requirement, RequirementType, AppliesTo, APPLIES_TO_LABEL, REQUIREMENT_TYPE_LABELS, TYPE_USES_CATEGORY, TYPE_USES_COUNT, USER_DOC_CATEGORIES, DEFAULT_REQUIREMENTS, resolveRequirements } from '../lib/staffCompliance';
+import { DEFAULT_TRAINING_COURSES, resolveTrainingCourses } from '../lib/trainingCourses';
 
 const TIMEZONES = ['Europe/London', 'UTC', 'Europe/Dublin', 'Europe/Paris'];
 
-type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles' | 'calllog' | 'stafffiles' | 'audit';
+type TabKey = 'account' | 'org' | 'sites' | 'staff' | 'roles' | 'calllog' | 'stafffiles' | 'trainingcourses' | 'audit';
 
 export default function Settings() {
   const { can } = usePermissions();
@@ -29,6 +30,7 @@ export default function Settings() {
     { key: 'roles' as const, label: 'Roles & Permissions', show: can('manage_permissions') },
     { key: 'calllog' as const, label: 'Visit Checklist', show: can('manage_settings') },
     { key: 'stafffiles' as const, label: 'Staff File Checklist', show: can('manage_settings') },
+    { key: 'trainingcourses' as const, label: 'Training Courses', show: can('manage_settings') },
     { key: 'audit' as const, label: 'Audit Log', show: can('view_audit_log') },
   ].filter((t) => t.show);
 
@@ -78,6 +80,7 @@ export default function Settings() {
       )}
       {tab === 'calllog' && <CallLogTasksTab />}
       {tab === 'stafffiles' && <StaffFileChecklistTab />}
+      {tab === 'trainingcourses' && <TrainingCoursesTab />}
       {tab === 'audit' && <AuditLogTab />}
     </div>
   );
@@ -818,6 +821,80 @@ function StaffFileChecklistTab() {
         <Saved show={mut.isSuccess && !mut.isPending && !list} />
         <button className="btn-primary btn" disabled={mut.isPending || cleaned.length === 0} onClick={() => mut.mutate(cleaned)}>
           {mut.isPending ? 'Saving…' : 'Save Checklist'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Training Courses ---------------- */
+function TrainingCoursesTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const [list, setList] = useState<string[] | null>(null);
+  const rows = list ?? (data ? resolveTrainingCourses(data.trainingCourses) : null);
+
+  const mut = useMutation({
+    mutationFn: (payload: string[]) => settingsApi.update({ trainingCourses: JSON.stringify(payload) }),
+    onSuccess: (updated) => { qc.setQueryData(['settings'], updated); setList(null); },
+  });
+
+  if (isLoading || !rows) return <div className="card text-gray-400">Loading…</div>;
+
+  const update = (next: string[]) => setList(next);
+  const setRow = (i: number, value: string) => update(rows.map((r, idx) => (idx === i ? value : r)));
+  const removeRow = (i: number) => update(rows.filter((_, idx) => idx !== i));
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= rows.length) return;
+    const next = [...rows];
+    [next[i], next[j]] = [next[j], next[i]];
+    update(next);
+  };
+  const addRow = () => update([...rows, '']);
+
+  // Drop blanks + de-dupe (case-insensitive) before saving; the backend re-checks too.
+  const seen = new Set<string>();
+  const cleaned = rows
+    .map((r) => r.trim())
+    .filter((r) => { const k = r.toLowerCase(); if (!r || seen.has(k)) return false; seen.add(k); return true; });
+
+  return (
+    <div className="card space-y-4 max-w-2xl">
+      <div>
+        <h2 className="font-semibold text-gray-900">Training Courses</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          The courses offered in the dropdown when recording a staff member's training. Add, rename or remove them to match your mandatory training. Renaming here doesn't change training already recorded under the old name.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              value={r}
+              onChange={(e) => setRow(i, e.target.value)}
+              placeholder="Course name (e.g. First Aid)"
+              className="input flex-1"
+            />
+            <button className="text-gray-400 hover:text-gray-700 px-1.5" title="Move up" onClick={() => move(i, -1)}>↑</button>
+            <button className="text-gray-400 hover:text-gray-700 px-1.5" title="Move down" onClick={() => move(i, 1)}>↓</button>
+            <button className="text-red-500 hover:text-red-700 px-1.5" title="Remove" onClick={() => removeRow(i)}>✕</button>
+          </div>
+        ))}
+        {rows.length === 0 && <p className="text-sm text-gray-400">No courses yet — add one below.</p>}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button className="btn-secondary btn btn-sm" onClick={addRow}>+ Add course</button>
+        <button className="btn-secondary btn btn-sm" onClick={() => update([...DEFAULT_TRAINING_COURSES])}>Reset to defaults</button>
+      </div>
+
+      <div className="flex gap-3 pt-1 items-center border-t border-gray-100">
+        <p className="text-xs text-gray-400 flex-1">Duplicate and blank names are removed automatically when you save.</p>
+        <Saved show={mut.isSuccess && !mut.isPending && !list} />
+        <button className="btn-primary btn" disabled={mut.isPending || cleaned.length === 0} onClick={() => mut.mutate(cleaned)}>
+          {mut.isPending ? 'Saving…' : 'Save Courses'}
         </button>
       </div>
     </div>

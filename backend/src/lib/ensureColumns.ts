@@ -36,6 +36,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "cqcSelfAssessment" TEXT NOT NULL DEFAULT '{}'`);
   // Editable staff-file compliance checklist ('[]' = use built-in defaults).
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "staffFileRequirements" TEXT NOT NULL DEFAULT '[]'`);
+  // Editable training-course list ('[]' = use built-in defaults).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "trainingCourses" TEXT NOT NULL DEFAULT '[]'`);
   // Per-person permission override (JSON array of capability keys; null = follow role).
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "permissionsOverride" TEXT`);
   // Staff emergency contact address.

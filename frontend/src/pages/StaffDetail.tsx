@@ -16,6 +16,7 @@ import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
 import SignaturePad from '../components/SignaturePad';
 import DocumentsTab from '../components/DocumentsTab';
+import { resolveTrainingCourses } from '../lib/trainingCourses';
 import { statusInfo } from './Users';
 
 const roleBadge: Record<Role, string> = {
@@ -46,12 +47,6 @@ const FIT_FOR_WORK_CONDITIONS: { id: string; label: string }[] = [
   { id: 'tenosynovitis', label: 'Tenosynovitis (joint problems)' },
 ];
 
-const COURSES = [
-  'First Aid', 'Safeguarding Adults e-learning', 'Safeguarding Children',
-  'Manual Handling', 'Infection Control', 'Medication Administration',
-  'Health & Safety', 'Fire Safety', 'Food Hygiene', 'GDPR / Data Protection',
-  'Equality & Diversity', 'Dementia Care', 'Other',
-];
 const COMMON_LABELS = ['DBS Renewal', 'Supervision', 'Appraisal', 'Contract Review', 'Probation Review', 'Other'];
 
 function isValid(t: Training): boolean {
@@ -400,6 +395,8 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
 
   const { data: records = [], isLoading } = useQuery({ queryKey: ['training', userId], queryFn: () => trainingApi.list(userId) });
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const courses = resolveTrainingCourses(settings?.trainingCourses);
 
   // Annual refresher — renews every course the staff holds (+1 year expiry).
   const refreshMut = useMutation({
@@ -537,7 +534,8 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
               <label className="label">Training Course *</label>
               <select value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} className="input">
                 <option value="">Please Select</option>
-                {COURSES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {courses.map((c) => <option key={c} value={c}>{c}</option>)}
+                {form.course && !courses.includes(form.course) && <option value={form.course}>{form.course}</option>}
               </select>
             </div>
             <div>

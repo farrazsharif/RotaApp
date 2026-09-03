@@ -89,12 +89,38 @@ function normalizeStaffFileRequirements(raw: unknown): string {
   return JSON.stringify(normaliseRequirements(arr));
 }
 
+// Clean the editable training-course list into a stored JSON string: an array
+// of non-empty course names, trimmed, de-duplicated (case-insensitive), capped.
+function normalizeTrainingCourses(raw: unknown): string {
+  let arr: unknown = raw;
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr); } catch { return '[]'; }
+  }
+  if (!Array.isArray(arr)) return '[]';
+  const seen = new Set<string>();
+  const clean: string[] = [];
+  for (const v of arr) {
+    const name = String(v ?? '').trim().slice(0, 80);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    clean.push(name);
+    if (clean.length >= 100) break;
+  }
+  return JSON.stringify(clean);
+}
+
 export async function updateOrgSettings(req: AuthRequest, res: Response) {
   const body = req.body as Record<string, unknown>;
   const data: Record<string, unknown> = {};
 
   if (body.callLogTasks !== undefined) {
     data.callLogTasks = normalizeCallLogTasks(body.callLogTasks);
+  }
+
+  if (body.trainingCourses !== undefined) {
+    data.trainingCourses = normalizeTrainingCourses(body.trainingCourses);
   }
 
   if (body.staffFileRequirements !== undefined) {
