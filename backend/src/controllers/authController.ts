@@ -57,8 +57,13 @@ export async function getMe(req: AuthRequest, res: Response) {
     include: { customRole: { select: { id: true, name: true, baseType: true, permissions: true } } },
   });
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const custom = user.customRole ? (safeParse(user.customRole.permissions)) : null;
-  const capabilities = await capabilitiesFor(user.role as Role, custom);
+  // Effective capabilities follow the same precedence as the staff page:
+  // per-person override > custom role > base-role matrix. Previously this only
+  // looked at the custom role, so a permission granted to one person via their
+  // Permissions tab never reached their own session.
+  const override = user.permissionsOverride != null ? safeParse(user.permissionsOverride) : null;
+  const roleCaps = user.customRole ? safeParse(user.customRole.permissions) : null;
+  const capabilities = await capabilitiesFor(user.role as Role, override ?? roleCaps);
   const { password: _, customRole, ...safeUser } = user;
   res.json({
     ...safeUser,
