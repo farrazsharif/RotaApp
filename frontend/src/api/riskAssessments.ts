@@ -15,6 +15,9 @@ export interface RiskAssessmentSummary {
   type: string;
   createdAt: string;
   updatedAt: string;
+  onFile?: boolean; // held on paper (scan attached), essentials logged
+  completedDate?: string | null;
+  reviewDate?: string | null;
 }
 
 export const riskAssessmentsApi = {

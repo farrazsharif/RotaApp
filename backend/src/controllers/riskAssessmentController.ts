@@ -11,9 +11,17 @@ export async function listRiskAssessments(req: AuthRequest, res: Response) {
   if (serviceUserId) where.serviceUserId = String(serviceUserId);
   const rows = await prisma.riskAssessment.findMany({
     where,
-    select: { serviceUserId: true, type: true, createdAt: true, updatedAt: true },
+    select: { serviceUserId: true, type: true, createdAt: true, updatedAt: true, data: true },
   });
-  res.json(rows);
+  // Surface the "held on paper" essentials (stored under the reserved __paper
+  // key) so the list can show an on-file badge and the review-due date.
+  const out = rows.map((r) => {
+    let paper: { onFile?: boolean; completedDate?: string; reviewDate?: string } | null = null;
+    try { const d = JSON.parse(r.data); if (d && typeof d.__paper === 'object') paper = d.__paper; } catch { /* ignore */ }
+    const { data, ...rest } = r;
+    return { ...rest, onFile: !!paper?.onFile, completedDate: paper?.completedDate || null, reviewDate: paper?.reviewDate || null };
+  });
+  res.json(out);
 }
 
 // A single assessment by client + type — null if not started yet.

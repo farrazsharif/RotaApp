@@ -720,14 +720,20 @@ export default function ServiceUserDetail() {
         <div className="space-y-2">
           {RA_TYPES.map((t) => {
             const summary = riskAssessments.find((r) => r.type === t.type);
+            const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
             return (
               <div key={t.type} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{t.title}</p>
-                  <p className="text-xs text-gray-500">
-                    {summary
-                      ? `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`
-                      : 'Not started yet.'}
+                  <p className="text-sm font-medium text-gray-800">
+                    {t.title}
+                    {summary?.onFile && <span className="ml-2 badge-gray badge">📄 On file</span>}
+                  </p>
+                  <p className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                    {!summary
+                      ? 'Not started yet.'
+                      : summary.onFile
+                        ? `Held on paper${summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}`
+                        : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
                   </p>
                 </div>
                 <button className="btn-secondary btn btn-sm shrink-0" onClick={() => setRaType(t.type)}>
