@@ -150,7 +150,7 @@ export default function Schedule() {
   const [pubMenuOpen, setPubMenuOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
 
-  const [mode, setMode] = useState<'calendar' | 'carer' | 'site' | 'list'>('calendar');
+  const [mode, setMode] = useState<'calendar' | 'carer' | 'list'>('calendar');
   const [viewKey, setViewKey] = useState<ViewKey>('week');
   const [anchor, setAnchor] = useState(new Date());
 
@@ -613,15 +613,6 @@ export default function Schedule() {
             </button>
           )}
           {isManager && (
-            <button
-              onClick={() => setMode((m) => (m === 'site' ? 'calendar' : 'site'))}
-              className={`btn btn-sm ${mode === 'site' ? 'btn-primary' : 'btn-secondary'}`}
-              title="Group visits by location, aligned into bands"
-            >
-              By location
-            </button>
-          )}
-          {isManager && (
             <button className="btn-primary btn" onClick={() => { setSelectedShift(null); setSelectedDate(format(anchor, 'yyyy-MM-dd')); setModalOpen(true); }}>
               + Add shift
             </button>
@@ -771,16 +762,6 @@ export default function Schedule() {
           needsStaff={needsStaff}
           missingCarers={missingCarers}
           onOpen={openShift}
-        />
-      ) : mode === 'site' && isManager ? (
-        <SiteTimeline
-          days={rangeDays}
-          shifts={rangeShifts}
-          isManager={isManager}
-          needsStaff={needsStaff}
-          missingCarers={missingCarers}
-          onOpen={openShift}
-          onAdd={(dateStr) => { setSelectedShift(null); setSelectedDate(dateStr); setModalOpen(true); }}
         />
       ) : mode === 'calendar' && viewKey === '4week' ? (
         <DayColumns
@@ -938,99 +919,6 @@ function DayColumns({ days, shifts, isManager, needsStaff, missingCarers, onOpen
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-// "By location" grid: one aligned row-band per site (name on the left, days
-// across the top). Because each site is a single CSS-grid row spanning all day
-// columns, the boundary between one location and the next is a straight line
-// across every day — days with fewer calls simply leave blank space below,
-// keeping the next location aligned. Fixes the "zigzag" where colours changed at
-// a different height in each column.
-function SiteTimeline({ days, shifts, isManager, needsStaff, missingCarers, onOpen, onAdd }: {
-  days: Date[];
-  shifts: Shift[];
-  isManager: boolean;
-  needsStaff: (s: Shift) => boolean;
-  missingCarers: (s: Shift) => number;
-  onOpen: (s: Shift) => void;
-  onAdd: (dateStr: string) => void;
-}) {
-  const dayKey = (d: Date | string) => format(new Date(d), 'yyyy-MM-dd');
-  const todayKey = format(new Date(), 'yyyy-MM-dd');
-  const NO_SITE = '__none__';
-
-  // Distinct sites in view, ordered by the manager-set site order; visits with
-  // no site fall into a "No location" band last.
-  const siteMeta = new Map<string, { id: string; name: string; color: string; order: number }>();
-  for (const s of shifts) {
-    const site = s.serviceUser?.site;
-    if (site) {
-      if (!siteMeta.has(site.id)) siteMeta.set(site.id, { id: site.id, name: site.name, color: site.color || '#3b82f6', order: site.order ?? 1e9 - 1 });
-    } else if (!siteMeta.has(NO_SITE)) {
-      siteMeta.set(NO_SITE, { id: NO_SITE, name: 'No location', color: '#9ca3af', order: 1e9 });
-    }
-  }
-  const siteRows = [...siteMeta.values()].sort((a, b) => (a.order - b.order) || a.name.localeCompare(b.name));
-
-  const shiftsFor = (siteId: string, d: Date) =>
-    shifts
-      .filter((s) => (s.serviceUser?.site?.id ?? NO_SITE) === siteId && dayKey(s.date) === dayKey(d))
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-  const gridCols = { gridTemplateColumns: `150px repeat(${days.length}, minmax(150px, 1fr))` };
-
-  const card = (s: Shift) => {
-    const unassigned = needsStaff(s);
-    const color = s.serviceUser?.site?.color || '#3b82f6';
-    const patient = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
-    const carers = [s.user ? `${s.user.firstName} ${s.user.lastName}` : null, ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? [])].filter(Boolean).join(', ');
-    return (
-      <button
-        key={s.id}
-        onClick={() => onOpen(s)}
-        className={`w-full text-left rounded px-1.5 py-1 text-[10px] leading-tight border ${unassigned ? 'border-dashed border-red-400 bg-red-50 text-red-800' : 'border-transparent text-gray-800'} ${!s.published ? 'opacity-95' : ''}`}
-        style={unassigned ? undefined : { backgroundColor: `${color}22` }}
-      >
-        <div className="font-bold truncate">{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)} · {formatDuration(s.startTime, s.endTime)}</div>
-        <div className="truncate font-semibold">{unassigned && '⚠ '}{patient}{isManager && !s.published && ' · draft'}</div>
-        {isManager && <div className="truncate opacity-80">{unassigned ? `needs ${missingCarers(s)} more` : (carers || 'Unassigned')}</div>}
-        {(s.visitName || s.cover > 1) && <div className="truncate opacity-80">{[s.visitName, s.cover > 1 ? coverLabel(s.cover) : null].filter(Boolean).join(' · ')}</div>}
-      </button>
-    );
-  };
-
-  return (
-    <div className="card p-0 overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-      <div className="min-w-max">
-        {/* Header — pinned while scrolling so the dates stay visible. */}
-        <div className="grid border-b border-gray-200 bg-gray-50 sticky top-0 z-20" style={gridCols}>
-          <div className="px-3 py-2 text-xs font-medium text-gray-500 sticky left-0 bg-gray-50 z-30">Location</div>
-          {days.map((d) => (
-            <div key={dayKey(d)} className={`px-2 py-2 text-xs font-medium text-center border-l border-gray-100 ${dayKey(d) === todayKey ? 'bg-blue-50 text-blue-700' : 'text-gray-600'}`}>{format(d, 'EEE dd/MM')}</div>
-          ))}
-        </div>
-
-        {siteRows.length === 0 ? (
-          <div className="p-6 text-sm text-gray-400 text-center">No visits in this range.</div>
-        ) : siteRows.map((site) => (
-          <div key={site.id} className="grid border-b-2 border-gray-200" style={gridCols}>
-            <div className="px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 bg-white z-10 flex items-center gap-2 border-l-4" style={{ borderLeftColor: site.color }}>
-              <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: site.color }} />
-              <span className="truncate">{site.name}</span>
-            </div>
-            {days.map((d) => (
-              <div key={dayKey(d)} className="border-l border-gray-100 p-1 space-y-1">
-                {shiftsFor(site.id, d).map((s) => card(s))}
-                {isManager && (
-                  <button onClick={() => onAdd(dayKey(d))} className="w-full text-[10px] text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded py-0.5">+ add</button>
-                )}
-              </div>
-            ))}
-          </div>
-        ))}
       </div>
     </div>
   );
