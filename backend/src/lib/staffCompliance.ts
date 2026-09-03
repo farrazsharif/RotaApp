@@ -79,8 +79,8 @@ export const USER_DOC_CATEGORIES = [
 ];
 
 export const DEFAULT_REQUIREMENTS: Requirement[] = [
-  { id: 'identity', label: 'Proof of identity', type: 'identity', required: true, appliesTo: 'ALL', tab: 'Documents',
-    hint: 'Upload an ID / Passport document in Documents.' },
+  { id: 'identity', label: 'Proof of identity', type: 'identity', required: true, appliesTo: 'ALL', minCount: 2, tab: 'Documents',
+    hint: 'Upload the required number of ID / Passport documents in Documents.' },
   { id: 'dbs', label: 'DBS certificate', type: 'dbs', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Upload the DBS certificate in Documents.' },
   { id: 'references', label: 'Reference(s)', type: 'references', required: true, appliesTo: 'ALL', minCount: 1, tab: 'Documents',
@@ -126,9 +126,10 @@ function docCount(i: ComplianceInput, category: string): number {
 function satisfied(req: Requirement, i: ComplianceInput): boolean {
   const min = Math.max(1, req.minCount || 1);
   switch (req.type) {
-    // Proof of identity requires an actual ID document — the profile photo /
-    // avatar does not count on its own.
-    case 'identity': return docCount(i, 'ID / Passport') > 0;
+    // Proof of identity requires actual ID document(s) — the profile photo /
+    // avatar does not count. Honours minCount so a company can require two
+    // forms of ID.
+    case 'identity': return docCount(i, 'ID / Passport') >= min;
     case 'dbs': return docCount(i, 'DBS Certificate') > 0;
     case 'references': return docCount(i, req.category || 'Reference') >= min;
     case 'rightToWork': return docCount(i, 'Right to Work') > 0;
