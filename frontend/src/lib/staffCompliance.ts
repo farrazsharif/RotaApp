@@ -65,7 +65,7 @@ export const USER_DOC_CATEGORIES = [
 
 export const DEFAULT_REQUIREMENTS: Requirement[] = [
   { id: 'identity', label: 'Proof of identity', type: 'identity', required: true, appliesTo: 'ALL', tab: 'Documents',
-    hint: 'Add a profile photo, or upload an ID / Passport document.' },
+    hint: 'Upload an ID / Passport document in Documents.' },
   { id: 'dbs', label: 'DBS certificate', type: 'dbs', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Upload the DBS certificate in Documents.' },
   { id: 'references', label: 'Reference(s)', type: 'references', required: true, appliesTo: 'ALL', minCount: 1, tab: 'Documents',

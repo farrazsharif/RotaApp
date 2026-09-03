@@ -80,7 +80,7 @@ export const USER_DOC_CATEGORIES = [
 
 export const DEFAULT_REQUIREMENTS: Requirement[] = [
   { id: 'identity', label: 'Proof of identity', type: 'identity', required: true, appliesTo: 'ALL', tab: 'Documents',
-    hint: 'Add a profile photo, or upload an ID / Passport document.' },
+    hint: 'Upload an ID / Passport document in Documents.' },
   { id: 'dbs', label: 'DBS certificate', type: 'dbs', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Upload the DBS certificate in Documents.' },
   { id: 'references', label: 'Reference(s)', type: 'references', required: true, appliesTo: 'ALL', minCount: 1, tab: 'Documents',
@@ -126,7 +126,9 @@ function docCount(i: ComplianceInput, category: string): number {
 function satisfied(req: Requirement, i: ComplianceInput): boolean {
   const min = Math.max(1, req.minCount || 1);
   switch (req.type) {
-    case 'identity': return !!(i.photo && i.photo.trim()) || docCount(i, 'ID / Passport') > 0;
+    // Proof of identity requires an actual ID document — the profile photo /
+    // avatar does not count on its own.
+    case 'identity': return docCount(i, 'ID / Passport') > 0;
     case 'dbs': return docCount(i, 'DBS Certificate') > 0;
     case 'references': return docCount(i, req.category || 'Reference') >= min;
     case 'rightToWork': return docCount(i, 'Right to Work') > 0;
