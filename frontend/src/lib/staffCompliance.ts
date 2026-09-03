@@ -59,13 +59,14 @@ export const TYPE_USES_COUNT: Record<RequirementType, boolean> = {
 export const USER_DOC_CATEGORIES = [
   'DBS Certificate', 'Contract', 'Reference', 'Right to Work',
   'Training Certificate', 'ID / Passport', 'Fit for Work',
-  'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form',
+  'Proof of Address', 'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form',
   'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check',
   'Other',
 ];
 
 // Standard onboarding documents added to the default checklist (all staff).
 const ONBOARDING_DOCS: { id: string; label: string; category: string }[] = [
+  { id: 'sf-proof-address', label: 'Proof of address', category: 'Proof of Address' },
   { id: 'sf-interview', label: 'Interview Questionnaire', category: 'Interview Questionnaire' },
   { id: 'sf-payroll', label: 'Payroll Form', category: 'Payroll Form' },
   { id: 'sf-induction-conf', label: 'Staff induction confirmation', category: 'Staff Induction Confirmation' },
