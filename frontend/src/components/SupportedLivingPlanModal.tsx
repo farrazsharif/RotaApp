@@ -6,6 +6,7 @@ import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import { SUPPORT_DOMAINS as SL_DOMAINS } from '../lib/supportDomains';
+import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 
 // Stored in the generic assessment store, type 'SL_SUPPORT_PLAN' — no backend
 // change needed (same as the Contract of Care).
@@ -22,7 +23,7 @@ const levelLabel = (v: string) => LEVELS.find((l) => l.v === v)?.label || '';
 interface DomainVal { applies: boolean; level: string; current: string; goal: string; support: string }
 const emptyDomain = (): DomainVal => ({ applies: false, level: '', current: '', goal: '', support: '' });
 
-interface PlanData { summary: string; domains: Record<string, DomainVal> }
+interface PlanData { summary: string; domains: Record<string, DomainVal>; __paper?: PaperMeta }
 const emptyPlan = (): PlanData => ({ summary: '', domains: {} });
 
 interface Props { serviceUser: ServiceUser; onClose: () => void }
@@ -43,7 +44,7 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
     if (record?.data) {
       try {
         const parsed = JSON.parse(record.data);
-        setPlan({ summary: String(parsed.summary || ''), domains: parsed.domains && typeof parsed.domains === 'object' ? parsed.domains : {} });
+        setPlan({ summary: String(parsed.summary || ''), domains: parsed.domains && typeof parsed.domains === 'object' ? parsed.domains : {}, __paper: parsed.__paper && typeof parsed.__paper === 'object' ? parsed.__paper : undefined });
       } catch { setPlan(emptyPlan()); }
     } else {
       setPlan(emptyPlan());
@@ -58,6 +59,8 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
     },
   });
 
+  const paper = plan.__paper || {};
+  const setPaper = (patch: PaperMeta) => setPlan((p) => ({ ...p, __paper: { ...(p.__paper || {}), ...patch } }));
   const dom = (k: string): DomainVal => plan.domains[k] || emptyDomain();
   const setDom = (k: string, patch: Partial<DomainVal>) =>
     setPlan((p) => ({ ...p, domains: { ...p.domains, [k]: { ...emptyDomain(), ...p.domains[k], ...patch } } }));
@@ -120,6 +123,8 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
+
+        <HeldOnPaperPanel meta={paper} ro={ro} onChange={setPaper} />
 
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>

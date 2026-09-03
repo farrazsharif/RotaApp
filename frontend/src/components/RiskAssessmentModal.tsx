@@ -6,6 +6,7 @@ import { ServiceUser } from '../types';
 import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem } from '../lib/riskAssessmentSchema';
 import { printRiskAssessment } from '../lib/riskAssessmentPrint';
 import SignaturePad from './SignaturePad';
+import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import { format } from 'date-fns';
 
 interface Props {
@@ -60,7 +61,6 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
   // (attached as a scan in Documents) with just the essentials, without filling
   // in every field. Stored under a reserved __paper key so it can't collide with
   // form item keys.
-  type PaperMeta = { onFile?: boolean; completedDate?: string; reviewDate?: string; assessor?: string };
   const paper = (values.__paper as PaperMeta) || {};
   const setPaper = (patch: PaperMeta) => setValues((v) => ({ ...v, __paper: { ...((v.__paper as PaperMeta) || {}), ...patch } }));
   const risk = (key: string): RiskVal => (values[key] as RiskVal) || { level: '', comment: '', action: '' };
@@ -241,35 +241,7 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
 
-        {/* Held-on-paper: log a legacy paper assessment with just the essentials. */}
-        <div className="border-b bg-amber-50/60 px-5 py-3">
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-800">
-            <input type="checkbox" checked={!!paper.onFile} disabled={ro} onChange={(e) => setPaper({ onFile: e.target.checked })} className="h-4 w-4 accent-amber-600" />
-            📄 This assessment is held on paper (scan attached in Documents)
-          </label>
-          {paper.onFile && (
-            <div className="grid gap-3 sm:grid-cols-3 mt-3">
-              <div>
-                <label className="label">Date completed</label>
-                {ro ? <p className="text-sm text-gray-800">{paper.completedDate ? format(new Date(paper.completedDate), 'dd MMM yyyy') : '—'}</p>
-                    : <input type="date" value={paper.completedDate || ''} onChange={(e) => setPaper({ completedDate: e.target.value })} className="input text-sm" />}
-              </div>
-              <div>
-                <label className="label">Next review date</label>
-                {ro ? <p className="text-sm text-gray-800">{paper.reviewDate ? format(new Date(paper.reviewDate), 'dd MMM yyyy') : '—'}</p>
-                    : <input type="date" value={paper.reviewDate || ''} onChange={(e) => setPaper({ reviewDate: e.target.value })} className="input text-sm" />}
-              </div>
-              <div>
-                <label className="label">Assessor</label>
-                {ro ? <p className="text-sm text-gray-800">{paper.assessor || '—'}</p>
-                    : <input type="text" value={paper.assessor || ''} onChange={(e) => setPaper({ assessor: e.target.value })} className="input text-sm" placeholder="Name of assessor" />}
-              </div>
-              <p className="sm:col-span-3 text-xs text-gray-500">
-                Attach the scanned form on the client's <span className="font-medium">Documents</span> tab. You can leave the sections below blank, or fill them in later at the next review.
-              </p>
-            </div>
-          )}
-        </div>
+        <HeldOnPaperPanel meta={paper} ro={ro} onChange={setPaper} />
 
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>

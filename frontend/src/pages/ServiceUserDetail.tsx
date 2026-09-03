@@ -600,11 +600,26 @@ export default function ServiceUserDetail() {
           </button>
         }
       >
-        <p className="text-sm text-gray-600">
-          {servicePlan
-            ? `Full assessment — last updated ${format(new Date(servicePlan.updatedAt), 'dd MMM yyyy, h:mm a')}.`
-            : 'Comprehensive assessment (health, communication, personal care, medication, manual handling, safeguarding, consent and more). Not started yet.'}
-        </p>
+        {(() => {
+          let paper: { onFile?: boolean; reviewDate?: string } | null = null;
+          if (servicePlan?.data) { try { const d = JSON.parse(servicePlan.data); if (d && typeof d.__paper === 'object') paper = d.__paper; } catch { /* ignore */ } }
+          const overdue = !!paper?.onFile && !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
+          if (paper?.onFile) {
+            return (
+              <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                <span className="badge-gray badge mr-2">📄 On file</span>
+                Held on paper{paper.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(paper.reviewDate), 'dd MMM yyyy')}` : ''}
+              </p>
+            );
+          }
+          return (
+            <p className="text-sm text-gray-600">
+              {servicePlan
+                ? `Full assessment — last updated ${format(new Date(servicePlan.updatedAt), 'dd MMM yyyy, h:mm a')}.`
+                : 'Comprehensive assessment (health, communication, personal care, medication, manual handling, safeguarding, consent and more). Not started yet.'}
+            </p>
+          );
+        })()}
       </Section>
 
       {/* Supported Living — housing provider & support plan */}
@@ -630,6 +645,15 @@ export default function ServiceUserDetail() {
           >
             {(() => {
               const summary = riskAssessments.find((r) => r.type === 'SL_SUPPORT_PLAN');
+              const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
+              if (summary?.onFile) {
+                return (
+                  <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                    <span className="badge-gray badge mr-2">📄 On file</span>
+                    Held on paper{summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}
+                  </p>
+                );
+              }
               return (
                 <p className="text-sm text-gray-500">
                   {summary
@@ -675,14 +699,20 @@ export default function ServiceUserDetail() {
         <div className="space-y-2">
           {PROFILE_TYPES.map((t) => {
             const summary = riskAssessments.find((r) => r.type === t.type);
+            const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
             return (
               <div key={t.type} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{t.title}</p>
-                  <p className="text-xs text-gray-500">
-                    {summary
-                      ? `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`
-                      : 'Not started yet.'}
+                  <p className="text-sm font-medium text-gray-800">
+                    {t.title}
+                    {summary?.onFile && <span className="ml-2 badge-gray badge">📄 On file</span>}
+                  </p>
+                  <p className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                    {!summary
+                      ? 'Not started yet.'
+                      : summary.onFile
+                        ? `Held on paper${summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}`
+                        : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
                   </p>
                 </div>
                 <button className="btn-secondary btn btn-sm shrink-0" onClick={() => setRaType(t.type)}>

@@ -8,6 +8,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { defaultTemplateSections, keyForItem, PspItem, PspSection } from '../lib/servicePlanSchema';
 import { printServicePlan } from '../lib/servicePlanPrint';
+import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import { format } from 'date-fns';
 
 interface Props {
@@ -82,6 +83,8 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
   });
 
   const set = (key: string, val: unknown) => setValues((v) => ({ ...v, [key]: val }));
+  const paper = (values.__paper as PaperMeta) || {};
+  const setPaper = (patch: PaperMeta) => setValues((v) => ({ ...v, __paper: { ...((v.__paper as PaperMeta) || {}), ...patch } }));
 
   const yn = (key: string): YnVal => (values[key] as YnVal) || { v: '', comment: '', action: '' };
   const chk = (key: string): CheckVal => (values[key] as CheckVal) || { checked: false, comment: '' };
@@ -343,6 +346,8 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
+
+        <HeldOnPaperPanel meta={paper} ro={ro} onChange={setPaper} />
 
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>
