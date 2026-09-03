@@ -811,6 +811,9 @@ function StaffFileChecklistTab() {
 
       <div className="flex flex-wrap gap-2">
         <button className="btn-secondary btn btn-sm" onClick={addRow}>+ Add requirement</button>
+        <button className="btn-secondary btn btn-sm" onClick={() => update([...rows, ...DEFAULT_REQUIREMENTS.filter((d) => !rows.some((r) => r.id === d.id)).map((r) => ({ ...r }))])} title="Append any built-in standard items you don't already have, without changing your existing rows">
+          + Add standard documents
+        </button>
         <button className="btn-secondary btn btn-sm" onClick={() => update(DEFAULT_REQUIREMENTS.map((r) => ({ ...r })))}>Reset to CQC defaults</button>
       </div>
 

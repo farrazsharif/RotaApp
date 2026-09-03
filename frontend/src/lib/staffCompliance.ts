@@ -59,8 +59,23 @@ export const TYPE_USES_COUNT: Record<RequirementType, boolean> = {
 export const USER_DOC_CATEGORIES = [
   'DBS Certificate', 'Contract', 'Reference', 'Right to Work',
   'Training Certificate', 'ID / Passport', 'Fit for Work',
+  'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form',
   'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check',
   'Other',
+];
+
+// Standard onboarding documents added to the default checklist (all staff).
+const ONBOARDING_DOCS: { id: string; label: string; category: string }[] = [
+  { id: 'sf-interview', label: 'Interview Questionnaire', category: 'Interview Questionnaire' },
+  { id: 'sf-payroll', label: 'Payroll Form', category: 'Payroll Form' },
+  { id: 'sf-induction-conf', label: 'Staff induction confirmation', category: 'Staff Induction Confirmation' },
+  { id: 'sf-consent-dbs', label: 'Consent to hold DBS', category: 'Consent to Hold DBS' },
+  { id: 'sf-application', label: 'Application Form', category: 'Application Form' },
+  { id: 'sf-shadowing', label: 'Shadowing Form', category: 'Shadowing Form' },
+  { id: 'sf-induction-training', label: 'Induction Training', category: 'Induction Training' },
+  { id: 'sf-dbs-id', label: 'DBS ID Form', category: 'DBS ID Form' },
+  { id: 'sf-lone-working', label: 'Lone Working Hazard Checklist', category: 'Lone Working Hazard Checklist' },
+  { id: 'sf-confidentiality', label: 'Confidentiality Form', category: 'Confidentiality Form' },
 ];
 
 export const DEFAULT_REQUIREMENTS: Requirement[] = [
@@ -80,6 +95,11 @@ export const DEFAULT_REQUIREMENTS: Requirement[] = [
     hint: 'Complete and sign the Fit for Work declaration, or upload the signed form.' },
   { id: 'emergencyContact', label: 'Emergency contact', type: 'emergencyContact', required: true, appliesTo: 'ALL', tab: 'Emergency Contact',
     hint: 'Record a next-of-kin / emergency contact name on the Emergency Contact tab.' },
+  // Standard onboarding documents (apply to every staff member).
+  ...ONBOARDING_DOCS.map((d): Requirement => ({
+    id: d.id, label: d.label, type: 'document', category: d.category, required: true, appliesTo: 'ALL', tab: 'Documents',
+    hint: `Upload the ${d.label} in Documents.`,
+  })),
   // Overseas-only paperwork — counted only for staff marked as Overseas.
   { id: 'os-passport', label: 'Passport (valid)', type: 'document', category: 'Passport', required: true, appliesTo: 'OVERSEAS', tab: 'Documents',
     hint: 'Upload the passport photo page in Documents.' },
