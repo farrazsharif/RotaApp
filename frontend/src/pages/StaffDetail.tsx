@@ -395,8 +395,27 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
   const [form, setForm] = useState({ course: '', date: format(new Date(), 'yyyy-MM-dd'), expiresAt: '', accredited: false, description: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [refreshOpen, setRefreshOpen] = useState(false);
+  const [refreshDate, setRefreshDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
 
   const { data: records = [], isLoading } = useQuery({ queryKey: ['training', userId], queryFn: () => trainingApi.list(userId) });
+
+  // Annual refresher — renews every course the staff holds (+1 year expiry).
+  const refreshMut = useMutation({
+    mutationFn: () => trainingApi.refresh(userId, refreshDate),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['training', userId] });
+      qc.invalidateQueries({ queryKey: ['user-compliance', userId] });
+      setRefreshOpen(false);
+      setRefreshMsg(`Renewed ${r.count} course${r.count === 1 ? '' : 's'} — next due ${format(new Date(new Date(refreshDate).setFullYear(new Date(refreshDate).getFullYear() + 1)), 'dd MMM yyyy')}.`);
+      setTimeout(() => setRefreshMsg(null), 6000);
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setRefreshMsg(msg || 'Could not record the refresher. Please try again.');
+    },
+  });
 
   const visibleRecords = showAll
     ? records
@@ -429,10 +448,37 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
 
   return (
     <div className="card space-y-6">
-      <div className="flex items-center gap-4 text-sm">
-        <label className="flex items-center gap-1.5"><input type="radio" checked={!showAll} onChange={() => setShowAll(false)} /> Most Recent</label>
-        <label className="flex items-center gap-1.5"><input type="radio" checked={showAll} onChange={() => setShowAll(true)} /> All</label>
+      <div className="flex items-center justify-between gap-4 text-sm">
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-1.5"><input type="radio" checked={!showAll} onChange={() => setShowAll(false)} /> Most Recent</label>
+          <label className="flex items-center gap-1.5"><input type="radio" checked={showAll} onChange={() => setShowAll(true)} /> All</label>
+        </div>
+        {isManager && records.length > 0 && !refreshOpen && (
+          <button className="btn-secondary btn btn-sm" onClick={() => { setRefreshMsg(null); setRefreshDate(format(new Date(), 'yyyy-MM-dd')); setRefreshOpen(true); }} title="Renew all courses in one go (annual refresher)">
+            ↻ Record annual refresher
+          </button>
+        )}
       </div>
+
+      {refreshMsg && <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{refreshMsg}</div>}
+
+      {isManager && refreshOpen && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
+          <p className="text-sm text-gray-700">
+            Annual refresher — renews <span className="font-semibold">all {new Set(records.map((r) => r.course)).size} course{new Set(records.map((r) => r.course)).size === 1 ? '' : 's'}</span> this staff member holds. Each becomes valid from the date below, expiring one year later.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="label">Refresher date</label>
+              <input type="date" value={refreshDate} max={format(new Date(), 'yyyy-MM-dd')} onChange={(e) => { if (e.target.value) setRefreshDate(e.target.value); }} className="input" />
+            </div>
+            <button className="btn-primary btn" disabled={refreshMut.isPending} onClick={() => refreshMut.mutate()}>
+              {refreshMut.isPending ? 'Renewing…' : 'Renew all courses'}
+            </button>
+            <button className="btn-secondary btn" onClick={() => setRefreshOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center p-6"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>

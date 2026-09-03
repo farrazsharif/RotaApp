@@ -15,6 +15,9 @@ export const trainingApi = {
     api.get<Training[]>('/training', { params: userId ? { userId } : undefined }).then((r) => r.data),
   create: (data: TrainingData) =>
     api.post<Training>('/training', data).then((r) => r.data),
+  // Annual refresher: renew every course the staff holds (+1 year expiry).
+  refresh: (userId: string, date?: string) =>
+    api.post<{ count: number; records: Training[] }>('/training/refresh', { userId, date }).then((r) => r.data),
   update: (id: string, data: Partial<TrainingData>) =>
     api.put<Training>(`/training/${id}`, data).then((r) => r.data),
   delete: (id: string) => api.delete(`/training/${id}`).then((r) => r.data),
