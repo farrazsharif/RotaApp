@@ -150,7 +150,7 @@ export default function Schedule() {
   const [pubMenuOpen, setPubMenuOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
 
-  const [mode, setMode] = useState<'calendar' | 'carer' | 'list'>('calendar');
+  const [mode, setMode] = useState<'calendar' | 'carer' | 'site' | 'list'>('calendar');
   const [viewKey, setViewKey] = useState<ViewKey>('week');
   const [anchor, setAnchor] = useState(new Date());
 
@@ -613,6 +613,15 @@ export default function Schedule() {
             </button>
           )}
           {isManager && (
+            <button
+              onClick={() => setMode((m) => (m === 'site' ? 'calendar' : 'site'))}
+              className={`btn btn-sm ${mode === 'site' ? 'btn-primary' : 'btn-secondary'}`}
+              title="Group visits by location, aligned into bands"
+            >
+              By location
+            </button>
+          )}
+          {isManager && (
             <button className="btn-primary btn" onClick={() => { setSelectedShift(null); setSelectedDate(format(anchor, 'yyyy-MM-dd')); setModalOpen(true); }}>
               + Add shift
             </button>
@@ -763,9 +772,7 @@ export default function Schedule() {
           missingCarers={missingCarers}
           onOpen={openShift}
         />
-      ) : mode === 'calendar' && (viewKey === 'week' || viewKey === '2week') ? (
-        // Week / 2-week: aligned location bands so each site's colour starts on
-        // the same line across every day (no zigzag). Same cards as before.
+      ) : mode === 'site' && isManager ? (
         <SiteTimeline
           days={rangeDays}
           shifts={rangeShifts}
