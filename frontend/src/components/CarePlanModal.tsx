@@ -5,6 +5,7 @@ import { printCarePlan } from '../lib/carePlanPrint';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 interface Props {
   serviceUser: ServiceUser;
@@ -152,7 +153,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
               <section>
                 <label className="label">Profile</label>
                 {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{form.carePackageInfo || <span className="text-gray-400">—</span>}</p> :
-                  <textarea value={form.carePackageInfo} rows={3} onChange={(e) => setForm({ ...form, carePackageInfo: e.target.value })} className="input resize-none text-sm" />}
+                  <AutoGrowTextarea value={form.carePackageInfo} minRows={3} onChange={(e) => setForm({ ...form, carePackageInfo: e.target.value })} className="input text-sm" />}
               </section>
 
               {/* Weekly visit profile */}
