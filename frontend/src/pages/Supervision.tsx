@@ -39,36 +39,28 @@ function Loading() {
 function Overview() {
   const { data, isLoading } = useQuery({ queryKey: ['supervision-summary'], queryFn: supervisionApi.summary });
   if (isLoading || !data) return <Loading />;
-  const riskOverdue = data.risk.items.filter((i) => i.overdue).length;
+  const renewals = data.renewals?.items ?? [];
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Tile n={riskOverdue} label="Risk assessments overdue" tone="danger" />
-        <Tile n={data.reviews.dueCount} label="Reviews due soon" tone="warning" />
+        <Tile n={data.renewals?.overdueCount ?? 0} label="Renewals overdue" tone="danger" />
+        <Tile n={data.renewals?.dueSoonCount ?? 0} label="Renewals due soon" tone="warning" />
         <Tile n={data.spotChecks.dueCount} label="Spot checks due" tone="accent" />
       </div>
 
       <div className="card space-y-3">
-        <h2 className="font-semibold text-gray-900">Reviews &amp; risk assessments due</h2>
-        {data.reviews.items.length === 0 && data.risk.items.length === 0 ? (
+        <h2 className="font-semibold text-gray-900">Documents due for renewal</h2>
+        <p className="text-xs text-gray-500 -mt-1">Care plans, service reviews and all assessments/plans (incl. those held on paper) coming due in the next 30 days, or overdue.</p>
+        {renewals.length === 0 ? (
           <p className="text-sm text-gray-400">Nothing due in the next 30 days.</p>
         ) : (
           <div className="space-y-2">
-            {data.risk.items.map((r) => {
+            {renewals.map((r, i) => {
               const d = dueLabel(r.dueDate, r.overdue);
               return (
-                <Link key={`risk-${r.serviceUserId}`} to={`/service-users/${r.serviceUserId}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5 hover:bg-gray-50">
-                  <div><p className="text-sm font-medium text-gray-900">{r.serviceUserName}</p><p className="text-xs text-gray-500">Care plan / risk review</p></div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${d.danger ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{d.text}</span>
-                </Link>
-              );
-            })}
-            {data.reviews.items.map((r) => {
-              const d = dueLabel(r.dueDate, r.overdue);
-              return (
-                <Link key={`rev-${r.id}`} to={`/service-users/${r.serviceUserId}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5 hover:bg-gray-50">
-                  <div><p className="text-sm font-medium text-gray-900">{r.serviceUserName}</p><p className="text-xs text-gray-500">Service review</p></div>
+                <Link key={`${r.serviceUserId}-${r.docType}-${i}`} to={`/service-users/${r.serviceUserId}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5 hover:bg-gray-50">
+                  <div><p className="text-sm font-medium text-gray-900">{r.serviceUserName}</p><p className="text-xs text-gray-500">{r.docType}</p></div>
                   <span className={`text-xs px-2 py-1 rounded-full ${d.danger ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{d.text}</span>
                 </Link>
               );

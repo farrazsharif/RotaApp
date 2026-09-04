@@ -43,20 +43,27 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   const suScope = relatedServiceUserScopeWhere(req.user);
   const staffScope = isScoped(req.user) ? { sites: { some: { id: { in: req.user!.siteIds } } } } : {};
 
-  const [reviews, carePlans, carers, checks, supervisions] = await Promise.all([
+  const suName = { select: { firstName: true, lastName: true } };
+  const [reviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes] = await Promise.all([
     prisma.review.findMany({
       where: { nextReviewDate: { not: null, lte: soon }, ...suScope },
-      select: { id: true, serviceUserId: true, nextReviewDate: true, serviceUser: { select: { firstName: true, lastName: true } } },
+      select: { id: true, serviceUserId: true, nextReviewDate: true, serviceUser: suName },
       orderBy: { nextReviewDate: 'asc' },
     }),
     prisma.carePlan.findMany({
       where: { reviewDate: { not: null, lte: soon }, ...suScope },
-      select: { serviceUserId: true, reviewDate: true, serviceUser: { select: { firstName: true, lastName: true } } },
+      select: { serviceUserId: true, reviewDate: true, serviceUser: suName },
       orderBy: { reviewDate: 'asc' },
     }),
     prisma.user.findMany({ where: { active: true, role: { notIn: [Role.ADMIN, Role.FAMILY_MEMBER] }, ...staffScope }, select: { id: true, firstName: true, lastName: true } }),
     prisma.spotCheck.findMany({ select: { id: true, carerId: true, date: true, observerName: true, answers: true, source: true }, orderBy: { date: 'desc' } }),
     prisma.supervision.findMany({ select: { userId: true, nextReviewDate: true, date: true }, orderBy: { date: 'desc' } }),
+    // Assessments/plans stored in the generic blob (risk assessments, one-page
+    // profile, contract, support plan) — their review date lives in __paper when
+    // held on paper.
+    prisma.riskAssessment.findMany({ where: { ...suScope }, select: { serviceUserId: true, type: true, data: true, serviceUser: suName } }),
+    prisma.personalServicePlan.findMany({ where: { ...suScope }, select: { serviceUserId: true, data: true, serviceUser: suName } }),
+    prisma.likesDislikes.findMany({ where: { ...suScope }, select: { serviceUserId: true, paperMeta: true, serviceUser: suName } }),
   ]);
 
   // A staff member's supervision is "due" once their latest one's next-review
@@ -94,9 +101,50 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
       return (a.nextDue?.getTime() ?? 0) - (b.nextDue?.getTime() ?? 0); // then soonest next-due
     });
 
+  // --- Pending renewal documents (all assessment/plan types) ---------------
+  // A held-on-paper review date lives under __paper (generic blob) or paperMeta
+  // (Likes & Dislikes). Care Plan and Service Review have their own date columns.
+  type Renewal = { serviceUserId: string; serviceUserName: string; docType: string; dueDate: Date; overdue: boolean };
+  const renewals: Renewal[] = [];
+  const nm = (su: { firstName: string; lastName: string }) => `${su.firstName} ${su.lastName}`;
+  const add = (serviceUserId: string, su: { firstName: string; lastName: string }, docType: string, date: Date | null) => {
+    if (!date || isNaN(date.getTime()) || date > soon) return;
+    renewals.push({ serviceUserId, serviceUserName: nm(su), docType, dueDate: date, overdue: date < now });
+  };
+  // Parse a review date out of a stored JSON blob's paper metadata (only counts
+  // when actually flagged as held on paper).
+  const paperReview = (raw: string | null, nested: boolean): Date | null => {
+    if (!raw) return null;
+    try {
+      const o = JSON.parse(raw);
+      const p = nested ? o.__paper : o;
+      if (p && typeof p === 'object' && p.onFile && p.reviewDate) return new Date(p.reviewDate);
+    } catch { /* ignore */ }
+    return null;
+  };
+  const RA_LABEL: Record<string, string> = {
+    ENVIRONMENT: 'Risk Assessment — Environment',
+    FIRE_SAFETY: 'Risk Assessment — Fire Safety',
+    BATHING: 'Risk Assessment — Bathing & Showering',
+    ONE_PAGE_PROFILE: 'One Page Profile',
+    CONTRACT_OF_CARE: 'Contract of Care',
+    SL_SUPPORT_PLAN: 'Support Plan',
+  };
+  for (const c of carePlans) add(c.serviceUserId, c.serviceUser, 'Care Plan', c.reviewDate);
+  for (const r of reviews) add(r.serviceUserId, r.serviceUser, 'Service review', r.nextReviewDate);
+  for (const ra of riskAssessments) add(ra.serviceUserId, ra.serviceUser, RA_LABEL[ra.type] || 'Assessment', paperReview(ra.data, true));
+  for (const sp of servicePlans) add(sp.serviceUserId, sp.serviceUser, 'Personal Service Plan', paperReview(sp.data, true));
+  for (const ld of likesDislikes) add(ld.serviceUserId, ld.serviceUser, 'Likes & Dislikes', paperReview(ld.paperMeta, false));
+  renewals.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+
   res.json({
     intervalMonths: INTERVAL_MONTHS,
     supervisions: { dueCount: supervisionsDueCount },
+    renewals: {
+      overdueCount: renewals.filter((r) => r.overdue).length,
+      dueSoonCount: renewals.filter((r) => !r.overdue).length,
+      items: renewals,
+    },
     spotChecks: { dueCount: spotRows.filter((r) => r.due).length, rows: spotRows },
     reviews: {
       dueCount: reviews.length,

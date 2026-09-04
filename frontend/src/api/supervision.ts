@@ -14,12 +14,15 @@ export interface SpotCheckRow {
   lastSource?: string | null; // 'form' | 'paper'
 }
 
+export interface RenewalItem { serviceUserId: string; serviceUserName: string; docType: string; dueDate: string; overdue: boolean }
+
 export interface SupervisionSummary {
   intervalMonths: number;
   supervisions: { dueCount: number };
   spotChecks: { dueCount: number; rows: SpotCheckRow[] };
   reviews: { dueCount: number; items: { id: string; serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };
   risk: { dueCount: number; items: { serviceUserId: string; serviceUserName: string; dueDate: string; overdue: boolean }[] };
+  renewals: { overdueCount: number; dueSoonCount: number; items: RenewalItem[] };
 }
 
 export interface SpotCheck {
