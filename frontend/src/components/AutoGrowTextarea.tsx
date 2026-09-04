@@ -8,10 +8,29 @@ import { useRef, useLayoutEffect, forwardRef, TextareaHTMLAttributes, MutableRef
 //   - and on `value` changes (covers controlled updates / loading data).
 // `minRows` sets the starting height.
 
+// The nearest ancestor that actually scrolls (e.g. a modal body), so we can
+// keep its scroll position steady while the textarea resizes.
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  let p = el.parentElement;
+  while (p) {
+    const oy = getComputedStyle(p).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+    p = p.parentElement;
+  }
+  return null;
+}
+
 function fit(el: HTMLTextAreaElement | null) {
   if (!el) return;
+  // Measuring requires momentarily collapsing the box (height:auto). On a tall
+  // field that shifts the surrounding scroll, so capture and restore it —
+  // otherwise the page jumps on every keystroke.
+  const sp = scrollParent(el);
+  const top = sp ? sp.scrollTop : window.scrollY;
   el.style.height = 'auto';
   el.style.height = `${el.scrollHeight}px`;
+  if (sp) { if (sp.scrollTop !== top) sp.scrollTop = top; }
+  else if (window.scrollY !== top) window.scrollTo(0, top);
 }
 
 const AutoGrowTextarea = forwardRef<
