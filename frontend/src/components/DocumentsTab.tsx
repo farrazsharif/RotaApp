@@ -5,7 +5,7 @@ import { documentsApi, DocumentOwnerType, DocumentMeta } from '../api/documents'
 
 const CATEGORIES: Record<DocumentOwnerType, string[]> = {
   USER: ['DBS Certificate', 'Contract', 'Reference', 'Right to Work', 'Training Certificate', 'ID / Passport', 'Fit for Work', 'Proof of Address', 'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form', 'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check', 'Other'],
-  SERVICE_USER: ['Care Assessment', 'GP Letter', 'Hospital Discharge', 'DoLS / Legal', 'Funding', 'Medication Chart', 'Consent', 'Other'],
+  SERVICE_USER: ['Care Assessment', 'Risk Assessment', 'Support Plan', 'Bathing / Showering Assessment', 'Likes & Dislikes', 'Personal Service Plan', 'GP Letter', 'Hospital Discharge', 'DoLS / Legal', 'Funding', 'Medication Chart', 'Consent', 'Other'],
 };
 
 function fmtSize(n: number): string {
