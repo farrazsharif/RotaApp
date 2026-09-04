@@ -6,6 +6,7 @@ import { medicationsApi } from '../api/medications';
 import { MedStatus } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 const MED_OPTS: { value: MedStatus | ''; label: string }[] = [
   { value: '', label: '— mark dose' },
@@ -165,12 +166,12 @@ export default function ClockWidget() {
           ) : (
             <p className="text-xs text-gray-400">No patient on this clock-in — log won't be saved.</p>
           )}
-          <textarea
+          <AutoGrowTextarea
             value={logNote}
             onChange={(e) => setLogNote(e.target.value)}
-            rows={4}
+            minRows={4}
             placeholder="What happened during the visit? (optional)"
-            className="input resize-none text-sm"
+            className="input text-sm"
             disabled={!patient}
           />
           <div className="flex gap-2">

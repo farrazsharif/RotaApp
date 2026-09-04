@@ -5,6 +5,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
+import AutoGrowTextarea from './AutoGrowTextarea';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
 interface Props {
@@ -135,11 +136,11 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
                 {ro ? (
                   <p className="text-sm text-gray-800 whitespace-pre-wrap">{form[key] || <span className="text-gray-400">—</span>}</p>
                 ) : (
-                  <textarea
+                  <AutoGrowTextarea
                     value={form[key]}
-                    rows={key === 'likes' || key === 'dislikes' ? 2 : 3}
+                    minRows={key === 'likes' || key === 'dislikes' ? 2 : 3}
                     onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                    className="input resize-none text-sm"
+                    className="input text-sm"
                   />
                 )}
               </div>

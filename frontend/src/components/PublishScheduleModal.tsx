@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 type NotifyMode = 'none' | 'carers' | 'all';
 
@@ -68,12 +69,12 @@ export default function PublishScheduleModal({ rangeLabel, readyCount, needsCare
           {notify !== 'none' && (
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Add a message (optional)</label>
-              <textarea
+              <AutoGrowTextarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value.slice(0, 500))}
-                rows={3}
+                minRows={3}
                 placeholder="e.g. Rota for next week is live — please check your shifts and let the office know of any issues."
-                className="input w-full resize-y"
+                className="input w-full"
               />
             </div>
           )}

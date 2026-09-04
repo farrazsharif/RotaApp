@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { shiftsApi } from '../api/shifts';
 import { Shift } from '../types';
 import { formatTime12h } from '../lib/time';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 const WEEKDAYS = [
   { value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' },
@@ -131,7 +132,7 @@ export default function UpdateSeriesModal({ shift, onClose, onDone }: { shift: S
 
           <div className="rounded-lg border border-gray-200 p-3">
             <label className="flex items-center gap-2 font-medium text-sm text-gray-800"><input type="checkbox" checked={chNotes} onChange={(e) => setChNotes(e.target.checked)} className="h-4 w-4 accent-blue-600" /> Notes</label>
-            {chNotes && <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="input py-1 mt-2 ml-6 resize-none" />}
+            {chNotes && <AutoGrowTextarea value={notes} onChange={(e) => setNotes(e.target.value)} minRows={2} className="input py-1 mt-2 ml-6" />}
           </div>
 
           <p className="text-xs text-gray-500">Only the ticked fields change — everything else stays as it is on each visit. The carer isn’t changed here; use the schedule to (re)assign carers.</p>

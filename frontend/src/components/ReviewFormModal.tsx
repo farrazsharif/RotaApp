@@ -4,6 +4,7 @@ import { reviewsApi } from '../api/reviews';
 import { usePermissions } from '../hooks/usePermissions';
 import { Review, ReviewOutcome, ReviewType } from '../types';
 import { format, addMonths } from 'date-fns';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 interface Props {
   serviceUserId: string;
@@ -302,7 +303,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
               Please record any discussions held with the Service User{reviewType === 'QUARTERLY' ? ' and Care Worker' : ''}
             </p>
             {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{otherInfo || '—'}</p> :
-              <textarea value={otherInfo} rows={4} onChange={(e) => setOtherInfo(e.target.value)} className="input resize-none text-sm" />}
+              <AutoGrowTextarea value={otherInfo} minRows={4} onChange={(e) => setOtherInfo(e.target.value)} className="input text-sm" />}
           </section>
 
           <section>

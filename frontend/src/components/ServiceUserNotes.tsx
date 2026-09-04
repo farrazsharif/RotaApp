@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { serviceUserNotesApi, ServiceUserNote, ServiceUserNoteCategory } from '../api/serviceUserNotes';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 const CATEGORIES: { value: ServiceUserNoteCategory; label: string; badge: string }[] = [
   { value: 'GENERAL', label: 'General', badge: 'bg-gray-100 text-gray-700' },
@@ -73,12 +74,12 @@ export default function ServiceUserNotes({ serviceUserId, canManage }: { service
               </button>
             ))}
           </div>
-          <textarea
+          <AutoGrowTextarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            rows={3}
+            minRows={3}
             placeholder="Write a note… e.g. Council increased package to 4 calls/day from 1 Aug; confirmed by social worker Jane Doe."
-            className="input w-full resize-y"
+            className="input w-full"
           />
           <div className="flex justify-end">
             <button
@@ -114,7 +115,7 @@ export default function ServiceUserNotes({ serviceUserId, canManage }: { service
 
                 {editing === n.id ? (
                   <div className="space-y-2">
-                    <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={3} className="input w-full resize-y" />
+                    <AutoGrowTextarea value={editBody} onChange={(e) => setEditBody(e.target.value)} minRows={3} className="input w-full" />
                     <div className="flex justify-end gap-2">
                       <button className="btn-secondary btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
                       <button

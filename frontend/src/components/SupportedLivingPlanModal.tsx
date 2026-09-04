@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import { SUPPORT_DOMAINS as SL_DOMAINS } from '../lib/supportDomains';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 // Stored in the generic assessment store, type 'SL_SUPPORT_PLAN' — no backend
 // change needed (same as the Contract of Care).
@@ -133,7 +134,7 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
             <div>
               <label className="label">Summary / overview</label>
               {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{plan.summary || <span className="text-gray-400">—</span>}</p> :
-                <textarea value={plan.summary} rows={2} onChange={(e) => setPlan({ ...plan, summary: e.target.value })} className="input resize-none text-sm" placeholder="A short overview of how this person is supported to live independently…" />}
+                <AutoGrowTextarea value={plan.summary} minRows={2} onChange={(e) => setPlan({ ...plan, summary: e.target.value })} className="input text-sm" placeholder="A short overview of how this person is supported to live independently…" />}
             </div>
 
             <p className="text-sm font-semibold text-gray-900 pt-1">Support areas</p>
@@ -164,7 +165,7 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
                         <div key={field as string}>
                           <label className="text-xs font-medium text-gray-500">{label}</label>
                           {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{(v[field] as string) || <span className="text-gray-400">—</span>}</p> :
-                            <textarea value={v[field] as string} rows={2} onChange={(e) => setDom(d.key, { [field]: e.target.value })} className="input resize-none text-sm" />}
+                            <AutoGrowTextarea value={v[field] as string} minRows={2} onChange={(e) => setDom(d.key, { [field]: e.target.value })} className="input text-sm" />}
                         </div>
                       ))}
                     </div>

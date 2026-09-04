@@ -4,6 +4,7 @@ import { timeOffApi } from '../api/timeOff';
 import { useAuth } from '../contexts/AuthContext';
 import { TimeOffRequest } from '../types';
 import { format } from 'date-fns';
+import AutoGrowTextarea from '../components/AutoGrowTextarea';
 
 const statusBadge: Record<string, string> = {
   PENDING: 'badge-yellow',
@@ -78,7 +79,7 @@ export default function TimeOff() {
           </div>
           <div>
             <label className="label">Reason (optional)</label>
-            <textarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} rows={2} className="input resize-none" />
+            <AutoGrowTextarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} minRows={2} className="input" />
           </div>
           <div className="flex gap-3">
             <button className="btn-secondary btn" onClick={() => setShowNew(false)}>Cancel</button>

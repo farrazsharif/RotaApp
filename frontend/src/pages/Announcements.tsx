@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { announcementsApi } from '../api/announcements';
 import { usersApi } from '../api/users';
+import AutoGrowTextarea from '../components/AutoGrowTextarea';
 
 export default function Announcements() {
   const qc = useQueryClient();
@@ -109,7 +110,7 @@ export default function Announcements() {
         </div>
         <div>
           <label className="label">Message</label>
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} className="input resize-none" placeholder="Write your message…" />
+          <AutoGrowTextarea value={body} onChange={(e) => setBody(e.target.value)} minRows={3} className="input" placeholder="Write your message…" />
         </div>
         <div className="flex justify-end">
           <button

@@ -11,6 +11,7 @@ import { auditApi } from '../api/audit';
 import { OrgSettings, Role, Site, PermissionKey, PermissionMap } from '../types';
 import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
+import AutoGrowTextarea from '../components/AutoGrowTextarea';
 import { fileToLogoDataUrl } from '../lib/image';
 import { CallLogTaskDef, DEFAULT_CALL_LOG_TASKS, resolveCallLogTasks, buildNoteFromTicks } from '../lib/callLogTasks';
 import { Requirement, RequirementType, AppliesTo, APPLIES_TO_LABEL, REQUIREMENT_TYPE_LABELS, TYPE_USES_CATEGORY, TYPE_USES_COUNT, USER_DOC_CATEGORIES, DEFAULT_REQUIREMENTS, resolveRequirements } from '../lib/staffCompliance';
@@ -556,7 +557,7 @@ function OrganisationTab() {
       </div>
 
       <div><label className="label">Company Name *</label><input value={s.companyName || ''} onChange={(e) => set({ companyName: e.target.value })} className="input" /></div>
-      <div><label className="label">Address</label><textarea value={s.address || ''} onChange={(e) => set({ address: e.target.value })} rows={2} className="input resize-none" /></div>
+      <div><label className="label">Address</label><AutoGrowTextarea value={s.address || ''} onChange={(e) => set({ address: e.target.value })} minRows={2} className="input" /></div>
       <div className="grid grid-cols-2 gap-4">
         <div><label className="label">Phone</label><input value={s.phone || ''} onChange={(e) => set({ phone: e.target.value })} className="input" /></div>
         <div><label className="label">Email</label><input value={s.email || ''} onChange={(e) => set({ email: e.target.value })} className="input" /></div>

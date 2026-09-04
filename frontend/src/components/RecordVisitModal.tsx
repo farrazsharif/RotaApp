@@ -6,6 +6,7 @@ import { Shift } from '../types';
 import { formatTime12h } from '../lib/time';
 import { format } from 'date-fns';
 import MarChartModal from './MarChartModal';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 function toInput(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
@@ -96,7 +97,7 @@ export default function RecordVisitModal({ shift, carer, onClose, onSaved }: Pro
 
         <div>
           <label className="label">Call log</label>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="input resize-none" placeholder="What the carer did on this visit… (entered by office — carer had no signal)" />
+          <AutoGrowTextarea value={note} onChange={(e) => setNote(e.target.value)} minRows={3} className="input" placeholder="What the carer did on this visit… (entered by office — carer had no signal)" />
         </div>
 
         <button type="button" onClick={() => setMarOpen(true)} className="btn-secondary btn w-full" disabled={!su}>

@@ -11,6 +11,7 @@ import { settingsApi } from '../api/settings';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { downloadInvoiceCsv, downloadInvoicePdf } from '../lib/invoiceExport';
 import { Funder, FunderType, FundingArrangement, Invoice, InvoiceStatus, ServiceUser } from '../types';
+import AutoGrowTextarea from '../components/AutoGrowTextarea';
 
 const FUNDER_TYPE_META: Record<FunderType, { label: string; className: string }> = {
   COUNCIL: { label: 'Council / LA', className: 'bg-blue-100 text-blue-700' },
@@ -439,7 +440,7 @@ function FundersManager() {
             <div><label className="label">Email</label><input value={form.email || ''} onChange={(e) => set({ email: e.target.value })} className="input" /></div>
             <div><label className="label">Phone</label><input value={form.phone || ''} onChange={(e) => set({ phone: e.target.value })} className="input" /></div>
             <div><label className="label">Payment Terms (days)</label><input type="number" step="1" value={form.paymentTermsDays ?? 30} onChange={(e) => set({ paymentTermsDays: Number(e.target.value) })} className="input" /></div>
-            <div className="sm:col-span-2"><label className="label">Billing Address</label><textarea value={form.billingAddress || ''} onChange={(e) => set({ billingAddress: e.target.value })} rows={2} className="input resize-none" /></div>
+            <div className="sm:col-span-2"><label className="label">Billing Address</label><AutoGrowTextarea value={form.billingAddress || ''} onChange={(e) => set({ billingAddress: e.target.value })} minRows={2} className="input" /></div>
           </div>
           <div className="flex gap-3">
             <button className="btn-secondary btn" onClick={reset}>Cancel</button>

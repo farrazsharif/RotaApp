@@ -7,6 +7,7 @@ import { format, differenceInYears, addDays } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 import { settingsApi } from '../api/settings';
 import PrintBrandingHeader from './PrintBrandingHeader';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 // Minutes between two HH:mm times (handles overnight).
 function durationMins(start: string, end: string): number {
@@ -87,7 +88,7 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
 
   const field = (val: string | undefined, onChange: (v: string) => void, placeholder = '') =>
     canManage
-      ? <textarea value={val || ''} onChange={(e) => onChange(e.target.value)} rows={2} placeholder={placeholder} className="w-full border border-gray-300 rounded px-2 py-1 text-sm resize-none focus:border-blue-500 focus:outline-none print:border-0 print:p-0" />
+      ? <AutoGrowTextarea value={val || ''} onChange={(e) => onChange(e.target.value)} minRows={2} placeholder={placeholder} className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:border-blue-500 focus:outline-none print:border-0 print:p-0" />
       : <span className="text-sm text-gray-900 whitespace-pre-wrap">{val || '—'}</span>;
 
   return (

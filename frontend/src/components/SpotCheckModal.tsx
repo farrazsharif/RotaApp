@@ -7,6 +7,7 @@ import { supervisionApi, YesNoNa } from '../api/supervision';
 import { useAuth } from '../contexts/AuthContext';
 import { SPOT_CHECK_ITEMS } from '../lib/spotCheckSchema';
 import SignaturePad from './SignaturePad';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 type Answers = Record<string, { answer: YesNoNa; comment: string }>;
 
@@ -145,7 +146,7 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
             {readOnly ? (
               <p className="text-sm text-gray-800 whitespace-pre-wrap">{existing?.generalComments || '—'}</p>
             ) : (
-              <textarea value={generalComments} rows={3} onChange={(e) => setGeneralComments(e.target.value)} className="input resize-none text-sm" placeholder="Appearance, footwear, jewellery, nails, attitude, communication skills, etc." />
+              <AutoGrowTextarea value={generalComments} minRows={3} onChange={(e) => setGeneralComments(e.target.value)} className="input text-sm" placeholder="Appearance, footwear, jewellery, nails, attitude, communication skills, etc." />
             )}
           </div>
 

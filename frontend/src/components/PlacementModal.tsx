@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { placementsApi } from '../api/placements';
 import { Placement, ServiceUser, User } from '../types';
 import { format } from 'date-fns';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 interface Props {
   placement?: Placement | null;              // editing an existing one
@@ -99,7 +100,7 @@ export default function PlacementModal({ placement, defaults, clients, carers, o
           </div>
           <div>
             <label className="label">Notes</label>
-            <textarea value={note} rows={2} onChange={(e) => setNote(e.target.value)} className="input resize-none text-sm" placeholder="Handover notes, access, anything the carer should know…" />
+            <AutoGrowTextarea value={note} minRows={2} onChange={(e) => setNote(e.target.value)} className="input text-sm" placeholder="Handover notes, access, anything the carer should know…" />
           </div>
           {err && <p className="text-sm text-red-600">{err}</p>}
         </div>

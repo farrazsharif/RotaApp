@@ -6,6 +6,7 @@ import { ServiceUser, Medication, MedStatus, BodyMapPoint } from '../types';
 import { format } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 import BodyMapPicker from './BodyMapPicker';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 interface Props {
   serviceUser: ServiceUser;
@@ -285,11 +286,11 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
               {medForm.isBlisterPack && (
                 <div>
                   <label className="label">Medications in this pack</label>
-                  <textarea
+                  <AutoGrowTextarea
                     value={medForm.packContents}
                     onChange={(e) => setMedForm({ ...medForm, packContents: e.target.value })}
-                    rows={3}
-                    className="input resize-none"
+                    minRows={3}
+                    className="input"
                     placeholder={'List what the pack contains, e.g.\nAmlodipine 5mg — 1 tablet\nAtorvastatin 20mg — 1 tablet\nMetformin 500mg — 1 tablet'}
                   />
                   <p className="text-xs text-gray-400 mt-1">For the record — the carer administers the whole pack; this lists what’s inside.</p>
@@ -605,7 +606,7 @@ function MedEditRow({ med, serviceUserId, onDone }: { med: Medication; serviceUs
       {form.isBlisterPack && (
         <div>
           <label className="label">Medications in this pack</label>
-          <textarea value={form.packContents} onChange={(e) => setForm({ ...form, packContents: e.target.value })} rows={3} className="input resize-none" />
+          <AutoGrowTextarea value={form.packContents} onChange={(e) => setForm({ ...form, packContents: e.target.value })} minRows={3} className="input" />
         </div>
       )}
 

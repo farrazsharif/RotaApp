@@ -5,6 +5,7 @@ import {
 } from 'date-fns';
 import { notesApi } from '../api/notes';
 import { useAuth } from '../contexts/AuthContext';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -121,13 +122,13 @@ export default function OfficeNotes() {
       </div>
 
       <div className="border-t border-gray-200 p-2 flex gap-2 items-end shrink-0">
-        <textarea
+        <AutoGrowTextarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (text.trim()) createMut.mutate(); } }}
-          rows={1}
+          minRows={1}
           placeholder="Write an update… (Enter to send)"
-          className="input resize-none text-sm flex-1 py-2"
+          className="input text-sm flex-1 py-2"
         />
         <button className="btn-primary btn btn-sm" disabled={!text.trim() || createMut.isPending} onClick={() => createMut.mutate()}>
           {createMut.isPending ? '…' : 'Send'}

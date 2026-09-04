@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, addMonths } from 'date-fns';
 import SignaturePad from './SignaturePad';
+import AutoGrowTextarea from './AutoGrowTextarea';
 import { staffSupervisionApi, Supervision, SupervisionData } from '../api/staffSupervision';
 import { SUPERVISION_QUESTIONS, SUPERVISION_OBSERVATIONS, parseMap } from '../lib/staffSupervision';
 
@@ -94,7 +95,7 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
 
           <div>
             <label className="label">Service Users & Days Worked</label>
-            <textarea value={form.serviceUsers} onChange={(e) => setForm({ ...form, serviceUsers: e.target.value })} rows={3} className="input resize-none" placeholder="Client names and the days the staff member works" />
+            <AutoGrowTextarea value={form.serviceUsers} onChange={(e) => setForm({ ...form, serviceUsers: e.target.value })} minRows={3} className="input" placeholder="Client names and the days the staff member works" />
           </div>
 
           <div className="space-y-3">
@@ -102,7 +103,7 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
             {SUPERVISION_OBSERVATIONS.map((o) => (
               <div key={o.key}>
                 <label className="label">{o.label}</label>
-                <textarea value={form.observations[o.key] || ''} onChange={(e) => setObs(o.key, e.target.value)} rows={2} className="input resize-none text-sm" />
+                <AutoGrowTextarea value={form.observations[o.key] || ''} onChange={(e) => setObs(o.key, e.target.value)} minRows={2} className="input text-sm" />
               </div>
             ))}
           </div>

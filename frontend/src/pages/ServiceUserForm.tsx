@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
 import { VISIT_PRESETS } from '../lib/visits';
 import { SUPPORT_CATEGORIES, parseCategories } from '../lib/supportCategories';
+import AutoGrowTextarea from '../components/AutoGrowTextarea';
 
 type FormState = ServiceUserData & { preferredCaregiverIds: string[] };
 
@@ -474,7 +475,7 @@ export default function ServiceUserForm() {
         </div>
         <div className="mt-3">
           <label className="label">Care Notes</label>
-          <textarea value={form.careNotes} onChange={(e) => setForm({ ...form, careNotes: e.target.value })} rows={2} className="input resize-none" />
+          <AutoGrowTextarea value={form.careNotes} onChange={(e) => setForm({ ...form, careNotes: e.target.value })} minRows={2} className="input" />
         </div>
       </Section>
 

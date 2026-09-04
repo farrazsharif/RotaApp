@@ -4,6 +4,7 @@ import { callLogsApi } from '../api/callLogs';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 interface Props {
   serviceUser: ServiceUser;
@@ -36,12 +37,12 @@ export default function CallLogsModal({ serviceUser, onClose }: Props) {
           {/* Add a log */}
           <div className="space-y-2">
             <label className="label">Add a call log</label>
-            <textarea
+            <AutoGrowTextarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              rows={3}
+              minRows={3}
               placeholder="Notes from this visit…"
-              className="input resize-none"
+              className="input"
             />
             <div className="flex justify-end">
               <button

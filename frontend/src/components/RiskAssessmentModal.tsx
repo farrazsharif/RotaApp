@@ -7,6 +7,7 @@ import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem }
 import { printRiskAssessment } from '../lib/riskAssessmentPrint';
 import SignaturePad from './SignaturePad';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
+import AutoGrowTextarea from './AutoGrowTextarea';
 import { format } from 'date-fns';
 
 interface Props {
@@ -217,7 +218,7 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
             {type === 'date' && v ? format(new Date(v), 'dd MMM yyyy') : v || <span className="text-gray-400">—</span>}
           </p>
         ) : type === 'longtext' ? (
-          <textarea value={v} rows={3} onChange={(e) => set(key, e.target.value)} className="input resize-none text-sm" />
+          <AutoGrowTextarea value={v} minRows={3} onChange={(e) => set(key, e.target.value)} className="input text-sm" />
         ) : (
           <input type={type === 'date' ? 'date' : 'text'} value={v} onChange={(e) => set(key, e.target.value)} className="input text-sm" />
         )}

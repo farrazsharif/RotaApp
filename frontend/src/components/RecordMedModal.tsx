@@ -5,6 +5,7 @@ import { usersApi } from '../api/users';
 import { MedAdministration, MedStatus } from '../types';
 import { formatTime12h } from '../lib/time';
 import { format } from 'date-fns';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 const STATUSES: { v: MedStatus; label: string }[] = [
   { v: 'GIVEN', label: 'Administered' },
@@ -105,7 +106,7 @@ export default function RecordMedModal({ serviceUser, medication, scheduledFor, 
 
         <div>
           <label className="label">Note (optional)</label>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="input resize-none" placeholder="e.g. entered by office — carer had no signal" />
+          <AutoGrowTextarea value={note} onChange={(e) => setNote(e.target.value)} minRows={2} className="input" placeholder="e.g. entered by office — carer had no signal" />
         </div>
 
         {err && <p className="text-sm text-red-600">{err}</p>}

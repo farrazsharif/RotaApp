@@ -9,6 +9,7 @@ import { ServiceUser } from '../types';
 import { defaultTemplateSections, keyForItem, PspItem, PspSection } from '../lib/servicePlanSchema';
 import { printServicePlan } from '../lib/servicePlanPrint';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
+import AutoGrowTextarea from './AutoGrowTextarea';
 import { format } from 'date-fns';
 
 interface Props {
@@ -322,7 +323,7 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
         {ro ? (
           <p className="text-sm text-gray-800 whitespace-pre-wrap">{val || <span className="text-gray-400">—</span>}</p>
         ) : type === 'longtext' ? (
-          <textarea value={val} rows={3} onChange={(e) => set(key, e.target.value)} className="input resize-none text-sm" />
+          <AutoGrowTextarea value={val} minRows={3} onChange={(e) => set(key, e.target.value)} className="input text-sm" />
         ) : (
           <input value={val} onChange={(e) => set(key, e.target.value)} className="input text-sm" />
         )}

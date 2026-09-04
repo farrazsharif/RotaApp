@@ -16,6 +16,7 @@ import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
 import SignaturePad from '../components/SignaturePad';
 import DocumentsTab from '../components/DocumentsTab';
+import AutoGrowTextarea from '../components/AutoGrowTextarea';
 import { resolveTrainingCourses } from '../lib/trainingCourses';
 import { statusInfo } from './Users';
 
@@ -549,7 +550,7 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
           </div>
           <div>
             <label className="label">Description</label>
-            <textarea value={form.description} rows={2} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input resize-none text-sm" />
+            <AutoGrowTextarea value={form.description} minRows={2} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input text-sm" />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.accredited} onChange={(e) => setForm({ ...form, accredited: e.target.checked })} />
@@ -702,7 +703,7 @@ function ImportantDatesTab({ userId, isManager }: { userId: string; isManager: b
           </div>
           <div>
             <label className="label">Notes</label>
-            <textarea value={form.notes} rows={2} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="input resize-none text-sm" />
+            <AutoGrowTextarea value={form.notes} minRows={2} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="input text-sm" />
           </div>
           <div className="flex gap-3">
             {editingId && <button className="btn-secondary btn" onClick={resetForm}>Cancel Edit</button>}
@@ -751,7 +752,7 @@ function EmergencyContactTab({ userId, isManager, initial }: { userId: string; i
       </div>
       <div>
         <label className="label">Address</label>
-        {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{address || '—'}</p> : <textarea value={address} rows={2} onChange={(e) => setAddress(e.target.value)} className="input resize-none" />}
+        {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{address || '—'}</p> : <AutoGrowTextarea value={address} minRows={2} onChange={(e) => setAddress(e.target.value)} className="input" />}
       </div>
       {isManager && (
         <div className="flex gap-3 pt-2">
@@ -878,7 +879,7 @@ function FitForWorkTab({ userId, isManager, initial }: { userId: string; isManag
       <label className="label">{label}</label>
       {ro
         ? <p className="text-sm text-gray-800 whitespace-pre-wrap min-h-[1.25rem]">{(form[k] as string) || '—'}</p>
-        : <textarea value={(form[k] as string) || ''} rows={rows} onChange={(e) => set(k, e.target.value as FitForWork[typeof k])} className="input resize-none text-sm" />}
+        : <AutoGrowTextarea value={(form[k] as string) || ''} minRows={rows} onChange={(e) => set(k, e.target.value as FitForWork[typeof k])} className="input text-sm" />}
     </div>
   );
 

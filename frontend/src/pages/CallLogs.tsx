@@ -9,6 +9,7 @@ import { format, startOfWeek, endOfWeek, subWeeks, subDays } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import { parseCallLogTicks } from '../lib/callLogTasks';
+import AutoGrowTextarea from '../components/AutoGrowTextarea';
 
 // Green/amber chips summarising the tasks a carer ticked on the visit.
 function TaskBadges({ tasks }: { tasks?: string | null }) {
@@ -380,10 +381,10 @@ export default function CallLogs() {
                 </p>
                 {addingShiftId === s.id ? (
                   <div className="space-y-2">
-                    <textarea
+                    <AutoGrowTextarea
                       value={addNote}
                       onChange={(e) => setAddNote(e.target.value)}
-                      rows={3}
+                      minRows={3}
                       className="input w-full"
                       placeholder="What the carer did on this visit… (entered by office — carer had no signal)"
                     />
@@ -484,10 +485,10 @@ export default function CallLogs() {
               })()}
               {editingId === log.id ? (
                 <div className="space-y-2">
-                  <textarea
+                  <AutoGrowTextarea
                     value={editNote}
                     onChange={(e) => setEditNote(e.target.value)}
-                    rows={3}
+                    minRows={3}
                     className="input w-full"
                   />
                   <div className="flex gap-2">

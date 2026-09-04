@@ -11,6 +11,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { Shift } from '../types';
 import { format } from 'date-fns';
 import { VISIT_PRESETS } from '../lib/visits';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 interface Props {
   shift?: Shift | null;
@@ -621,7 +622,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
 
           <div>
             <label className="label">Notes</label>
-            <textarea {...register('notes')} rows={2} className="input resize-none" />
+            <AutoGrowTextarea {...register('notes')} minRows={2} className="input" />
           </div>
 
           <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-3 cursor-pointer">
@@ -937,7 +938,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
 
               <div>
                 <label className="label">Notes</label>
-                <textarea {...register('notes')} rows={2} className="input resize-none" />
+                <AutoGrowTextarea {...register('notes')} minRows={2} className="input" />
               </div>
 
               {runs.length > 0 && (

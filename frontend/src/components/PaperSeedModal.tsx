@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { format, addMonths } from 'date-fns';
+import AutoGrowTextarea from './AutoGrowTextarea';
 
 // A reusable, date-only way to seed a schedule (spot checks, reviews, …) from a
 // record already held on paper — so the next-due date is tracked without
@@ -80,7 +81,7 @@ export default function PaperSeedModal({
           )}
           <div>
             <label className="label">Note <span className="text-gray-400 font-normal">(optional)</span></label>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="e.g. held on paper, filed in folder" className="input resize-none" />
+            <AutoGrowTextarea value={note} onChange={(e) => setNote(e.target.value)} minRows={2} placeholder="e.g. held on paper, filed in folder" className="input" />
           </div>
           {err && <p className="text-sm text-red-600">{err}</p>}
         </div>

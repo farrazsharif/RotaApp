@@ -255,7 +255,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
                       {ro ? (
                         <p className="text-sm text-gray-800 whitespace-pre-wrap">{(form[key] as string) || <span className="text-gray-400">—</span>}</p>
                       ) : (
-                        <textarea value={form[key] as string} rows={3} onChange={(e) => setForm({ ...form, [key]: e.target.value })} placeholder={`Tasks for the ${label.toLowerCase()} visit…`} className="input resize-none text-sm" />
+                        <AutoGrowTextarea value={form[key] as string} minRows={3} onChange={(e) => setForm({ ...form, [key]: e.target.value })} placeholder={`Tasks for the ${label.toLowerCase()} visit…`} className="input text-sm" />
                       )}
                     </div>
                   ))}
@@ -265,7 +265,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
               <section>
                 <label className="label">Other Notes</label>
                 {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{form.otherNotes || <span className="text-gray-400">—</span>}</p> :
-                  <textarea value={form.otherNotes} rows={2} onChange={(e) => setForm({ ...form, otherNotes: e.target.value })} className="input resize-none text-sm" />}
+                  <AutoGrowTextarea value={form.otherNotes} minRows={2} onChange={(e) => setForm({ ...form, otherNotes: e.target.value })} className="input text-sm" />}
               </section>
             </>
           )}
