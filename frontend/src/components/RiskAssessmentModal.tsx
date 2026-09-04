@@ -52,6 +52,7 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['risk-assessment', serviceUser.id, form.type] });
       qc.invalidateQueries({ queryKey: ['risk-assessments', serviceUser.id] });
+      onClose();
     },
   });
 
