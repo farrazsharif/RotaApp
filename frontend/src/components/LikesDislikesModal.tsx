@@ -4,6 +4,7 @@ import { likesDislikesApi } from '../api/likesDislikes';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
+import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
 interface Props {
@@ -46,6 +47,8 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
   const ro = !canEdit;
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState>(emptyForm());
+  const [paper, setPaperState] = useState<PaperMeta>({});
+  const setPaper = (patch: PaperMeta) => setPaperState((p) => ({ ...p, ...patch }));
 
   const { data: record, isLoading } = useQuery({
     queryKey: ['likes-dislikes', serviceUser.id],
@@ -60,14 +63,16 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
         whatPeopleLike: record.whatPeopleLike || '', relationships: record.relationships || '',
         goodDay: record.goodDay || '', badDay: record.badDay || '',
       });
+      try { setPaperState(record.paperMeta ? JSON.parse(record.paperMeta) : {}); } catch { setPaperState({}); }
     } else {
       setForm(emptyForm());
+      setPaperState({});
     }
   }, [record]);
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const saveMut = useMutation({
-    mutationFn: () => likesDislikesApi.save(serviceUser.id, form),
+    mutationFn: () => likesDislikesApi.save(serviceUser.id, { ...form, paperMeta: JSON.stringify(paper) }),
     onSuccess: () => { setSaveError(null); qc.invalidateQueries({ queryKey: ['likes-dislikes', serviceUser.id] }); },
     onError: (e: { response?: { data?: { error?: string } } }) => setSaveError(e?.response?.data?.error || 'Could not save — please try again.'),
   });
@@ -117,6 +122,8 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
+
+        <HeldOnPaperPanel meta={paper} ro={ro} onChange={setPaper} />
 
         <div className="p-6 space-y-5">
           {isLoading ? (

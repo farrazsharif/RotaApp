@@ -7,6 +7,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import SignaturePad from './SignaturePad';
+import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
 // Stored under the generic assessment store, type 'CONTRACT_OF_CARE'. The weekly
@@ -75,6 +76,7 @@ interface ContractData {
   medServiceUserSig: string;
   medManagerSig: string;
   medDate: string;
+  __paper?: PaperMeta;
 }
 
 const emptyData = (): ContractData => ({
@@ -123,6 +125,8 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
 
   // Double/triple-up = 2/3 carers on each visit, so the total care hours
   // delivered are multiplied accordingly. Single = the visit hours as-is.
+  const paper = d.__paper || {};
+  const setPaper = (patch: PaperMeta) => setD((prev) => ({ ...prev, __paper: { ...(prev.__paper || {}), ...patch } }));
   const staffMultiplier = STAFF_MULTIPLIER[d.staffing] || 1;
   const totalHours = (totalMins * staffMultiplier) / 60;
   const hoursLabel = Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(2);
@@ -235,6 +239,8 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
+
+        <HeldOnPaperPanel meta={paper} ro={ro} onChange={setPaper} />
 
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>

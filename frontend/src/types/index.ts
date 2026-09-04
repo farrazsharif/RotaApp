@@ -530,6 +530,7 @@ export interface LikesDislikes {
   relationships?: string;
   goodDay?: string;
   badDay?: string;
+  paperMeta?: string | null; // JSON PaperMeta when held on paper
   updatedById?: string;
   createdAt: string;
   updatedAt: string;

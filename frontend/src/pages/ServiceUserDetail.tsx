@@ -581,14 +581,28 @@ export default function ServiceUserDetail() {
           </button>
         }
       >
-        {!likesDislikes || (!likesDislikes.likes && !likesDislikes.dislikes) ? (
-          <p className="text-sm text-gray-400">Nothing recorded yet.</p>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {likesDislikes.likes && <div><p className="text-xs font-semibold text-gray-500">Likes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.likes}</p></div>}
-            {likesDislikes.dislikes && <div><p className="text-xs font-semibold text-gray-500">Dislikes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.dislikes}</p></div>}
-          </div>
-        )}
+        {(() => {
+          let paper: { onFile?: boolean; reviewDate?: string } | null = null;
+          if (likesDislikes?.paperMeta) { try { const p = JSON.parse(likesDislikes.paperMeta); if (p && typeof p === 'object') paper = p; } catch { /* ignore */ } }
+          const overdue = !!paper?.onFile && !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
+          if (paper?.onFile) {
+            return (
+              <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                <span className="badge-gray badge mr-2">📄 On file</span>
+                Held on paper{paper.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(paper.reviewDate), 'dd MMM yyyy')}` : ''}
+              </p>
+            );
+          }
+          if (!likesDislikes || (!likesDislikes.likes && !likesDislikes.dislikes)) {
+            return <p className="text-sm text-gray-400">Nothing recorded yet.</p>;
+          }
+          return (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {likesDislikes.likes && <div><p className="text-xs font-semibold text-gray-500">Likes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.likes}</p></div>}
+              {likesDislikes.dislikes && <div><p className="text-xs font-semibold text-gray-500">Dislikes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.dislikes}</p></div>}
+            </div>
+          );
+        })()}
       </Section>
 
       {/* Personal Service Plan */}
@@ -735,6 +749,15 @@ export default function ServiceUserDetail() {
       >
         {(() => {
           const summary = riskAssessments.find((r) => r.type === 'CONTRACT_OF_CARE');
+          const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
+          if (summary?.onFile) {
+            return (
+              <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                <span className="badge-gray badge mr-2">📄 On file</span>
+                Held on paper{summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}
+              </p>
+            );
+          }
           return (
             <p className="text-sm text-gray-500">
               {summary

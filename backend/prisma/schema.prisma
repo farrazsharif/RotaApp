@@ -435,6 +435,7 @@ model LikesDislikes {
   relationships  String?
   goodDay        String? // "What makes a good day for me"
   badDay         String? // "What makes a bad day for me"
+  paperMeta      String? // JSON PaperMeta when the form is held on paper (scan in Documents)
   updatedById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

@@ -27,6 +27,15 @@ export async function upsertLikesDislikes(req: AuthRequest, res: Response) {
       data[f] = v == null || String(v).trim() === '' ? null : String(v);
     }
   }
+  // Held-on-paper metadata (JSON). Stored verbatim after a validity check.
+  if ('paperMeta' in req.body) {
+    const raw = req.body.paperMeta;
+    if (raw == null || raw === '') data.paperMeta = null;
+    else {
+      const str = typeof raw === 'string' ? raw : JSON.stringify(raw);
+      try { JSON.parse(str); data.paperMeta = str; } catch { return res.status(400).json({ error: 'paperMeta must be valid JSON' }); }
+    }
+  }
 
   const record = await prisma.likesDislikes.upsert({
     where: { serviceUserId },
