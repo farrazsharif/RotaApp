@@ -362,7 +362,7 @@ export default function ServiceUserForm() {
         </div>
       </Section>
 
-      <Section title="Emergency Contact & Next of Kin">
+      <Section title="Emergency Contact">
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="label">Name</label>

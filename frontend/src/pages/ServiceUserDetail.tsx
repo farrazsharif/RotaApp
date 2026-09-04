@@ -398,7 +398,7 @@ export default function ServiceUserDetail() {
         <RespiteSection serviceUserId={id} isManager={isManager} />
 
         {/* Emergency contact & next of kin */}
-        <Section title="Emergency Contact & Next of Kin">
+        <Section title="Emergency Contact">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Name" value={su.emergencyContactName} />
             <Field label="Relationship" value={su.emergencyContactRelation} />
