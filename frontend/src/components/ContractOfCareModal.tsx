@@ -61,6 +61,20 @@ function parseMinutes(range: string): number {
   return diff > 0 && diff < 720 ? diff : Math.max(0, diff);
 }
 
+// How many carers a visit needs, read from the Care Plan cell text — e.g.
+// "9.00-10.00am x2 Carers", "x3", "double up", "2 carers". Returns null when the
+// cell doesn't say, so the caller can fall back to the contract-wide default.
+// Care hours for a visit = its duration × number of carers, so a 1-hour
+// double-up counts as 2 hours in the total.
+function carersInCell(cell: string): number | null {
+  const s = cell.toLowerCase();
+  if (/triple/.test(s)) return 3;
+  if (/double/.test(s)) return 2;
+  const m = s.match(/(?:x|×)\s*(\d+)/) || s.match(/(\d+)\s*carer/);
+  if (m) { const n = parseInt(m[1], 10); if (n >= 1 && n <= 6) return n; }
+  return null;
+}
+
 type Staffing = 'single' | 'double' | 'triple';
 const STAFF_MULTIPLIER: Record<Staffing, number> = { single: 1, double: 2, triple: 3 };
 const staffingLabel = (s: Staffing) =>
@@ -114,21 +128,30 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
     try { return carePlan?.schedule ? JSON.parse(carePlan.schedule) : {}; } catch { return {}; }
   }, [carePlan]);
 
-  const { totalMins, visitCount, hasAnyVisit } = useMemo(() => {
-    let mins = 0, count = 0, any = false;
-    for (const day of DAYS) for (const s of SLOTS) {
-      const t = schedule[day]?.[s.key]?.trim();
-      if (t) { any = true; count += 1; mins += parseMinutes(t); }
-    }
-    return { totalMins: mins, visitCount: count, hasAnyVisit: any };
-  }, [schedule]);
-
-  // Double/triple-up = 2/3 carers on each visit, so the total care hours
-  // delivered are multiplied accordingly. Single = the visit hours as-is.
   const paper = d.__paper || {};
   const setPaper = (patch: PaperMeta) => setD((prev) => ({ ...prev, __paper: { ...(prev.__paper || {}), ...patch } }));
+
+  // The contract-wide default number of carers per visit. A visit that names its
+  // own cover in the Care Plan (e.g. "x2 Carers") overrides this, so a single
+  // double-up adds only its own extra hours — not the whole week's.
   const staffMultiplier = STAFF_MULTIPLIER[d.staffing] || 1;
-  const totalHours = (totalMins * staffMultiplier) / 60;
+
+  const { totalMins, visitCount, hasAnyVisit, hasPerVisitCover } = useMemo(() => {
+    let mins = 0, count = 0, any = false, perVisit = false;
+    for (const day of DAYS) for (const s of SLOTS) {
+      const t = schedule[day]?.[s.key]?.trim();
+      if (t) {
+        any = true; count += 1;
+        const carers = carersInCell(t);
+        if (carers != null) perVisit = true;
+        mins += parseMinutes(t) * (carers ?? staffMultiplier);
+      }
+    }
+    return { totalMins: mins, visitCount: count, hasAnyVisit: any, hasPerVisitCover: perVisit };
+  }, [schedule, staffMultiplier]);
+
+  // Care hours = visit duration × carers on that visit (already applied above).
+  const totalHours = totalMins / 60;
   const hoursLabel = Number.isInteger(totalHours) ? String(totalHours) : totalHours.toFixed(2);
 
   useEffect(() => {
@@ -260,6 +283,11 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
                 </select>
               )}{' '}staff.
             </p>
+            {hasPerVisitCover && (
+              <p className="text-xs text-gray-500 -mt-2">
+                The total already includes visits marked as double/triple-up on the Care Plan (e.g. “x2 Carers”). The staffing choice above is only the default for visits that don’t state their own cover.
+              </p>
+            )}
 
             {/* Weekly visits — pulled from the Care Plan */}
             <div>
