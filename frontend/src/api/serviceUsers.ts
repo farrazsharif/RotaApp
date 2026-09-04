@@ -64,9 +64,13 @@ export interface ServiceUserData {
   hospitalReturnDate?: string; // when status → HOSPITALISED: expected return date
 }
 
+export interface ServiceUserComplianceRow { id: string; missing: string[]; missingCount: number; complete: boolean }
+
 export const serviceUsersApi = {
   list: (params?: { search?: string; active?: boolean; siteId?: string; status?: ServiceUserStatus }) =>
     api.get<ServiceUser[]>('/service-users', { params }).then((r) => r.data),
+  // Per-client care-record completeness (missing core records).
+  compliance: () => api.get<ServiceUserComplianceRow[]>('/service-users/compliance').then((r) => r.data),
   get: (id: string) => api.get<ServiceUser>(`/service-users/${id}`).then((r) => r.data),
   create: (data: ServiceUserData) =>
     api.post<ServiceUser>('/service-users', data).then((r) => r.data),

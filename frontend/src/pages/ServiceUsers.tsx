@@ -57,6 +57,10 @@ export default function ServiceUsers() {
 
   const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list });
 
+  // Care-record completeness per client, keyed by id (missing count on each card).
+  const { data: complianceRows = [] } = useQuery({ queryKey: ['service-users-compliance'], queryFn: () => serviceUsersApi.compliance() });
+  const complianceBy = new Map(complianceRows.map((r) => [r.id, r]));
+
   // Unfiltered list purely for the summary tiles, so the counts always reflect
   // everyone in care regardless of the active search/site/status filters.
   const { data: allUsers = [] } = useQuery({
@@ -322,6 +326,13 @@ export default function ServiceUsers() {
                 {/* Footer */}
                 <div className="flex items-center justify-between px-4 py-2.5 border-t bg-gray-50">
                   <span className="text-xs font-medium text-blue-600">View full record →</span>
+                  {(() => {
+                    const c = complianceBy.get(su.id);
+                    if (!c) return null;
+                    return c.complete
+                      ? <span className="badge-green badge" title="All core care records in place">✓ File complete</span>
+                      : <span className="badge-red badge" title={`Missing: ${c.missing.join(', ')}`}>⚠ {c.missingCount} missing</span>;
+                  })()}
                 </div>
               </div>
             );

@@ -74,6 +74,45 @@ export async function listServiceUsers(req: AuthRequest, res: Response) {
   res.json(users);
 }
 
+// Per-client "file completeness": which core care records are missing. A record
+// logged as "held on paper" still creates its row, so it counts as present.
+// Actual risk-assessment types only (the profile / contract / support plan live
+// in the same table but are checked separately).
+const RA_CORE_TYPES = ['ENVIRONMENT', 'FIRE_SAFETY', 'BATHING'];
+export async function getServiceUsersCompliance(req: AuthRequest, res: Response) {
+  const where: Record<string, unknown> = { active: true, status: { notIn: ['DISCHARGED', 'DECEASED'] } };
+  if (isScoped(req.user)) where.siteId = { in: req.user!.siteIds! };
+  const clients = await prisma.serviceUser.findMany({ where, select: { id: true, careType: true } });
+  const ids = clients.map((c) => c.id);
+  if (ids.length === 0) return res.json([]);
+
+  const [carePlans, riskRows, servicePlans, likes] = await Promise.all([
+    prisma.carePlan.findMany({ where: { serviceUserId: { in: ids } }, select: { serviceUserId: true } }),
+    prisma.riskAssessment.findMany({ where: { serviceUserId: { in: ids } }, select: { serviceUserId: true, type: true } }),
+    prisma.personalServicePlan.findMany({ where: { serviceUserId: { in: ids } }, select: { serviceUserId: true } }),
+    prisma.likesDislikes.findMany({ where: { serviceUserId: { in: ids } }, select: { serviceUserId: true } }),
+  ]);
+  const carePlanSet = new Set(carePlans.map((c) => c.serviceUserId));
+  const spSet = new Set(servicePlans.map((s) => s.serviceUserId));
+  const likesSet = new Set(likes.map((l) => l.serviceUserId));
+  const typesBy = new Map<string, Set<string>>();
+  for (const r of riskRows) { if (!typesBy.has(r.serviceUserId)) typesBy.set(r.serviceUserId, new Set()); typesBy.get(r.serviceUserId)!.add(r.type); }
+
+  const result = clients.map((c) => {
+    const t = typesBy.get(c.id) ?? new Set<string>();
+    const missing: string[] = [];
+    if (!carePlanSet.has(c.id)) missing.push('Care Plan');
+    if (!RA_CORE_TYPES.some((x) => t.has(x))) missing.push('Risk Assessment');
+    if (!spSet.has(c.id)) missing.push('Personal Service Plan');
+    if (!t.has('ONE_PAGE_PROFILE')) missing.push('One Page Profile');
+    if (!likesSet.has(c.id)) missing.push('Likes & Dislikes');
+    if (!t.has('CONTRACT_OF_CARE')) missing.push('Contract of Care');
+    if (c.careType === 'SUPPORTED_LIVING' && !t.has('SL_SUPPORT_PLAN')) missing.push('Support Plan');
+    return { id: c.id, missing, missingCount: missing.length, complete: missing.length === 0 };
+  });
+  res.json(result);
+}
+
 export async function getServiceUser(req: AuthRequest, res: Response) {
   if (!(await serviceUserInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'Service user not found' });
