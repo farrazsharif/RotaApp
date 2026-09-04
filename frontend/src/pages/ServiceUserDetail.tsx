@@ -233,6 +233,21 @@ export default function ServiceUserDetail() {
                   <span className="opacity-75">· {format(new Date(su.statusUpdatedAt), 'd MMM yyyy')}</span>
                 )}
               </span>
+              {(() => {
+                const raTypes = new Set(riskAssessments.map((r) => r.type));
+                const RA_CORE = ['ENVIRONMENT', 'FIRE_SAFETY', 'BATHING'];
+                const missing: string[] = [];
+                if (!carePlan) missing.push('Care Plan');
+                if (!RA_CORE.some((x) => raTypes.has(x))) missing.push('Risk Assessment');
+                if (!servicePlan) missing.push('Personal Service Plan');
+                if (!raTypes.has('ONE_PAGE_PROFILE')) missing.push('One Page Profile');
+                if (!likesDislikes) missing.push('Likes & Dislikes');
+                if (!raTypes.has('CONTRACT_OF_CARE')) missing.push('Contract of Care');
+                if (su.careType === 'SUPPORTED_LIVING' && !raTypes.has('SL_SUPPORT_PLAN')) missing.push('Support Plan');
+                return missing.length === 0
+                  ? <span className="badge-green badge" title="All core care records in place">✓ File complete</span>
+                  : <span className="badge-red badge" title={`Missing: ${missing.join(', ')}`}>⚠ {missing.length} missing</span>;
+              })()}
               {activeRespite && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800">
                   🏖️ On respite · until {format(new Date(activeRespite.endAt), 'd MMM yyyy')}
