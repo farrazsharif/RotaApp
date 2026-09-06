@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { ClockRecord, Shift } from '../types';
 import RecordVisitModal from '../components/RecordVisitModal';
+import ShiftDetailDrawer from '../components/ShiftDetailDrawer';
 import { format, differenceInMinutes, startOfWeek, endOfWeek, subDays, subWeeks } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 
@@ -104,6 +105,8 @@ export default function Attendance() {
   const [inValue, setInValue] = useState('');
   const [outValue, setOutValue] = useState('');
   const [recordTarget, setRecordTarget] = useState<{ shift: Shift; carerId: string } | null>(null);
+  // The visit whose full detail drawer is open (opened by clicking a row).
+  const [detailTarget, setDetailTarget] = useState<{ shiftId: string; carerId?: string } | null>(null);
 
   // Quick date-range presets. Weeks run Monday–Sunday, matching the default.
   function applyPreset(p: 'today' | 'yesterday' | 'thisweek' | 'lastweek') {
@@ -362,7 +365,7 @@ export default function Attendance() {
                 if (row.kind === 'missed') {
                   const s = row.shift;
                   return (
-                    <tr key={row.key} className="bg-red-50 hover:bg-red-100/60">
+                    <tr key={row.key} onClick={() => setDetailTarget({ shiftId: s.id, carerId: row.carerId })} className="bg-red-50 hover:bg-red-100/60 cursor-pointer">
                       {isManager && <td className="px-4 py-3 font-medium">{carerNameFor(s, row.carerId)}</td>}
                       <td className="px-4 py-3 text-gray-600">{format(scheduledStart(s), 'EEE dd MMM')}</td>
                       <td className="px-4 py-3"><span className="badge-red badge">Missed</span></td>
@@ -375,7 +378,7 @@ export default function Attendance() {
                             {s.visitName ? `${s.visitName} · ` : ''}{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}
                           </span>
                           {canEdit && (
-                            <button onClick={() => setRecordTarget({ shift: s, carerId: row.carerId })} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap">
+                            <button onClick={(e) => { e.stopPropagation(); setRecordTarget({ shift: s, carerId: row.carerId }); }} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap">
                               Record visit →
                             </button>
                           )}
@@ -420,7 +423,11 @@ export default function Attendance() {
                 }
 
                 return (
-                  <tr key={r.id} className={`hover:bg-gray-50 ${missed ? 'bg-amber-50' : short ? 'bg-red-50' : ''}`}>
+                  <tr
+                    key={r.id}
+                    onClick={r.shift?.id ? () => setDetailTarget({ shiftId: r.shift!.id, carerId: r.userId }) : undefined}
+                    className={`hover:bg-gray-50 ${r.shift?.id ? 'cursor-pointer' : ''} ${missed ? 'bg-amber-50' : short ? 'bg-red-50' : ''}`}
+                  >
                     {isManager && (
                       <td className="px-4 py-3 font-medium">{r.user.firstName} {r.user.lastName}</td>
                     )}
@@ -447,7 +454,7 @@ export default function Attendance() {
                             : '—'}
                         </span>
                         {canEdit && (
-                          <button onClick={() => startEdit(r)} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+                          <button onClick={(e) => { e.stopPropagation(); startEdit(r); }} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
                             {r.clockOut ? 'Edit' : 'Clock out →'}
                           </button>
                         )}
@@ -469,6 +476,14 @@ export default function Attendance() {
             name: carerNameFor(recordTarget.shift, recordTarget.carerId),
           }}
           onClose={() => setRecordTarget(null)}
+        />
+      )}
+
+      {detailTarget && (
+        <ShiftDetailDrawer
+          shiftId={detailTarget.shiftId}
+          focusCarerId={detailTarget.carerId}
+          onClose={() => setDetailTarget(null)}
         />
       )}
     </div>

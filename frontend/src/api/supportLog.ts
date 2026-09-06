@@ -14,4 +14,7 @@ export interface SupportLogEntry {
 export const supportLogApi = {
   list: (serviceUserId: string) =>
     api.get<SupportLogEntry[]>('/support-log', { params: { serviceUserId } }).then((r) => r.data),
+  // Entries logged during one specific visit (supported-living clients).
+  listByShift: (shiftId: string) =>
+    api.get<SupportLogEntry[]>('/support-log', { params: { shiftId } }).then((r) => r.data),
 };

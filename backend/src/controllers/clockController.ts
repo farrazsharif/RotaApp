@@ -5,6 +5,7 @@ import { Role } from '../constants';
 import { relatedStaffScopeWhere } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { ownerShiftIdForDose } from '../lib/doseOwnership';
+import { capabilitiesFor } from '../middleware/permissions';
 
 // The logged-in carer's calls for a given day (default today), ordered by visit time.
 // Includes calls where they are the primary carer or an additional cover carer.
@@ -161,7 +162,9 @@ export async function dueMeds(req: AuthRequest, res: Response) {
 
 // GET /clock/shift-meds/:shiftId — a specific visit's doses (with recorded
 // status), independent of clock state, so the carer can still see what was
-// given after the call is completed. Only a carer on the visit may view it.
+// given after the call is completed. A carer on the visit may view it; so may
+// office/managers (read-only) for oversight, e.g. the Attendance shift-detail
+// panel.
 export async function shiftMeds(req: AuthRequest, res: Response) {
   const { shiftId } = req.params;
   const shift = await prisma.shift.findUnique({
@@ -170,7 +173,14 @@ export async function shiftMeds(req: AuthRequest, res: Response) {
   });
   if (!shift) return res.json({ doses: [] });
   const onShift = shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id);
-  if (!onShift) return res.status(403).json({ error: 'You are not assigned to this visit' });
+  if (!onShift) {
+    // Office/managers can view any visit's doses read-only. Gated on schedule-
+    // or medication-management capability so an ordinary carer still only sees
+    // the visits they're assigned to.
+    const caps = await capabilitiesFor(req.user!.role, req.user!.customPermissions);
+    const canOversee = caps.includes('manage_schedule') || caps.includes('manage_medications');
+    if (!canOversee) return res.status(403).json({ error: 'You are not assigned to this visit' });
+  }
   const doses = await dueDosesForShift(shiftId);
   res.json({ doses });
 }
