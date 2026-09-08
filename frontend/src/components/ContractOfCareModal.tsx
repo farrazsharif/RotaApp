@@ -7,6 +7,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import SignaturePad from './SignaturePad';
+import SignatureField, { parseSignature } from './SignatureField';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
@@ -184,10 +185,34 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
       return `<tr><th class="day">${esc(day)}</th>${cells}</tr>`;
     }).join('');
 
-    const sig = (label: string, img: string, sub: string) =>
-      `<div class="sigbox"><div class="sig-label">${esc(label)}</div>${img ? `<img class="sig" src="${img}" />` : '<div class="sig-empty"></div>'}<div class="sig-sub">${esc(sub)}</div></div>`;
+    // Render a signature for print. Drawn signatures print as the image; typed
+    // e-signatures print as the name in the handwriting font + an "eSigned"
+    // badge and the sign date; empty shows a signing line.
+    const sigAt = (at: string) => {
+      if (!at) return '';
+      const dt = new Date(at);
+      return isNaN(dt.getTime()) ? '' : format(dt, 'dd MMM yyyy, h:mm a');
+    };
+    const sig = (label: string, sigValue: string, sub: string) => {
+      const p = parseSignature(sigValue);
+      let inner: string;
+      if (p.kind === 'drawn') {
+        inner = `<img class="sig" src="${p.dataUrl}" />`;
+      } else if (p.kind === 'esign') {
+        const at = sigAt(p.at);
+        inner = `<div class="esign-name">${esc(p.name)}</div><div class="esign-meta"><span class="esign-badge">eSigned &#10003;</span>${at ? `<span class="esign-at">${esc(at)}</span>` : ''}</div>`;
+      } else if (p.kind === 'text') {
+        inner = `<div class="esign-name">${esc(p.name)}</div>`;
+      } else {
+        inner = '<div class="sig-empty"></div>';
+      }
+      return `<div class="sigbox"><div class="sig-label">${esc(label)}</div>${inner}<div class="sig-sub">${esc(sub)}</div></div>`;
+    };
 
     const html = `<!DOCTYPE html><html><head><title>Contract of Care — ${esc(suName)}</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" />
       <style>
         @page { size: portrait; margin: 14mm; }
         body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 12px; }
@@ -206,6 +231,10 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
         .sig-label { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #555; letter-spacing: 0.02em; }
         .sig { max-height: 60px; max-width: 100%; display: block; margin-top: 4px; }
         .sig-empty { height: 46px; border-bottom: 1px solid #111; margin-top: 4px; }
+        .esign-name { font-family: 'Caveat','Segoe Script','Bradley Hand',cursive; font-size: 30px; line-height: 1.1; color: #111; margin-top: 4px; }
+        .esign-meta { margin-top: 4px; }
+        .esign-badge { display: inline-block; background: #dcfce7; color: #166534; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 999px; }
+        .esign-at { font-size: 10px; color: #555; margin-left: 6px; }
         .sig-sub { font-size: 11px; color: #333; margin-top: 4px; }
         h2 { font-size: 14px; margin: 24px 0 6px; background: #f3f3f3; padding: 5px 8px; }
         .med-line { font-size: 13px; margin: 8px 0 12px; }
@@ -338,7 +367,15 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
               <div className="grid gap-5 sm:grid-cols-3">
                 <div>
                   <label className="label">Service User Signature</label>
-                  <SignaturePad value={d.serviceUserSig} ro={ro} onChange={(v) => setD({ ...d, serviceUserSig: v })} />
+                  <SignatureField
+                    value={d.serviceUserSig}
+                    ro={ro}
+                    signerLabel="tenant"
+                    onChange={(v) => setD((prev) => {
+                      const isSigned = parseSignature(v).kind === 'esign';
+                      return { ...prev, serviceUserSig: v, signedDate: isSigned && !prev.signedDate ? format(new Date(), 'yyyy-MM-dd') : prev.signedDate };
+                    })}
+                  />
                   <p className="text-xs text-gray-500 mt-1">{suName}</p>
                 </div>
                 <div>
@@ -372,7 +409,15 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
                 <div className="grid gap-5 sm:grid-cols-3 mt-4">
                   <div>
                     <label className="label">Service User Signature</label>
-                    <SignaturePad value={d.medServiceUserSig} ro={ro} onChange={(v) => setD({ ...d, medServiceUserSig: v })} />
+                    <SignatureField
+                      value={d.medServiceUserSig}
+                      ro={ro}
+                      signerLabel="tenant"
+                      onChange={(v) => setD((prev) => {
+                        const isSigned = parseSignature(v).kind === 'esign';
+                        return { ...prev, medServiceUserSig: v, medDate: isSigned && !prev.medDate ? format(new Date(), 'yyyy-MM-dd') : prev.medDate };
+                      })}
+                    />
                   </div>
                   <div>
                     <label className="label">Manager's Signature</label>
