@@ -387,8 +387,12 @@ export async function ecmReport(req: AuthRequest, res: Response) {
   const { startDate, endDate, siteId, userId, serviceUserId, view } = req.query;
   if (!startDate || !endDate) return res.status(400).json({ error: 'startDate and endDate required' });
 
+  // Use the shared dayRange helper so the end bound spans the WHOLE final day.
+  // Using the bare date (midnight) dropped every visit anchored after 00:00 —
+  // e.g. recurring calls stored at noon — silently under-counting the report.
+  const { start, end } = dayRange(startDate, endDate);
   const where: Record<string, unknown> = {
-    date: { gte: new Date(String(startDate)), lte: new Date(String(endDate)) },
+    date: { gte: start, lte: end },
     status: { not: 'CANCELLED' },
     // ECM only covers committed calls: published and assigned to a carer. This
     // also keeps it fast by excluding the (often thousands of) unassigned drafts.
