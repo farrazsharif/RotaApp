@@ -17,6 +17,7 @@ import MissedMeds from './pages/MissedMeds';
 import Users from './pages/Users';
 import StaffDetail from './pages/StaffDetail';
 import ServiceUsers from './pages/ServiceUsers';
+import ClientDocuments from './pages/ClientDocuments';
 import ServiceUserDetail from './pages/ServiceUserDetail';
 import ServiceUserForm from './pages/ServiceUserForm';
 import CallLogs from './pages/CallLogs';
@@ -95,6 +96,7 @@ function AppRoutes() {
         <Route path="schedule" element={<Schedule />} />
         <Route path="roster" element={<ManagerRoute><Roster /></ManagerRoute>} />
         <Route path="service-users" element={<ServiceUsers />} />
+        <Route path="documents" element={<ManagerRoute><ClientDocuments /></ManagerRoute>} />
         <Route path="service-users/new" element={<ManagerRoute><ServiceUserForm /></ManagerRoute>} />
         <Route path="service-users/:id" element={<ServiceUserDetail />} />
         <Route path="service-users/:id/edit" element={<ManagerRoute><ServiceUserForm /></ManagerRoute>} />

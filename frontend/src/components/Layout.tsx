@@ -17,6 +17,7 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; mana
   { to: '/runs', label: 'Runs', icon: '🚐', capability: 'manage_schedule' },
   { to: '/supported-living', label: 'Supported Living', icon: '🏘️', capability: 'manage_service_users' },
   { to: '/service-users', label: 'Service Users', icon: '🧑‍🦽', capability: 'manage_service_users' },
+  { to: '/documents', label: 'Documents', icon: '📄', managerOnly: true },
   { to: '/care-plans', label: 'Care Plans', icon: '📋', capability: 'manage_service_users' },
   { to: '/service-plans', label: 'Service Plans', icon: '🗂️', capability: 'manage_service_users' },
   { to: '/call-logs', label: 'Call Logs', icon: '📝', capability: 'manage_service_users' },

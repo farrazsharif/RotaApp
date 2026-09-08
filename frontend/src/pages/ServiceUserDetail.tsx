@@ -32,6 +32,7 @@ import EmergencyGrabSheetModal from '../components/EmergencyGrabSheetModal';
 import DocumentsTab from '../components/DocumentsTab';
 import ServiceUserNotes from '../components/ServiceUserNotes';
 import RespiteSection from '../components/RespiteSection';
+import { computeServiceUserDocs, missingDocLabels, type DocKey } from '../lib/serviceUserDocuments';
 
 const durationLabel = (m: number) =>
   m >= 60 ? `${m / 60} hr${m > 60 ? 's' : ''}${m % 60 ? ` ${m % 60}m` : ''}` : `${m} mins`;
@@ -45,9 +46,9 @@ function parseTimes(times: string): string[] {
   }
 }
 
-function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Section({ id, title, action, children }: { id?: string; title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="card space-y-3">
+    <div id={id} className="card space-y-3 scroll-mt-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-gray-900">{title}</h2>
         {action}
@@ -198,6 +199,36 @@ export default function ServiceUserDetail() {
   } catch { carePlanExtraCalls = []; }
   const hasCarePlan = !!carePlan && (scheduleRows.length > 0 || carePlanExtraCalls.length > 0 || !!carePlan.tasksMorning || !!carePlan.tasksLunch || !!carePlan.tasksTea || !!carePlan.tasksBed || !!carePlan.carePackageInfo);
 
+  // Single source of truth for document completeness — shared with the Service
+  // Users list badge and the company-wide Documents page (same rules as the
+  // backend compliance endpoint). Drives both the header "N missing" badge and
+  // the Documents checklist below, so they can't drift. Existence-based (matches
+  // the backend), independent of the richer `hasCarePlan` display heuristic.
+  const docStatuses = computeServiceUserDocs({
+    careType: su.careType,
+    hasCarePlan: !!carePlan,
+    hasServicePlan: !!servicePlan,
+    hasLikesDislikes: !!likesDislikes,
+    raTypes: new Set(riskAssessments.map((r) => r.type)),
+  });
+  const missingDocs = missingDocLabels(docStatuses);
+  const applicableDocCount = docStatuses.filter((d) => d.applicable).length;
+
+  // Open the create/edit surface for a given document. Most map straight to the
+  // page's existing modal; Risk Assessment is a choice of core types, so it
+  // scrolls to that section rather than guessing which one to start.
+  const openDoc = (key: DocKey) => {
+    switch (key) {
+      case 'CARE_PLAN': setCarePlanOpen(true); break;
+      case 'RISK_ASSESSMENT': document.getElementById('doc-risk-assessments')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
+      case 'PERSONAL_SERVICE_PLAN': setServicePlanOpen(true); break;
+      case 'ONE_PAGE_PROFILE': setRaType('ONE_PAGE_PROFILE'); break;
+      case 'LIKES_DISLIKES': setLikesDislikesOpen(true); break;
+      case 'CONTRACT_OF_CARE': setContractOpen(true); break;
+      case 'SUPPORT_PLAN': setSlPlanOpen(true); break;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -233,21 +264,9 @@ export default function ServiceUserDetail() {
                   <span className="opacity-75">· {format(new Date(su.statusUpdatedAt), 'd MMM yyyy')}</span>
                 )}
               </span>
-              {(() => {
-                const raTypes = new Set(riskAssessments.map((r) => r.type));
-                const RA_CORE = ['ENVIRONMENT', 'FIRE_SAFETY', 'BATHING'];
-                const missing: string[] = [];
-                if (!carePlan) missing.push('Care Plan');
-                if (!RA_CORE.some((x) => raTypes.has(x))) missing.push('Risk Assessment');
-                if (!servicePlan) missing.push('Personal Service Plan');
-                if (!raTypes.has('ONE_PAGE_PROFILE')) missing.push('One Page Profile');
-                if (!likesDislikes) missing.push('Likes & Dislikes');
-                if (!raTypes.has('CONTRACT_OF_CARE')) missing.push('Contract of Care');
-                if (su.careType === 'SUPPORTED_LIVING' && !raTypes.has('SL_SUPPORT_PLAN')) missing.push('Support Plan');
-                return missing.length === 0
-                  ? <span className="badge-green badge" title="All core care records in place">✓ File complete</span>
-                  : <span className="badge-red badge" title={`Missing: ${missing.join(', ')}`}>⚠ {missing.length} missing</span>;
-              })()}
+              {missingDocs.length === 0
+                ? <span className="badge-green badge" title="All core care records in place">✓ File complete</span>
+                : <span className="badge-red badge" title={`Missing: ${missingDocs.join(', ')}`}>⚠ {missingDocs.length} missing</span>}
               {activeRespite && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800">
                   🏖️ On respite · until {format(new Date(activeRespite.endAt), 'd MMM yyyy')}
@@ -515,6 +534,46 @@ export default function ServiceUserDetail() {
 
       {/* Office Notes */}
       {isManager && <ServiceUserNotes serviceUserId={id} canManage={isManager} />}
+
+      {/* Documents checklist — derived from the same source as the header badge. */}
+      <Section
+        title="Documents"
+        action={
+          missingDocs.length === 0
+            ? <span className="badge-green badge">✓ File complete</span>
+            : <span className="badge-red badge">⚠ {missingDocs.length} missing</span>
+        }
+      >
+        <p className="text-sm text-gray-500 -mt-1">
+          {missingDocs.length === 0
+            ? `All ${applicableDocCount} required documents are in place.`
+            : `${applicableDocCount - missingDocs.length} of ${applicableDocCount} required documents in place — ${missingDocs.length} outstanding.`}
+        </p>
+        <div className="space-y-2">
+          {docStatuses.map((d) => (
+            <div key={d.key} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
+              <div className="flex items-center gap-2 min-w-0">
+                {!d.applicable
+                  ? <span className="text-gray-300 w-4 text-center">—</span>
+                  : d.done
+                    ? <span className="text-green-600 font-semibold w-4 text-center">✓</span>
+                    : <span className="text-red-600 font-semibold w-4 text-center">⚠</span>}
+                <span className={`text-sm ${d.applicable ? 'text-gray-800' : 'text-gray-400'}`}>{d.label}</span>
+                {!d.applicable && <span className="text-xs text-gray-400">(not applicable)</span>}
+              </div>
+              {d.applicable && (
+                d.done
+                  ? <span className="badge-green badge shrink-0">Done</span>
+                  : (
+                    <button className="btn-secondary btn btn-sm shrink-0" onClick={() => openDoc(d.key)}>
+                      {isManager ? (d.key === 'RISK_ASSESSMENT' ? 'Add →' : 'Create') : 'Open'}
+                    </button>
+                  )
+              )}
+            </div>
+          ))}
+        </div>
+      </Section>
 
       {/* Care Plan */}
       <Section
@@ -784,7 +843,7 @@ export default function ServiceUserDetail() {
       </Section>
 
       {/* Risk Assessments */}
-      <Section title="Risk Assessments">
+      <Section id="doc-risk-assessments" title="Risk Assessments">
         <div className="space-y-2">
           {RA_TYPES.map((t) => {
             const summary = riskAssessments.find((r) => r.type === t.type);
