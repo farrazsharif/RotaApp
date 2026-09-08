@@ -235,7 +235,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
                     <input value={form.numberOfCarers} onChange={(e) => setForm({ ...form, numberOfCarers: e.target.value })} placeholder="e.g. 1 carer per visit" className="input text-sm" />}
                 </div>
                 <div className={`rounded-lg ${reviewOverdue ? 'border border-red-300 bg-red-50 p-2' : ''}`}>
-                  <label className="label">Review Date</label>
+                  <label className="label">Care Plan Review</label>
                   {ro ? (
                     <p className="text-sm text-gray-800">{form.reviewDate ? format(new Date(form.reviewDate), 'dd MMM yyyy') : 'Not set'}</p>
                   ) : (

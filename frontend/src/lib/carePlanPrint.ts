@@ -133,7 +133,7 @@ export function printCarePlan(serviceUser: ServiceUser, data: CarePlanPrintData,
     <h2>Care Package Details</h2>
     <div class="fields-grid">
       <div class="field"><div class="field-label">Number of Carers</div><div class="field-value">${esc(data.numberOfCarers || '—')}</div></div>
-      <div class="field"><div class="field-label">Review Date</div><div class="field-value">${data.reviewDate ? esc(format(new Date(data.reviewDate), 'dd MMM yyyy')) : '—'}</div></div>
+      <div class="field"><div class="field-label">Care Plan Review</div><div class="field-value">${data.reviewDate ? esc(format(new Date(data.reviewDate), 'dd MMM yyyy')) : '—'}</div></div>
     </div>
 
     <h2>Tasks Required (Any Preferences)</h2>
