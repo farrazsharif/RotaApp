@@ -6,7 +6,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
-import SignaturePad from './SignaturePad';
 import SignatureField, { parseSignature } from './SignatureField';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
@@ -380,7 +379,7 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
                 </div>
                 <div>
                   <label className="label">Manager's Signature</label>
-                  <SignaturePad value={d.managerSig} ro={ro} onChange={(v) => setD({ ...d, managerSig: v })} />
+                  <SignatureField value={d.managerSig} ro={ro} onChange={(v) => setD({ ...d, managerSig: v })} />
                   {ro ? (
                     <p className="text-xs text-gray-500 mt-1">{d.managerName || '—'}</p>
                   ) : (
@@ -421,7 +420,7 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
                   </div>
                   <div>
                     <label className="label">Manager's Signature</label>
-                    <SignaturePad value={d.medManagerSig} ro={ro} onChange={(v) => setD({ ...d, medManagerSig: v })} />
+                    <SignatureField value={d.medManagerSig} ro={ro} onChange={(v) => setD({ ...d, medManagerSig: v })} />
                   </div>
                   <div>
                     <label className="label">Date</label>

@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { ServiceUser } from '../types';
 import { defaultTemplateSections, keyForItem, PspItem, PspSection } from './servicePlanSchema';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
+import { parseSignature } from '../components/SignatureField';
 
 type YnVal = { v: '' | 'YES' | 'NO'; comment: string; action?: string };
 type CheckVal = { checked: boolean; comment: string };
@@ -43,6 +44,26 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
 
   const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
 
+  // Render a stored signature value for print. Drawn signatures print as the
+  // image; typed e-signatures print as the name in the handwriting font + an
+  // "eSigned" badge and the sign date; a legacy plain-text name prints in the
+  // font; empty shows "Not signed".
+  const sigAt = (at: string) => {
+    if (!at) return '';
+    const dt = new Date(at);
+    return isNaN(dt.getTime()) ? '' : format(dt, 'dd MMM yyyy, h:mm a');
+  };
+  const sigHtml = (value: string): string => {
+    const p = parseSignature(value);
+    if (p.kind === 'drawn') return `<img class="sig" src="${p.dataUrl}" />`;
+    if (p.kind === 'esign') {
+      const at = sigAt(p.at);
+      return `<div class="esign-name">${esc(p.name)}</div><div class="esign-meta"><span class="esign-badge">eSigned &#10003;</span>${at ? `<span class="esign-at">${esc(at)}</span>` : ''}</div>`;
+    }
+    if (p.kind === 'text') return `<div class="esign-name">${esc(p.name)}</div>`;
+    return '<div class="note">Not signed</div>';
+  };
+
   function itemHtml(section: PspSection, item: PspItem, idx: number): string {
     const key = keyForItem(item, section.id, idx);
     const type = item.type || 'yn';
@@ -75,7 +96,7 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
       const v = sig(key);
       return `<div class="item">
         <div class="note">${esc(item.label)}</div>
-        ${v.dataUrl ? `<img class="sig" src="${v.dataUrl}" />` : '<div class="note">Not signed</div>'}
+        ${sigHtml(v.dataUrl)}
         <div class="note">${[v.name, v.date].filter(Boolean).map(esc).join(' · ')}</div>
       </div>`;
     }
@@ -108,6 +129,9 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
   `).join('');
 
   const html = `<!DOCTYPE html><html><head><title>Personal Service Plan — ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" />
     <style>
       @page { size: portrait; margin: 15mm; }
       body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 12px; }
@@ -125,6 +149,10 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
       .item-row b.blank { color: #999; }
       .note { font-size: 10px; color: #666; margin-top: 2px; }
       .sig { max-height: 50px; border: 1px solid #ccc; margin: 4px 0; }
+      .esign-name { font-family: 'Caveat','Segoe Script','Bradley Hand',cursive; font-size: 28px; line-height: 1.1; color: #111; margin: 4px 0 2px; }
+      .esign-meta { margin: 2px 0 2px; }
+      .esign-badge { display: inline-block; background: #dcfce7; color: #166534; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 999px; }
+      .esign-at { font-size: 10px; color: #555; margin-left: 6px; }
       .toolbar { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ddd; padding: 8px 0 10px; margin-bottom: 12px; display: flex; gap: 8px; }
       .toolbar button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid #2563eb; background: #2563eb; color: #fff; cursor: pointer; }
       .toolbar button.secondary { background: #fff; color: #374151; border-color: #d1d5db; }

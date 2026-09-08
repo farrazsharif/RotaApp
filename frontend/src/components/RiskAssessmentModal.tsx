@@ -5,7 +5,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem } from '../lib/riskAssessmentSchema';
 import { printRiskAssessment } from '../lib/riskAssessmentPrint';
-import SignaturePad from './SignaturePad';
+import SignatureField from './SignatureField';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import { format } from 'date-fns';
@@ -203,7 +203,7 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
       return (
         <div key={key} className="py-3 border-b last:border-0">
           <p className="text-sm text-gray-800 mb-2">{item.label}</p>
-          <SignaturePad value={dataUrl} ro={ro} onChange={(d) => set(key, d)} />
+          <SignatureField value={dataUrl} ro={ro} onChange={(d) => set(key, d)} />
         </div>
       );
     }

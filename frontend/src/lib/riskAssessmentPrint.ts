@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { ServiceUser } from '../types';
 import { RaForm, RaSection, RaItem, RiskVal, HazardVal, YesNoVal, keyForRaItem } from './riskAssessmentSchema';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
+import { parseSignature } from '../components/SignatureField';
 
 interface PrintOpts {
   autoPrint?: boolean;   // false = readable view only. Default true.
@@ -22,6 +23,26 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
   const yesno = (key: string): YesNoVal => (values[key] as YesNoVal) || { v: '', comment: '' };
   const str = (key: string): string => (values[key] as string) || '';
   const HML_LABEL: Record<string, string> = { H: 'High', M: 'Medium', L: 'Low' };
+
+  // Render a stored signature value for print. Drawn signatures print as the
+  // image; typed e-signatures print as the name in the handwriting font + an
+  // "eSigned" badge and sign date; a legacy plain-text name prints in the font;
+  // empty shows "Not signed".
+  const sigAt = (at: string) => {
+    if (!at) return '';
+    const dt = new Date(at);
+    return isNaN(dt.getTime()) ? '' : format(dt, 'dd MMM yyyy, h:mm a');
+  };
+  const sigHtml = (value: string): string => {
+    const p = parseSignature(value);
+    if (p.kind === 'drawn') return `<img class="sig" src="${p.dataUrl}" />`;
+    if (p.kind === 'esign') {
+      const at = sigAt(p.at);
+      return `<div class="esign-name">${esc(p.name)}</div><div class="esign-meta"><span class="esign-badge">eSigned &#10003;</span>${at ? `<span class="esign-at">${esc(at)}</span>` : ''}</div>`;
+    }
+    if (p.kind === 'text') return `<div class="esign-name">${esc(p.name)}</div>`;
+    return '<div class="field-value">Not signed</div>';
+  };
 
   // Hazard table for a section of 'risk' items.
   function riskTable(section: RaSection): string {
@@ -89,8 +110,7 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
     return section.items.map((item: RaItem, i) => {
       const key = keyForRaItem(section.id, i);
       if (item.type === 'signature') {
-        const dataUrl = str(key);
-        return `<div class="field"><div class="field-label">${esc(item.label)}</div>${dataUrl ? `<img class="sig" src="${dataUrl}" />` : '<div class="field-value">Not signed</div>'}</div>`;
+        return `<div class="field"><div class="field-label">${esc(item.label)}</div>${sigHtml(str(key))}</div>`;
       }
       const v = str(key);
       const shown = item.type === 'date' && v ? esc(format(new Date(v), 'dd MMM yyyy')) : esc(v);
@@ -111,6 +131,9 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
   }).join('');
 
   const html = `<!DOCTYPE html><html><head><title>${esc(form.title)} — ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&display=swap" />
     <style>
       @page { size: portrait; margin: 12mm; }
       body { font-family: Arial, sans-serif; color: #111; margin: 0; font-size: 12px; }
@@ -132,6 +155,10 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
       .field-label { font-size: 10px; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: 0.02em; }
       .field-value { font-size: 12px; white-space: pre-wrap; margin-top: 2px; }
       .sig { max-height: 60px; border: 1px solid #ccc; margin-top: 4px; }
+      .esign-name { font-family: 'Caveat','Segoe Script','Bradley Hand',cursive; font-size: 30px; line-height: 1.1; color: #111; margin-top: 4px; }
+      .esign-meta { margin-top: 4px; }
+      .esign-badge { display: inline-block; background: #dcfce7; color: #166534; font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 999px; }
+      .esign-at { font-size: 10px; color: #555; margin-left: 6px; }
       .toolbar { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ddd; padding: 8px 0 10px; margin-bottom: 12px; display: flex; gap: 8px; }
       .toolbar button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid #2563eb; background: #2563eb; color: #fff; cursor: pointer; }
       .toolbar button.secondary { background: #fff; color: #374151; border-color: #d1d5db; }

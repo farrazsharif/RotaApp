@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import CarerRota from '../components/CarerRota';
 import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
-import SignaturePad from '../components/SignaturePad';
+import SignatureField from '../components/SignatureField';
 import DocumentsTab from '../components/DocumentsTab';
 import AutoGrowTextarea from '../components/AutoGrowTextarea';
 import { resolveTrainingCourses } from '../lib/trainingCourses';
@@ -937,7 +937,7 @@ function FitForWorkTab({ userId, isManager, initial }: { userId: string; isManag
         </div>
         <div>
           <label className="label">Signature</label>
-          <SignaturePad value={form.signature || ''} ro={ro} onChange={(dataUrl) => set('signature', dataUrl)} />
+          <SignatureField value={form.signature || ''} ro={ro} onChange={(dataUrl) => set('signature', dataUrl)} />
         </div>
       </div>
 

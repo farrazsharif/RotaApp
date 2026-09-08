@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, addMonths } from 'date-fns';
-import SignaturePad from './SignaturePad';
+import SignatureField from './SignatureField';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import { staffSupervisionApi, Supervision, SupervisionData } from '../api/staffSupervision';
 import { SUPERVISION_QUESTIONS, SUPERVISION_OBSERVATIONS, parseMap } from '../lib/staffSupervision';
@@ -116,7 +116,7 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
               </div>
               <div>
                 <label className="label">Assessor Signature</label>
-                <SignaturePad value={form.assessorSignature} ro={readOnly} onChange={(dataUrl) => setForm((f) => ({ ...f, assessorSignature: dataUrl }))} />
+                <SignatureField value={form.assessorSignature} ro={readOnly} onChange={(dataUrl) => setForm((f) => ({ ...f, assessorSignature: dataUrl }))} />
               </div>
             </div>
             <div className="space-y-2">
@@ -126,7 +126,7 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
               </div>
               <div>
                 <label className="label">Staff Signature</label>
-                <SignaturePad value={form.staffSignature} ro={readOnly} onChange={(dataUrl) => setForm((f) => ({ ...f, staffSignature: dataUrl }))} />
+                <SignatureField value={form.staffSignature} ro={readOnly} signerLabel="staff" onChange={(dataUrl) => setForm((f) => ({ ...f, staffSignature: dataUrl }))} />
               </div>
             </div>
           </div>

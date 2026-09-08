@@ -6,7 +6,7 @@ import { serviceUsersApi } from '../api/serviceUsers';
 import { supervisionApi, YesNoNa } from '../api/supervision';
 import { useAuth } from '../contexts/AuthContext';
 import { SPOT_CHECK_ITEMS } from '../lib/spotCheckSchema';
-import SignaturePad from './SignaturePad';
+import SignatureField from './SignatureField';
 import AutoGrowTextarea from './AutoGrowTextarea';
 
 type Answers = Record<string, { answer: YesNoNa; comment: string }>;
@@ -159,7 +159,7 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
             </div>
             <div>
               <label className="label">Observer signature</label>
-              <SignaturePad value={readOnly ? (existing?.observerSignature || '') : observerSignature} ro={readOnly} onChange={setObserverSignature} />
+              <SignatureField value={readOnly ? (existing?.observerSignature || '') : observerSignature} ro={readOnly} onChange={setObserverSignature} />
             </div>
           </div>
         </div>
