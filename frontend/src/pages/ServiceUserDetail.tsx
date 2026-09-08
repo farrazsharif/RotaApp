@@ -222,6 +222,7 @@ export default function ServiceUserDetail() {
       case 'CARE_PLAN': setCarePlanOpen(true); break;
       case 'RISK_ASSESSMENT': document.getElementById('doc-risk-assessments')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
       case 'PERSONAL_SERVICE_PLAN': setServicePlanOpen(true); break;
+      case 'FIRE_SAFETY_RA': setRaType('FIRE_SAFETY'); break;
       case 'ONE_PAGE_PROFILE': setRaType('ONE_PAGE_PROFILE'); break;
       case 'LIKES_DISLIKES': setLikesDislikesOpen(true); break;
       case 'CONTRACT_OF_CARE': setContractOpen(true); break;

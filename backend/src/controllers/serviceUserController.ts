@@ -103,6 +103,7 @@ export async function getServiceUsersCompliance(req: AuthRequest, res: Response)
     const missing: string[] = [];
     if (!carePlanSet.has(c.id)) missing.push('Care Plan');
     if (!RA_CORE_TYPES.some((x) => t.has(x))) missing.push('Risk Assessment');
+    if (!t.has('FIRE_SAFETY')) missing.push('Fire Safety Risk Assessment');
     if (!spSet.has(c.id)) missing.push('Personal Service Plan');
     if (!t.has('ONE_PAGE_PROFILE')) missing.push('One Page Profile');
     if (!likesSet.has(c.id)) missing.push('Likes & Dislikes');

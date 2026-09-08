@@ -13,6 +13,7 @@ export const RA_CORE_TYPES = ['ENVIRONMENT', 'FIRE_SAFETY', 'BATHING'] as const;
 export type DocKey =
   | 'CARE_PLAN'
   | 'RISK_ASSESSMENT'
+  | 'FIRE_SAFETY_RA'
   | 'PERSONAL_SERVICE_PLAN'
   | 'ONE_PAGE_PROFILE'
   | 'LIKES_DISLIKES'
@@ -33,6 +34,7 @@ export interface DocDef {
 export const SERVICE_USER_DOCS: DocDef[] = [
   { key: 'CARE_PLAN', label: 'Care Plan', short: 'Care Plan' },
   { key: 'RISK_ASSESSMENT', label: 'Risk Assessment', short: 'Risk Assmt' },
+  { key: 'FIRE_SAFETY_RA', label: 'Fire Safety Risk Assessment', short: 'Fire Safety' },
   { key: 'PERSONAL_SERVICE_PLAN', label: 'Personal Service Plan', short: 'PSP' },
   { key: 'ONE_PAGE_PROFILE', label: 'One Page Profile', short: '1-Page' },
   { key: 'LIKES_DISLIKES', label: 'Likes & Dislikes', short: 'Likes/Dislikes' },
@@ -68,6 +70,7 @@ export function computeServiceUserDocs(inp: {
     switch (d.key) {
       case 'CARE_PLAN': done = inp.hasCarePlan; break;
       case 'RISK_ASSESSMENT': done = RA_CORE_TYPES.some((x) => inp.raTypes.has(x)); break;
+      case 'FIRE_SAFETY_RA': done = inp.raTypes.has('FIRE_SAFETY'); break;
       case 'PERSONAL_SERVICE_PLAN': done = inp.hasServicePlan; break;
       case 'ONE_PAGE_PROFILE': done = inp.raTypes.has('ONE_PAGE_PROFILE'); break;
       case 'LIKES_DISLIKES': done = inp.hasLikesDislikes; break;
