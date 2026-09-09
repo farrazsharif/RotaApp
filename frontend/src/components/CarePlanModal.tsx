@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { carePlansApi } from '../api/carePlans';
+import { carePlanVersionsApi } from '../api/carePlanVersions';
 import { printCarePlan } from '../lib/carePlanPrint';
+import CarePlanHistory from './CarePlanHistory';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
@@ -58,6 +60,8 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
   const ro = !canEdit;
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState>(emptyForm());
+  const [panel, setPanel] = useState<'none' | 'history' | 'review'>('none');
+  const [reviewLabel, setReviewLabel] = useState('');
 
   const { data: plan, isLoading } = useQuery({
     queryKey: ['care-plan', serviceUser.id],
@@ -89,15 +93,32 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
   // Drop rows with no name before persisting.
   const cleanExtraCalls = () => form.extraCalls.filter((c) => c.name.trim() || c.when.trim());
 
+  const savePayload = () => ({
+    schedule: JSON.stringify(form.schedule),
+    extraCalls: JSON.stringify(cleanExtraCalls()),
+    tasksMorning: form.tasksMorning, tasksLunch: form.tasksLunch, tasksTea: form.tasksTea, tasksBed: form.tasksBed,
+    numberOfCarers: form.numberOfCarers, carePackageInfo: form.carePackageInfo, otherNotes: form.otherNotes,
+    reviewDate: form.reviewDate || undefined,
+  });
+
   const saveMut = useMutation({
-    mutationFn: () => carePlansApi.save(serviceUser.id, {
-      schedule: JSON.stringify(form.schedule),
-      extraCalls: JSON.stringify(cleanExtraCalls()),
-      tasksMorning: form.tasksMorning, tasksLunch: form.tasksLunch, tasksTea: form.tasksTea, tasksBed: form.tasksBed,
-      numberOfCarers: form.numberOfCarers, carePackageInfo: form.carePackageInfo, otherNotes: form.otherNotes,
-      reviewDate: form.reviewDate || undefined,
-    }),
+    mutationFn: () => carePlansApi.save(serviceUser.id, savePayload()),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['care-plan', serviceUser.id] }); onClose(); },
+  });
+
+  // Complete review: save the current plan, then freeze an immutable dated
+  // snapshot as an archived version. The live plan stays editable.
+  const reviewMut = useMutation({
+    mutationFn: async () => {
+      await carePlansApi.save(serviceUser.id, savePayload());
+      return carePlanVersionsApi.create({ serviceUserId: serviceUser.id, label: reviewLabel.trim() || undefined });
+    },
+    onSuccess: () => {
+      setReviewLabel('');
+      qc.invalidateQueries({ queryKey: ['care-plan', serviceUser.id] });
+      qc.invalidateQueries({ queryKey: ['care-plan-versions', serviceUser.id] });
+      setPanel('history');
+    },
   });
 
   const setCell = (day: typeof DAYS[number], slot: SlotKey, val: string) =>
@@ -271,8 +292,40 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
           )}
         </div>
 
-        <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
+        {/* Previous reviews / Complete review panel */}
+        {panel !== 'none' && (
+          <div className="border-t bg-gray-50 px-6 py-4 max-h-64 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-gray-900">{panel === 'history' ? 'Previous reviews' : 'Complete review'}</h3>
+              <button onClick={() => setPanel('none')} className="text-gray-400 hover:text-gray-600 text-sm">Close ×</button>
+            </div>
+            {panel === 'history' ? (
+              <CarePlanHistory serviceUser={serviceUser} />
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">This saves the current care plan, then keeps a dated, read-only copy so past versions survive future edits. The live plan stays editable.</p>
+                <div>
+                  <label className="label">Review label (optional)</label>
+                  <input value={reviewLabel} onChange={(e) => setReviewLabel(e.target.value)} className="input text-sm" placeholder="e.g. Annual review, 6-month review" />
+                </div>
+                <div className="flex gap-2">
+                  <button className="btn-primary btn btn-sm" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+                    {reviewMut.isPending ? 'Saving review…' : 'Save & archive this review'}
+                  </button>
+                  <button className="btn-secondary btn btn-sm" onClick={() => setPanel('none')}>Cancel</button>
+                  {reviewMut.isError && <span className="text-sm text-red-600 self-center">Failed — try again</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3 p-6 border-t sticky bottom-0 bg-white">
           {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+          <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
+          {canEdit && (
+            <button onClick={() => setPanel((p) => (p === 'review' ? 'none' : 'review'))} className="btn-secondary btn">✓ Complete review</button>
+          )}
           <div className="flex-1" />
           <button onClick={printPlan} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>

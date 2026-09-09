@@ -366,6 +366,21 @@ model ServicePlanVersion {
   @@index([serviceUserId])
 }
 
+model CarePlanVersion {
+  companyId     String?  // tenant scope (app-enforced via Prisma extension)
+  id            String    @id @default(cuid())
+  serviceUserId String
+  data          String    // JSON snapshot of the whole care plan at review time
+  label         String?   // review label, e.g. "Annual review"
+  reviewDate    DateTime? // the next-review date recorded at the time of the review
+  createdById   String?
+  createdByName String
+  createdAt     DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([serviceUserId])
+}
+
 model ServiceUserNote {
   companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String   @id @default(cuid())

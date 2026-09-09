@@ -189,6 +189,23 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServicePlanVersion_companyId_idx" ON "ServicePlanVersion"("companyId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServicePlanVersion_serviceUserId_idx" ON "ServicePlanVersion"("serviceUserId")`);
 
+  // CarePlanVersion — immutable dated snapshots of a completed care-plan review.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CarePlanVersion" (
+      "id"            TEXT PRIMARY KEY,
+      "companyId"     TEXT,
+      "serviceUserId" TEXT NOT NULL,
+      "data"          TEXT NOT NULL,
+      "label"         TEXT,
+      "reviewDate"    TIMESTAMP(3),
+      "createdById"   TEXT,
+      "createdByName" TEXT NOT NULL,
+      "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CarePlanVersion_companyId_idx" ON "CarePlanVersion"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CarePlanVersion_serviceUserId_idx" ON "CarePlanVersion"("serviceUserId")`);
+
   // RiskAssessment — a client's completed risk assessment(s), one per type.
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "RiskAssessment" (
