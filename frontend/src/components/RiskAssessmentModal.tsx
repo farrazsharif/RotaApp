@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
+import { riskAssessmentVersionsApi } from '../api/riskAssessmentVersions';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem } from '../lib/riskAssessmentSchema';
 import { printRiskAssessment } from '../lib/riskAssessmentPrint';
+import RiskAssessmentHistory from './RiskAssessmentHistory';
 import SignatureField from './SignatureField';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import AutoGrowTextarea from './AutoGrowTextarea';
@@ -34,6 +36,8 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [activeSection, setActiveSection] = useState(form.sections[0].id);
+  const [panel, setPanel] = useState<'none' | 'history' | 'review'>('none');
+  const [reviewLabel, setReviewLabel] = useState('');
 
   const { data: ra, isLoading } = useQuery({
     queryKey: ['risk-assessment', serviceUser.id, form.type],
@@ -54,6 +58,22 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
       qc.invalidateQueries({ queryKey: ['risk-assessment', serviceUser.id, form.type] });
       qc.invalidateQueries({ queryKey: ['risk-assessments', serviceUser.id] });
       onClose();
+    },
+  });
+
+  // Complete review: save the current assessment, then freeze an immutable dated
+  // snapshot as an archived version. The live assessment stays editable.
+  const reviewMut = useMutation({
+    mutationFn: async () => {
+      await riskAssessmentsApi.save(serviceUser.id, form.type, values);
+      return riskAssessmentVersionsApi.create({ serviceUserId: serviceUser.id, type: form.type, label: reviewLabel.trim() || undefined });
+    },
+    onSuccess: () => {
+      setReviewLabel('');
+      qc.invalidateQueries({ queryKey: ['risk-assessment', serviceUser.id, form.type] });
+      qc.invalidateQueries({ queryKey: ['risk-assessments', serviceUser.id] });
+      qc.invalidateQueries({ queryKey: ['risk-assessment-versions', serviceUser.id, form.type] });
+      setPanel('history');
     },
   });
 
@@ -276,9 +296,45 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
           </div>
         )}
 
-        <div className="flex items-center gap-3 p-4 border-t">
+        {/* Previous reviews / Complete review panel */}
+        {panel !== 'none' && (
+          <div className="border-t bg-gray-50 px-6 py-4 max-h-64 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-gray-900">{panel === 'history' ? 'Previous reviews' : 'Complete review'}</h3>
+              <button onClick={() => setPanel('none')} className="text-gray-400 hover:text-gray-600 text-sm">Close ×</button>
+            </div>
+            {panel === 'history' ? (
+              <RiskAssessmentHistory
+                serviceUserId={serviceUser.id}
+                type={form.type}
+                onOpen={(data, autoPrint) => printRiskAssessment(serviceUser, form, data, { autoPrint })}
+              />
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">This saves the current assessment, then keeps a dated, read-only copy so past versions survive future edits. The live assessment stays editable.</p>
+                <div>
+                  <label className="label">Review label (optional)</label>
+                  <input value={reviewLabel} onChange={(e) => setReviewLabel(e.target.value)} className="input text-sm" placeholder="e.g. Annual review, 6-month review" />
+                </div>
+                <div className="flex gap-2">
+                  <button className="btn-primary btn btn-sm" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+                    {reviewMut.isPending ? 'Saving review…' : 'Save & archive this review'}
+                  </button>
+                  <button className="btn-secondary btn btn-sm" onClick={() => setPanel('none')}>Cancel</button>
+                  {reviewMut.isError && <span className="text-sm text-red-600 self-center">Failed — try again</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3 p-4 border-t">
           {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
+          <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
+          {canEdit && (
+            <button onClick={() => setPanel((p) => (p === 'review' ? 'none' : 'review'))} className="btn-secondary btn">✓ Complete review</button>
+          )}
           <div className="flex-1" />
           <button onClick={doPrint} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>

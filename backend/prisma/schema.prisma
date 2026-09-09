@@ -399,6 +399,28 @@ model LikesDislikesVersion {
   @@index([serviceUserId])
 }
 
+// Immutable dated snapshot of a completed Risk Assessment review. One shared
+// table for the whole Risk Assessment family (Environment, Fire, Bathing, One
+// Page Profile, Contract of Care, Supported Living Support Plan) — keyed by the
+// `type` so a client can hold reviews of several kinds. Freezes the stored
+// assessment's `data` at review time so past versions survive future edits.
+// Never edited or deleted — only ever created.
+model RiskAssessmentVersion {
+  companyId     String?  // tenant scope (app-enforced via Prisma extension)
+  id            String    @id @default(cuid())
+  serviceUserId String
+  type          String    // which family member, e.g. 'ENVIRONMENT', 'CONTRACT_OF_CARE'
+  data          String    // JSON snapshot of the whole assessment at review time
+  label         String?   // review label, e.g. "Annual review"
+  reviewDate    DateTime? // the next-review date recorded at the time of the review
+  createdById   String?
+  createdByName String
+  createdAt     DateTime  @default(now())
+
+  @@index([companyId])
+  @@index([serviceUserId, type])
+}
+
 model ServiceUserNote {
   companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String   @id @default(cuid())

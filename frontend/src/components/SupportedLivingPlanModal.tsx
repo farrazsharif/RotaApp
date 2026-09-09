@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
+import { riskAssessmentVersionsApi } from '../api/riskAssessmentVersions';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import { SUPPORT_DOMAINS as SL_DOMAINS } from '../lib/supportDomains';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
+import RiskAssessmentHistory from './RiskAssessmentHistory';
 import AutoGrowTextarea from './AutoGrowTextarea';
 
 // Stored in the generic assessment store, type 'SL_SUPPORT_PLAN' — no backend
@@ -34,6 +36,8 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
   const ro = !canEdit;
   const qc = useQueryClient();
   const [plan, setPlan] = useState<PlanData>(emptyPlan());
+  const [panel, setPanel] = useState<'none' | 'history' | 'review'>('none');
+  const [reviewLabel, setReviewLabel] = useState('');
   const suName = `${serviceUser.firstName} ${serviceUser.lastName}`.trim();
 
   const { data: record, isLoading } = useQuery({
@@ -60,16 +64,35 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
     },
   });
 
+  // Complete review: save the current plan, then freeze an immutable dated
+  // snapshot as an archived version. The live plan stays editable.
+  const reviewMut = useMutation({
+    mutationFn: async () => {
+      await riskAssessmentsApi.save(serviceUser.id, TYPE, plan as unknown as Record<string, unknown>);
+      return riskAssessmentVersionsApi.create({ serviceUserId: serviceUser.id, type: TYPE, label: reviewLabel.trim() || undefined });
+    },
+    onSuccess: () => {
+      setReviewLabel('');
+      qc.invalidateQueries({ queryKey: ['sl-plan', serviceUser.id] });
+      qc.invalidateQueries({ queryKey: ['risk-assessments', serviceUser.id] });
+      qc.invalidateQueries({ queryKey: ['risk-assessment-versions', serviceUser.id, TYPE] });
+      setPanel('history');
+    },
+  });
+
   const paper = plan.__paper || {};
   const setPaper = (patch: PaperMeta) => setPlan((p) => ({ ...p, __paper: { ...(p.__paper || {}), ...patch } }));
   const dom = (k: string): DomainVal => plan.domains[k] || emptyDomain();
   const setDom = (k: string, patch: Partial<DomainVal>) =>
     setPlan((p) => ({ ...p, domains: { ...p.domains, [k]: { ...emptyDomain(), ...p.domains[k], ...patch } } }));
 
-  function printPlan() {
+  // Print a plan. Defaults to the live form; the history panel passes a frozen
+  // snapshot so a past review prints exactly as it was archived.
+  function printPlan(source: PlanData = plan) {
+    const domOf = (k: string): DomainVal => source.domains[k] || emptyDomain();
     const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
-    const blocks = SL_DOMAINS.filter((d) => dom(d.key).applies).map((d) => {
-      const v = dom(d.key);
+    const blocks = SL_DOMAINS.filter((d) => domOf(d.key).applies).map((d) => {
+      const v = domOf(d.key);
       const row = (label: string, val: string) => val ? `<div class="row"><span class="rl">${esc(label)}</span><span class="rv">${esc(val)}</span></div>` : '';
       return `<div class="domain">
         <h3>${esc(d.label)}${v.level ? ` <span class="lvl">${esc(levelLabel(v.level))}</span>` : ''}</h3>
@@ -102,7 +125,7 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
       ${brandingHeaderHtml()}
       <h1>Supported Living — Support Plan</h1>
       <div class="sub">${esc(suName)} · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
-      ${plan.summary ? `<div class="summary">${esc(plan.summary)}</div>` : ''}
+      ${source.summary ? `<div class="summary">${esc(source.summary)}</div>` : ''}
       ${blocks || '<p style="color:#777">No support areas recorded yet.</p>'}
       </body></html>`;
 
@@ -176,11 +199,49 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
           </div>
         )}
 
-        <div className="flex items-center gap-3 p-4 border-t">
+        {/* Previous reviews / Complete review panel */}
+        {panel !== 'none' && (
+          <div className="border-t bg-gray-50 px-6 py-4 max-h-64 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-gray-900">{panel === 'history' ? 'Previous reviews' : 'Complete review'}</h3>
+              <button onClick={() => setPanel('none')} className="text-gray-400 hover:text-gray-600 text-sm">Close ×</button>
+            </div>
+            {panel === 'history' ? (
+              <RiskAssessmentHistory
+                serviceUserId={serviceUser.id}
+                type={TYPE}
+                // The plan print window has its own Print/Close toolbar and never
+                // auto-prints, so View and Print open the same window.
+                onOpen={(data) => printPlan({ ...emptyPlan(), ...(data as Partial<PlanData>) })}
+              />
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">This saves the current support plan, then keeps a dated, read-only copy so past versions survive future edits. The live plan stays editable.</p>
+                <div>
+                  <label className="label">Review label (optional)</label>
+                  <input value={reviewLabel} onChange={(e) => setReviewLabel(e.target.value)} className="input text-sm" placeholder="e.g. Annual review, 6-month review" />
+                </div>
+                <div className="flex gap-2">
+                  <button className="btn-primary btn btn-sm" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+                    {reviewMut.isPending ? 'Saving review…' : 'Save & archive this review'}
+                  </button>
+                  <button className="btn-secondary btn btn-sm" onClick={() => setPanel('none')}>Cancel</button>
+                  {reviewMut.isError && <span className="text-sm text-red-600 self-center">Failed — try again</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3 p-4 border-t">
           {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
+          <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
+          {canEdit && (
+            <button onClick={() => setPanel((p) => (p === 'review' ? 'none' : 'review'))} className="btn-secondary btn">✓ Complete review</button>
+          )}
           <div className="flex-1" />
-          <button onClick={printPlan} className="btn-secondary btn">🖨 Print</button>
+          <button onClick={() => printPlan()} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
           {canEdit && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>

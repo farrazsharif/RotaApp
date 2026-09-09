@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
+import { riskAssessmentVersionsApi } from '../api/riskAssessmentVersions';
 import { carePlansApi } from '../api/carePlans';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -8,6 +9,7 @@ import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import SignatureField, { parseSignature } from './SignatureField';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
+import RiskAssessmentHistory from './RiskAssessmentHistory';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
 // Stored under the generic assessment store, type 'CONTRACT_OF_CARE'. The weekly
@@ -109,6 +111,8 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
   const ro = !canEdit;
   const qc = useQueryClient();
   const [d, setD] = useState<ContractData>(emptyData());
+  const [panel, setPanel] = useState<'none' | 'history' | 'review'>('none');
+  const [reviewLabel, setReviewLabel] = useState('');
 
   const suName = `${serviceUser.firstName} ${serviceUser.lastName}`.trim();
   const currentUserName = user ? `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() : '';
@@ -175,7 +179,37 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
     },
   });
 
-  function printContract() {
+  // Complete review: save the current contract, then freeze an immutable dated
+  // snapshot as an archived version. The live contract stays editable.
+  const reviewMut = useMutation({
+    mutationFn: async () => {
+      await riskAssessmentsApi.save(serviceUser.id, TYPE, d as unknown as Record<string, unknown>);
+      return riskAssessmentVersionsApi.create({ serviceUserId: serviceUser.id, type: TYPE, label: reviewLabel.trim() || undefined });
+    },
+    onSuccess: () => {
+      setReviewLabel('');
+      qc.invalidateQueries({ queryKey: ['contract-of-care', serviceUser.id] });
+      qc.invalidateQueries({ queryKey: ['risk-assessments', serviceUser.id] });
+      qc.invalidateQueries({ queryKey: ['risk-assessment-versions', serviceUser.id, TYPE] });
+      setPanel('history');
+    },
+  });
+
+  // Print a contract. Defaults to the live form (`d`); the history panel passes a
+  // frozen snapshot so a past review prints its own signatures/staffing. The
+  // weekly visit table and hours total are always read from the current Care
+  // Plan (the schedule isn't part of the contract snapshot) but the printed
+  // hours use the given contract's staffing choice.
+  function printContract(data: ContractData = d) {
+    const dataStaffMultiplier = STAFF_MULTIPLIER[data.staffing] || 1;
+    let mins = 0, count = 0;
+    for (const day of DAYS) for (const s of SLOTS) {
+      const t = schedule[day]?.[s.key]?.trim();
+      if (t) { count += 1; const carers = carersInCell(t); mins += parseMinutes(t) * (carers ?? dataStaffMultiplier); }
+    }
+    const hrs = mins / 60;
+    const hoursLabel = Number.isInteger(hrs) ? String(hrs) : hrs.toFixed(2);
+    const visitCount = count;
     const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
     const rows = DAYS.map((day) => {
       const cells = SLOTS.map((s) => {
@@ -251,23 +285,23 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
       ${brandingHeaderHtml()}
       <h1>Contract of Care</h1>
       <div class="sub">${esc(suName)} · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
-      <p class="statement">I, <b>${esc(suName)}</b>, have agreed to the terms and conditions outlined in this contract of care. I will be receiving <b>${esc(hoursLabel)}</b> hours of care per week from <b>${esc(staffingLabel(d.staffing))}</b> staff.</p>
+      <p class="statement">I, <b>${esc(suName)}</b>, have agreed to the terms and conditions outlined in this contract of care. I will be receiving <b>${esc(hoursLabel)}</b> hours of care per week from <b>${esc(staffingLabel(data.staffing))}</b> staff.</p>
       <table class="coc">
         <thead><tr><th></th>${SLOTS.map((s) => `<th>${esc(s.label)}</th>`).join('')}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="totals">Total visits per week: <b>${visitCount}</b> · Total: <b>${esc(hoursLabel)} hours</b> per week</div>
       <div class="sigrow">
-        ${sig('Service User Signature', d.serviceUserSig, esc(suName))}
-        ${sig("Manager's Signature", d.managerSig, esc(d.managerName || ''))}
-        ${sig('Date', '', d.signedDate ? esc(format(new Date(d.signedDate), 'dd MMM yyyy')) : '')}
+        ${sig('Service User Signature', data.serviceUserSig, esc(suName))}
+        ${sig("Manager's Signature", data.managerSig, esc(data.managerName || ''))}
+        ${sig('Date', '', data.signedDate ? esc(format(new Date(data.signedDate), 'dd MMM yyyy')) : '')}
       </div>
       <h2>Medication Administration Contract</h2>
-      <p class="med-line">I authorise the provider to administer my medication — <b>${d.medAuth ? 'Yes' : 'Not applicable'}</b> <span style="color:#777">(sign if applicable)</span></p>
+      <p class="med-line">I authorise the provider to administer my medication — <b>${data.medAuth ? 'Yes' : 'Not applicable'}</b> <span style="color:#777">(sign if applicable)</span></p>
       <div class="sigrow">
-        ${sig('Service User Signature', d.medServiceUserSig, esc(suName))}
-        ${sig("Manager's Signature", d.medManagerSig, esc(d.managerName || ''))}
-        ${sig('Date', '', d.medDate ? esc(format(new Date(d.medDate), 'dd MMM yyyy')) : '')}
+        ${sig('Service User Signature', data.medServiceUserSig, esc(suName))}
+        ${sig("Manager's Signature", data.medManagerSig, esc(data.managerName || ''))}
+        ${sig('Date', '', data.medDate ? esc(format(new Date(data.medDate), 'dd MMM yyyy')) : '')}
       </div>
       </body></html>`;
 
@@ -437,11 +471,49 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
           </div>
         )}
 
-        <div className="flex items-center gap-3 p-4 border-t">
+        {/* Previous reviews / Complete review panel */}
+        {panel !== 'none' && (
+          <div className="border-t bg-gray-50 px-6 py-4 max-h-64 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-gray-900">{panel === 'history' ? 'Previous reviews' : 'Complete review'}</h3>
+              <button onClick={() => setPanel('none')} className="text-gray-400 hover:text-gray-600 text-sm">Close ×</button>
+            </div>
+            {panel === 'history' ? (
+              <RiskAssessmentHistory
+                serviceUserId={serviceUser.id}
+                type={TYPE}
+                // The contract print window has its own Print/Close toolbar and
+                // never auto-prints, so View and Print open the same window.
+                onOpen={(data) => printContract({ ...emptyData(), ...(data as Partial<ContractData>) })}
+              />
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">This saves the current contract, then keeps a dated, read-only copy so past versions survive future edits. The live contract stays editable.</p>
+                <div>
+                  <label className="label">Review label (optional)</label>
+                  <input value={reviewLabel} onChange={(e) => setReviewLabel(e.target.value)} className="input text-sm" placeholder="e.g. Annual review, 6-month review" />
+                </div>
+                <div className="flex gap-2">
+                  <button className="btn-primary btn btn-sm" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+                    {reviewMut.isPending ? 'Saving review…' : 'Save & archive this review'}
+                  </button>
+                  <button className="btn-secondary btn btn-sm" onClick={() => setPanel('none')}>Cancel</button>
+                  {reviewMut.isError && <span className="text-sm text-red-600 self-center">Failed — try again</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3 p-4 border-t">
           {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
+          <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
+          {canEdit && (
+            <button onClick={() => setPanel((p) => (p === 'review' ? 'none' : 'review'))} className="btn-secondary btn">✓ Complete review</button>
+          )}
           <div className="flex-1" />
-          <button onClick={printContract} className="btn-secondary btn">🖨 Print</button>
+          <button onClick={() => printContract()} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
           {canEdit && (
             <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
