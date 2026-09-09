@@ -97,7 +97,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
       numberOfCarers: form.numberOfCarers, carePackageInfo: form.carePackageInfo, otherNotes: form.otherNotes,
       reviewDate: form.reviewDate || undefined,
     }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['care-plan', serviceUser.id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['care-plan', serviceUser.id] }); onClose(); },
   });
 
   const setCell = (day: typeof DAYS[number], slot: SlotKey, val: string) =>

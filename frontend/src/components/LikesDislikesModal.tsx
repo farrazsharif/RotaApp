@@ -74,7 +74,7 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const saveMut = useMutation({
     mutationFn: () => likesDislikesApi.save(serviceUser.id, { ...form, paperMeta: JSON.stringify(paper) }),
-    onSuccess: () => { setSaveError(null); qc.invalidateQueries({ queryKey: ['likes-dislikes', serviceUser.id] }); },
+    onSuccess: () => { setSaveError(null); qc.invalidateQueries({ queryKey: ['likes-dislikes', serviceUser.id] }); onClose(); },
     onError: (e: { response?: { data?: { error?: string } } }) => setSaveError(e?.response?.data?.error || 'Could not save — please try again.'),
   });
 

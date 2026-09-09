@@ -60,7 +60,7 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
 
   const saveMut = useMutation({
     mutationFn: () => servicePlansApi.save(serviceUser.id, values),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['service-plan', serviceUser.id] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-plan', serviceUser.id] }); onClose(); },
   });
 
   // Finalise: save the current answers, then freeze an immutable signed snapshot

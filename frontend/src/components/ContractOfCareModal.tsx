@@ -171,6 +171,7 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contract-of-care', serviceUser.id] });
       qc.invalidateQueries({ queryKey: ['risk-assessments', serviceUser.id] });
+      onClose();
     },
   });
 
