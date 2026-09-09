@@ -20,14 +20,20 @@ export default function HeldOnPaperPanel({ meta, ro, onChange }: {
   ro: boolean;
   onChange: (patch: PaperMeta) => void;
 }) {
-  // Snapshot at mount: was a paper date already captured (completed or review
-  // date on file when this opened)? Once a date has been recorded and saved,
-  // the record is managed in the software from then on, so the paper-logging
-  // panel is hidden. Snapshotting (rather than reading `meta` live) means it
-  // doesn't vanish mid-entry while the user is first typing the date — it only
-  // disappears the next time the record is opened.
-  const alreadyCaptured = useRef(!!(meta.completedDate || meta.reviewDate)).current;
-  if (alreadyCaptured) return null;
+  // Once a paper date has been captured (and saved), the record is managed in
+  // the software, so this panel is hidden. We latch the decision the first time
+  // the record's saved metadata actually arrives — the parent seeds `meta` from
+  // the server in one shot AFTER the async load, so we can't just read it at
+  // mount (it's still empty then). Latching on that first non-empty state means:
+  // hides on reopen once a date is on file, but never disappears while the user
+  // is first typing the date on a fresh record (ticking the box seeds `onFile`
+  // with no date, which latches "show"). Resets on remount (reopen after save).
+  const latch = useRef<{ decided: boolean; hide: boolean }>({ decided: false, hide: false });
+  if (!latch.current.decided) {
+    const hasContent = !!(meta.onFile || meta.completedDate || meta.reviewDate || meta.assessor);
+    if (hasContent) latch.current = { decided: true, hide: !!(meta.completedDate || meta.reviewDate) };
+  }
+  if (latch.current.hide) return null;
 
   // One-click renewal: mark the assessment reviewed today and set the next
   // review a year on, so a field supervisor can renew without hand-typing dates.
