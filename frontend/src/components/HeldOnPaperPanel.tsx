@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { format } from 'date-fns';
 
 // Metadata for an assessment/plan that's held on paper (scan attached in
@@ -19,6 +20,15 @@ export default function HeldOnPaperPanel({ meta, ro, onChange }: {
   ro: boolean;
   onChange: (patch: PaperMeta) => void;
 }) {
+  // Snapshot at mount: was a paper date already captured (completed or review
+  // date on file when this opened)? Once a date has been recorded and saved,
+  // the record is managed in the software from then on, so the paper-logging
+  // panel is hidden. Snapshotting (rather than reading `meta` live) means it
+  // doesn't vanish mid-entry while the user is first typing the date — it only
+  // disappears the next time the record is opened.
+  const alreadyCaptured = useRef(!!(meta.completedDate || meta.reviewDate)).current;
+  if (alreadyCaptured) return null;
+
   // One-click renewal: mark the assessment reviewed today and set the next
   // review a year on, so a field supervisor can renew without hand-typing dates.
   const renew = () => {
