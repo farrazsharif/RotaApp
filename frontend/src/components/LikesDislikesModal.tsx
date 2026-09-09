@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { likesDislikesApi } from '../api/likesDislikes';
+import { likesDislikesVersionsApi } from '../api/likesDislikesVersions';
+import { printLikesDislikes } from '../lib/likesDislikesPrint';
+import LikesDislikesHistory from './LikesDislikesHistory';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import AutoGrowTextarea from './AutoGrowTextarea';
-import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 
 interface Props {
   serviceUser: ServiceUser;
@@ -50,6 +52,8 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [paper, setPaperState] = useState<PaperMeta>({});
   const setPaper = (patch: PaperMeta) => setPaperState((p) => ({ ...p, ...patch }));
+  const [panel, setPanel] = useState<'none' | 'history' | 'review'>('none');
+  const [reviewLabel, setReviewLabel] = useState('');
 
   const { data: record, isLoading } = useQuery({
     queryKey: ['likes-dislikes', serviceUser.id],
@@ -71,44 +75,31 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
     }
   }, [record]);
 
+  const savePayload = () => ({ ...form, paperMeta: JSON.stringify(paper) });
+
   const [saveError, setSaveError] = useState<string | null>(null);
   const saveMut = useMutation({
-    mutationFn: () => likesDislikesApi.save(serviceUser.id, { ...form, paperMeta: JSON.stringify(paper) }),
+    mutationFn: () => likesDislikesApi.save(serviceUser.id, savePayload()),
     onSuccess: () => { setSaveError(null); qc.invalidateQueries({ queryKey: ['likes-dislikes', serviceUser.id] }); onClose(); },
     onError: (e: { response?: { data?: { error?: string } } }) => setSaveError(e?.response?.data?.error || 'Could not save — please try again.'),
   });
 
-  function printSheet() {
-    const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
-    const fieldRows = FIELDS
-      .map(({ key, label }) => `<div class="field"><div class="field-label">${esc(label)}</div><div class="field-value">${esc(form[key] || '—')}</div></div>`)
-      .join('');
+  // Complete review: save the current record, then freeze an immutable dated
+  // snapshot as an archived version. The live record stays editable.
+  const reviewMut = useMutation({
+    mutationFn: async () => {
+      await likesDislikesApi.save(serviceUser.id, savePayload());
+      return likesDislikesVersionsApi.create({ serviceUserId: serviceUser.id, label: reviewLabel.trim() || undefined });
+    },
+    onSuccess: () => {
+      setReviewLabel('');
+      qc.invalidateQueries({ queryKey: ['likes-dislikes', serviceUser.id] });
+      qc.invalidateQueries({ queryKey: ['likes-dislikes-versions', serviceUser.id] });
+      setPanel('history');
+    },
+  });
 
-    const html = `<!DOCTYPE html><html><head><title>Likes &amp; Dislikes — ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}</title>
-      <style>
-        @page { size: portrait; margin: 15mm; }
-        body { font-family: Arial, sans-serif; color: #111; margin: 0; }
-        h1 { font-size: 20px; margin: 0 0 2px; }
-        .sub { color: #555; font-size: 12px; margin-bottom: 16px; }
-        .field { margin-bottom: 14px; }
-        .field-label { font-size: 11px; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: 0.02em; }
-        .field-value { font-size: 13px; white-space: pre-wrap; margin-top: 3px; }
-        @media print { body { margin: 0; } }
-        ${BRANDING_PRINT_CSS}
-      </style></head><body>
-      ${brandingHeaderHtml()}
-      <h1>Likes &amp; Dislikes</h1>
-      <div class="sub">${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)} · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
-      ${fieldRows}
-      </body></html>`;
-
-    const w = window.open('', '_blank');
-    if (!w) { alert('Please allow pop-ups to print.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  }
+  const printSheet = () => printLikesDislikes(serviceUser, form, { createdAt: record?.createdAt, updatedAt: record?.updatedAt });
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -148,9 +139,41 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
           )}
         </div>
 
-        <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
+        {/* Previous reviews / Complete review panel */}
+        {panel !== 'none' && (
+          <div className="border-t bg-gray-50 px-6 py-4 max-h-64 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-gray-900">{panel === 'history' ? 'Previous reviews' : 'Complete review'}</h3>
+              <button onClick={() => setPanel('none')} className="text-gray-400 hover:text-gray-600 text-sm">Close ×</button>
+            </div>
+            {panel === 'history' ? (
+              <LikesDislikesHistory serviceUser={serviceUser} />
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">This saves the current likes &amp; dislikes, then keeps a dated, read-only copy so past versions survive future edits. The live record stays editable.</p>
+                <div>
+                  <label className="label">Review label (optional)</label>
+                  <input value={reviewLabel} onChange={(e) => setReviewLabel(e.target.value)} className="input text-sm" placeholder="e.g. Annual review, 6-month review" />
+                </div>
+                <div className="flex gap-2">
+                  <button className="btn-primary btn btn-sm" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+                    {reviewMut.isPending ? 'Saving review…' : 'Save & archive this review'}
+                  </button>
+                  <button className="btn-secondary btn btn-sm" onClick={() => setPanel('none')}>Cancel</button>
+                  {reviewMut.isError && <span className="text-sm text-red-600 self-center">Failed — try again</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3 p-6 border-t sticky bottom-0 bg-white">
           {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
           {saveError && <span className="text-sm text-red-600 self-center">{saveError}</span>}
+          <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
+          {canEdit && (
+            <button onClick={() => setPanel((p) => (p === 'review' ? 'none' : 'review'))} className="btn-secondary btn">✓ Complete review</button>
+          )}
           <div className="flex-1" />
           <button onClick={printSheet} className="btn-secondary btn">🖨 Print</button>
           <button onClick={onClose} className="btn-secondary btn">Close</button>
