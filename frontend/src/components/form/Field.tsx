@@ -17,19 +17,19 @@ export default function Field({ label, htmlFor, optional, help, error, className
   return (
     <div className={className}>
       {label && (
-        <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-800 mb-1.5">
+        <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-800 mb-1">
           {label}
           {optional && <span className="text-gray-400 font-normal"> (optional)</span>}
         </label>
       )}
       {children}
       {error ? (
-        <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
+        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
           <span aria-hidden="true">⚠</span>
           {error}
         </p>
       ) : help ? (
-        <p className="text-xs text-gray-500 mt-1.5">{help}</p>
+        <p className="text-xs text-gray-500 mt-1">{help}</p>
       ) : null}
     </div>
   );

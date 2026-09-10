@@ -11,8 +11,8 @@ interface Props {
 // hairline underneath, an optional description, then the fields. Presentational.
 export default function FormSection({ title, icon, description, children }: Props) {
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-2 border-b border-gray-200 pb-2 mb-4">
+    <section className="space-y-2.5">
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-1.5 mb-3">
         {icon && <span className="text-gray-500">{icon}</span>}
         <h3 className="text-sm font-medium text-gray-900">{title}</h3>
       </div>

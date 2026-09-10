@@ -186,7 +186,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-4">
           {isLoading ? (
             <div className="flex justify-center p-6"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>
           ) : !editing ? (
@@ -209,7 +209,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
 
               {/* Service user basic information */}
               <FormSection title="Service user">
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div><p className="text-xs text-gray-400">Name</p><p className="text-sm text-gray-800">{serviceUser.firstName} {serviceUser.lastName}</p></div>
                   <div><p className="text-xs text-gray-400">Date of Birth</p><p className="text-sm text-gray-800">{serviceUser.dateOfBirth ? format(new Date(serviceUser.dateOfBirth), 'dd MMM yyyy') : '—'}</p></div>
                   <div><p className="text-xs text-gray-400">NHS Number</p><p className="text-sm text-gray-800">{serviceUser.nhsNumber || '—'}</p></div>
@@ -296,7 +296,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
 
               {/* Care package details */}
               <FormSection title="Care details">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="Number of Carers" help="How many carers attend each visit.">
                     {ro ? <p className="text-sm text-gray-800">{form.numberOfCarers || '—'}</p> :
                       <input value={form.numberOfCarers} onChange={(e) => setForm({ ...form, numberOfCarers: e.target.value })} placeholder="e.g. 1 carer per visit" className="field-input" />}
@@ -319,7 +319,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
 
               {/* Tasks required per visit */}
               <FormSection title="Tasks required">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {TASK_FIELDS.map(({ key, label }) => (
                     <Field key={key} label={label} optional={key !== 'tasksMorning'}>
                       {ro ? (
