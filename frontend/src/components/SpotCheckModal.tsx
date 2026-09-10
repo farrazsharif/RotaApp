@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { usersApi } from '../api/users';
@@ -17,12 +17,14 @@ function emptyAnswers(): Answers {
   return a;
 }
 
-export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewId }: { onClose: () => void; carerId?: string; viewId?: string }) {
+export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewId, editId }: { onClose: () => void; carerId?: string; viewId?: string; editId?: string }) {
   const qc = useQueryClient();
   const { user } = useAuth();
   const readOnly = !!viewId;
+  const isEdit = !!editId;
+  const loadId = viewId || editId;
 
-  const { data: existing } = useQuery({ queryKey: ['spot-check', viewId], queryFn: () => supervisionApi.getSpotCheck(viewId!), enabled: readOnly });
+  const { data: existing } = useQuery({ queryKey: ['spot-check', loadId], queryFn: () => supervisionApi.getSpotCheck(loadId!), enabled: !!loadId });
   // All active staff except admins (carers, managers, coordinators, field
   // supervisors) — anyone who might do visits and be spot-checked.
   const { data: staff = [] } = useQuery({ queryKey: ['users', 'spot-check-staff'], queryFn: () => usersApi.list({ active: true }), enabled: !readOnly });
@@ -42,8 +44,27 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
   const setAnswer = (id: string, patch: Partial<{ answer: YesNoNa; comment: string }>) =>
     setAnswers((a) => ({ ...a, [id]: { ...a[id], ...patch } }));
 
+  // Seed the editable form once from the existing record when editing.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (!isEdit || seededRef.current || !existing) return;
+    seededRef.current = true;
+    setCarerId(existing.carerId);
+    setServiceUserId(existing.serviceUserId || '');
+    setDate(format(new Date(existing.date), 'yyyy-MM-dd'));
+    setTime(existing.time || '');
+    setLocation(existing.location || '');
+    try { setAnswers({ ...emptyAnswers(), ...JSON.parse(existing.answers) }); } catch { /* keep defaults */ }
+    setGeneralComments(existing.generalComments || '');
+    setObserverName(existing.observerName || '');
+    setObserverSignature(existing.observerSignature || '');
+  }, [isEdit, existing]);
+
   const saveMut = useMutation({
-    mutationFn: () => supervisionApi.createSpotCheck({ carerId, serviceUserId: serviceUserId || undefined, date, time, location, answers, generalComments, observerName, observerSignature: observerSignature || undefined }),
+    mutationFn: () => {
+      const payload = { carerId, serviceUserId: serviceUserId || undefined, date, time, location, answers, generalComments, observerName, observerSignature: observerSignature || undefined };
+      return editId ? supervisionApi.updateSpotCheck(editId, payload) : supervisionApi.createSpotCheck(payload);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['supervision-summary'] });
       qc.invalidateQueries({ queryKey: ['spot-checks'] });
@@ -60,7 +81,7 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-3 border-b">
-          <h2 className="font-semibold text-gray-900">{readOnly ? 'Spot check' : 'New carer spot check'}</h2>
+          <h2 className="font-semibold text-gray-900">{readOnly ? 'Spot check' : isEdit ? 'Edit Spot Check' : 'New carer spot check'}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
 

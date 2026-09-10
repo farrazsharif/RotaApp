@@ -205,6 +205,40 @@ export async function createSpotCheck(req: AuthRequest, res: Response) {
   res.status(201).json(created);
 }
 
+export async function updateSpotCheck(req: AuthRequest, res: Response) {
+  const existing = await prisma.spotCheck.findUnique({ where: { id: req.params.id }, select: { id: true } });
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+
+  const { carerId, serviceUserId, date, time, location, answers, generalComments, observerName, observerSignature } = req.body;
+  if (!carerId || !date) return res.status(400).json({ error: 'carerId and date are required' });
+
+  // Confirm the carer (and optional service user) belong to this company — the
+  // scoped client returns null for anything outside it.
+  const carer = await prisma.user.findUnique({ where: { id: carerId }, select: { id: true } });
+  if (!carer) return res.status(404).json({ error: 'Carer not found' });
+  if (serviceUserId) {
+    const su = await prisma.serviceUser.findUnique({ where: { id: serviceUserId }, select: { id: true } });
+    if (!su) return res.status(404).json({ error: 'Service user not found' });
+  }
+
+  const updated = await prisma.spotCheck.update({
+    where: { id: req.params.id },
+    data: {
+      carerId,
+      serviceUserId: serviceUserId || null,
+      date: new Date(date),
+      time: time || null,
+      location: location || null,
+      answers: typeof answers === 'string' ? answers : JSON.stringify(answers || {}),
+      generalComments: generalComments || null,
+      observerName: observerName || null,
+      observerSignature: observerSignature || null,
+    },
+    select: spotCheckSelect,
+  });
+  res.json(updated);
+}
+
 export async function deleteSpotCheck(req: AuthRequest, res: Response) {
   const s = await prisma.spotCheck.findUnique({ where: { id: req.params.id }, select: { id: true } });
   if (!s) return res.status(404).json({ error: 'Not found' });

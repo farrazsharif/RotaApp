@@ -61,5 +61,6 @@ export const supervisionApi = {
     api.get<SpotCheck[]>('/supervision/spot-checks', { params: carerId ? { carerId } : {} }).then((r) => r.data),
   getSpotCheck: (id: string) => api.get<SpotCheck>(`/supervision/spot-checks/${id}`).then((r) => r.data),
   createSpotCheck: (data: SpotCheckInput) => api.post<SpotCheck>('/supervision/spot-checks', data).then((r) => r.data),
+  updateSpotCheck: (id: string, data: SpotCheckInput) => api.put<SpotCheck>(`/supervision/spot-checks/${id}`, data).then((r) => r.data),
   deleteSpotCheck: (id: string) => api.delete(`/supervision/spot-checks/${id}`).then((r) => r.data),
 };

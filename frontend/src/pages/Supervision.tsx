@@ -77,6 +77,7 @@ function SpotChecks() {
   const { data, isLoading } = useQuery({ queryKey: ['supervision-summary'], queryFn: supervisionApi.summary });
   const [newFor, setNewFor] = useState<string | 'any' | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [paperFor, setPaperFor] = useState<{ carerId: string; carerName: string } | null>(null);
 
@@ -160,6 +161,7 @@ function SpotChecks() {
                             <button className="btn-secondary btn btn-sm whitespace-nowrap" title="Log a spot check already done on paper" onClick={() => setPaperFor({ carerId: r.carerId, carerName: r.carerName })}>📄 Paper</button>
                           )}
                           {r.lastCheckId && <button className="btn-secondary btn btn-sm" onClick={() => setViewId(r.lastCheckId)}>View</button>}
+                          {r.lastCheckId && <button className="btn-secondary btn btn-sm" onClick={() => setEditId(r.lastCheckId)}>Edit</button>}
                           {r.lastCheckId && <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(r.lastCheckId)}>Delete</button>}
                         </span>
                       )}
@@ -174,6 +176,7 @@ function SpotChecks() {
 
       {newFor && <SpotCheckModal onClose={() => setNewFor(null)} carerId={newFor === 'any' ? undefined : newFor} />}
       {viewId && <SpotCheckModal onClose={() => setViewId(null)} viewId={viewId} />}
+      {editId && <SpotCheckModal onClose={() => setEditId(null)} editId={editId} />}
       {paperFor && (
         <PaperSeedModal
           title="Record previous spot check"
