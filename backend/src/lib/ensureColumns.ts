@@ -388,4 +388,21 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
       }
     }
   }
+
+  // One clock record per carer per call. A concurrent double clock-in (double
+  // tap / offline retry) could otherwise slip two creates past the app-level
+  // check and strand a duplicate open record, which then blocked the carer with
+  // "you're still clocked in on your current call". This partial unique index
+  // makes the DB reject the second insert (clockIn catches it and returns the
+  // existing record). Best-effort: if the table still holds a duplicate pair the
+  // index can't be built yet, so it's guarded — startup continues, a manager
+  // clears the duplicate from Attendance, and the index builds on the next boot.
+  // (Records with no call — shiftId NULL — are exempt.)
+  try {
+    await prisma.$executeRawUnsafe(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "ClockRecord_userId_shiftId_key" ON "ClockRecord"("userId","shiftId") WHERE "shiftId" IS NOT NULL`,
+    );
+  } catch (e) {
+    console.error('ClockRecord unique index guard skipped (likely an existing duplicate — clear it in Attendance, then redeploy):', (e as Error).message);
+  }
 }
