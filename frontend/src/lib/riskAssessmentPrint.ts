@@ -10,12 +10,23 @@ interface PrintOpts {
   updatedAt?: string;
 }
 
+interface BuildOpts {
+  createdAt?: string;
+  updatedAt?: string;
+  // When true, build the document for inline embedding (e.g. an iframe in the
+  // modal's read-only view): OMIT the on-page Print/Close toolbar. The layout,
+  // branding, styles, sections and signatures are otherwise identical to print.
+  embed?: boolean;
+}
+
 const LEVEL_LABEL: Record<string, string> = { LOW: 'Low', MED: 'Medium', HIGH: 'High' };
 
-// Opens a printable window for a client's risk assessment. Shared by the modal's
-// Print button and the readable "Open" view.
-export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, values: Record<string, unknown>, opts: PrintOpts = {}) {
-  const autoPrint = opts.autoPrint !== false;
+// Builds the full HTML document for a client's risk assessment — the same layout
+// used for print and for the modal's inline read-only view. Pass `embed: true`
+// to drop the print toolbar for inline display. HTML for print is produced by
+// printRiskAssessment (embed defaults to false), which then opens/optionally
+// prints a window; the values are already HTML-escaped here.
+export function buildRiskAssessmentHtml(serviceUser: ServiceUser, form: RaForm, values: Record<string, unknown>, opts: BuildOpts = {}): string {
   const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
 
   const risk = (key: string): RiskVal => (values[key] as RiskVal) || { level: '', comment: '', action: '' };
@@ -169,10 +180,10 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
       @media print { body { margin: 0; } .section { page-break-inside: auto; } .no-print { display: none !important; } }
       ${BRANDING_PRINT_CSS}
     </style></head><body>
-    <div class="toolbar no-print">
+    ${opts.embed ? '' : `<div class="toolbar no-print">
       <button onclick="window.print()">🖨 Print</button>
       <button class="secondary" onclick="window.close()">Close</button>
-    </div>
+    </div>`}
     ${brandingHeaderHtml()}
     <h1>${esc(form.title)}</h1>
     <div class="sub">
@@ -188,6 +199,21 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
     </div>`
       : ''}
     </body></html>`;
+
+  return html;
+}
+
+// Opens a printable window for a client's risk assessment. Shared by the modal's
+// Print button and the readable "Open" view. Builds the same document as the
+// inline view (via buildRiskAssessmentHtml) but with the on-page toolbar and,
+// unless disabled, an automatic print.
+export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, values: Record<string, unknown>, opts: PrintOpts = {}) {
+  const autoPrint = opts.autoPrint !== false;
+  const html = buildRiskAssessmentHtml(serviceUser, form, values, {
+    createdAt: opts.createdAt,
+    updatedAt: opts.updatedAt,
+    embed: false,
+  });
 
   const w = window.open('', '_blank');
   if (!w) { alert('Please allow pop-ups to print.'); return; }

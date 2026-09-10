@@ -5,7 +5,7 @@ import { riskAssessmentVersionsApi } from '../api/riskAssessmentVersions';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem } from '../lib/riskAssessmentSchema';
-import { printRiskAssessment } from '../lib/riskAssessmentPrint';
+import { printRiskAssessment, buildRiskAssessmentHtml } from '../lib/riskAssessmentPrint';
 import RiskAssessmentHistory from './RiskAssessmentHistory';
 import SignatureField from './SignatureField';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
@@ -125,6 +125,14 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
   }, [values, form]);
 
   const doPrint = () => printRiskAssessment(serviceUser, form, values, { createdAt: ra?.createdAt, updatedAt: ra?.updatedAt });
+
+  // Read-only VIEW renders the formatted document (identical to the printout)
+  // in a CSS-isolated iframe. Recomputed from the live `values` so the view
+  // refreshes after a Save; skipped while editing to avoid rebuilding on keystroke.
+  const viewHtml = useMemo(
+    () => (editing ? '' : buildRiskAssessmentHtml(serviceUser, form, values, { createdAt: ra?.createdAt, updatedAt: ra?.updatedAt, embed: true })),
+    [editing, serviceUser, form, values, ra?.createdAt, ra?.updatedAt],
+  );
 
   function renderItem(section: RaSection, item: RaItem, idx: number) {
     const key = keyForRaItem(section.id, idx);
@@ -287,6 +295,11 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
 
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>
+        ) : !editing ? (
+          // VIEW mode: formatted document (matches the printout), CSS-isolated in an iframe.
+          <div className="flex-1 flex flex-col min-h-0 bg-gray-100">
+            <iframe title="document preview" srcDoc={viewHtml} className="w-full flex-1 border-0" />
+          </div>
         ) : (
           <div className="flex-1 flex min-h-0">
             <nav className="w-56 shrink-0 border-r overflow-y-auto p-2 hidden md:block">
