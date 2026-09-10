@@ -80,6 +80,7 @@ function SpotChecks() {
   const [editId, setEditId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [paperFor, setPaperFor] = useState<{ carerId: string; carerName: string } | null>(null);
+  const [search, setSearch] = useState('');
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => supervisionApi.deleteSpotCheck(id),
@@ -88,8 +89,16 @@ function SpotChecks() {
 
   if (isLoading || !data) return <Loading />;
 
-  const rows = data.spotChecks.rows;
+  // Alphabetical by carer name, so the list is predictable to scan.
+  const byName = (a: { carerName: string }, b: { carerName: string }) =>
+    a.carerName.localeCompare(b.carerName, undefined, { sensitivity: 'base' });
+  const rows = [...data.spotChecks.rows].sort(byName);
   const due = rows.filter((r) => r.due);
+
+  // Search filters the table by carer name (the "due" banner still summarises
+  // everyone due).
+  const q = search.trim().toLowerCase();
+  const visibleRows = q ? rows.filter((r) => r.carerName.toLowerCase().includes(q)) : rows;
 
   return (
     <div className="space-y-6">
@@ -113,7 +122,19 @@ function SpotChecks() {
       {rows.length === 0 ? (
         <div className="card text-center py-12 text-gray-400"><p>No active carers to spot-check.</p></div>
       ) : (
-        <div className="card p-0 overflow-x-auto">
+        <div className="space-y-3">
+          <div className="relative max-w-xs">
+            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400 pointer-events-none">🔍</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search carer…"
+              className="input pl-9"
+              aria-label="Search carers"
+            />
+          </div>
+          <div className="card p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
@@ -126,7 +147,10 @@ function SpotChecks() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {rows.map((r) => {
+              {visibleRows.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400">No carers match “{search.trim()}”.</td></tr>
+              )}
+              {visibleRows.map((r) => {
                 const overdays = r.nextDue ? differenceInCalendarDays(new Date(), new Date(r.nextDue)) : null;
                 return (
                   <tr key={r.carerId} className="hover:bg-gray-50">
@@ -171,6 +195,7 @@ function SpotChecks() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
