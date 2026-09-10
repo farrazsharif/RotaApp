@@ -60,10 +60,14 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
     if (!template || !template.companyId) continue; // need a tenant to create under
     // Don't keep generating future calls for someone who has been discharged or
     // has passed away — and clear any future calls still on the schedule for
-    // them (also covers people marked before auto-cancel shipped).
+    // them (also covers people marked before auto-cancel shipped). Only touch
+    // shifts AFTER today (`gt`, not `gte`): today's calls are handled precisely
+    // at discharge time (kept if before the End-of-Care moment, cancelled if
+    // after), so this sweep must not wipe a call earlier today that was rightly
+    // kept. `today` is noon-anchored, matching how shift dates are stored.
     if (template.serviceUser?.status === 'DECEASED' || template.serviceUser?.status === 'DISCHARGED') {
       await prisma.shift.updateMany({
-        where: { seriesId, status: { not: 'CANCELLED' }, date: { gte: today } },
+        where: { seriesId, status: { not: 'CANCELLED' }, date: { gt: today } },
         data: { status: 'CANCELLED' },
       });
       continue;
