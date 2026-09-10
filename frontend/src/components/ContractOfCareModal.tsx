@@ -214,12 +214,13 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
     },
   });
 
-  // Print a contract. Defaults to the live form (`d`); the history panel passes a
-  // frozen snapshot so a past review prints its own signatures/staffing. The
-  // weekly visit table and hours total are always read from the current Care
-  // Plan (the schedule isn't part of the contract snapshot) but the printed
-  // hours use the given contract's staffing choice.
-  function printContract(data: ContractData = d) {
+  // Build the full contract HTML document — shared by Print (a new window) and
+  // the modal's inline read-only view. The weekly visit table and hours total
+  // are always read from the current Care Plan (the schedule isn't part of the
+  // contract snapshot) but the hours use the given contract's staffing choice.
+  // Pass `embed: true` to drop the on-page Print/Close toolbar for inline
+  // display; everything else is identical. Values are HTML-escaped here.
+  function buildContractHtml(data: ContractData, embed: boolean): string {
     const dataStaffMultiplier = STAFF_MULTIPLIER[data.staffing] || 1;
     let mins = 0, count = 0;
     for (const day of DAYS) for (const s of SLOTS) {
@@ -297,10 +298,10 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
         @media print { body { margin: 0; } .no-print { display: none !important; } }
         ${BRANDING_PRINT_CSS}
       </style></head><body>
-      <div class="toolbar no-print">
+      ${embed ? '' : `<div class="toolbar no-print">
         <button onclick="window.print()">🖨 Print</button>
         <button class="secondary" onclick="window.close()">Close</button>
-      </div>
+      </div>`}
       ${brandingHeaderHtml()}
       <h1>Contract of Care</h1>
       <div class="sub">${esc(suName)} · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
@@ -324,12 +325,30 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
       </div>
       </body></html>`;
 
+    return html;
+  }
+
+  // Print a contract. Defaults to the live form (`d`); the history panel passes a
+  // frozen snapshot so a past review prints its own signatures/staffing. Opens a
+  // window with the on-page toolbar (no auto-print, so View and Print match).
+  function printContract(data: ContractData = d) {
+    const html = buildContractHtml(data, false);
     const w = window.open('', '_blank');
     if (!w) { alert('Please allow pop-ups to print.'); return; }
     w.document.write(html);
     w.document.close();
     w.focus();
   }
+
+  // Read-only VIEW renders the contract document (identical to the printout) in
+  // a CSS-isolated iframe, built from the live form (`d`). Recomputed so the
+  // view refreshes after a Save or a Care Plan change; skipped while editing to
+  // avoid rebuilding on keystroke.
+  const viewHtml = useMemo(
+    () => (editing ? '' : buildContractHtml(d, true)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editing, d, schedule, serviceUser],
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -349,6 +368,11 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
 
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>
+        ) : !editing ? (
+          // VIEW mode: formatted document (matches the printout), CSS-isolated in an iframe.
+          <div className="flex-1 flex flex-col min-h-0 bg-gray-100">
+            <iframe title="document preview" srcDoc={viewHtml} className="w-full flex-1 border-0" />
+          </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Renew banner — shown while archiving a new dated version */}

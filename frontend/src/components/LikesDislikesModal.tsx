@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { likesDislikesApi } from '../api/likesDislikes';
 import { likesDislikesVersionsApi } from '../api/likesDislikesVersions';
-import { printLikesDislikes } from '../lib/likesDislikesPrint';
+import { printLikesDislikes, buildLikesDislikesHtml } from '../lib/likesDislikesPrint';
 import LikesDislikesHistory from './LikesDislikesHistory';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
@@ -121,6 +121,15 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
 
   const printSheet = () => printLikesDislikes(serviceUser, form, { createdAt: record?.createdAt, updatedAt: record?.updatedAt });
 
+  // Read-only VIEW renders the formatted document (identical to the printout)
+  // in a CSS-isolated iframe, built from the SAME form data Print uses.
+  // Recomputed from the live form so the view refreshes after a Save; skipped
+  // while editing to avoid rebuilding on keystroke.
+  const viewHtml = useMemo(
+    () => (editing ? '' : buildLikesDislikesHtml(serviceUser, form, { createdAt: record?.createdAt, updatedAt: record?.updatedAt, embed: true })),
+    [editing, serviceUser, form, record?.createdAt, record?.updatedAt],
+  );
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
@@ -150,6 +159,11 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
           )}
           {isLoading ? (
             <div className="flex justify-center p-6"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>
+          ) : !editing ? (
+            // VIEW mode: formatted document (matches the printout), CSS-isolated in an iframe.
+            <div className="-m-6 bg-gray-100">
+              <iframe title="document preview" srcDoc={viewHtml} className="w-full h-[75vh] border-0" />
+            </div>
           ) : (
             FIELDS.map(({ key, label }) => (
               <div key={key}>

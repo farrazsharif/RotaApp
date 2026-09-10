@@ -33,6 +33,15 @@ interface PrintOpts {
   updatedAt?: string;
 }
 
+interface BuildOpts {
+  createdAt?: string;
+  updatedAt?: string;
+  // When true, build the document for inline embedding (e.g. an iframe in the
+  // modal's read-only view): OMIT the on-page Print/Close toolbar. The layout,
+  // branding, styles, sections and signatures are otherwise identical to print.
+  embed?: boolean;
+}
+
 const TASK_FIELDS: { key: keyof CarePlanPrintData; label: string }[] = [
   { key: 'tasksMorning', label: 'Morning' },
   { key: 'tasksLunch', label: 'Lunch' },
@@ -40,10 +49,12 @@ const TASK_FIELDS: { key: keyof CarePlanPrintData; label: string }[] = [
   { key: 'tasksBed', label: 'Bed' },
 ];
 
-// Opens a printable window for a client's Care Plan. Shared by the care-plan
-// modal, "Open" (readable view) and "Print" on the Care Plans list.
-export function printCarePlan(serviceUser: ServiceUser, data: CarePlanPrintData, opts: PrintOpts = {}) {
-  const autoPrint = opts.autoPrint !== false;
+// Builds the full HTML document for a client's Care Plan — the same layout used
+// for print and for the modal's inline read-only view. Pass `embed: true` to
+// drop the print toolbar for inline display. Values are already HTML-escaped
+// here; printCarePlan (embed defaults to false) then opens/optionally prints a
+// window.
+export function buildCarePlanHtml(serviceUser: ServiceUser, data: CarePlanPrintData, opts: BuildOpts = {}): string {
   const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
 
   const scheduleRows = DAYS.map((day) => `
@@ -89,10 +100,10 @@ export function printCarePlan(serviceUser: ServiceUser, data: CarePlanPrintData,
       @media print { body { margin: 0; } .no-print { display: none !important; } }
       ${BRANDING_PRINT_CSS}
     </style></head><body>
-    <div class="toolbar no-print">
+    ${opts.embed ? '' : `<div class="toolbar no-print">
       <button onclick="window.print()">🖨 Print</button>
       <button class="secondary" onclick="window.close()">Close</button>
-    </div>
+    </div>`}
     ${brandingHeaderHtml()}
     <h1>Care Plan</h1>
     <div class="sub">
@@ -147,6 +158,21 @@ export function printCarePlan(serviceUser: ServiceUser, data: CarePlanPrintData,
       <div class="line">Service User / Representative signature / date</div>
     </div>
     </body></html>`;
+
+  return html;
+}
+
+// Opens a printable window for a client's Care Plan. Shared by the care-plan
+// modal, "Open" (readable view) and "Print" on the Care Plans list. Builds the
+// same document as the inline view (via buildCarePlanHtml) but with the on-page
+// toolbar and, unless disabled, an automatic print.
+export function printCarePlan(serviceUser: ServiceUser, data: CarePlanPrintData, opts: PrintOpts = {}) {
+  const autoPrint = opts.autoPrint !== false;
+  const html = buildCarePlanHtml(serviceUser, data, {
+    createdAt: opts.createdAt,
+    updatedAt: opts.updatedAt,
+    embed: false,
+  });
 
   const w = window.open('', '_blank');
   if (!w) { alert('Please allow pop-ups to print.'); return; }

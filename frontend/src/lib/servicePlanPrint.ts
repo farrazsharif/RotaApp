@@ -28,10 +28,25 @@ interface PrintOpts {
   signed?: { label?: string | null; signedByName?: string | null; signedOn: string; signedBy: string };
 }
 
-// Opens a printable window for a service user's Personal Service Plan.
-// Shared by the plan modal, "Open" (readable view) and "Print" on the list.
-export function printServicePlan(serviceUser: ServiceUser, values: Record<string, unknown>, opts: PrintOpts = {}) {
-  const autoPrint = opts.autoPrint !== false;
+interface BuildOpts {
+  createdAt?: string;
+  updatedAt?: string;
+  // The template to render; defaults to the built-in default when omitted.
+  sections?: PspSection[];
+  // When rendering a signed snapshot, show an audit banner marking it immutable.
+  signed?: { label?: string | null; signedByName?: string | null; signedOn: string; signedBy: string };
+  // When true, build the document for inline embedding (e.g. an iframe in the
+  // modal's read-only view): OMIT the on-page Print/Close toolbar. The layout,
+  // branding, sections, tables and signatures are otherwise identical to print.
+  embed?: boolean;
+}
+
+// Builds the full HTML document for a service user's Personal Service Plan — the
+// same layout used for print and for the modal's inline read-only view. Pass
+// `embed: true` to drop the print toolbar for inline display. Values are already
+// HTML-escaped here; printServicePlan (embed defaults to false) then
+// opens/optionally prints a window.
+export function buildServicePlanHtml(serviceUser: ServiceUser, values: Record<string, unknown>, opts: BuildOpts = {}): string {
   const yn = (key: string): YnVal => (values[key] as YnVal) || { v: '', comment: '', action: '' };
   const chk = (key: string): CheckVal => (values[key] as CheckVal) || { checked: false, comment: '' };
   const cap = (key: string): CapVal => (values[key] as CapVal) || { independent: false, supervise: false, staff: '', aid: '' };
@@ -166,10 +181,10 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
       @media print { body { margin: 0; } .section { page-break-inside: auto; } .no-print { display: none !important; } }
       ${BRANDING_PRINT_CSS}
     </style></head><body>
-    <div class="toolbar no-print">
+    ${opts.embed ? '' : `<div class="toolbar no-print">
       <button onclick="window.print()">🖨 Print</button>
       <button class="secondary" onclick="window.close()">Close</button>
-    </div>
+    </div>`}
     ${brandingHeaderHtml()}
     <h1>Personal Service Plan</h1>
     ${opts.signed ? `<div class="signed-banner">
@@ -186,6 +201,23 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
     </div>
     ${sectionsHtml}
     </body></html>`;
+
+  return html;
+}
+
+// Opens a printable window for a service user's Personal Service Plan. Shared by
+// the plan modal, "Open" (readable view) and "Print" on the list. Builds the
+// same document as the inline view (via buildServicePlanHtml) but with the
+// on-page toolbar and, unless disabled, an automatic print.
+export function printServicePlan(serviceUser: ServiceUser, values: Record<string, unknown>, opts: PrintOpts = {}) {
+  const autoPrint = opts.autoPrint !== false;
+  const html = buildServicePlanHtml(serviceUser, values, {
+    createdAt: opts.createdAt,
+    updatedAt: opts.updatedAt,
+    sections: opts.sections,
+    signed: opts.signed,
+    embed: false,
+  });
 
   const w = window.open('', '_blank');
   if (!w) { alert('Please allow pop-ups to print.'); return; }

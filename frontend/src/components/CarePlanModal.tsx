@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { carePlansApi } from '../api/carePlans';
 import { carePlanVersionsApi } from '../api/carePlanVersions';
-import { printCarePlan } from '../lib/carePlanPrint';
+import { printCarePlan, buildCarePlanHtml, CarePlanPrintData } from '../lib/carePlanPrint';
 import CarePlanHistory from './CarePlanHistory';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
@@ -148,13 +148,27 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
 
   const reviewOverdue = plan?.reviewDate ? new Date(plan.reviewDate) < new Date() : false;
 
-  const printPlan = () => printCarePlan(serviceUser, {
+  // The print/view document data, assembled from the live form (extra calls
+  // cleaned exactly as the saved payload does).
+  const buildDoc = (): CarePlanPrintData => ({
     schedule: form.schedule,
     extraCalls: cleanExtraCalls(),
     tasksMorning: form.tasksMorning, tasksLunch: form.tasksLunch, tasksTea: form.tasksTea, tasksBed: form.tasksBed,
     numberOfCarers: form.numberOfCarers, carePackageInfo: form.carePackageInfo, otherNotes: form.otherNotes,
     reviewDate: form.reviewDate,
-  }, { createdAt: plan?.createdAt, updatedAt: plan?.updatedAt });
+  });
+
+  const printPlan = () => printCarePlan(serviceUser, buildDoc(), { createdAt: plan?.createdAt, updatedAt: plan?.updatedAt });
+
+  // Read-only VIEW renders the formatted document (identical to the printout)
+  // in a CSS-isolated iframe, built from the SAME data object Print uses.
+  // Recomputed from the live form so the view refreshes after a Save; skipped
+  // while editing to avoid rebuilding on keystroke.
+  const viewHtml = useMemo(
+    () => (editing ? '' : buildCarePlanHtml(serviceUser, buildDoc(), { createdAt: plan?.createdAt, updatedAt: plan?.updatedAt, embed: true })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editing, serviceUser, form, plan?.createdAt, plan?.updatedAt],
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -173,6 +187,11 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
         <div className="p-6 space-y-6">
           {isLoading ? (
             <div className="flex justify-center p-6"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>
+          ) : !editing ? (
+            // VIEW mode: formatted document (matches the printout), CSS-isolated in an iframe.
+            <div className="-m-6 bg-gray-100">
+              <iframe title="document preview" srcDoc={viewHtml} className="w-full h-[75vh] border-0" />
+            </div>
           ) : (
             <>
               {/* Renew banner — shown while archiving a new dated version */}

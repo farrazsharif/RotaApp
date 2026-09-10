@@ -7,7 +7,7 @@ import ServicePlanHistory from './ServicePlanHistory';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { defaultTemplateSections, keyForItem, PspItem, PspSection } from '../lib/servicePlanSchema';
-import { printServicePlan } from '../lib/servicePlanPrint';
+import { printServicePlan, buildServicePlanHtml } from '../lib/servicePlanPrint';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import SignatureField from './SignatureField';
@@ -132,6 +132,15 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
   }, [values, sections]);
 
   const printPlan = () => printServicePlan(serviceUser, values, { createdAt: plan?.createdAt, updatedAt: plan?.updatedAt, sections });
+
+  // Read-only VIEW renders the formatted document (identical to the printout)
+  // in a CSS-isolated iframe, built from the live `values` against the same
+  // template `sections` Print uses. Recomputed so the view refreshes after a
+  // Save; skipped while editing to avoid rebuilding on keystroke.
+  const viewHtml = useMemo(
+    () => (editing ? '' : buildServicePlanHtml(serviceUser, values, { createdAt: plan?.createdAt, updatedAt: plan?.updatedAt, sections, embed: true })),
+    [editing, serviceUser, values, plan?.createdAt, plan?.updatedAt, sections],
+  );
 
   function renderItem(section: PspSection, item: PspItem, idx: number) {
     const key = keyForItem(item, section.id, idx);
@@ -377,6 +386,11 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
 
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>
+        ) : !editing ? (
+          // VIEW mode: formatted document (matches the printout), CSS-isolated in an iframe.
+          <div className="flex-1 flex flex-col min-h-0 bg-gray-100">
+            <iframe title="document preview" srcDoc={viewHtml} className="w-full flex-1 border-0" />
+          </div>
         ) : (
           <div className="flex-1 flex min-h-0">
             {/* Section nav */}

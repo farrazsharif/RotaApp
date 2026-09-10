@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { riskAssessmentsApi } from '../api/riskAssessments';
 import { riskAssessmentVersionsApi } from '../api/riskAssessmentVersions';
@@ -106,9 +106,11 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
   const setDom = (k: string, patch: Partial<DomainVal>) =>
     setPlan((p) => ({ ...p, domains: { ...p.domains, [k]: { ...emptyDomain(), ...p.domains[k], ...patch } } }));
 
-  // Print a plan. Defaults to the live form; the history panel passes a frozen
-  // snapshot so a past review prints exactly as it was archived.
-  function printPlan(source: PlanData = plan) {
+  // Build the full support-plan HTML document — shared by Print (a new window)
+  // and the modal's inline read-only view. Pass `embed: true` to drop the
+  // on-page Print/Close toolbar for inline display; everything else is
+  // identical. Values are HTML-escaped here.
+  function buildPlanHtml(source: PlanData, embed: boolean): string {
     const domOf = (k: string): DomainVal => source.domains[k] || emptyDomain();
     const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
     const blocks = SL_DOMAINS.filter((d) => domOf(d.key).applies).map((d) => {
@@ -141,7 +143,7 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
         @media print { body { margin: 0; } .no-print { display: none !important; } }
         ${BRANDING_PRINT_CSS}
       </style></head><body>
-      <div class="toolbar no-print"><button onclick="window.print()">🖨 Print</button><button class="secondary" onclick="window.close()">Close</button></div>
+      ${embed ? '' : `<div class="toolbar no-print"><button onclick="window.print()">🖨 Print</button><button class="secondary" onclick="window.close()">Close</button></div>`}
       ${brandingHeaderHtml()}
       <h1>Supported Living — Support Plan</h1>
       <div class="sub">${esc(suName)} · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
@@ -149,10 +151,27 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
       ${blocks || '<p style="color:#777">No support areas recorded yet.</p>'}
       </body></html>`;
 
+    return html;
+  }
+
+  // Print a plan. Defaults to the live form; the history panel passes a frozen
+  // snapshot so a past review prints exactly as it was archived. Opens a window
+  // with the on-page toolbar (no auto-print, so View and Print match).
+  function printPlan(source: PlanData = plan) {
+    const html = buildPlanHtml(source, false);
     const w = window.open('', '_blank');
     if (!w) { alert('Please allow pop-ups to print.'); return; }
     w.document.write(html); w.document.close(); w.focus();
   }
+
+  // Read-only VIEW renders the support-plan document (identical to the printout)
+  // in a CSS-isolated iframe, built from the live form. Recomputed so the view
+  // refreshes after a Save; skipped while editing to avoid rebuilding on keystroke.
+  const viewHtml = useMemo(
+    () => (editing ? '' : buildPlanHtml(plan, true)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editing, plan, serviceUser],
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -172,6 +191,11 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
 
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>
+        ) : !editing ? (
+          // VIEW mode: formatted document (matches the printout), CSS-isolated in an iframe.
+          <div className="flex-1 flex flex-col min-h-0 bg-gray-100">
+            <iframe title="document preview" srcDoc={viewHtml} className="w-full flex-1 border-0" />
+          </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {/* Renew banner — shown while archiving a new dated version */}
