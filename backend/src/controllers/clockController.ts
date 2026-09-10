@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
@@ -185,73 +186,104 @@ export async function shiftMeds(req: AuthRequest, res: Response) {
   res.json({ doses });
 }
 
+// A clock record with the client detail the app expects back from clock-in.
+type ClockRecordWithShift = Prisma.ClockRecordGetPayload<{
+  include: { shift: { include: { serviceUser: { select: { id: true; firstName: true; lastName: true } } } } };
+}>;
+
+// A guard failure short-circuits clock-in with a specific HTTP status; a success
+// carries the created record. Kept as a return value (not thrown) so the
+// advisory-locked transaction below stays easy to read.
+type ClockInOutcome =
+  | { ok: false; status: number; error: string }
+  | { ok: true; record: ClockRecordWithShift };
+
+const CLOCK_IN_INCLUDE = { shift: { include: { serviceUser: { select: { id: true, firstName: true, lastName: true } } } } } as const;
+
 export async function clockIn(req: AuthRequest, res: Response) {
   const { shiftId } = req.body;
+  const userId = req.user!.id;
 
-  // Don't let a stale open record permanently block clocking in. A record is
-  // "stale" when it has no call, was left open from a previous day, or its call
-  // has already ended — in every one of those cases the carer has moved on, so
-  // auto-close it (at the call's scheduled end, or its own clock-in time when
-  // there's no call, so no phantom hours) and let the new clock-in proceed. Only
-  // a genuinely CURRENT overlapping call (same day, not yet ended) still blocks.
-  const existing = await prisma.clockRecord.findFirst({
-    where: { userId: req.user!.id, clockOut: null },
-    include: { shift: { select: { id: true, date: true, endTime: true } } },
-  });
-  if (existing) {
-    if (shiftId && existing.shiftId === shiftId) {
-      return res.status(400).json({ error: 'Already clocked in' });
+  // Serialise all of a carer's clock-ins so a double-tap or an offline retry
+  // can't create two open records at once — which was stranding one open record
+  // forever (it never got clocked out) and then blocking every later clock-in
+  // with "you're still clocked in on your current call". A per-carer advisory
+  // lock, held for the transaction, makes the "is there already an open record?"
+  // check and the create atomic. No schema change; the lock releases on commit.
+  const outcome: ClockInOutcome = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+
+    // Don't let a stale open record permanently block clocking in. A record is
+    // "stale" when it has no call, was left open from a previous day, or its
+    // call has already ended — in every one of those cases the carer has moved
+    // on, so auto-close it (at the call's scheduled end, or its own clock-in
+    // time when there's no call, so no phantom hours) and let the new clock-in
+    // proceed. Only a genuinely CURRENT overlapping call (same day, not yet
+    // ended) still blocks.
+    const existing = await tx.clockRecord.findFirst({
+      where: { userId, clockOut: null },
+      include: { shift: { select: { id: true, date: true, endTime: true } } },
+    });
+    if (existing) {
+      if (shiftId && existing.shiftId === shiftId) {
+        // Already clocked into this very call — return the open record so a
+        // duplicate tap is idempotent rather than an error the carer can't act on.
+        const record = await tx.clockRecord.findUnique({
+          where: { id: existing.id },
+          include: CLOCK_IN_INCLUDE,
+        });
+        return { ok: true, record: record! };
+      }
+      const nowD = new Date();
+      let shiftEnd: Date | null = null;
+      if (existing.shift?.endTime) {
+        const [eh, em] = String(existing.shift.endTime).split(':').map(Number);
+        if (Number.isFinite(eh)) {
+          const s = existing.shift;
+          shiftEnd = new Date(Date.UTC(s.date.getUTCFullYear(), s.date.getUTCMonth(), s.date.getUTCDate(), eh, em || 0, 0));
+        }
+      }
+      const sameDay =
+        existing.clockIn.getFullYear() === nowD.getFullYear() &&
+        existing.clockIn.getMonth() === nowD.getMonth() &&
+        existing.clockIn.getDate() === nowD.getDate();
+      const shiftEnded = shiftEnd != null && shiftEnd <= nowD;
+      const resolvable = !existing.shift || !sameDay || shiftEnded;
+      if (!resolvable) {
+        return { ok: false, status: 400, error: "You're still clocked in on your current call — clock out of it first." };
+      }
+      let autoOut = existing.clockIn; // no call → zero duration, no phantom hours
+      if (shiftEnd) autoOut = shiftEnd < existing.clockIn ? existing.clockIn : shiftEnd;
+      await tx.clockRecord.update({ where: { id: existing.id }, data: { clockOut: autoOut } });
+      await logAudit(req, 'CLOCK_RECORD_AUTO_CLOSED', 'Own clock record', 'Stale open clock-in auto-closed on next clock-in');
     }
-    const nowD = new Date();
-    let shiftEnd: Date | null = null;
-    if (existing.shift?.endTime) {
-      const [eh, em] = String(existing.shift.endTime).split(':').map(Number);
-      if (Number.isFinite(eh)) {
-        const s = existing.shift;
-        shiftEnd = new Date(Date.UTC(s.date.getUTCFullYear(), s.date.getUTCMonth(), s.date.getUTCDate(), eh, em || 0, 0));
+
+    // Carers can only clock in to today's calls — not future or past ones.
+    if (shiftId) {
+      const shift = await tx.shift.findUnique({ where: { id: shiftId } });
+      if (!shift) return { ok: false, status: 404, error: 'Shift not found' };
+      const now = new Date();
+      const isToday =
+        shift.date.getFullYear() === now.getFullYear() &&
+        shift.date.getMonth() === now.getMonth() &&
+        shift.date.getDate() === now.getDate();
+      if (!isToday) {
+        return { ok: false, status: 400, error: 'You can only clock in to today\'s calls' };
+      }
+      if (!shift.published) {
+        return { ok: false, status: 400, error: 'This call has not been published yet' };
       }
     }
-    const sameDay =
-      existing.clockIn.getFullYear() === nowD.getFullYear() &&
-      existing.clockIn.getMonth() === nowD.getMonth() &&
-      existing.clockIn.getDate() === nowD.getDate();
-    const shiftEnded = shiftEnd != null && shiftEnd <= nowD;
-    const resolvable = !existing.shift || !sameDay || shiftEnded;
-    if (!resolvable) {
-      return res.status(400).json({ error: "You're still clocked in on your current call — clock out of it first." });
-    }
-    let autoOut = existing.clockIn; // no call → zero duration, no phantom hours
-    if (shiftEnd) autoOut = shiftEnd < existing.clockIn ? existing.clockIn : shiftEnd;
-    await prisma.clockRecord.update({ where: { id: existing.id }, data: { clockOut: autoOut } });
-    await logAudit(req, 'CLOCK_RECORD_AUTO_CLOSED', 'Own clock record', 'Stale open clock-in auto-closed on next clock-in');
-  }
 
-  // Carers can only clock in to today's calls — not future or past ones.
-  if (shiftId) {
-    const shift = await prisma.shift.findUnique({ where: { id: shiftId } });
-    if (!shift) return res.status(404).json({ error: 'Shift not found' });
-    const now = new Date();
-    const isToday =
-      shift.date.getFullYear() === now.getFullYear() &&
-      shift.date.getMonth() === now.getMonth() &&
-      shift.date.getDate() === now.getDate();
-    if (!isToday) {
-      return res.status(400).json({ error: 'You can only clock in to today\'s calls' });
-    }
-    if (!shift.published) {
-      return res.status(400).json({ error: 'This call has not been published yet' });
-    }
-  }
-
-  const record = await prisma.clockRecord.create({
-    data: {
-      userId: req.user!.id,
-      shiftId: shiftId || null,
-      clockIn: new Date(),
-    },
-    include: { shift: { include: { serviceUser: { select: { id: true, firstName: true, lastName: true } } } } },
+    const record = await tx.clockRecord.create({
+      data: { userId, shiftId: shiftId || null, clockIn: new Date() },
+      include: CLOCK_IN_INCLUDE,
+    });
+    return { ok: true, record };
   });
-  res.status(201).json(record);
+
+  if (!outcome.ok) return res.status(outcome.status).json({ error: outcome.error });
+  res.status(201).json(outcome.record);
 }
 
 export async function clockOut(req: AuthRequest, res: Response) {
@@ -455,6 +487,26 @@ export async function updateClockRecord(req: AuthRequest, res: Response) {
   await logAudit(req, 'CLOCK_RECORD_EDITED', who, parts.join('; '));
 
   res.json(record);
+}
+
+// Remove an erroneous clock record — e.g. a duplicate created by a double
+// clock-in, where one copy is left stranded open and blocks the carer. Deleting
+// the phantom is cleaner than force-closing it (which would leave a second bogus
+// completed visit inflating hours). Manager-only and audited.
+export async function deleteClockRecord(req: AuthRequest, res: Response) {
+  const existing = await prisma.clockRecord.findUnique({
+    where: { id: req.params.id },
+    include: { user: { select: { firstName: true, lastName: true } }, shift: { select: { date: true, startTime: true } } },
+  });
+  if (!existing) return res.status(404).json({ error: 'Clock record not found' });
+
+  await prisma.clockRecord.delete({ where: { id: existing.id } });
+
+  const who = `${existing.user.firstName} ${existing.user.lastName}`;
+  const when = `in ${existing.clockIn.toISOString()}${existing.clockOut ? ` · out ${existing.clockOut.toISOString()}` : ' · (was open)'}`;
+  await logAudit(req, 'CLOCK_RECORD_DELETED', who, `clock record removed · ${when}`);
+
+  res.json({ ok: true });
 }
 
 // Office backfill of a missed visit — the carer did the call but couldn't

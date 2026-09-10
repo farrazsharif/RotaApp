@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { clockIn, clockOut, getClockStatus, listClockRecords, listActiveClockRecords, updateClockRecord, createClockRecord, createOwnClockRecord, setClockTimes, myCalls, dueMeds, shiftMeds } from '../controllers/clockController';
+import { clockIn, clockOut, getClockStatus, listClockRecords, listActiveClockRecords, updateClockRecord, deleteClockRecord, createClockRecord, createOwnClockRecord, setClockTimes, myCalls, dueMeds, shiftMeds } from '../controllers/clockController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 
@@ -25,5 +25,7 @@ router.post('/records/self', createOwnClockRecord);
 router.post('/records/:id/times', setClockTimes);
 router.post('/records/:id/start', setClockTimes);
 router.put('/records/:id', requirePermission('manage_schedule'), updateClockRecord);
+// Remove an erroneous/duplicate clock record (e.g. a stranded double clock-in).
+router.delete('/records/:id', requirePermission('manage_schedule'), deleteClockRecord);
 
 export default router;

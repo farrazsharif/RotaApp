@@ -33,6 +33,8 @@ export const clockApi = {
     api.get<{ doses: ShiftDose[] }>(`/clock/shift-meds/${shiftId}`).then((r) => r.data.doses),
   updateRecord: (id: string, data: { clockIn?: string; clockOut?: string }) =>
     api.put<ClockRecord>(`/clock/records/${id}`, data).then((r) => r.data),
+  // Remove an erroneous/duplicate clock record (e.g. a stranded double clock-in).
+  deleteRecord: (id: string) => api.delete<{ ok: boolean }>(`/clock/records/${id}`).then((r) => r.data),
   // Office backfill of a missed visit's clock in/out, attributed to the carer.
   createRecord: (data: { shiftId: string; userId?: string; clockIn: string; clockOut?: string }) =>
     api.post<ClockRecord>('/clock/records', data).then((r) => r.data),

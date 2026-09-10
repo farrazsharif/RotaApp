@@ -162,6 +162,30 @@ export default function Attendance() {
     },
   });
 
+  // Remove a bad clock record — e.g. a duplicate left over from a double
+  // clock-in. Deleting the phantom (rather than force-closing it) is what frees
+  // a carer who's been blocked with "still clocked in on your current call".
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => clockApi.deleteRecord(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clock-records'] });
+      setEditingId(null);
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg || 'Could not delete the record. Please try again.');
+    },
+  });
+
+  function confirmDelete(r: ClockRecord) {
+    const who = `${r.user.firstName} ${r.user.lastName}`;
+    const when = format(new Date(r.clockIn), 'EEE dd MMM, h:mm a');
+    const state = r.clockOut ? 'completed' : 'still open';
+    if (window.confirm(`Delete this clock record for ${who} (${when}, ${state})?\n\nUse this to clear a duplicate/erroneous entry. This can't be undone.`)) {
+      deleteMut.mutate(r.id);
+    }
+  }
+
   // Opens the inline editor. For an open record (no clock-out) the clock-out is
   // pre-filled to the visit's scheduled end if that's passed, else now.
   function startEdit(r: ClockRecord) {
@@ -454,9 +478,14 @@ export default function Attendance() {
                             : '—'}
                         </span>
                         {canEdit && (
-                          <button onClick={(e) => { e.stopPropagation(); startEdit(r); }} className="text-xs text-blue-600 hover:underline whitespace-nowrap">
-                            {r.clockOut ? 'Edit' : 'Clock out →'}
-                          </button>
+                          <span className="flex items-center gap-3 whitespace-nowrap">
+                            <button onClick={(e) => { e.stopPropagation(); startEdit(r); }} className="text-xs text-blue-600 hover:underline">
+                              {r.clockOut ? 'Edit' : 'Clock out →'}
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); confirmDelete(r); }} disabled={deleteMut.isPending} className="text-xs text-red-600 hover:underline disabled:opacity-50" title="Remove a duplicate or erroneous clock record">
+                              Delete
+                            </button>
+                          </span>
                         )}
                       </div>
                     </td>
