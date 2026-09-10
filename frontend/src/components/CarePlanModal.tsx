@@ -8,6 +8,8 @@ import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import AutoGrowTextarea from './AutoGrowTextarea';
+import Field from './form/Field';
+import FormSection from './form/FormSection';
 
 interface Props {
   serviceUser: ServiceUser;
@@ -206,8 +208,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
               )}
 
               {/* Service user basic information */}
-              <section>
-                <h3 className="font-semibold text-gray-900 mb-2">Service User Basic Information</h3>
+              <FormSection title="Service user">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div><p className="text-xs text-gray-400">Name</p><p className="text-sm text-gray-800">{serviceUser.firstName} {serviceUser.lastName}</p></div>
                   <div><p className="text-xs text-gray-400">Date of Birth</p><p className="text-sm text-gray-800">{serviceUser.dateOfBirth ? format(new Date(serviceUser.dateOfBirth), 'dd MMM yyyy') : '—'}</p></div>
@@ -215,18 +216,16 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
                   <div><p className="text-xs text-gray-400">Phone</p><p className="text-sm text-gray-800">{serviceUser.phone || '—'}</p></div>
                   <div className="sm:col-span-2"><p className="text-xs text-gray-400">Address</p><p className="text-sm text-gray-800">{[serviceUser.address, serviceUser.postcode].filter(Boolean).join(', ') || '—'}</p></div>
                 </div>
-              </section>
+              </FormSection>
 
               {/* Profile (care package information) */}
-              <section>
-                <label className="label">Profile</label>
+              <FormSection title="Profile">
                 {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{form.carePackageInfo || <span className="text-gray-400">—</span>}</p> :
-                  <AutoGrowTextarea value={form.carePackageInfo} minRows={3} onChange={(e) => setForm({ ...form, carePackageInfo: e.target.value })} className="input text-sm" />}
-              </section>
+                  <AutoGrowTextarea value={form.carePackageInfo} minRows={3} onChange={(e) => setForm({ ...form, carePackageInfo: e.target.value })} className="field-input" />}
+              </FormSection>
 
               {/* Weekly visit profile */}
-              <section>
-                <h3 className="font-semibold text-gray-900 mb-2">Weekly Visit Profile</h3>
+              <FormSection title="Weekly visits">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm border-collapse">
                     <thead>
@@ -246,7 +245,7 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
                                 {ro ? (
                                   <span className="text-gray-800">{v || <span className="text-gray-300">—</span>}</span>
                                 ) : (
-                                  <input value={v} onChange={(e) => setCell(day, s.key, e.target.value)} placeholder="e.g. 8.00-8.45am" className="input py-1 text-sm" />
+                                  <input value={v} onChange={(e) => setCell(day, s.key, e.target.value)} placeholder="e.g. 8.00-8.45am" className="field-input" />
                                 )}
                               </td>
                             );
@@ -293,48 +292,52 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
                     <button type="button" onClick={addExtraCall} className="mt-2 text-sm text-blue-600 hover:underline">+ Add call</button>
                   )}
                 </div>
-              </section>
+              </FormSection>
 
               {/* Care package details */}
-              <section className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="label">Number of Carers</label>
-                  {ro ? <p className="text-sm text-gray-800">{form.numberOfCarers || '—'}</p> :
-                    <input value={form.numberOfCarers} onChange={(e) => setForm({ ...form, numberOfCarers: e.target.value })} placeholder="e.g. 1 carer per visit" className="input text-sm" />}
+              <FormSection title="Care details">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Number of Carers" help="How many carers attend each visit.">
+                    {ro ? <p className="text-sm text-gray-800">{form.numberOfCarers || '—'}</p> :
+                      <input value={form.numberOfCarers} onChange={(e) => setForm({ ...form, numberOfCarers: e.target.value })} placeholder="e.g. 1 carer per visit" className="field-input" />}
+                  </Field>
+                  <div className={`rounded-lg ${reviewOverdue ? 'border border-red-300 bg-red-50 p-2' : ''}`}>
+                    <Field
+                      label="Care Plan Review"
+                      help="Next scheduled review date."
+                      error={reviewOverdue ? 'Review overdue' : undefined}
+                    >
+                      {ro ? (
+                        <p className="text-sm text-gray-800">{form.reviewDate ? format(new Date(form.reviewDate), 'dd MMM yyyy') : 'Not set'}</p>
+                      ) : (
+                        <input type="date" value={form.reviewDate} onChange={(e) => setForm({ ...form, reviewDate: e.target.value })} className="field-input" />
+                      )}
+                    </Field>
+                  </div>
                 </div>
-                <div className={`rounded-lg ${reviewOverdue ? 'border border-red-300 bg-red-50 p-2' : ''}`}>
-                  <label className="label">Care Plan Review</label>
-                  {ro ? (
-                    <p className="text-sm text-gray-800">{form.reviewDate ? format(new Date(form.reviewDate), 'dd MMM yyyy') : 'Not set'}</p>
-                  ) : (
-                    <input type="date" value={form.reviewDate} onChange={(e) => setForm({ ...form, reviewDate: e.target.value })} className="input w-48 text-sm" />
-                  )}
-                  {reviewOverdue && <p className="text-xs text-red-600 mt-1">⚠ Review overdue</p>}
-                </div>
-              </section>
+              </FormSection>
 
               {/* Tasks required per visit */}
-              <section>
-                <h3 className="font-semibold text-gray-900 mb-2">Tasks Required (Any Preferences)</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
+              <FormSection title="Tasks required">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {TASK_FIELDS.map(({ key, label }) => (
-                    <div key={key}>
-                      <label className="label">{label}</label>
+                    <Field key={key} label={label} optional={key !== 'tasksMorning'}>
                       {ro ? (
                         <p className="text-sm text-gray-800 whitespace-pre-wrap">{(form[key] as string) || <span className="text-gray-400">—</span>}</p>
                       ) : (
-                        <AutoGrowTextarea value={form[key] as string} minRows={3} onChange={(e) => setForm({ ...form, [key]: e.target.value })} placeholder={`Tasks for the ${label.toLowerCase()} visit…`} className="input text-sm" />
+                        <AutoGrowTextarea value={form[key] as string} minRows={3} onChange={(e) => setForm({ ...form, [key]: e.target.value })} placeholder={`Tasks for the ${label.toLowerCase()} visit…`} className="field-input" />
                       )}
-                    </div>
+                    </Field>
                   ))}
                 </div>
-              </section>
+              </FormSection>
 
-              <section>
-                <label className="label">Other Notes</label>
-                {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{form.otherNotes || <span className="text-gray-400">—</span>}</p> :
-                  <AutoGrowTextarea value={form.otherNotes} minRows={2} onChange={(e) => setForm({ ...form, otherNotes: e.target.value })} className="input text-sm" />}
-              </section>
+              <FormSection title="Other notes">
+                <Field help="Anything else the office or carers should know.">
+                  {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{form.otherNotes || <span className="text-gray-400">—</span>}</p> :
+                    <AutoGrowTextarea value={form.otherNotes} minRows={2} onChange={(e) => setForm({ ...form, otherNotes: e.target.value })} className="field-input" />}
+                </Field>
+              </FormSection>
             </>
           )}
         </div>
