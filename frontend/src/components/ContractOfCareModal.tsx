@@ -364,7 +364,7 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
 
-        <HeldOnPaperPanel meta={paper} ro={ro} onChange={setPaper} />
+        <HeldOnPaperPanel meta={paper} ro={ro} onChange={setPaper} docExists={!!record} />
 
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>

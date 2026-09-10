@@ -15,25 +15,28 @@ export interface PaperMeta {
 // just the essentials (date completed, review due, assessor) without filling in
 // the whole form. Used by the Risk Assessment, Service Plan and Support Plan
 // modals.
-export default function HeldOnPaperPanel({ meta, ro, onChange }: {
+export default function HeldOnPaperPanel({ meta, ro, onChange, docExists }: {
   meta: PaperMeta;
   ro: boolean;
   onChange: (patch: PaperMeta) => void;
+  // True once the software already holds this document (a saved record exists,
+  // whether created through the app or seeded from paper). The "held on paper"
+  // banner is only a bootstrap for a brand-new, empty document, so it's hidden
+  // as soon as the record exists.
+  docExists?: boolean;
 }) {
-  // Once a paper date has been captured (and saved), the record is managed in
-  // the software, so this panel is hidden. We latch the decision the first time
-  // the record's saved metadata actually arrives — the parent seeds `meta` from
-  // the server in one shot AFTER the async load, so we can't just read it at
-  // mount (it's still empty then). Latching on that first non-empty state means:
-  // hides on reopen once a date is on file, but never disappears while the user
-  // is first typing the date on a fresh record (ticking the box seeds `onFile`
-  // with no date, which latches "show"). Resets on remount (reopen after save).
+  // Also latch on a captured paper date: the parent seeds `meta` from the server
+  // in one shot AFTER the async load, so we can't just read it at mount (it's
+  // still empty then). Latching on that first non-empty state means it never
+  // disappears while the user is first typing the date on a fresh record.
   const latch = useRef<{ decided: boolean; hide: boolean }>({ decided: false, hide: false });
   if (!latch.current.decided) {
     const hasContent = !!(meta.onFile || meta.completedDate || meta.reviewDate || meta.assessor);
     if (hasContent) latch.current = { decided: true, hide: !!(meta.completedDate || meta.reviewDate) };
   }
-  if (latch.current.hide) return null;
+  // Hidden once the software has the document (saved record) or a paper date is
+  // on file — from then on it's managed in the app, so the bootstrap is gone.
+  if (docExists || latch.current.hide) return null;
 
   // One-click renewal: mark the assessment reviewed today and set the next
   // review a year on, so a field supervisor can renew without hand-typing dates.

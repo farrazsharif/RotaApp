@@ -144,7 +144,7 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
 
-        <HeldOnPaperPanel meta={paper} ro={ro} onChange={setPaper} />
+        <HeldOnPaperPanel meta={paper} ro={ro} onChange={setPaper} docExists={!!record} />
 
         <div className="p-6 space-y-5">
           {/* Renew banner — shown while archiving a new dated version */}
