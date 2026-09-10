@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { carePlansApi } from '../api/carePlans';
 import { carePlanVersionsApi } from '../api/carePlanVersions';
@@ -102,6 +102,16 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
     loadFromRecord();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan]);
+
+  // One-time: for a brand-new plan an editor can create, open straight in edit
+  // mode (the blank form) rather than the empty read-only view. Latched so a
+  // background refetch can never kick the user out of edit mode mid-editing.
+  const didInitEdit = useRef(false);
+  useEffect(() => {
+    if (isLoading || didInitEdit.current) return;
+    didInitEdit.current = true;
+    if (canEdit && !plan) setEditing(true);
+  }, [isLoading, plan, canEdit]);
 
   const beginEdit = () => { setRenewing(false); setEditing(true); setPanel('none'); };
   const beginRenew = () => { setRenewing(true); setEditing(true); setPanel('none'); };

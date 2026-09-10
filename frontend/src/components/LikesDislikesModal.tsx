@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { likesDislikesApi } from '../api/likesDislikes';
 import { likesDislikesVersionsApi } from '../api/likesDislikesVersions';
@@ -85,6 +85,16 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
     loadFromRecord();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record]);
+
+  // One-time: for a brand-new record an editor can create, open straight in edit
+  // mode (the blank form) rather than the empty read-only view. Latched so a
+  // background refetch can never kick the user out of edit mode mid-editing.
+  const didInitEdit = useRef(false);
+  useEffect(() => {
+    if (isLoading || didInitEdit.current) return;
+    didInitEdit.current = true;
+    if (canEdit && !record) setEditing(true);
+  }, [isLoading, record, canEdit]);
 
   // Overdue = the held-on-paper next-review date is set and in the past.
   const isOverdue = !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
