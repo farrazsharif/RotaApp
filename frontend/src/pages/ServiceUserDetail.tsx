@@ -46,11 +46,11 @@ function parseTimes(times: string): string[] {
   }
 }
 
-function Section({ id, title, action, children }: { id?: string; title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Section({ id, title, action, children, className }: { id?: string; title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <div id={id} className="card space-y-3 scroll-mt-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900">{title}</h2>
+    <div id={id} className={`card p-4 space-y-2.5 scroll-mt-4 ${className || ''}`}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-gray-900 text-sm">{title}</h2>
         {action}
       </div>
       {children}
@@ -66,11 +66,14 @@ const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; clas
   DECEASED: { label: 'Passed Away', icon: '⚪', className: 'bg-slate-300 text-slate-800' },
 };
 
+// Compact row: label left, value right, hairline divider — packs far more per
+// card than the old stacked label-above-value block while keeping the same
+// (readable) text size.
 function Field({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div>
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className="text-sm text-gray-800">{value || <span className="text-gray-400">—</span>}</p>
+    <div className="flex items-baseline justify-between gap-3 py-1 border-b border-gray-100 last:border-b-0">
+      <span className="text-xs text-gray-500 shrink-0">{label}</span>
+      <span className="text-sm text-gray-800 text-right break-words">{value || <span className="text-gray-300">—</span>}</span>
     </div>
   );
 }
@@ -230,7 +233,7 @@ export default function ServiceUserDetail() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div>
         <button onClick={() => navigate('/service-users')} className="text-sm text-blue-600 hover:underline mb-2">← Service Users</button>
@@ -358,10 +361,10 @@ export default function ServiceUserDetail() {
         />
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Personal details — the full set captured on the edit form. */}
         <Section title="Personal Details">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-x-6">
             <Field label="Title" value={su.title} />
             <Field label="Preferred Name" value={su.preferredName} />
             <Field label="First Name" value={su.firstName} />
@@ -379,7 +382,7 @@ export default function ServiceUserDetail() {
 
         {/* Contact */}
         <Section title="Contact & Address">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-x-6">
             <Field label="Address" value={su.address} />
             <Field label="Postcode" value={su.postcode} />
             <Field label="Phone" value={su.phone} />
@@ -400,12 +403,12 @@ export default function ServiceUserDetail() {
               {geo ? (
                 <iframe
                   title="Service user location"
-                  className="w-full h-56 rounded-lg border mt-2"
+                  className="w-full h-36 rounded-lg border mt-2"
                   loading="lazy"
                   src={`https://www.openstreetmap.org/export/embed.html?bbox=${geo.lon - 0.01}%2C${geo.lat - 0.01}%2C${geo.lon + 0.01}%2C${geo.lat + 0.01}&layer=mapnik&marker=${geo.lat}%2C${geo.lon}`}
                 />
               ) : (
-                <div className="w-full h-56 rounded-lg border mt-2 flex items-center justify-center text-sm text-gray-400">
+                <div className="w-full h-36 rounded-lg border mt-2 flex items-center justify-center text-sm text-gray-400">
                   Loading map…
                 </div>
               )}
@@ -418,7 +421,7 @@ export default function ServiceUserDetail() {
 
         {/* Emergency contact & next of kin */}
         <Section title="Emergency Contact">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-x-6">
             <Field label="Name" value={su.emergencyContactName} />
             <Field label="Relationship" value={su.emergencyContactRelation} />
             <Field label="Phone" value={su.emergencyContactPhone} />
@@ -426,9 +429,9 @@ export default function ServiceUserDetail() {
             <Field label="Email" value={su.emergencyContactEmail} />
             <Field label="Address" value={su.emergencyContactAddress} />
           </div>
-          <div className="border-t mt-4 pt-4">
-            <p className="text-sm font-semibold text-gray-700 mb-3">Next of Kin</p>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="border-t mt-2.5 pt-2.5">
+            <p className="text-xs font-semibold text-gray-500 mb-1">Next of Kin</p>
+            <div className="grid grid-cols-2 gap-x-6">
               <Field label="Name" value={su.nextOfKinName} />
               <Field label="Relationship" value={su.nextOfKinRelation} />
               <Field label="Phone" value={su.nextOfKinPhone} />
@@ -439,94 +442,104 @@ export default function ServiceUserDetail() {
           </div>
         </Section>
 
-        {/* GP */}
-        <Section title="GP Details">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="GP Name" value={su.gpName} />
-            <Field label="Practice / Surgery" value={su.gpPractice} />
-            <Field label="Phone" value={su.gpPhone} />
-            <Field label="Address" value={su.gpAddress} />
+        {/* GP & Pharmacy — merged; two lean columns side by side. */}
+        <Section title="GP & Pharmacy">
+          <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">GP</p>
+              <Field label="Name" value={su.gpName} />
+              <Field label="Practice / Surgery" value={su.gpPractice} />
+              <Field label="Phone" value={su.gpPhone} />
+              <Field label="Address" value={su.gpAddress} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Pharmacy</p>
+              <Field label="Name" value={su.pharmacyName} />
+              <Field label="Phone" value={su.pharmacyPhone} />
+              <Field label="Address" value={su.pharmacyAddress} />
+            </div>
           </div>
         </Section>
 
-        {/* Pharmacy */}
-        <Section title="Pharmacy Details">
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Pharmacy Name" value={su.pharmacyName} />
-            <Field label="Phone" value={su.pharmacyPhone} />
-            <div className="col-span-2"><Field label="Address" value={su.pharmacyAddress} /></div>
-          </div>
-        </Section>
-
-        {/* Care needs / notes */}
-        <Section title="Care Needs">
-          <div className="flex flex-wrap gap-1">
-            {su.needsMedication && <span className="badge-red badge">Medication</span>}
-            {su.needsMobility && <span className="badge-yellow badge">Mobility</span>}
-            {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
-            {!su.needsMedication && !su.needsMobility && !su.needsPersonalCare && <span className="text-sm text-gray-400">None recorded</span>}
-          </div>
-          <Field label="Contracted weekly hours" value={su.contractedWeeklyHours != null ? `${su.contractedWeeklyHours} h/week` : undefined} />
-          <Field label="Care Notes" value={su.careNotes} />
-        </Section>
-
-        {/* Support categories (CQC PIR) */}
-        <Section title="Support Categories">
-          <div className="flex flex-wrap gap-1">
-            {parseCategories(su.supportCategories).length === 0
-              ? <span className="text-sm text-gray-400">None recorded</span>
-              : parseCategories(su.supportCategories).map((c) => (
-                  <span key={c} className="badge-blue badge">{c}</span>
-                ))}
-          </div>
-        </Section>
-
-        {/* Visits */}
-        <Section title="Visits">
-          {visits.length === 0 ? (
-            <p className="text-sm text-gray-400">No visits set</p>
-          ) : (
-            <>
-              <div className="space-y-1">
-                {visits.map((v, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm border-b last:border-0 py-1">
-                    <span className="text-gray-800">
-                      {v.type}
-                      {v.cover && v.cover > 1 && (
-                        <span className="ml-2 text-xs font-medium text-purple-600">{coverLabel(v.cover)}</span>
-                      )}
-                      {!visitIsDaily(v) && (
-                        <span className="ml-2 text-xs font-medium text-blue-600">
-                          {v.days!.slice().sort((a, b) => a - b).map((d) => DAYS[d].slice(0, 3)).join(', ')}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-gray-500">{durationLabel(v.duration)}</span>
-                  </div>
-                ))}
+        {/* Care summary — merges care needs, weekly hours, visits, support
+            categories and preferred caregivers into one full-width card. */}
+        <Section title="Care Summary" className="lg:col-span-2">
+          <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Care needs</p>
+                <div className="flex flex-wrap gap-1">
+                  {su.needsMedication && <span className="badge-red badge">Medication</span>}
+                  {su.needsMobility && <span className="badge-yellow badge">Mobility</span>}
+                  {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
+                  {!su.needsMedication && !su.needsMobility && !su.needsPersonalCare && <span className="text-sm text-gray-400">None recorded</span>}
+                </div>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {(() => {
-                  const daily = visits.filter(visitIsDaily).length;
-                  const partial = visits.length - daily;
-                  return partial === 0
-                    ? `${visits.length} visit${visits.length > 1 ? 's' : ''} every day`
-                    : `${daily} daily · ${partial} on selected days`;
-                })()}
-              </p>
-            </>
-          )}
-        </Section>
-
-        {/* Preferred caregivers */}
-        <Section title="Preferred Caregivers">
-          {su.preferredCaregivers.length === 0 ? (
-            <p className="text-sm text-gray-400">None set</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {su.preferredCaregivers.map((c) => (
-                <span key={c.id} className="px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700">{c.firstName} {c.lastName}</span>
-              ))}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Support categories</p>
+                <div className="flex flex-wrap gap-1">
+                  {parseCategories(su.supportCategories).length === 0
+                    ? <span className="text-sm text-gray-400">None recorded</span>
+                    : parseCategories(su.supportCategories).map((c) => (
+                        <span key={c} className="badge-blue badge">{c}</span>
+                      ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1">Preferred caregivers</p>
+                {su.preferredCaregivers.length === 0 ? (
+                  <span className="text-sm text-gray-400">None set</span>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {su.preferredCaregivers.map((c) => (
+                      <span key={c.id} className="px-2.5 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">{c.firstName} {c.lastName}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Field label="Contracted weekly hours" value={su.contractedWeeklyHours != null ? `${su.contractedWeeklyHours} h/week` : undefined} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Visits</p>
+              {visits.length === 0 ? (
+                <p className="text-sm text-gray-400">No visits set</p>
+              ) : (
+                <>
+                  <div className="space-y-0.5">
+                    {visits.map((v, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm border-b border-gray-100 last:border-0 py-1">
+                        <span className="text-gray-800">
+                          {v.type}
+                          {v.cover && v.cover > 1 && (
+                            <span className="ml-2 text-xs font-medium text-purple-600">{coverLabel(v.cover)}</span>
+                          )}
+                          {!visitIsDaily(v) && (
+                            <span className="ml-2 text-xs font-medium text-blue-600">
+                              {v.days!.slice().sort((a, b) => a - b).map((d) => DAYS[d].slice(0, 3)).join(', ')}
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-gray-500">{durationLabel(v.duration)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {(() => {
+                      const daily = visits.filter(visitIsDaily).length;
+                      const partial = visits.length - daily;
+                      return partial === 0
+                        ? `${visits.length} visit${visits.length > 1 ? 's' : ''} every day`
+                        : `${daily} daily · ${partial} on selected days`;
+                    })()}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+          {su.careNotes && (
+            <div className="border-t border-gray-100 pt-2">
+              <p className="text-xs font-semibold text-gray-500 mb-0.5">Care notes</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{su.careNotes}</p>
             </div>
           )}
         </Section>

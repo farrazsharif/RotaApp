@@ -59,9 +59,9 @@ export default function RespiteSection({ serviceUserId, isManager }: { serviceUs
   const active = periods.find((p) => periodState(p) === 'active');
 
   return (
-    <div className="card space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900">🏖️ Away / Respite</h2>
+    <div className="card p-4 space-y-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-gray-900 text-sm">🏖️ Away / Respite</h2>
         {isManager && !adding && (
           <button className="btn-secondary btn btn-sm" onClick={() => { setAdding(true); setErr(''); }}>+ Add respite period</button>
         )}
