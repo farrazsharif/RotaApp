@@ -33,19 +33,25 @@ interface Props { serviceUser: ServiceUser; onClose: () => void }
 
 export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props) {
   const canEdit = usePermissions().can('manage_service_users');
-  const ro = !canEdit;
   const qc = useQueryClient();
   const [plan, setPlan] = useState<PlanData>(emptyPlan());
-  const [panel, setPanel] = useState<'none' | 'history' | 'review'>('none');
+  const [panel, setPanel] = useState<'none' | 'history'>('none');
   const [reviewLabel, setReviewLabel] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [renewing, setRenewing] = useState(false);
   const suName = `${serviceUser.firstName} ${serviceUser.lastName}`.trim();
+
+  // Fields are read-only unless a manager is actively editing (or renewing).
+  const ro = !(canEdit && editing);
 
   const { data: record, isLoading } = useQuery({
     queryKey: ['sl-plan', serviceUser.id],
     queryFn: () => riskAssessmentsApi.get(serviceUser.id, TYPE),
   });
 
-  useEffect(() => {
+  // Load the form state from the saved record. Reused on mount and when
+  // cancelling an edit (to discard unsaved changes).
+  const loadFromRecord = () => {
     if (record?.data) {
       try {
         const parsed = JSON.parse(record.data);
@@ -54,7 +60,16 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
     } else {
       setPlan(emptyPlan());
     }
+  };
+
+  useEffect(() => {
+    loadFromRecord();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record]);
+
+  const beginEdit = () => { setRenewing(false); setEditing(true); setPanel('none'); };
+  const beginRenew = () => { setRenewing(true); setEditing(true); setPanel('none'); };
+  const cancelEdit = () => { setEditing(false); setRenewing(false); loadFromRecord(); };
 
   const saveMut = useMutation({
     mutationFn: () => riskAssessmentsApi.save(serviceUser.id, TYPE, plan as unknown as Record<string, unknown>),
@@ -76,12 +91,17 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
       qc.invalidateQueries({ queryKey: ['sl-plan', serviceUser.id] });
       qc.invalidateQueries({ queryKey: ['risk-assessments', serviceUser.id] });
       qc.invalidateQueries({ queryKey: ['risk-assessment-versions', serviceUser.id, TYPE] });
+      setEditing(false);
+      setRenewing(false);
       setPanel('history');
     },
   });
 
   const paper = plan.__paper || {};
   const setPaper = (patch: PaperMeta) => setPlan((p) => ({ ...p, __paper: { ...(p.__paper || {}), ...patch } }));
+
+  // Overdue = the held-on-paper next-review date is set and in the past.
+  const isOverdue = !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
   const dom = (k: string): DomainVal => plan.domains[k] || emptyDomain();
   const setDom = (k: string, patch: Partial<DomainVal>) =>
     setPlan((p) => ({ ...p, domains: { ...p.domains, [k]: { ...emptyDomain(), ...p.domains[k], ...patch } } }));
@@ -142,7 +162,7 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
             <h2 className="text-lg font-semibold">Support Plan — {suName}</h2>
             <p className="text-xs text-gray-500">
               {record ? `Last updated ${format(new Date(record.updatedAt), 'dd MMM yyyy, h:mm a')}` : 'Not started'}
-              {ro && ' · read-only'}
+              {!editing && ' · read-only'}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
@@ -154,6 +174,16 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
           <div className="flex-1 flex justify-center items-center"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {/* Renew banner — shown while archiving a new dated version */}
+            {renewing && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <p>Renewing this review — make any changes below, then Save to archive the current version as a dated copy.</p>
+                <div className="mt-2">
+                  <label className="label">Review label (optional)</label>
+                  <input value={reviewLabel} onChange={(e) => setReviewLabel(e.target.value)} className="input text-sm" placeholder="e.g. Annual review, 6-month review" />
+                </div>
+              </div>
+            )}
             <div>
               <label className="label">Summary / overview</label>
               {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{plan.summary || <span className="text-gray-400">—</span>}</p> :
@@ -199,54 +229,62 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
           </div>
         )}
 
-        {/* Previous reviews / Complete review panel */}
-        {panel !== 'none' && (
+        {/* Previous reviews panel */}
+        {panel === 'history' && (
           <div className="border-t bg-gray-50 px-6 py-4 max-h-64 overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-900">{panel === 'history' ? 'Previous reviews' : 'Complete review'}</h3>
+              <h3 className="font-semibold text-gray-900">Previous reviews</h3>
               <button onClick={() => setPanel('none')} className="text-gray-400 hover:text-gray-600 text-sm">Close ×</button>
             </div>
-            {panel === 'history' ? (
-              <RiskAssessmentHistory
-                serviceUserId={serviceUser.id}
-                type={TYPE}
-                // The plan print window has its own Print/Close toolbar and never
-                // auto-prints, so View and Print open the same window.
-                onOpen={(data) => printPlan({ ...emptyPlan(), ...(data as Partial<PlanData>) })}
-              />
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-500">This saves the current support plan, then keeps a dated, read-only copy so past versions survive future edits. The live plan stays editable.</p>
-                <div>
-                  <label className="label">Review label (optional)</label>
-                  <input value={reviewLabel} onChange={(e) => setReviewLabel(e.target.value)} className="input text-sm" placeholder="e.g. Annual review, 6-month review" />
-                </div>
-                <div className="flex gap-2">
-                  <button className="btn-primary btn btn-sm" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
-                    {reviewMut.isPending ? 'Saving review…' : 'Save & archive this review'}
-                  </button>
-                  <button className="btn-secondary btn btn-sm" onClick={() => setPanel('none')}>Cancel</button>
-                  {reviewMut.isError && <span className="text-sm text-red-600 self-center">Failed — try again</span>}
-                </div>
-              </div>
-            )}
+            <RiskAssessmentHistory
+              serviceUserId={serviceUser.id}
+              type={TYPE}
+              // The plan print window has its own Print/Close toolbar and never
+              // auto-prints, so View and Print open the same window.
+              onOpen={(data) => printPlan({ ...emptyPlan(), ...(data as Partial<PlanData>) })}
+            />
           </div>
         )}
 
         <div className="flex flex-wrap items-center gap-3 p-4 border-t">
           {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
-          <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
-          {canEdit && (
-            <button onClick={() => setPanel((p) => (p === 'review' ? 'none' : 'review'))} className="btn-secondary btn">✓ Complete review</button>
-          )}
-          <div className="flex-1" />
-          <button onClick={() => printPlan()} className="btn-secondary btn">🖨 Print</button>
-          <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {canEdit && (
-            <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
-              {saveMut.isPending ? 'Saving…' : 'Save'}
-            </button>
+          {reviewMut.isError && <span className="text-sm text-red-600">Review failed</span>}
+          {!editing ? (
+            <>
+              {/* VIEW mode */}
+              <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
+              {canEdit && (
+                <>
+                  <button onClick={beginEdit} className="btn-secondary btn">✏️ Edit</button>
+                  <button
+                    onClick={beginRenew}
+                    className={isOverdue ? 'btn text-amber-800 border-amber-400 bg-amber-50' : 'btn-secondary btn'}
+                  >
+                    {isOverdue ? '↻ Renew · due' : '↻ Renew'}
+                  </button>
+                </>
+              )}
+              <div className="flex-1" />
+              <button onClick={() => printPlan()} className="btn-secondary btn">🖨 Print</button>
+              <button onClick={onClose} className="btn-secondary btn">Close</button>
+            </>
+          ) : (
+            <>
+              {/* EDIT mode */}
+              <button onClick={cancelEdit} className="btn-secondary btn">Cancel</button>
+              <div className="flex-1" />
+              <button onClick={() => printPlan()} className="btn-secondary btn">🖨 Print</button>
+              {renewing ? (
+                <button className="btn-primary btn" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+                  {reviewMut.isPending ? 'Saving review…' : 'Save & archive review'}
+                </button>
+              ) : (
+                <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+                  {saveMut.isPending ? 'Saving…' : 'Save'}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

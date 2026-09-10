@@ -32,25 +32,40 @@ const HML: { v: HazardVal['level']; label: string; on: string }[] = [
 
 export default function RiskAssessmentModal({ serviceUser, form, onClose }: Props) {
   const canEdit = usePermissions().can('manage_service_users');
-  const ro = !canEdit;
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [activeSection, setActiveSection] = useState(form.sections[0].id);
-  const [panel, setPanel] = useState<'none' | 'history' | 'review'>('none');
+  const [panel, setPanel] = useState<'none' | 'history'>('none');
   const [reviewLabel, setReviewLabel] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [renewing, setRenewing] = useState(false);
+
+  // Fields are read-only unless a manager is actively editing (or renewing).
+  const ro = !(canEdit && editing);
 
   const { data: ra, isLoading } = useQuery({
     queryKey: ['risk-assessment', serviceUser.id, form.type],
     queryFn: () => riskAssessmentsApi.get(serviceUser.id, form.type),
   });
 
-  useEffect(() => {
+  // Load the form state from the saved record. Reused on mount and when
+  // cancelling an edit (to discard unsaved changes).
+  const loadFromRecord = () => {
     if (ra?.data) {
       try { setValues(JSON.parse(ra.data)); } catch { setValues({}); }
     } else {
       setValues({});
     }
+  };
+
+  useEffect(() => {
+    loadFromRecord();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ra]);
+
+  const beginEdit = () => { setRenewing(false); setEditing(true); setPanel('none'); };
+  const beginRenew = () => { setRenewing(true); setEditing(true); setPanel('none'); };
+  const cancelEdit = () => { setEditing(false); setRenewing(false); loadFromRecord(); };
 
   const saveMut = useMutation({
     mutationFn: () => riskAssessmentsApi.save(serviceUser.id, form.type, values),
@@ -73,6 +88,8 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
       qc.invalidateQueries({ queryKey: ['risk-assessment', serviceUser.id, form.type] });
       qc.invalidateQueries({ queryKey: ['risk-assessments', serviceUser.id] });
       qc.invalidateQueries({ queryKey: ['risk-assessment-versions', serviceUser.id, form.type] });
+      setEditing(false);
+      setRenewing(false);
       setPanel('history');
     },
   });
@@ -85,6 +102,9 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
   // form item keys.
   const paper = (values.__paper as PaperMeta) || {};
   const setPaper = (patch: PaperMeta) => setValues((v) => ({ ...v, __paper: { ...((v.__paper as PaperMeta) || {}), ...patch } }));
+
+  // Overdue = the held-on-paper next-review date is set and in the past.
+  const isOverdue = !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
   const risk = (key: string): RiskVal => (values[key] as RiskVal) || { level: '', comment: '', action: '' };
   const hazard = (key: string): HazardVal => (values[key] as HazardVal) || { level: '', whoHarmed: '', controlled: '', actions: '' };
   const yesno = (key: string): YesNoVal => (values[key] as YesNoVal) || { v: '', comment: '' };
@@ -257,7 +277,7 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
             <p className="text-xs text-gray-500">
               {ra ? `Last updated ${format(new Date(ra.updatedAt), 'dd MMM yyyy, h:mm a')}` : 'Not started'}
               {` · ${rated}/${form.sections.length} sections started`}
-              {ro && ' · read-only'}
+              {!editing && ' · read-only'}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
@@ -282,6 +302,16 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
             </nav>
 
             <div className="flex-1 overflow-y-auto p-6">
+              {/* Renew banner — shown while archiving a new dated version */}
+              {renewing && (
+                <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <p>Renewing this review — make any changes below, then Save to archive the current version as a dated copy.</p>
+                  <div className="mt-2">
+                    <label className="label">Review label (optional)</label>
+                    <input value={reviewLabel} onChange={(e) => setReviewLabel(e.target.value)} className="input text-sm" placeholder="e.g. Annual review, 6-month review" />
+                  </div>
+                </div>
+              )}
               <select className="input mb-4 md:hidden" value={current?.id ?? ''} onChange={(e) => setActiveSection(e.target.value)}>
                 {form.sections.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
               </select>
@@ -296,52 +326,60 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
           </div>
         )}
 
-        {/* Previous reviews / Complete review panel */}
-        {panel !== 'none' && (
+        {/* Previous reviews panel */}
+        {panel === 'history' && (
           <div className="border-t bg-gray-50 px-6 py-4 max-h-64 overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-900">{panel === 'history' ? 'Previous reviews' : 'Complete review'}</h3>
+              <h3 className="font-semibold text-gray-900">Previous reviews</h3>
               <button onClick={() => setPanel('none')} className="text-gray-400 hover:text-gray-600 text-sm">Close ×</button>
             </div>
-            {panel === 'history' ? (
-              <RiskAssessmentHistory
-                serviceUserId={serviceUser.id}
-                type={form.type}
-                onOpen={(data, autoPrint) => printRiskAssessment(serviceUser, form, data, { autoPrint })}
-              />
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-500">This saves the current assessment, then keeps a dated, read-only copy so past versions survive future edits. The live assessment stays editable.</p>
-                <div>
-                  <label className="label">Review label (optional)</label>
-                  <input value={reviewLabel} onChange={(e) => setReviewLabel(e.target.value)} className="input text-sm" placeholder="e.g. Annual review, 6-month review" />
-                </div>
-                <div className="flex gap-2">
-                  <button className="btn-primary btn btn-sm" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
-                    {reviewMut.isPending ? 'Saving review…' : 'Save & archive this review'}
-                  </button>
-                  <button className="btn-secondary btn btn-sm" onClick={() => setPanel('none')}>Cancel</button>
-                  {reviewMut.isError && <span className="text-sm text-red-600 self-center">Failed — try again</span>}
-                </div>
-              </div>
-            )}
+            <RiskAssessmentHistory
+              serviceUserId={serviceUser.id}
+              type={form.type}
+              onOpen={(data, autoPrint) => printRiskAssessment(serviceUser, form, data, { autoPrint })}
+            />
           </div>
         )}
 
         <div className="flex flex-wrap items-center gap-3 p-4 border-t">
           {canEdit && saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">Save failed</span>}
-          <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
-          {canEdit && (
-            <button onClick={() => setPanel((p) => (p === 'review' ? 'none' : 'review'))} className="btn-secondary btn">✓ Complete review</button>
-          )}
-          <div className="flex-1" />
-          <button onClick={doPrint} className="btn-secondary btn">🖨 Print</button>
-          <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {canEdit && (
-            <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
-              {saveMut.isPending ? 'Saving…' : 'Save'}
-            </button>
+          {reviewMut.isError && <span className="text-sm text-red-600">Review failed</span>}
+          {!editing ? (
+            <>
+              {/* VIEW mode */}
+              <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
+              {canEdit && (
+                <>
+                  <button onClick={beginEdit} className="btn-secondary btn">✏️ Edit</button>
+                  <button
+                    onClick={beginRenew}
+                    className={isOverdue ? 'btn text-amber-800 border-amber-400 bg-amber-50' : 'btn-secondary btn'}
+                  >
+                    {isOverdue ? '↻ Renew · due' : '↻ Renew'}
+                  </button>
+                </>
+              )}
+              <div className="flex-1" />
+              <button onClick={doPrint} className="btn-secondary btn">🖨 Print</button>
+              <button onClick={onClose} className="btn-secondary btn">Close</button>
+            </>
+          ) : (
+            <>
+              {/* EDIT mode */}
+              <button onClick={cancelEdit} className="btn-secondary btn">Cancel</button>
+              <div className="flex-1" />
+              <button onClick={doPrint} className="btn-secondary btn">🖨 Print</button>
+              {renewing ? (
+                <button className="btn-primary btn" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+                  {reviewMut.isPending ? 'Saving review…' : 'Save & archive review'}
+                </button>
+              ) : (
+                <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+                  {saveMut.isPending ? 'Saving…' : 'Save'}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
