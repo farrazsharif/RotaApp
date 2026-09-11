@@ -30,6 +30,10 @@ export default function HeldOnPaperPanel({ meta, ro, onChange, docExists }: {
   // still empty then). Latching on that first non-empty state means it never
   // disappears while the user is first typing the date on a fresh record.
   const latch = useRef<{ decided: boolean; hide: boolean }>({ decided: false, hide: false });
+  // Once the user hand-edits the next-review date we stop auto-deriving it, so a
+  // deliberate non-standard review interval is never overwritten. Declared here
+  // (before any early return) so the hook is always called — Rules of Hooks.
+  const reviewTouched = useRef(false);
   if (!latch.current.decided) {
     const hasContent = !!(meta.onFile || meta.completedDate || meta.reviewDate || meta.assessor);
     if (hasContent) latch.current = { decided: true, hide: !!(meta.completedDate || meta.reviewDate) };
@@ -46,10 +50,6 @@ export default function HeldOnPaperPanel({ meta, ro, onChange, docExists }: {
     if (!y || !m || !day) return '';
     return format(new Date(y + 1, m - 1, day), 'yyyy-MM-dd');
   };
-
-  // Once the user hand-edits the next-review date we stop auto-deriving it, so a
-  // deliberate non-standard review interval is never overwritten.
-  const reviewTouched = useRef(false);
 
   // Entering the completed date auto-fills the next review a year on (the yearly
   // cycle) unless the user has set their own review date.
