@@ -305,6 +305,10 @@ export default function ContractOfCareModal({ serviceUser, onClose }: Props) {
         .toolbar { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ddd; padding: 8px 0 10px; margin-bottom: 12px; display: flex; gap: 8px; }
         .toolbar button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid #2563eb; background: #2563eb; color: #fff; cursor: pointer; }
         .toolbar button.secondary { background: #fff; color: #374151; border-color: #d1d5db; }
+        @media screen {
+          html { background: #eef1f5; }
+          body { max-width: 900px; margin: 24px auto; padding: 20px 32px 44px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+        }
         @media print { body { margin: 0; } .no-print { display: none !important; } }
         ${BRANDING_PRINT_CSS}
       </style></head><body>
