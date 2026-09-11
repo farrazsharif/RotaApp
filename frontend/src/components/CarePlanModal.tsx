@@ -50,6 +50,15 @@ const emptyForm = (): FormState => ({
   numberOfCarers: '', carePackageInfo: '', otherNotes: '', reviewDate: '',
 });
 
+// Care plans are reviewed yearly, so the next review is a year on. tz-safe:
+// parse the y-m-d parts rather than letting UTC parsing shift the day.
+const addYear = (d: string) => {
+  const [y, m, day] = d.split('-').map(Number);
+  if (!y || !m || !day) return '';
+  return format(new Date(y + 1, m - 1, day), 'yyyy-MM-dd');
+};
+const oneYearFromToday = () => addYear(format(new Date(), 'yyyy-MM-dd'));
+
 const TASK_FIELDS: { key: keyof FormState; label: string }[] = [
   { key: 'tasksMorning', label: 'Morning' },
   { key: 'tasksLunch', label: 'Lunch' },
@@ -110,11 +119,14 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
   useEffect(() => {
     if (isLoading || didInitEdit.current) return;
     didInitEdit.current = true;
-    if (canEdit && !plan) setEditing(true);
+    // A brand-new plan is completed today, so pre-fill the next review a year on
+    // (editable). The manager gets the review date without hand-typing it.
+    if (canEdit && !plan) { setEditing(true); setForm((f) => (f.reviewDate ? f : { ...f, reviewDate: oneYearFromToday() })); }
   }, [isLoading, plan, canEdit]);
 
   const beginEdit = () => { setRenewing(false); setEditing(true); setPanel('none'); };
-  const beginRenew = () => { setRenewing(true); setEditing(true); setPanel('none'); };
+  // Renewing = reviewed today, so advance the next review a year on by default.
+  const beginRenew = () => { setRenewing(true); setEditing(true); setPanel('none'); setForm((f) => ({ ...f, reviewDate: oneYearFromToday() })); };
   const cancelEdit = () => { setEditing(false); setRenewing(false); loadFromRecord(); };
 
   // Drop rows with no name before persisting.

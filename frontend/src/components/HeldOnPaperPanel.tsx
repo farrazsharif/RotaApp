@@ -38,13 +38,33 @@ export default function HeldOnPaperPanel({ meta, ro, onChange, docExists }: {
   // on file — from then on it's managed in the app, so the bootstrap is gone.
   if (docExists || latch.current.hide) return null;
 
+  // These documents are reviewed yearly, so the next review is exactly one year
+  // after the date completed. tz-safe (parse the y-m-d parts, don't let UTC
+  // parsing shift the day). Feb 29 rolls to Mar 1, which is fine.
+  const addYear = (d: string) => {
+    const [y, m, day] = d.split('-').map(Number);
+    if (!y || !m || !day) return '';
+    return format(new Date(y + 1, m - 1, day), 'yyyy-MM-dd');
+  };
+
+  // Once the user hand-edits the next-review date we stop auto-deriving it, so a
+  // deliberate non-standard review interval is never overwritten.
+  const reviewTouched = useRef(false);
+
+  // Entering the completed date auto-fills the next review a year on (the yearly
+  // cycle) unless the user has set their own review date.
+  const onCompleted = (c: string) => {
+    const patch: PaperMeta = { completedDate: c };
+    if (c && !reviewTouched.current) patch.reviewDate = addYear(c);
+    onChange(patch);
+  };
+
   // One-click renewal: mark the assessment reviewed today and set the next
   // review a year on, so a field supervisor can renew without hand-typing dates.
   const renew = () => {
     const today = new Date();
-    const next = new Date(today);
-    next.setFullYear(next.getFullYear() + 1);
-    onChange({ completedDate: format(today, 'yyyy-MM-dd'), reviewDate: format(next, 'yyyy-MM-dd') });
+    reviewTouched.current = false;
+    onChange({ completedDate: format(today, 'yyyy-MM-dd'), reviewDate: addYear(format(today, 'yyyy-MM-dd')) });
   };
   return (
     <div className="border-b bg-amber-50/60 px-5 py-3">
@@ -57,12 +77,13 @@ export default function HeldOnPaperPanel({ meta, ro, onChange, docExists }: {
           <div>
             <label className="label">Date completed</label>
             {ro ? <p className="text-sm text-gray-800">{meta.completedDate ? format(new Date(meta.completedDate), 'dd MMM yyyy') : '—'}</p>
-                : <input type="date" value={meta.completedDate || ''} onChange={(e) => onChange({ completedDate: e.target.value })} className="input text-sm" />}
+                : <input type="date" value={meta.completedDate || ''} onChange={(e) => onCompleted(e.target.value)} className="input text-sm" />}
           </div>
           <div>
             <label className="label">Next review date</label>
             {ro ? <p className="text-sm text-gray-800">{meta.reviewDate ? format(new Date(meta.reviewDate), 'dd MMM yyyy') : '—'}</p>
-                : <input type="date" value={meta.reviewDate || ''} onChange={(e) => onChange({ reviewDate: e.target.value })} className="input text-sm" />}
+                : <input type="date" value={meta.reviewDate || ''} onChange={(e) => { reviewTouched.current = true; onChange({ reviewDate: e.target.value }); }} className="input text-sm" />}
+            {!ro && <p className="text-[11px] text-gray-500 mt-1">Auto-set to a year after the completed date — change it if needed.</p>}
           </div>
           <div>
             <label className="label">Assessor</label>
