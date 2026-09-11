@@ -33,6 +33,7 @@ import DocumentsTab from '../components/DocumentsTab';
 import ServiceUserNotes from '../components/ServiceUserNotes';
 import RespiteSection from '../components/RespiteSection';
 import { computeServiceUserDocs, missingDocLabels, type DocKey } from '../lib/serviceUserDocuments';
+import { siteTintStyle } from '../lib/siteColor';
 
 const durationLabel = (m: number) =>
   m >= 60 ? `${m / 60} hr${m > 60 ? 's' : ''}${m % 60 ? ` ${m % 60}m` : ''}` : `${m} mins`;
@@ -237,7 +238,7 @@ export default function ServiceUserDetail() {
       {/* Header */}
       <div>
         <button onClick={() => navigate('/service-users')} className="text-sm text-blue-600 hover:underline mb-2">← Service Users</button>
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-gray-200 p-4" style={siteTintStyle(su.site?.color)}>
           <div className="flex items-start gap-4">
             <Avatar photo={su.photo} firstName={su.firstName} lastName={su.lastName} size="lg" />
             <div>

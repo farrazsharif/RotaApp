@@ -8,6 +8,7 @@ import { ServiceUser, ServiceUserStatus } from '../types';
 import { differenceInYears } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
+import { siteTintStyle, lightTint } from '../lib/siteColor';
 
 const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; className: string }> = {
   ACTIVE: { label: 'Active', icon: '🟢', className: 'bg-green-100 text-green-700' },
@@ -232,9 +233,10 @@ export default function ServiceUsers() {
                     <tr
                       key={su.id}
                       onClick={() => navigate(`/service-users/${su.id}`)}
+                      style={su.site ? { backgroundColor: lightTint(su.site.color, 0.06) || undefined } : undefined}
                       className="hover:bg-gray-50 cursor-pointer"
                     >
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" style={su.site ? { borderLeft: `4px solid ${su.site.color}` } : undefined}>
                         <div className="flex items-center gap-2.5">
                           <Avatar photo={su.photo} firstName={su.firstName} lastName={su.lastName} size="sm" />
                           <div className="min-w-0">
@@ -274,6 +276,7 @@ export default function ServiceUsers() {
               <div
                 key={su.id}
                 onClick={() => navigate(`/service-users/${su.id}`)}
+                style={siteTintStyle(su.site?.color)}
                 className="card p-0 overflow-hidden cursor-pointer hover:shadow-lg hover:border-blue-300 hover:-translate-y-0.5 transition-all flex flex-col"
               >
                 {/* Card header */}
