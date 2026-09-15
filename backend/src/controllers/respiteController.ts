@@ -93,6 +93,17 @@ export async function updateRespite(req: AuthRequest, res: Response) {
   const startAt = new Date(period.startAt);
   const oldEnd = new Date(period.endAt);
 
+  // A client can't be in hospital twice at once, so collapse any OTHER open
+  // hospital period (leftovers from earlier return-date changes) to this
+  // admission's start — otherwise a stale period would still "cover" visits and
+  // block them from resuming below.
+  if (isHospital) {
+    await prisma.respitePeriod.updateMany({
+      where: { serviceUserId: period.serviceUserId, type: 'HOSPITAL', id: { not: period.id }, endAt: { gt: startAt } },
+      data: { endAt: startAt },
+    });
+  }
+
   // Reconcile the rota to the new window rather than diffing against a tracked id
   // list (which drifted and stranded visits): cancel anything now inside
   // [startAt, newEnd), and restore anything at/after the return that this or a
