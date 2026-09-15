@@ -2,12 +2,33 @@ import { prisma } from './prisma';
 import { emitToUser } from './socket';
 import { sendPushToUser } from './push';
 
+// Shift start/end times are UK wall-clock ("15:05" = 3:05pm UK, as entered by
+// the manager) — NOT UTC. The server runs in UTC, so building a Date from those
+// numbers with the local constructor silently treats them as UTC, which is an
+// hour off while the UK is on BST. The away-window boundaries (admission/return)
+// ARE real UTC instants (the datetime-local input is converted through the
+// browser's timezone), so a visit within an hour of the return time slipped past
+// the boundary and escaped cancellation. Convert the UK wall-clock components to
+// the correct UTC instant so both sides of the comparison are the same kind of
+// value. DST is handled automatically via Intl.
+function ukWallClockToUtc(y: number, mon: number, day: number, h: number, min: number): Date {
+  const guess = Date.UTC(y, mon, day, h, min, 0);
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(guess));
+  const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+  const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
+  const offset = asUtc - guess; // ms the UK clock is ahead of UTC (0 or +1h)
+  return new Date(guess - offset);
+}
+
 // Combine a shift's stored date (noon-anchored) with its "HH:MM" start time so
-// away-window boundaries respect the time of day.
+// away-window boundaries respect the time of day — as a proper UK-local instant.
 function shiftStart(date: Date, startTime: string): Date {
   const d = new Date(date);
   const [h, m] = String(startTime || '00:00').split(':').map(Number);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), h || 0, m || 0, 0);
+  return ukWallClockToUtc(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h || 0, m || 0);
 }
 
 type ShiftLite = { id: string; date: Date; startTime: string; userId: string | null; coverCarers: { id: string }[] };
