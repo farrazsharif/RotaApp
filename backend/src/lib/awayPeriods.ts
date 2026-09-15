@@ -86,19 +86,34 @@ export async function cancelAwayWindow(
   return inWindow.map((s) => s.id);
 }
 
-// Un-cancel visits (by id) whose start is at/after `fromAt` — used when a return
-// date is brought forward or the patient is discharged. Only touches visits
-// still CANCELLED. Returns the restored ids. Notifies carers when asked.
-export async function restoreAwayVisits(
-  shiftIds: string[], fromAt: Date,
-  opts: { patientName: string; resumeLabel: string; notify: boolean },
+// True for a cancellation this module made (an away/respite/hospital window),
+// so healing never touches a manual or discharge cancellation.
+function isAwayCancel(reason: string | null): boolean {
+  return !!reason && (reason.startsWith('Hospital') || reason.startsWith('Respite'));
+}
+
+// Self-healing restore: un-cancel EVERY away/hospital-cancelled visit for this
+// client whose start is at/after `fromAt`, except those still inside another
+// active away window. Unlike restoreAwayVisits (which only revisits a tracked id
+// list) this recovers visits that were stranded when a window was moved around,
+// so the rota always matches the current return date. Returns the restored ids.
+export async function restoreAwayFrom(
+  serviceUserId: string, fromAt: Date,
+  opts: { patientName: string; resumeLabel: string; notify: boolean; excludePeriodId?: string },
 ): Promise<string[]> {
-  if (shiftIds.length === 0) return [];
-  const shifts = await prisma.shift.findMany({
-    where: { id: { in: shiftIds }, status: 'CANCELLED' },
-    select: shiftSelect,
+  const cancelled = await prisma.shift.findMany({
+    where: { serviceUserId, status: 'CANCELLED', cancelBillable: false },
+    select: { ...shiftSelect, cancelReason: true },
   });
-  const toRestore = shifts.filter((s) => shiftStart(s.date, s.startTime) >= fromAt);
+  const atOrAfter = cancelled.filter((s) => isAwayCancel(s.cancelReason) && shiftStart(s.date, s.startTime) >= fromAt);
+  if (atOrAfter.length === 0) return [];
+  // Keep a visit cancelled if it still falls inside another away period's window.
+  const periods = await prisma.respitePeriod.findMany({ where: { serviceUserId } });
+  const stillCovered = (s: { date: Date; startTime: string }) => {
+    const st = shiftStart(s.date, s.startTime);
+    return periods.some((p) => p.id !== opts.excludePeriodId && st >= new Date(p.startAt) && st < new Date(p.endAt));
+  };
+  const toRestore = atOrAfter.filter((s) => !stillCovered(s));
   if (toRestore.length === 0) return [];
   await prisma.shift.updateMany({
     where: { id: { in: toRestore.map((s) => s.id) } },
@@ -115,3 +130,18 @@ export async function restoreAwayVisits(
   }
   return toRestore.map((s) => s.id);
 }
+
+// The client's still-cancelled away visits whose start falls inside [startAt,
+// endAt) — the accurate set a window is currently responsible for, used to keep
+// the period's tracked ids/count honest after a reconcile.
+export async function awayCancelledInWindow(serviceUserId: string, startAt: Date, endAt: Date): Promise<string[]> {
+  const cancelled = await prisma.shift.findMany({
+    where: { serviceUserId, status: 'CANCELLED', cancelBillable: false },
+    select: { ...shiftSelect, cancelReason: true },
+  });
+  return cancelled
+    .filter((s) => isAwayCancel(s.cancelReason))
+    .filter((s) => { const st = shiftStart(s.date, s.startTime); return st >= startAt && st < endAt; })
+    .map((s) => s.id);
+}
+

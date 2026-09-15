@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { serviceUserInScope } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { emitToCompany } from '../lib/socket';
-import { cancelAwayWindow, restoreAwayVisits } from '../lib/awayPeriods';
+import { cancelAwayWindow, restoreAwayFrom, awayCancelledInWindow } from '../lib/awayPeriods';
 
 // GET /api/respite?serviceUserId=… — a client's respite/away periods, newest first.
 export async function listRespite(req: AuthRequest, res: Response) {
@@ -90,23 +90,25 @@ export async function updateRespite(req: AuthRequest, res: Response) {
   });
   const patientName = su ? `${su.firstName} ${su.lastName}` : 'the client';
   const isHospital = period.type === 'HOSPITAL';
-  let ids: string[] = [];
-  try { ids = JSON.parse(period.cancelledShiftIds || '[]'); } catch { ids = []; }
-
+  const startAt = new Date(period.startAt);
   const oldEnd = new Date(period.endAt);
-  if (newEnd.getTime() > oldEnd.getTime()) {
-    const added = await cancelAwayWindow(period.serviceUserId, oldEnd, newEnd, {
-      reason: isHospital ? 'Hospital admission' : (period.note ? `Respite — ${period.note}` : 'Respite (client away)'),
-      patientName, awayLabel: isHospital ? 'in hospital' : 'on respite', notify: isHospital,
-    });
-    ids = [...new Set([...ids, ...added])];
-  } else if (newEnd.getTime() < oldEnd.getTime()) {
-    const restored = await restoreAwayVisits(ids, newEnd, {
-      patientName, resumeLabel: isHospital ? 'back from hospital' : 'back from respite', notify: isHospital,
-    });
-    const restoredSet = new Set(restored);
-    ids = ids.filter((id) => !restoredSet.has(id));
-  }
+
+  // Reconcile the rota to the new window rather than diffing against a tracked id
+  // list (which drifted and stranded visits): cancel anything now inside
+  // [startAt, newEnd), and restore anything at/after the return that this or a
+  // superseded away window had cancelled. Both steps are idempotent, so
+  // re-saving the same return date safely heals a stranded rota.
+  await cancelAwayWindow(period.serviceUserId, startAt, newEnd, {
+    reason: isHospital ? 'Hospital admission' : (period.note ? `Respite — ${period.note}` : 'Respite (client away)'),
+    patientName, awayLabel: isHospital ? 'in hospital' : 'on respite',
+    notify: isHospital && newEnd.getTime() > oldEnd.getTime(),
+  });
+  await restoreAwayFrom(period.serviceUserId, newEnd, {
+    patientName, resumeLabel: isHospital ? 'back from hospital' : 'back from respite',
+    notify: isHospital && newEnd.getTime() < oldEnd.getTime(), excludePeriodId: period.id,
+  });
+  // Track the true current cancelled set for this window.
+  const ids = await awayCancelledInWindow(period.serviceUserId, startAt, newEnd);
 
   const updated = await prisma.respitePeriod.update({
     where: { id: period.id },

@@ -6,7 +6,7 @@ import { isScoped, serviceUserInScope } from '../lib/scope';
 import { emitToUser, emitToCompany } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
 import { logAudit } from '../lib/audit';
-import { cancelAwayWindow, restoreAwayVisits } from '../lib/awayPeriods';
+import { cancelAwayWindow, restoreAwayFrom, awayCancelledInWindow } from '../lib/awayPeriods';
 
 // Turn a camelCase field name into readable words for the audit details,
 // e.g. "emergencyContactPhone" → "emergency contact phone".
@@ -307,9 +307,19 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
         const returnAt = rr && !isNaN(rr.getTime()) && rr > effectiveAt ? rr : null;
         if (returnAt) {
           const patientName = `${existing.firstName} ${existing.lastName}`;
-          const cancelledIds = await cancelAwayWindow(req.params.id, effectiveAt, returnAt, {
+          // Never stack admissions: close any still-open hospital period first so
+          // it can't keep visits cancelled, then reconcile the rota to the new
+          // window — cancel inside it and restore anything at/after the return
+          // that an earlier window had cancelled.
+          await prisma.respitePeriod.updateMany({
+            where: { serviceUserId: req.params.id, type: 'HOSPITAL', endAt: { gt: effectiveAt } },
+            data: { endAt: effectiveAt },
+          });
+          await cancelAwayWindow(req.params.id, effectiveAt, returnAt, {
             reason: 'Hospital admission', patientName, awayLabel: 'in hospital', notify: true,
           });
+          await restoreAwayFrom(req.params.id, returnAt, { patientName, resumeLabel: 'back from hospital', notify: false });
+          const cancelledIds = await awayCancelledInWindow(req.params.id, effectiveAt, returnAt);
           const author = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { firstName: true, lastName: true, email: true } });
           const createdByName = author ? `${author.firstName} ${author.lastName}`.trim() || author.email : (req.user!.email ?? 'Unknown');
           await prisma.respitePeriod.create({
@@ -331,18 +341,23 @@ export async function updateServiceUser(req: AuthRequest, res: Response) {
         && data.status !== ServiceUserStatus.HOSPITALISED
         && data.status !== ServiceUserStatus.DECEASED
         && data.status !== ServiceUserStatus.DISCHARGED) {
-        const active = await prisma.respitePeriod.findFirst({
+        const open = await prisma.respitePeriod.findMany({
           where: { serviceUserId: req.params.id, type: 'HOSPITAL', endAt: { gt: effectiveAt } },
-          orderBy: { startAt: 'desc' },
         });
-        if (active) {
-          let ids: string[] = [];
-          try { ids = JSON.parse(active.cancelledShiftIds || '[]'); } catch { ids = []; }
+        if (open.length > 0) {
           const patientName = `${existing.firstName} ${existing.lastName}`;
-          const restored = await restoreAwayVisits(ids, effectiveAt, { patientName, resumeLabel: 'back from hospital', notify: true });
-          const restoredSet = new Set(restored);
-          const remaining = ids.filter((idv) => !restoredSet.has(idv));
-          await prisma.respitePeriod.update({ where: { id: active.id }, data: { endAt: effectiveAt, cancelledShiftIds: JSON.stringify(remaining), cancelledCount: remaining.length } });
+          // Close every open hospital period as of now first, so none of them
+          // keep a visit "covered" (which would block its restore), then restore
+          // everything the stay(s) cancelled from now onward. Self-healing:
+          // recovers visits stranded by an earlier return-date change too.
+          await prisma.respitePeriod.updateMany({
+            where: { id: { in: open.map((p) => p.id) } }, data: { endAt: effectiveAt },
+          });
+          await restoreAwayFrom(req.params.id, effectiveAt, { patientName, resumeLabel: 'back from hospital', notify: true });
+          for (const p of open) {
+            const remaining = await awayCancelledInWindow(req.params.id, new Date(p.startAt), effectiveAt);
+            await prisma.respitePeriod.update({ where: { id: p.id }, data: { cancelledShiftIds: JSON.stringify(remaining), cancelledCount: remaining.length } });
+          }
           if (existing.companyId) emitToCompany(existing.companyId, 'data:changed', { resource: '/api/shifts' });
         }
       }
