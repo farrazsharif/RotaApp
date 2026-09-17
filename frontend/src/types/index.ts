@@ -179,6 +179,8 @@ export interface Review {
   outcomes: string; // JSON: ReviewOutcome[]
   representativeName?: string;
   phoneConsent: boolean;
+  serviceUserSig?: string | null; // signature string (drawn data URL or esign JSON)
+  supervisorSig?: string | null;
   source?: string | null; // 'form' | 'paper'
   createdAt: string;
   updatedAt: string;

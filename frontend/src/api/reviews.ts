@@ -12,6 +12,8 @@ export interface ReviewData {
   outcomes?: ReviewOutcome[];
   representativeName?: string;
   phoneConsent?: boolean;
+  serviceUserSig?: string;
+  supervisorSig?: string;
   source?: string;
 }
 

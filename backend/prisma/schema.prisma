@@ -578,6 +578,9 @@ model Review {
   outcomes           String    @default("[]")
   representativeName String?
   phoneConsent       Boolean   @default(false)
+  // Signatures: a drawn PNG data URL, an {"kind":"esign",...} JSON string, or empty.
+  serviceUserSig     String?
+  supervisorSig      String?
   // "form" = full digital review; "paper" = historic date-only entry seeding the schedule.
   source             String    @default("form")
   createdAt          DateTime  @default(now())

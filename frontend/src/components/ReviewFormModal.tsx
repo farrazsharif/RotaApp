@@ -5,6 +5,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { Review, ReviewOutcome, ReviewType } from '../types';
 import { format, addMonths } from 'date-fns';
 import AutoGrowTextarea from './AutoGrowTextarea';
+import SignatureField from './SignatureField';
 
 interface Props {
   serviceUserId: string;
@@ -175,6 +176,8 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
   });
   const [representativeName, setRepresentativeName] = useState(editReview?.representativeName || '');
   const [phoneConsent, setPhoneConsent] = useState(editReview?.phoneConsent || false);
+  const [serviceUserSig, setServiceUserSig] = useState(editReview?.serviceUserSig || '');
+  const [supervisorSig, setSupervisorSig] = useState(editReview?.supervisorSig || '');
 
   const saveMut = useMutation({
     mutationFn: () => {
@@ -189,6 +192,8 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
         outcomes: outcomes.filter((o) => o.action.trim() || o.outcome.trim()),
         representativeName,
         phoneConsent,
+        serviceUserSig,
+        supervisorSig,
       };
       return editReview ? reviewsApi.update(editReview.id, payload) : reviewsApi.create(payload);
     },
@@ -363,6 +368,21 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
             </div>
           </section>
           )}
+
+          <section>
+            <h3 className="font-semibold text-gray-900 mb-1">Signatures</h3>
+            <p className="text-xs text-gray-500 mb-3">Signed to confirm this review was discussed and agreed.</p>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label className="label">Service User Signature</label>
+                <SignatureField value={serviceUserSig} ro={ro} onChange={setServiceUserSig} signerLabel="service user" />
+              </div>
+              <div>
+                <label className="label">Supervisor Signature</label>
+                <SignatureField value={supervisorSig} ro={ro} onChange={setSupervisorSig} signerLabel="supervisor" />
+              </div>
+            </div>
+          </section>
         </div>
 
         <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">

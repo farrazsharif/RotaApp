@@ -89,6 +89,9 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   try {
     await prisma.$executeRawUnsafe(`ALTER TABLE "SpotCheck" ADD COLUMN IF NOT EXISTS "source" TEXT NOT NULL DEFAULT 'form'`);
     await prisma.$executeRawUnsafe(`ALTER TABLE "Review" ADD COLUMN IF NOT EXISTS "source" TEXT NOT NULL DEFAULT 'form'`);
+    // Service user + supervisor signatures on the 6-week / quarterly review forms.
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Review" ADD COLUMN IF NOT EXISTS "serviceUserSig" TEXT`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Review" ADD COLUMN IF NOT EXISTS "supervisorSig" TEXT`);
   } catch { /* tables not created yet on this deploy; db push adds them with the column */ }
 
   // ShiftHandover — carer-to-carer cover requests. This deploy doesn't run

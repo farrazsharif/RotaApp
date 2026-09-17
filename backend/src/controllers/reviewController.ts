@@ -34,7 +34,7 @@ export async function getReview(req: AuthRequest, res: Response) {
 }
 
 export async function createReview(req: AuthRequest, res: Response) {
-  const { serviceUserId, type, reviewDate, nextReviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent, source } = req.body;
+  const { serviceUserId, type, reviewDate, nextReviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent, serviceUserSig, supervisorSig, source } = req.body;
   if (!serviceUserId || !reviewDate) {
     return res.status(400).json({ error: 'serviceUserId and reviewDate are required' });
   }
@@ -53,6 +53,8 @@ export async function createReview(req: AuthRequest, res: Response) {
       outcomes: outcomes ? JSON.stringify(outcomes) : '[]',
       representativeName: representativeName || null,
       phoneConsent: !!phoneConsent,
+      serviceUserSig: serviceUserSig || null,
+      supervisorSig: supervisorSig || null,
       source: source === 'paper' ? 'paper' : 'form',
     },
     include,
@@ -64,7 +66,7 @@ export async function updateReview(req: AuthRequest, res: Response) {
   const existing = await prisma.review.findUnique({ where: { id: req.params.id } });
   if (!existing) return res.status(404).json({ error: 'Review not found' });
 
-  const { reviewDate, nextReviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent } = req.body;
+  const { reviewDate, nextReviewDate, assessorName, answers, otherInfo, outcomes, representativeName, phoneConsent, serviceUserSig, supervisorSig } = req.body;
   const data: Record<string, unknown> = {};
   if (reviewDate !== undefined) data.reviewDate = new Date(reviewDate);
   if (nextReviewDate !== undefined) data.nextReviewDate = nextReviewDate ? new Date(nextReviewDate) : null;
@@ -74,6 +76,8 @@ export async function updateReview(req: AuthRequest, res: Response) {
   if (outcomes !== undefined) data.outcomes = JSON.stringify(outcomes);
   if (representativeName !== undefined) data.representativeName = representativeName || null;
   if (phoneConsent !== undefined) data.phoneConsent = !!phoneConsent;
+  if (serviceUserSig !== undefined) data.serviceUserSig = serviceUserSig || null;
+  if (supervisorSig !== undefined) data.supervisorSig = supervisorSig || null;
 
   const review = await prisma.review.update({ where: { id: req.params.id }, data, include });
   res.json(review);
