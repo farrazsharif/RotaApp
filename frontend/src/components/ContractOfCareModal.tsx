@@ -9,6 +9,7 @@ import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import SignatureField, { parseSignature } from './SignatureField';
 import Icon from './Icon';
+import { parseVisits, visitStats, visitCover, visitIsEveryDay } from '../lib/visits';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import RiskAssessmentHistory from './RiskAssessmentHistory';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
@@ -83,6 +84,15 @@ const STAFF_MULTIPLIER: Record<Staffing, number> = { single: 1, double: 2, tripl
 const staffingLabel = (s: Staffing) =>
   s === 'triple' ? 'triple-up (3 carers)' : s === 'double' ? 'double-up (2 carers)' : 'single';
 
+const DAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// Minutes → a friendly length label, e.g. "45 min", "1 hr", "2 hrs 30 min".
+const durLabel = (mins: number): string => {
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h && m) return `${h} hr${h > 1 ? 's' : ''} ${m} min`;
+  if (h) return `${h} hr${h > 1 ? 's' : ''}`;
+  return `${m} min`;
+};
+
 interface ContractData {
   staffing: Staffing;
   serviceUserSig: string;
@@ -149,7 +159,14 @@ export default function ContractOfCareModal({ serviceUser, onClose, startEdit, s
   // double-up adds only its own extra hours — not the whole week's.
   const staffMultiplier = STAFF_MULTIPLIER[d.staffing] || 1;
 
-  const { totalMins, visitCount, hasAnyVisit, hasPerVisitCover } = useMemo(() => {
+  // The client's configured weekly visits (the rota). When present, the contract
+  // is based on these — every call type, with exact durations, days and cover
+  // (so Sitting/Night/etc. are included and counted). Falls back to the Care
+  // Plan grid for older clients with no configured visits.
+  const rotaVisits = useMemo(() => parseVisits(serviceUser.visits), [serviceUser.visits]);
+  const useRota = rotaVisits.length > 0;
+
+  const gridStats = useMemo(() => {
     let mins = 0, count = 0, any = false, perVisit = false;
     for (const day of DAYS) for (const s of SLOTS) {
       const t = schedule[day]?.[s.key]?.trim();
@@ -160,8 +177,14 @@ export default function ContractOfCareModal({ serviceUser, onClose, startEdit, s
         mins += parseMinutes(t) * (carers ?? staffMultiplier);
       }
     }
-    return { totalMins: mins, visitCount: count, hasAnyVisit: any, hasPerVisitCover: perVisit };
+    return { mins, count, any, perVisit };
   }, [schedule, staffMultiplier]);
+  const rotaStats = useMemo(() => visitStats(rotaVisits), [rotaVisits]);
+
+  const totalMins = useRota ? rotaStats.mins : gridStats.mins;
+  const visitCount = useRota ? rotaStats.count : gridStats.count;
+  const hasAnyVisit = useRota ? true : gridStats.any;
+  const hasPerVisitCover = useRota ? rotaVisits.some((v) => visitCover(v) > 1) : gridStats.perVisit;
 
   // Care hours = visit duration × carers on that visit (already applied above).
   const totalHours = totalMins / 60;
@@ -239,23 +262,42 @@ export default function ContractOfCareModal({ serviceUser, onClose, startEdit, s
   // Pass `embed: true` to drop the on-page Print/Close toolbar for inline
   // display; everything else is identical. Values are HTML-escaped here.
   function buildContractHtml(data: ContractData, embed: boolean): string {
+    const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
     const dataStaffMultiplier = STAFF_MULTIPLIER[data.staffing] || 1;
-    let mins = 0, count = 0;
-    for (const day of DAYS) for (const s of SLOTS) {
-      const t = schedule[day]?.[s.key]?.trim();
-      if (t) { count += 1; const carers = carersInCell(t); mins += parseMinutes(t) * (carers ?? dataStaffMultiplier); }
+
+    // Prefer the client's configured weekly visits (all call types incl. Sitting,
+    // with exact durations/days/cover); fall back to the Care Plan grid.
+    let mins: number, count: number, tableHtml: string;
+    if (useRota) {
+      const stats = visitStats(rotaVisits);
+      mins = stats.mins; count = stats.count;
+      const header = `<thead><tr><th></th>${DAY_SHORT.map((dd) => `<th>${dd}</th>`).join('')}<th>Length</th></tr></thead>`;
+      const body = rotaVisits.map((v) => {
+        const cov = visitCover(v);
+        const cells = DAY_SHORT.map((_, i) => `<td class="cell">${visitIsEveryDay(v) || (v.days || []).includes(i) ? '&#9679;' : ''}</td>`).join('');
+        const nm = esc(v.type) + (cov > 1 ? ` <span style="color:#555">&times;${cov}</span>` : '');
+        return `<tr><th class="day">${nm}</th>${cells}<td class="cell">${esc(durLabel(v.duration))}</td></tr>`;
+      }).join('');
+      tableHtml = `<table class="coc">${header}<tbody>${body}</tbody></table>`;
+    } else {
+      let m = 0, c = 0;
+      for (const day of DAYS) for (const s of SLOTS) {
+        const t = schedule[day]?.[s.key]?.trim();
+        if (t) { c += 1; const carers = carersInCell(t); m += parseMinutes(t) * (carers ?? dataStaffMultiplier); }
+      }
+      mins = m; count = c;
+      const rows = DAYS.map((day) => {
+        const cells = SLOTS.map((s) => {
+          const t = schedule[day]?.[s.key]?.trim() || '';
+          return `<td class="cell">${t ? esc(t) : ''}</td>`;
+        }).join('');
+        return `<tr><th class="day">${esc(day)}</th>${cells}</tr>`;
+      }).join('');
+      tableHtml = `<table class="coc"><thead><tr><th></th>${SLOTS.map((s) => `<th>${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
     }
     const hrs = mins / 60;
     const hoursLabel = Number.isInteger(hrs) ? String(hrs) : hrs.toFixed(2);
     const visitCount = count;
-    const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
-    const rows = DAYS.map((day) => {
-      const cells = SLOTS.map((s) => {
-        const t = schedule[day]?.[s.key]?.trim() || '';
-        return `<td class="cell">${t ? esc(t) : ''}</td>`;
-      }).join('');
-      return `<tr><th class="day">${esc(day)}</th>${cells}</tr>`;
-    }).join('');
 
     // Render a signature for print. Drawn signatures print as the image; typed
     // e-signatures print as the name in the handwriting font + an "eSigned"
@@ -328,10 +370,7 @@ export default function ContractOfCareModal({ serviceUser, onClose, startEdit, s
       <h1>Contract of Care</h1>
       <div class="sub">${esc(suName)} · Printed ${esc(format(new Date(), 'dd MMM yyyy, h:mm a'))}</div>
       <p class="statement">I, <b>${esc(suName)}</b>, have agreed to the terms and conditions outlined in this contract of care. I will be receiving <b>${esc(hoursLabel)}</b> hours of care per week from <b>${esc(staffingLabel(data.staffing))}</b> staff.</p>
-      <table class="coc">
-        <thead><tr><th></th>${SLOTS.map((s) => `<th>${esc(s.label)}</th>`).join('')}</tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
+      ${tableHtml}
       <div class="totals">Total visits per week: <b>${visitCount}</b> · Total: <b>${esc(hoursLabel)} hours</b> per week</div>
       <div class="sigrow">
         ${sig('Service User Signature', data.serviceUserSig, esc(suName))}
@@ -426,14 +465,14 @@ export default function ContractOfCareModal({ serviceUser, onClose, startEdit, s
             </p>
             {hasPerVisitCover && (
               <p className="text-xs text-gray-500 -mt-2">
-                The total already includes visits marked as double/triple-up on the Care Plan (e.g. “x2 Carers”). The staffing choice above is only the default for visits that don’t state their own cover.
+                The total already includes visits marked as double/triple-up{useRota ? ' on the visit schedule' : ' on the Care Plan (e.g. “x2 Carers”)'}.{!useRota && ' The staffing choice above is only the default for visits that don’t state their own cover.'}
               </p>
             )}
 
-            {/* Weekly visits — pulled from the Care Plan */}
+            {/* Weekly visits — from the client's visit schedule (all call types) */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-gray-900">Weekly visits <span className="font-normal text-gray-400">— from the Care Plan</span></h3>
+                <h3 className="text-sm font-semibold text-gray-900">Weekly visits <span className="font-normal text-gray-400">— {useRota ? 'from the visit schedule' : 'from the Care Plan'}</span></h3>
                 <div className="text-sm text-gray-700">
                   <span className="text-gray-500">Total</span> <span className="font-bold text-blue-700">{hoursLabel} hrs/week</span>
                   <span className="text-gray-400"> · {visitCount} visit{visitCount === 1 ? '' : 's'}</span>
@@ -441,8 +480,37 @@ export default function ContractOfCareModal({ serviceUser, onClose, startEdit, s
               </div>
               {!hasAnyVisit ? (
                 <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  No weekly visits on the Care Plan yet. Add the visit times to this client's <span className="font-medium">Care Plan → Weekly Visit Profile</span> and they'll appear here automatically.
+                  No weekly visits set for this client yet. Add them on the client's <span className="font-medium">visit schedule (Edit Details)</span> and they'll appear here automatically.
                 </p>
+              ) : useRota ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr>
+                        <th className="border p-2 bg-gray-50 text-left">Visit</th>
+                        {DAY_SHORT.map((dd) => <th key={dd} className="border p-2 bg-gray-50 font-medium w-10">{dd}</th>)}
+                        <th className="border p-2 bg-gray-50 font-medium">Length</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rotaVisits.map((v, i) => {
+                        const cov = visitCover(v);
+                        return (
+                          <tr key={i}>
+                            <th className="border p-2 bg-gray-50 text-left font-medium text-gray-700">
+                              {v.type}{cov > 1 && <span className="text-purple-600 font-normal"> ×{cov}</span>}
+                            </th>
+                            {DAY_SHORT.map((_, di) => {
+                              const on = visitIsEveryDay(v) || (v.days || []).includes(di);
+                              return <td key={di} className={`border p-2 text-center ${on ? 'bg-blue-50 text-blue-700' : 'text-gray-300'}`}>{on ? '●' : ''}</td>;
+                            })}
+                            <td className="border p-2 text-center text-gray-800">{durLabel(v.duration)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-sm">
@@ -470,7 +538,11 @@ export default function ContractOfCareModal({ serviceUser, onClose, startEdit, s
                   </table>
                 </div>
               )}
-              <p className="text-xs text-gray-400 mt-1">Times and hours are taken from the Care Plan — edit them there and they update here.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {useRota
+                  ? "Visits and hours come from the client's visit schedule — edit them on the client (Edit Details)."
+                  : 'Times and hours are taken from the Care Plan — edit them there and they update here.'}
+              </p>
             </div>
 
             {/* Signatures */}
