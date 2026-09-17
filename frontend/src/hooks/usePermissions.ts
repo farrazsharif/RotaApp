@@ -19,5 +19,19 @@ export function usePermissions() {
     return isManager && managerFallback.includes(key);
   }
 
-  return { can };
+  // Mirrors the backend site-scope guard (backend/src/lib/scope.ts): a user with
+  // one or more assigned sites is "site-scoped" and may only view/edit clients in
+  // those sites; a user with no sites has org-wide access. Carers are never
+  // site-scoped. Use this to keep the UI honest — the server refuses writes to a
+  // client outside the caller's sites, so we shouldn't offer an Edit button that
+  // leads to a "This record is outside your assigned sites" failure.
+  function canAccessSite(siteId?: string | null): boolean {
+    if (!user) return false;
+    const scoped = user.role !== 'EMPLOYEE' && !!user.sites && user.sites.length > 0;
+    if (!scoped) return true;
+    if (!siteId) return false; // a client with no site is only visible org-wide
+    return user.sites!.some((s) => s.id === siteId);
+  }
+
+  return { can, canAccessSite };
 }

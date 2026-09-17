@@ -9,6 +9,7 @@ import { medicationsApi } from '../api/medications';
 import { callLogsApi } from '../api/callLogs';
 import { respiteApi, type RespitePeriod } from '../api/respite';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { format, differenceInYears, addDays } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
@@ -112,6 +113,7 @@ export default function ServiceUserDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { isManager } = useAuth();
+  const { canAccessSite } = usePermissions();
   // Each document modal tracks whether it's open and, when open, the mode it
   // was opened in (view / edit / new) so the right View/Edit/New button works.
   const [carePlanOpen, setCarePlanOpen] = useState(false);
@@ -227,6 +229,15 @@ export default function ServiceUserDetail() {
     );
   }
 
+  // A site-scoped manager can still be looking at a cached/stale record for a
+  // client outside their sites (e.g. the client was moved to another branch, or
+  // their own site access changed, after this page loaded). The server refuses
+  // every edit to such a record, so treat it as view-only: hide Edit/New and
+  // show a banner instead of letting a save fail with "This record is outside
+  // your assigned sites".
+  const outOfScope = !canAccessSite(su.siteId ?? null);
+  const canEditDocs = isManager && !outOfScope;
+
   let visits: { type: string; duration: number; days?: number[]; cover?: number }[] = [];
   try { visits = su?.visits ? JSON.parse(su.visits) : []; } catch { visits = []; }
   // A visit with no days, or all seven, runs every day; otherwise only the named days.
@@ -278,6 +289,15 @@ export default function ServiceUserDetail() {
 
   return (
     <div className="space-y-4">
+      {outOfScope && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span className="font-semibold">View only.</span>{' '}
+          {su.site?.name
+            ? <>This client is in the <span className="font-medium">{su.site.name}</span> site, which isn’t one of your assigned sites.</>
+            : <>This client has no site assigned, so only org-wide staff can edit their records.</>}{' '}
+          You can view everything here, but editing is disabled — the server won’t save changes to a client outside your sites. Ask an administrator to add this site to your access, or to assign the client to your site.
+        </div>
+      )}
       {/* Header */}
       <div>
         <button onClick={() => navigate('/service-users')} className="text-sm text-blue-600 hover:underline mb-2">← Service Users</button>
@@ -642,7 +662,7 @@ export default function ServiceUserDetail() {
                 Review {format(new Date(carePlan.reviewDate), 'dd MMM yyyy')}{reviewOverdue ? ' · overdue' : ''}
               </span>
             )}
-            <DocActions exists={!!carePlan} canEdit={isManager} startLabel="Create Care Plan" onOpen={openCarePlan} />
+            <DocActions exists={!!carePlan} canEdit={canEditDocs} startLabel="Create Care Plan" onOpen={openCarePlan} />
           </div>
         }
       >
@@ -704,7 +724,7 @@ export default function ServiceUserDetail() {
       {/* Likes & Dislikes */}
       <Section
         title="Likes & Dislikes"
-        action={<DocActions exists={!!likesDislikes} canEdit={isManager} startLabel="Add" onOpen={openLikesDislikes} />}
+        action={<DocActions exists={!!likesDislikes} canEdit={canEditDocs} startLabel="Add" onOpen={openLikesDislikes} />}
       >
         {(() => {
           let paper: { onFile?: boolean; reviewDate?: string } | null = null;
@@ -733,7 +753,7 @@ export default function ServiceUserDetail() {
       {/* Personal Service Plan */}
       <Section
         title="Personal Service Plan"
-        action={<DocActions exists={!!servicePlan} canEdit={isManager} startLabel="Start Plan" onOpen={openServicePlan} />}
+        action={<DocActions exists={!!servicePlan} canEdit={canEditDocs} startLabel="Start Plan" onOpen={openServicePlan} />}
       >
         {(() => {
           let paper: { onFile?: boolean; reviewDate?: string } | null = null;
@@ -776,7 +796,7 @@ export default function ServiceUserDetail() {
 
           <Section
             title="Support Plan"
-            action={<DocActions exists={riskAssessments.some((r) => r.type === 'SL_SUPPORT_PLAN')} canEdit={isManager} startLabel="Start" onOpen={openSlPlan} />}
+            action={<DocActions exists={riskAssessments.some((r) => r.type === 'SL_SUPPORT_PLAN')} canEdit={canEditDocs} startLabel="Start" onOpen={openSlPlan} />}
           >
             {(() => {
               const summary = riskAssessments.find((r) => r.type === 'SL_SUPPORT_PLAN');
@@ -851,7 +871,7 @@ export default function ServiceUserDetail() {
                   </p>
                 </div>
                 <div className="shrink-0">
-                  <DocActions exists={!!summary} canEdit={isManager} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
+                  <DocActions exists={!!summary} canEdit={canEditDocs} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
                 </div>
               </div>
             );
@@ -862,7 +882,7 @@ export default function ServiceUserDetail() {
       {/* Contract of Care */}
       <Section
         title="Contract of Care"
-        action={<DocActions exists={riskAssessments.some((r) => r.type === 'CONTRACT_OF_CARE')} canEdit={isManager} startLabel="Start" onOpen={openContract} />}
+        action={<DocActions exists={riskAssessments.some((r) => r.type === 'CONTRACT_OF_CARE')} canEdit={canEditDocs} startLabel="Start" onOpen={openContract} />}
       >
         {(() => {
           // The Contract of Care isn't on a review cycle — it changes only when
@@ -908,7 +928,7 @@ export default function ServiceUserDetail() {
                   </p>
                 </div>
                 <div className="shrink-0">
-                  <DocActions exists={!!summary} canEdit={isManager} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
+                  <DocActions exists={!!summary} canEdit={canEditDocs} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
                 </div>
               </div>
             );
