@@ -8,6 +8,7 @@ import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem }
 import { printRiskAssessment, buildRiskAssessmentHtml } from '../lib/riskAssessmentPrint';
 import RiskAssessmentHistory from './RiskAssessmentHistory';
 import SignatureField from './SignatureField';
+import Icon from './Icon';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import { format } from 'date-fns';
@@ -371,34 +372,34 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
           {!editing ? (
             <>
               {/* VIEW mode */}
-              <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous reviews</button>
+              <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn btn-sm gap-1.5"><Icon name="clock" /> Previous reviews</button>
               {canEdit && (
                 <>
-                  <button onClick={beginEdit} className="btn-secondary btn">✏️ Edit</button>
+                  <button onClick={beginEdit} className="btn-secondary btn btn-sm gap-1.5"><Icon name="edit" /> Edit</button>
                   <button
                     onClick={beginRenew}
-                    className={isOverdue ? 'btn text-amber-800 border-amber-400 bg-amber-50' : 'btn-secondary btn'}
+                    className={isOverdue ? 'btn btn-sm gap-1.5 text-amber-800 border border-amber-400 bg-amber-50 hover:bg-amber-100' : 'btn-secondary btn btn-sm gap-1.5'}
                   >
-                    {isOverdue ? '↻ Renew · due' : '↻ Renew'}
+                    <Icon name="renew" /> Renew{isOverdue ? ' · due' : ''}
                   </button>
                 </>
               )}
               <div className="flex-1" />
-              <button onClick={doPrint} className="btn-secondary btn">🖨 Print</button>
-              <button onClick={onClose} className="btn-secondary btn">Close</button>
+              <button onClick={doPrint} className="btn-secondary btn btn-sm gap-1.5"><Icon name="print" /> Print</button>
+              <button onClick={onClose} className="btn-secondary btn btn-sm">Close</button>
             </>
           ) : (
             <>
               {/* EDIT mode */}
-              <button onClick={cancelEdit} className="btn-secondary btn">Cancel</button>
+              <button onClick={cancelEdit} className="btn-secondary btn btn-sm">Cancel</button>
               <div className="flex-1" />
-              <button onClick={doPrint} className="btn-secondary btn">🖨 Print</button>
+              <button onClick={doPrint} className="btn-secondary btn btn-sm gap-1.5"><Icon name="print" /> Print</button>
               {renewing ? (
-                <button className="btn-primary btn" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+                <button className="btn-primary btn btn-sm" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
                   {reviewMut.isPending ? 'Saving review…' : 'Save & archive review'}
                 </button>
               ) : (
-                <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+                <button className="btn-primary btn btn-sm" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
                   {saveMut.isPending ? 'Saving…' : 'Save'}
                 </button>
               )}

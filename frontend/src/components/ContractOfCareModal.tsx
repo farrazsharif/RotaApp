@@ -8,6 +8,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { format } from 'date-fns';
 import SignatureField, { parseSignature } from './SignatureField';
+import Icon from './Icon';
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import RiskAssessmentHistory from './RiskAssessmentHistory';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
@@ -570,31 +571,31 @@ export default function ContractOfCareModal({ serviceUser, onClose, startNew }: 
           {!editing ? (
             <>
               {/* VIEW mode */}
-              <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn">🕘 Previous contracts</button>
+              <button onClick={() => setPanel((p) => (p === 'history' ? 'none' : 'history'))} className="btn-secondary btn btn-sm gap-1.5"><Icon name="clock" /> Previous contracts</button>
               {canEdit && (
                 <>
-                  <button onClick={beginEdit} className="btn-secondary btn">✏️ Edit</button>
-                  <button onClick={beginRenew} className="btn-secondary btn" title="Archive this contract and start a new one (e.g. after a visit change)">
-                    ＋ New contract
+                  <button onClick={beginEdit} className="btn-secondary btn btn-sm gap-1.5"><Icon name="edit" /> Edit</button>
+                  <button onClick={beginRenew} className="btn-secondary btn btn-sm gap-1.5" title="Archive this contract and start a new one (e.g. after a visit change)">
+                    <Icon name="plus" /> New contract
                   </button>
                 </>
               )}
               <div className="flex-1" />
-              <button onClick={() => printContract()} className="btn-secondary btn">🖨 Print</button>
-              <button onClick={onClose} className="btn-secondary btn">Close</button>
+              <button onClick={() => printContract()} className="btn-secondary btn btn-sm gap-1.5"><Icon name="print" /> Print</button>
+              <button onClick={onClose} className="btn-secondary btn btn-sm">Close</button>
             </>
           ) : (
             <>
               {/* EDIT mode */}
-              <button onClick={cancelEdit} className="btn-secondary btn">Cancel</button>
+              <button onClick={cancelEdit} className="btn-secondary btn btn-sm">Cancel</button>
               <div className="flex-1" />
-              <button onClick={() => printContract()} className="btn-secondary btn">🖨 Print</button>
+              <button onClick={() => printContract()} className="btn-secondary btn btn-sm gap-1.5"><Icon name="print" /> Print</button>
               {renewing ? (
-                <button className="btn-primary btn" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
+                <button className="btn-primary btn btn-sm" disabled={reviewMut.isPending} onClick={() => reviewMut.mutate()}>
                   {reviewMut.isPending ? 'Saving…' : 'Save new contract'}
                 </button>
               ) : (
-                <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+                <button className="btn-primary btn btn-sm" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
                   {saveMut.isPending ? 'Saving…' : 'Save'}
                 </button>
               )}
