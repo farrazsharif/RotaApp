@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { ServiceUser } from '../types';
 import { reportsApi, CribSheetRow, EcmRow, ScheduledHoursRow } from '../api/reports';
 import { sitesApi } from '../api/sites';
 import { usersApi } from '../api/users';
@@ -41,6 +43,22 @@ function presetRange(preset: TimelinePreset): { start: Date; end: Date } {
   }
 }
 
+// CQC PIR drill-down: the clients behind a category/age count, as links to
+// each client's page.
+function PirNames({ users }: { users: ServiceUser[] }) {
+  return (
+    <ul className="flex flex-wrap gap-x-4 gap-y-1">
+      {users.map((su) => (
+        <li key={su.id}>
+          <Link to={`/service-users/${su.id}`} className="text-blue-700 hover:underline">
+            {su.firstName} {su.lastName}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function Reports() {
   const [tab, setTab] = useState<Tab>('scheduled');
   const thisWeek = presetRange('This Week');
@@ -63,6 +81,8 @@ export default function Reports() {
   const [ecmRun, setEcmRun] = useState(false);
   // Hours Scheduled can group by carer (default) or by patient/client.
   const [schedGroupBy, setSchedGroupBy] = useState<'carer' | 'client'>('carer');
+  // CQC PIR: which category/age row is expanded to its name list (null = none).
+  const [pirDetail, setPirDetail] = useState<string | null>(null);
 
   function applyTimeline(preset: string) {
     setTimeline(preset as TimelinePreset);
@@ -141,13 +161,24 @@ export default function Reports() {
   // carer rows). Saved on blur; never touches the clock times.
   const [ecmNotes, setEcmNotes] = useState<Record<string, string>>({});
 
-  // CQC PIR: number of active service users in each support category
+  // CQC PIR counts genuinely-active clients only. The `active` boolean can stay
+  // true on a discharged/deceased record, so exclude those by status too; an
+  // optional location filter narrows to the selected site(s).
+  const pirUsers = activeServiceUsers.filter((su) =>
+    su.status !== 'DISCHARGED' && su.status !== 'DECEASED'
+    && (siteFilter.length === 0 || (!!su.siteId && siteFilter.includes(su.siteId))),
+  );
+  const byName = (a: ServiceUser, b: ServiceUser) =>
+    `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`);
+  // Each row carries the matching clients so it can expand to a name list
   // (a person is counted in every category that applies).
-  const categoryCounts = SUPPORT_CATEGORIES.map((category) => ({
-    category,
-    count: activeServiceUsers.filter((su) => parseCategories(su.supportCategories).includes(category)).length,
-  }));
-  // CQC PIR: number of active service users in each age bracket, from DOB.
+  const categoryCounts = SUPPORT_CATEGORIES.map((category) => {
+    const users = pirUsers
+      .filter((su) => parseCategories(su.supportCategories).includes(category))
+      .sort(byName);
+    return { category, count: users.length, users };
+  });
+  // CQC PIR: active service users in each age bracket, from DOB.
   const AGE_BANDS: { label: string; min: number; max: number }[] = [
     { label: '0 to 17 years', min: 0, max: 17 },
     { label: '18 to 24 years', min: 18, max: 24 },
@@ -158,14 +189,14 @@ export default function Reports() {
     { label: '95 years and over', min: 95, max: Infinity },
   ];
   const ageOf = (dob?: string | null) => (dob ? differenceInYears(new Date(), new Date(dob)) : null);
-  const ageBandCounts = AGE_BANDS.map((b) => ({
-    label: b.label,
-    count: activeServiceUsers.filter((su) => {
+  const ageBandCounts = AGE_BANDS.map((b) => {
+    const users = pirUsers.filter((su) => {
       const a = ageOf(su.dateOfBirth);
       return a != null && a >= b.min && a <= b.max;
-    }).length,
-  }));
-  const unknownAgeCount = activeServiceUsers.filter((su) => ageOf(su.dateOfBirth) == null).length;
+    }).sort(byName);
+    return { label: b.label, count: users.length, users };
+  });
+  const unknownAgeCount = pirUsers.filter((su) => ageOf(su.dateOfBirth) == null).length;
 
   const copyCapacity = () => {
     const text = [
@@ -513,9 +544,20 @@ export default function Reports() {
       {/* CQC PIR — support-category counts for active service users */}
       {tab === 'capacity' && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-gray-700">Active service users: {activeServiceUsers.length}</div>
-            <button onClick={copyCapacity} className="btn-secondary btn">Copy</button>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="text-sm font-semibold text-gray-700">Active service users: {pirUsers.length}</div>
+            <div className="flex items-end gap-3">
+              <div className="w-52">
+                <label className="label">Location Filter</label>
+                <MultiSelectDropdown
+                  options={sites.map((s) => ({ value: s.id, label: s.name }))}
+                  selected={siteFilter}
+                  onChange={setSiteFilter}
+                  allLabel="All Locations"
+                />
+              </div>
+              <button onClick={copyCapacity} className="btn-secondary btn">Copy</button>
+            </div>
           </div>
           <div className="card p-0 overflow-x-auto max-w-xl">
             <table className="w-full text-sm">
@@ -526,16 +568,33 @@ export default function Reports() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {categoryCounts.map((r) => (
-                  <tr key={r.category} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-800">{r.category}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-blue-600">{r.count}</td>
-                  </tr>
-                ))}
+                {categoryCounts.map((r) => {
+                  const key = `cat:${r.category}`;
+                  const open = pirDetail === key;
+                  return (
+                    <Fragment key={r.category}>
+                      <tr
+                        className={`hover:bg-gray-50 ${r.count > 0 ? 'cursor-pointer' : ''}`}
+                        onClick={() => r.count > 0 && setPirDetail(open ? null : key)}
+                      >
+                        <td className="px-4 py-3 text-gray-800">
+                          {r.count > 0 && <span className="text-gray-400 mr-1.5">{open ? '▾' : '▸'}</span>}
+                          {r.category}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-blue-600">{r.count}</td>
+                      </tr>
+                      {open && (
+                        <tr className="bg-blue-50/50">
+                          <td colSpan={2} className="px-4 py-2"><PirNames users={r.users} /></td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-gray-400">Counts include active service users only. A person is counted in every category that applies.</p>
+          <p className="text-xs text-gray-400">Active clients only (excludes end-of-care and deceased). Click a category to see who's counted. A person is counted in every category that applies.</p>
 
           <div className="pt-2">
             <div className="text-sm font-semibold text-gray-700 mb-2">Age brackets</div>
@@ -548,12 +607,29 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {ageBandCounts.map((r) => (
-                    <tr key={r.label} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-800">{r.label}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-blue-600">{r.count}</td>
-                    </tr>
-                  ))}
+                  {ageBandCounts.map((r) => {
+                    const key = `age:${r.label}`;
+                    const open = pirDetail === key;
+                    return (
+                      <Fragment key={r.label}>
+                        <tr
+                          className={`hover:bg-gray-50 ${r.count > 0 ? 'cursor-pointer' : ''}`}
+                          onClick={() => r.count > 0 && setPirDetail(open ? null : key)}
+                        >
+                          <td className="px-4 py-3 text-gray-800">
+                            {r.count > 0 && <span className="text-gray-400 mr-1.5">{open ? '▾' : '▸'}</span>}
+                            {r.label}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-blue-600">{r.count}</td>
+                        </tr>
+                        {open && (
+                          <tr className="bg-blue-50/50">
+                            <td colSpan={2} className="px-4 py-2"><PirNames users={r.users} /></td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                   <tr className="bg-gray-50 font-bold">
                     <td className="px-4 py-3">Total</td>
                     <td className="px-4 py-3 text-right text-blue-700">{ageBandCounts.reduce((s, r) => s + r.count, 0)}</td>
