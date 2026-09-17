@@ -73,7 +73,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.setItem('token', newToken);
     setToken(newToken);
-    setUser(newUser);
+    // The login payload has no effective `capabilities`, so seeding the session
+    // from it lets can() fall back to the base-role grant — which can wrongly let
+    // a custom-role user (e.g. a Field Supervisor without manage_service_users)
+    // edit a record the backend then refuses to save. Load /auth/me so the UI's
+    // edit rights match what the server will actually allow.
+    try {
+      const me = await api.get('/auth/me');
+      setUser(me.data);
+    } catch {
+      setUser(newUser);
+    }
     return null;
   }
 
@@ -82,7 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { token: newToken, user: newUser } = res.data;
     localStorage.setItem('token', newToken);
     setToken(newToken);
-    setUser(newUser);
+    try {
+      const me = await api.get('/auth/me');
+      setUser(me.data);
+    } catch {
+      setUser(newUser);
+    }
   }
 
   function logout() {
