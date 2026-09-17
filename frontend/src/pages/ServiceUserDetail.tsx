@@ -86,6 +86,8 @@ export default function ServiceUserDetail() {
   const { isManager } = useAuth();
   const [carePlanOpen, setCarePlanOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+  // When opening the contract, whether to jump straight into the "new contract" flow.
+  const [contractNew, setContractNew] = useState(false);
   const [slPlanOpen, setSlPlanOpen] = useState(false);
   const [likesDislikesOpen, setLikesDislikesOpen] = useState(false);
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
@@ -829,11 +831,25 @@ export default function ServiceUserDetail() {
       {/* Contract of Care */}
       <Section
         title="Contract of Care"
-        action={
-          <button className="btn-secondary btn btn-sm" onClick={() => setContractOpen(true)}>
-            {isManager ? (riskAssessments.some((r) => r.type === 'CONTRACT_OF_CARE') ? 'Open / Edit' : 'Start') : 'Open'}
-          </button>
-        }
+        action={(() => {
+          const hasContract = riskAssessments.some((r) => r.type === 'CONTRACT_OF_CARE');
+          return (
+            <div className="flex items-center gap-2">
+              {hasContract && (
+                <button className="btn-secondary btn btn-sm" onClick={() => { setContractNew(false); setContractOpen(true); }} title="View the current contract and all previous ones">
+                  👁 View
+                </button>
+              )}
+              {isManager ? (
+                <button className="btn-secondary btn btn-sm" onClick={() => { setContractNew(hasContract); setContractOpen(true); }} title={hasContract ? 'Archive the current contract and start a new one' : 'Create the contract of care'}>
+                  {hasContract ? '＋ New' : 'Start'}
+                </button>
+              ) : (!hasContract && (
+                <button className="btn-secondary btn btn-sm" onClick={() => { setContractNew(false); setContractOpen(true); }}>Open</button>
+              ))}
+            </div>
+          );
+        })()}
       >
         {(() => {
           // The Contract of Care isn't on a review cycle — it changes only when
@@ -963,7 +979,7 @@ export default function ServiceUserDetail() {
       )}
 
       {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
-      {contractOpen && <ContractOfCareModal serviceUser={su} onClose={() => setContractOpen(false)} />}
+      {contractOpen && <ContractOfCareModal serviceUser={su} startNew={contractNew} onClose={() => { setContractOpen(false); setContractNew(false); }} />}
       {slPlanOpen && <SupportedLivingPlanModal serviceUser={su} onClose={() => setSlPlanOpen(false)} />}
       {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}
       {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}
