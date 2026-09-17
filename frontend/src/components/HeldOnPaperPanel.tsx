@@ -15,7 +15,7 @@ export interface PaperMeta {
 // just the essentials (date completed, review due, assessor) without filling in
 // the whole form. Used by the Risk Assessment, Service Plan and Support Plan
 // modals.
-export default function HeldOnPaperPanel({ meta, ro, onChange, docExists }: {
+export default function HeldOnPaperPanel({ meta, ro, onChange, docExists, showReview = true }: {
   meta: PaperMeta;
   ro: boolean;
   onChange: (patch: PaperMeta) => void;
@@ -24,6 +24,9 @@ export default function HeldOnPaperPanel({ meta, ro, onChange, docExists }: {
   // banner is only a bootstrap for a brand-new, empty document, so it's hidden
   // as soon as the record exists.
   docExists?: boolean;
+  // Some documents aren't on a review cycle (e.g. Contract of Care changes only
+  // when the visits change). Pass false to drop the next-review date entirely.
+  showReview?: boolean;
 }) {
   // Also latch on a captured paper date: the parent seeds `meta` from the server
   // in one shot AFTER the async load, so we can't just read it at mount (it's
@@ -52,10 +55,11 @@ export default function HeldOnPaperPanel({ meta, ro, onChange, docExists }: {
   };
 
   // Entering the completed date auto-fills the next review a year on (the yearly
-  // cycle) unless the user has set their own review date.
+  // cycle) unless the user has set their own review date — skipped for documents
+  // with no review cycle.
   const onCompleted = (c: string) => {
     const patch: PaperMeta = { completedDate: c };
-    if (c && !reviewTouched.current) patch.reviewDate = addYear(c);
+    if (showReview && c && !reviewTouched.current) patch.reviewDate = addYear(c);
     onChange(patch);
   };
 
@@ -73,31 +77,33 @@ export default function HeldOnPaperPanel({ meta, ro, onChange, docExists }: {
         📄 This is held on paper (scan attached in Documents)
       </label>
       {meta.onFile && (
-        <div className="grid gap-3 sm:grid-cols-3 mt-3">
+        <div className={`grid gap-3 mt-3 ${showReview ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
           <div>
             <label className="label">Date completed</label>
             {ro ? <p className="text-sm text-gray-800">{meta.completedDate ? format(new Date(meta.completedDate), 'dd MMM yyyy') : '—'}</p>
                 : <input type="date" value={meta.completedDate || ''} onChange={(e) => onCompleted(e.target.value)} className="input text-sm" />}
           </div>
-          <div>
-            <label className="label">Next review date</label>
-            {ro ? <p className="text-sm text-gray-800">{meta.reviewDate ? format(new Date(meta.reviewDate), 'dd MMM yyyy') : '—'}</p>
-                : <input type="date" value={meta.reviewDate || ''} onChange={(e) => { reviewTouched.current = true; onChange({ reviewDate: e.target.value }); }} className="input text-sm" />}
-            {!ro && <p className="text-[11px] text-gray-500 mt-1">Auto-set to a year after the completed date — change it if needed.</p>}
-          </div>
+          {showReview && (
+            <div>
+              <label className="label">Next review date</label>
+              {ro ? <p className="text-sm text-gray-800">{meta.reviewDate ? format(new Date(meta.reviewDate), 'dd MMM yyyy') : '—'}</p>
+                  : <input type="date" value={meta.reviewDate || ''} onChange={(e) => { reviewTouched.current = true; onChange({ reviewDate: e.target.value }); }} className="input text-sm" />}
+              {!ro && <p className="text-[11px] text-gray-500 mt-1">Auto-set to a year after the completed date — change it if needed.</p>}
+            </div>
+          )}
           <div>
             <label className="label">Assessor</label>
             {ro ? <p className="text-sm text-gray-800">{meta.assessor || '—'}</p>
                 : <input type="text" value={meta.assessor || ''} onChange={(e) => onChange({ assessor: e.target.value })} className="input text-sm" placeholder="Name of assessor" />}
           </div>
-          <div className="sm:col-span-3 flex flex-wrap items-center gap-3">
-            {!ro && (
+          <div className={`flex flex-wrap items-center gap-3 ${showReview ? 'sm:col-span-3' : 'sm:col-span-2'}`}>
+            {!ro && showReview && (
               <button type="button" onClick={renew} className="btn-secondary btn btn-sm shrink-0" title="Mark reviewed today and set the next review a year on">
                 ↻ Renew — reviewed today
               </button>
             )}
             <p className="text-xs text-gray-500 flex-1 min-w-[12rem]">
-              Attach the scanned form on the client's <span className="font-medium">Documents</span> tab.{!ro && ' “Renew” sets today as completed and the review a year on — then Save.'}
+              Attach the scanned form on the client's <span className="font-medium">Documents</span> tab.{!ro && showReview && ' “Renew” sets today as completed and the review a year on — then Save.'}
             </p>
           </div>
         </div>

@@ -836,13 +836,14 @@ export default function ServiceUserDetail() {
         }
       >
         {(() => {
+          // The Contract of Care isn't on a review cycle — it changes only when
+          // the visits/times change (make a new contract), so no review date.
           const summary = riskAssessments.find((r) => r.type === 'CONTRACT_OF_CARE');
-          const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
           if (summary?.onFile) {
             return (
-              <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+              <p className="text-sm text-gray-500">
                 <span className="badge-gray badge mr-2">📄 On file</span>
-                Held on paper{summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}
+                Held on paper{summary.completedDate ? ` · dated ${format(new Date(summary.completedDate), 'dd MMM yyyy')}` : ''}
               </p>
             );
           }

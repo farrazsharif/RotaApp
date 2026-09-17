@@ -132,7 +132,12 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   };
   for (const c of carePlans) add(c.serviceUserId, c.serviceUser, 'Care Plan', c.reviewDate);
   for (const r of reviews) add(r.serviceUserId, r.serviceUser, 'Service review', r.nextReviewDate);
-  for (const ra of riskAssessments) add(ra.serviceUserId, ra.serviceUser, RA_LABEL[ra.type] || 'Assessment', paperReview(ra.data, true));
+  // Contract of Care is deliberately excluded — it isn't on a review cycle (it
+  // changes only when the visits/times change, via a new contract).
+  for (const ra of riskAssessments) {
+    if (ra.type === 'CONTRACT_OF_CARE') continue;
+    add(ra.serviceUserId, ra.serviceUser, RA_LABEL[ra.type] || 'Assessment', paperReview(ra.data, true));
+  }
   for (const sp of servicePlans) add(sp.serviceUserId, sp.serviceUser, 'Personal Service Plan', paperReview(sp.data, true));
   for (const ld of likesDislikes) add(ld.serviceUserId, ld.serviceUser, 'Likes & Dislikes', paperReview(ld.paperMeta, false));
   renewals.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
