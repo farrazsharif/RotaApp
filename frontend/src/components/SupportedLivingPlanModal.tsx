@@ -30,9 +30,9 @@ const emptyDomain = (): DomainVal => ({ applies: false, level: '', current: '', 
 interface PlanData { summary: string; domains: Record<string, DomainVal>; __paper?: PaperMeta }
 const emptyPlan = (): PlanData => ({ summary: '', domains: {} });
 
-interface Props { serviceUser: ServiceUser; onClose: () => void }
+interface Props { serviceUser: ServiceUser; onClose: () => void; startEdit?: boolean; startNew?: boolean }
 
-export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props) {
+export default function SupportedLivingPlanModal({ serviceUser, onClose, startEdit, startNew }: Props) {
   const canEdit = usePermissions().can('manage_service_users');
   const qc = useQueryClient();
   const [plan, setPlan] = useState<PlanData>(emptyPlan());
@@ -75,8 +75,10 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose }: Props
   useEffect(() => {
     if (isLoading || didInitEdit.current) return;
     didInitEdit.current = true;
-    if (canEdit && !record) setEditing(true);
-  }, [isLoading, record, canEdit]);
+    if (canEdit && record && startNew) { setRenewing(true); setEditing(true); }
+    else if (canEdit && record && startEdit) setEditing(true);
+    else if (canEdit && !record) setEditing(true);
+  }, [isLoading, record, canEdit, startEdit, startNew]);
 
   const beginEdit = () => { setRenewing(false); setEditing(true); setPanel('none'); };
   const beginRenew = () => { setRenewing(true); setEditing(true); setPanel('none'); };

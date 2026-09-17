@@ -34,6 +34,34 @@ import ServiceUserNotes from '../components/ServiceUserNotes';
 import RespiteSection from '../components/RespiteSection';
 import { computeServiceUserDocs, missingDocLabels, type DocKey } from '../lib/serviceUserDocuments';
 import { siteTintStyle } from '../lib/siteColor';
+import Icon from '../components/Icon';
+
+type DocMode = 'view' | 'edit' | 'new';
+
+// Standard action buttons for a document section: View / Edit / New when the
+// document exists, or a single Start/Create when it doesn't. New = archive the
+// current one as a dated copy and start a fresh version (keeps full history).
+function DocActions({ exists, canEdit, startLabel, onOpen }: {
+  exists: boolean;
+  canEdit: boolean;
+  startLabel: string;
+  onOpen: (mode: DocMode) => void;
+}) {
+  if (!exists) {
+    return (
+      <button className="btn-secondary btn btn-sm" onClick={() => onOpen(canEdit ? 'new' : 'view')}>
+        {canEdit ? startLabel : 'Open'}
+      </button>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <button className="btn-secondary btn btn-sm gap-1.5" onClick={() => onOpen('view')}><Icon name="eye" /> View</button>
+      {canEdit && <button className="btn-secondary btn btn-sm gap-1.5" onClick={() => onOpen('edit')}><Icon name="edit" /> Edit</button>}
+      {canEdit && <button className="btn-secondary btn btn-sm gap-1.5" onClick={() => onOpen('new')} title="Archive this as a dated copy and start a new version"><Icon name="plus" /> New</button>}
+    </div>
+  );
+}
 
 const durationLabel = (m: number) =>
   m >= 60 ? `${m / 60} hr${m > 60 ? 's' : ''}${m % 60 ? ` ${m % 60}m` : ''}` : `${m} mins`;
@@ -84,14 +112,27 @@ export default function ServiceUserDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { isManager } = useAuth();
+  // Each document modal tracks whether it's open and, when open, the mode it
+  // was opened in (view / edit / new) so the right View/Edit/New button works.
   const [carePlanOpen, setCarePlanOpen] = useState(false);
+  const [carePlanMode, setCarePlanMode] = useState<DocMode>('view');
   const [contractOpen, setContractOpen] = useState(false);
-  // When opening the contract, whether to jump straight into the "new contract" flow.
-  const [contractNew, setContractNew] = useState(false);
+  const [contractMode, setContractMode] = useState<DocMode>('view');
   const [slPlanOpen, setSlPlanOpen] = useState(false);
+  const [slPlanMode, setSlPlanMode] = useState<DocMode>('view');
   const [likesDislikesOpen, setLikesDislikesOpen] = useState(false);
+  const [likesDislikesMode, setLikesDislikesMode] = useState<DocMode>('view');
   const [servicePlanOpen, setServicePlanOpen] = useState(false);
+  const [servicePlanMode, setServicePlanMode] = useState<DocMode>('view');
   const [raType, setRaType] = useState<string | null>(null);
+  const [raMode, setRaMode] = useState<DocMode>('view');
+  // Open a document modal in a given mode via one helper per doc.
+  const openCarePlan = (m: DocMode) => { setCarePlanMode(m); setCarePlanOpen(true); };
+  const openContract = (m: DocMode) => { setContractMode(m); setContractOpen(true); };
+  const openSlPlan = (m: DocMode) => { setSlPlanMode(m); setSlPlanOpen(true); };
+  const openLikesDislikes = (m: DocMode) => { setLikesDislikesMode(m); setLikesDislikesOpen(true); };
+  const openServicePlan = (m: DocMode) => { setServicePlanMode(m); setServicePlanOpen(true); };
+  const openRa = (type: string, m: DocMode) => { setRaMode(m); setRaType(type); };
   const [emarOpen, setEmarOpen] = useState(false);
   const [marChartOpen, setMarChartOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -225,13 +266,13 @@ export default function ServiceUserDetail() {
   // scrolls to that section rather than guessing which one to start.
   const openDoc = (key: DocKey) => {
     switch (key) {
-      case 'CARE_PLAN': setCarePlanOpen(true); break;
+      case 'CARE_PLAN': openCarePlan('new'); break;
       case 'RISK_ASSESSMENT': document.getElementById('doc-risk-assessments')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
-      case 'PERSONAL_SERVICE_PLAN': setServicePlanOpen(true); break;
-      case 'ONE_PAGE_PROFILE': setRaType('ONE_PAGE_PROFILE'); break;
-      case 'LIKES_DISLIKES': setLikesDislikesOpen(true); break;
-      case 'CONTRACT_OF_CARE': setContractOpen(true); break;
-      case 'SUPPORT_PLAN': setSlPlanOpen(true); break;
+      case 'PERSONAL_SERVICE_PLAN': openServicePlan('new'); break;
+      case 'ONE_PAGE_PROFILE': openRa('ONE_PAGE_PROFILE', 'new'); break;
+      case 'LIKES_DISLIKES': openLikesDislikes('new'); break;
+      case 'CONTRACT_OF_CARE': openContract('new'); break;
+      case 'SUPPORT_PLAN': openSlPlan('new'); break;
     }
   };
 
@@ -601,9 +642,7 @@ export default function ServiceUserDetail() {
                 Review {format(new Date(carePlan.reviewDate), 'dd MMM yyyy')}{reviewOverdue ? ' · overdue' : ''}
               </span>
             )}
-            <button className="btn-secondary btn btn-sm" onClick={() => setCarePlanOpen(true)}>
-              {isManager ? (carePlan ? 'Edit Care Plan' : 'Create Care Plan') : 'Open'}
-            </button>
+            <DocActions exists={!!carePlan} canEdit={isManager} startLabel="Create Care Plan" onOpen={openCarePlan} />
           </div>
         }
       >
@@ -665,11 +704,7 @@ export default function ServiceUserDetail() {
       {/* Likes & Dislikes */}
       <Section
         title="Likes & Dislikes"
-        action={
-          <button className="btn-secondary btn btn-sm" onClick={() => setLikesDislikesOpen(true)}>
-            {isManager ? (likesDislikes ? 'Edit' : 'Add') : 'Open'}
-          </button>
-        }
+        action={<DocActions exists={!!likesDislikes} canEdit={isManager} startLabel="Add" onOpen={openLikesDislikes} />}
       >
         {(() => {
           let paper: { onFile?: boolean; reviewDate?: string } | null = null;
@@ -698,11 +733,7 @@ export default function ServiceUserDetail() {
       {/* Personal Service Plan */}
       <Section
         title="Personal Service Plan"
-        action={
-          <button className="btn-secondary btn btn-sm" onClick={() => setServicePlanOpen(true)}>
-            {isManager ? (servicePlan ? 'Open / Edit' : 'Start Plan') : 'Open'}
-          </button>
-        }
+        action={<DocActions exists={!!servicePlan} canEdit={isManager} startLabel="Start Plan" onOpen={openServicePlan} />}
       >
         {(() => {
           let paper: { onFile?: boolean; reviewDate?: string } | null = null;
@@ -745,7 +776,7 @@ export default function ServiceUserDetail() {
 
           <Section
             title="Support Plan"
-            action={<button className="btn-secondary btn btn-sm" onClick={() => setSlPlanOpen(true)}>{isManager ? 'Open / Edit' : 'Open'}</button>}
+            action={<DocActions exists={riskAssessments.some((r) => r.type === 'SL_SUPPORT_PLAN')} canEdit={isManager} startLabel="Start" onOpen={openSlPlan} />}
           >
             {(() => {
               const summary = riskAssessments.find((r) => r.type === 'SL_SUPPORT_PLAN');
@@ -819,9 +850,9 @@ export default function ServiceUserDetail() {
                         : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
                   </p>
                 </div>
-                <button className="btn-secondary btn btn-sm shrink-0" onClick={() => setRaType(t.type)}>
-                  {isManager ? (summary ? 'Open / Edit' : 'Start') : 'Open'}
-                </button>
+                <div className="shrink-0">
+                  <DocActions exists={!!summary} canEdit={isManager} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
+                </div>
               </div>
             );
           })}
@@ -831,25 +862,7 @@ export default function ServiceUserDetail() {
       {/* Contract of Care */}
       <Section
         title="Contract of Care"
-        action={(() => {
-          const hasContract = riskAssessments.some((r) => r.type === 'CONTRACT_OF_CARE');
-          return (
-            <div className="flex items-center gap-2">
-              {hasContract && (
-                <button className="btn-secondary btn btn-sm" onClick={() => { setContractNew(false); setContractOpen(true); }} title="View the current contract and all previous ones">
-                  👁 View
-                </button>
-              )}
-              {isManager ? (
-                <button className="btn-secondary btn btn-sm" onClick={() => { setContractNew(hasContract); setContractOpen(true); }} title={hasContract ? 'Archive the current contract and start a new one' : 'Create the contract of care'}>
-                  {hasContract ? '＋ New' : 'Start'}
-                </button>
-              ) : (!hasContract && (
-                <button className="btn-secondary btn btn-sm" onClick={() => { setContractNew(false); setContractOpen(true); }}>Open</button>
-              ))}
-            </div>
-          );
-        })()}
+        action={<DocActions exists={riskAssessments.some((r) => r.type === 'CONTRACT_OF_CARE')} canEdit={isManager} startLabel="Start" onOpen={openContract} />}
       >
         {(() => {
           // The Contract of Care isn't on a review cycle — it changes only when
@@ -894,9 +907,9 @@ export default function ServiceUserDetail() {
                         : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
                   </p>
                 </div>
-                <button className="btn-secondary btn btn-sm shrink-0" onClick={() => setRaType(t.type)}>
-                  {isManager ? (summary ? 'Open / Edit' : 'Start') : 'Open'}
-                </button>
+                <div className="shrink-0">
+                  <DocActions exists={!!summary} canEdit={isManager} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
+                </div>
               </div>
             );
           })}
@@ -978,12 +991,12 @@ export default function ServiceUserDetail() {
         </div>
       )}
 
-      {carePlanOpen && <CarePlanModal serviceUser={su} onClose={() => setCarePlanOpen(false)} />}
-      {contractOpen && <ContractOfCareModal serviceUser={su} startNew={contractNew} onClose={() => { setContractOpen(false); setContractNew(false); }} />}
-      {slPlanOpen && <SupportedLivingPlanModal serviceUser={su} onClose={() => setSlPlanOpen(false)} />}
-      {likesDislikesOpen && <LikesDislikesModal serviceUser={su} onClose={() => setLikesDislikesOpen(false)} />}
-      {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} onClose={() => setServicePlanOpen(false)} />}
-      {raType && FORM_BY_TYPE[raType] && <RiskAssessmentModal serviceUser={su} form={FORM_BY_TYPE[raType]} onClose={() => setRaType(null)} />}
+      {carePlanOpen && <CarePlanModal serviceUser={su} startEdit={carePlanMode === 'edit'} startNew={carePlanMode === 'new'} onClose={() => setCarePlanOpen(false)} />}
+      {contractOpen && <ContractOfCareModal serviceUser={su} startEdit={contractMode === 'edit'} startNew={contractMode === 'new'} onClose={() => setContractOpen(false)} />}
+      {slPlanOpen && <SupportedLivingPlanModal serviceUser={su} startEdit={slPlanMode === 'edit'} startNew={slPlanMode === 'new'} onClose={() => setSlPlanOpen(false)} />}
+      {likesDislikesOpen && <LikesDislikesModal serviceUser={su} startEdit={likesDislikesMode === 'edit'} startNew={likesDislikesMode === 'new'} onClose={() => setLikesDislikesOpen(false)} />}
+      {servicePlanOpen && <PersonalServicePlanModal serviceUser={su} startEdit={servicePlanMode === 'edit'} startNew={servicePlanMode === 'new'} onClose={() => setServicePlanOpen(false)} />}
+      {raType && FORM_BY_TYPE[raType] && <RiskAssessmentModal serviceUser={su} form={FORM_BY_TYPE[raType]} startEdit={raMode === 'edit'} startNew={raMode === 'new'} onClose={() => setRaType(null)} />}
       {emarOpen && <EmarModal serviceUser={su} onClose={() => setEmarOpen(false)} />}
       {marChartOpen && <MarChartModal serviceUser={su} onClose={() => setMarChartOpen(false)} />}
       {logsOpen && <CallLogsModal serviceUser={su} onClose={() => setLogsOpen(false)} />}

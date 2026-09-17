@@ -14,6 +14,8 @@ import AutoGrowTextarea from './AutoGrowTextarea';
 interface Props {
   serviceUser: ServiceUser;
   onClose: () => void;
+  startEdit?: boolean; // open directly into edit mode
+  startNew?: boolean;  // open into the renew flow (archive current + new version)
 }
 
 interface FormState {
@@ -43,7 +45,7 @@ const FIELDS: { key: keyof FormState; label: string }[] = [
   { key: 'badDay', label: 'What Makes a Bad Day for Me' },
 ];
 
-export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
+export default function LikesDislikesModal({ serviceUser, onClose, startEdit, startNew }: Props) {
   // Edit rights follow the actual capability, not the coarse base-role
   // "manager" flag — a custom manager role (e.g. Field Supervisor) that holds
   // manage_service_users can edit even though their base role isn't MANAGER.
@@ -94,8 +96,10 @@ export default function LikesDislikesModal({ serviceUser, onClose }: Props) {
   useEffect(() => {
     if (isLoading || didInitEdit.current) return;
     didInitEdit.current = true;
-    if (canEdit && !record) setEditing(true);
-  }, [isLoading, record, canEdit]);
+    if (canEdit && record && startNew) { setRenewing(true); setEditing(true); }
+    else if (canEdit && record && startEdit) setEditing(true);
+    else if (canEdit && !record) setEditing(true);
+  }, [isLoading, record, canEdit, startEdit, startNew]);
 
   // Overdue = the held-on-paper next-review date is set and in the past.
   const isOverdue = !!paper.reviewDate && new Date(paper.reviewDate) < new Date();

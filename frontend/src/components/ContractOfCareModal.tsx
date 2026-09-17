@@ -104,12 +104,13 @@ const emptyData = (): ContractData => ({
 interface Props {
   serviceUser: ServiceUser;
   onClose: () => void;
-  // Open straight into the "new contract" flow (archive the current one, edit a
-  // fresh copy) instead of the read-only view.
+  // Open straight into edit mode, or the "new contract" flow (archive the
+  // current one, edit a fresh copy), instead of the read-only view.
+  startEdit?: boolean;
   startNew?: boolean;
 }
 
-export default function ContractOfCareModal({ serviceUser, onClose, startNew }: Props) {
+export default function ContractOfCareModal({ serviceUser, onClose, startEdit, startNew }: Props) {
   const { user } = useAuth();
   const canEdit = usePermissions().can('manage_service_users');
   const qc = useQueryClient();
@@ -193,9 +194,10 @@ export default function ContractOfCareModal({ serviceUser, onClose, startNew }: 
     didInitEdit.current = true;
     // Open into the new-contract flow if asked (archive current + edit a fresh
     // copy); otherwise a brand-new record opens straight in edit.
-    if (canEdit && startNew && record) { setRenewing(true); setEditing(true); }
-    else if (canEdit && (startNew || !record)) setEditing(true);
-  }, [isLoading, record, canEdit, startNew]);
+    if (canEdit && record && startNew) { setRenewing(true); setEditing(true); }
+    else if (canEdit && record && startEdit) setEditing(true);
+    else if (canEdit && (startNew || startEdit || !record)) setEditing(true);
+  }, [isLoading, record, canEdit, startEdit, startNew]);
 
   const beginEdit = () => { setRenewing(false); setEditing(true); setPanel('none'); };
   // "New contract": archive the current one as a dated copy, then edit a fresh

@@ -17,6 +17,8 @@ import { format } from 'date-fns';
 interface Props {
   serviceUser: ServiceUser;
   onClose: () => void;
+  startEdit?: boolean; // open directly into edit mode
+  startNew?: boolean;  // open into the renew flow (archive current + new version)
 }
 
 type YnVal = { v: '' | 'YES' | 'NO'; comment: string; action?: string };
@@ -32,7 +34,7 @@ type EquipVal = {
   make: string; model: string; serviceNo: string; lastService: string; nextDue: string;
 };
 
-export default function PersonalServicePlanModal({ serviceUser, onClose }: Props) {
+export default function PersonalServicePlanModal({ serviceUser, onClose, startEdit, startNew }: Props) {
   const canEdit = usePermissions().can('manage_service_users');
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -77,8 +79,10 @@ export default function PersonalServicePlanModal({ serviceUser, onClose }: Props
   useEffect(() => {
     if (isLoading || didInitEdit.current) return;
     didInitEdit.current = true;
-    if (canEdit && !plan) setEditing(true);
-  }, [isLoading, plan, canEdit]);
+    if (canEdit && plan && startNew) { setRenewing(true); setEditing(true); }
+    else if (canEdit && plan && startEdit) setEditing(true);
+    else if (canEdit && !plan) setEditing(true);
+  }, [isLoading, plan, canEdit, startEdit, startNew]);
 
   const beginEdit = () => { setRenewing(false); setEditing(true); setPanel('none'); };
   const beginRenew = () => { setRenewing(true); setEditing(true); setPanel('none'); };

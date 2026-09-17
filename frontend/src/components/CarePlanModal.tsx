@@ -15,6 +15,8 @@ import FormSection from './form/FormSection';
 interface Props {
   serviceUser: ServiceUser;
   onClose: () => void;
+  startEdit?: boolean; // open directly into edit mode
+  startNew?: boolean;  // open into the renew flow (archive current + new version)
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
@@ -67,7 +69,7 @@ const TASK_FIELDS: { key: keyof FormState; label: string }[] = [
   { key: 'tasksBed', label: 'Bed' },
 ];
 
-export default function CarePlanModal({ serviceUser, onClose }: Props) {
+export default function CarePlanModal({ serviceUser, onClose, startEdit, startNew }: Props) {
   const canEdit = usePermissions().can('manage_service_users');
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -121,9 +123,11 @@ export default function CarePlanModal({ serviceUser, onClose }: Props) {
     if (isLoading || didInitEdit.current) return;
     didInitEdit.current = true;
     // A brand-new plan is completed today, so pre-fill the next review a year on
-    // (editable). The manager gets the review date without hand-typing it.
-    if (canEdit && !plan) { setEditing(true); setForm((f) => (f.reviewDate ? f : { ...f, reviewDate: oneYearFromToday() })); }
-  }, [isLoading, plan, canEdit]);
+    // (editable). "New" (renew) also advances the review a year on.
+    if (canEdit && plan && startNew) { setRenewing(true); setEditing(true); setForm((f) => ({ ...f, reviewDate: oneYearFromToday() })); }
+    else if (canEdit && plan && startEdit) setEditing(true);
+    else if (canEdit && !plan) { setEditing(true); setForm((f) => (f.reviewDate ? f : { ...f, reviewDate: oneYearFromToday() })); }
+  }, [isLoading, plan, canEdit, startEdit, startNew]);
 
   const beginEdit = () => { setRenewing(false); setEditing(true); setPanel('none'); };
   // Renewing = reviewed today, so advance the next review a year on by default.

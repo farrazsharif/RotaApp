@@ -17,6 +17,8 @@ interface Props {
   serviceUser: ServiceUser;
   form: RaForm;
   onClose: () => void;
+  startEdit?: boolean; // open directly into edit mode
+  startNew?: boolean;  // open into the renew flow (archive current + new version)
 }
 
 const LEVELS: { v: RiskVal['level']; label: string; on: string }[] = [
@@ -31,7 +33,7 @@ const HML: { v: HazardVal['level']; label: string; on: string }[] = [
   { v: 'H', label: 'High', on: 'bg-red-600 text-white border-red-600' },
 ];
 
-export default function RiskAssessmentModal({ serviceUser, form, onClose }: Props) {
+export default function RiskAssessmentModal({ serviceUser, form, onClose, startEdit, startNew }: Props) {
   const canEdit = usePermissions().can('manage_service_users');
   const qc = useQueryClient();
   const [values, setValues] = useState<Record<string, unknown>>({});
@@ -71,8 +73,10 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose }: Prop
   useEffect(() => {
     if (isLoading || didInitEdit.current) return;
     didInitEdit.current = true;
-    if (canEdit && !ra) setEditing(true);
-  }, [isLoading, ra, canEdit]);
+    if (canEdit && ra && startNew) { setRenewing(true); setEditing(true); }
+    else if (canEdit && ra && startEdit) setEditing(true);
+    else if (canEdit && !ra) setEditing(true);
+  }, [isLoading, ra, canEdit, startEdit, startNew]);
 
   const beginEdit = () => { setRenewing(false); setEditing(true); setPanel('none'); };
   const beginRenew = () => { setRenewing(true); setEditing(true); setPanel('none'); };
