@@ -559,7 +559,7 @@ export default function Schedule() {
 
       {/* Row 1: navigation + view + add */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex">
             <button className="btn-secondary btn btn-sm rounded-r-none" onClick={() => shiftBy(-1)} aria-label="Previous">‹</button>
             <button className="btn-secondary btn btn-sm rounded-l-none border-l-0 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => shiftBy(1)} disabled={atFutureCap} title={atFutureCap ? 'The schedule only shows up to 2 months ahead' : undefined} aria-label="Next">›</button>
@@ -578,13 +578,13 @@ export default function Schedule() {
           </div>
           <span className="font-semibold text-gray-800 ml-1">{title}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm">
             {VIEW_TABS.map((t) => (
               <button
                 key={t.k}
                 onClick={() => { setViewKey(t.k); }}
-                className={`px-3 py-1.5 border-l first:border-l-0 border-gray-200 ${viewKey === t.k ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                className={`px-2.5 sm:px-3 py-1.5 border-l first:border-l-0 border-gray-200 ${viewKey === t.k ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
               >
                 {t.label}
               </button>
