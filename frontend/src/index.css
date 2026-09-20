@@ -77,6 +77,11 @@
   .badge-purple { @apply badge bg-purple-100 text-purple-800; }
 }
 
+/* Hide the scrollbar on horizontally-scrollable strips (e.g. the mobile tab
+   rails) while keeping them scrollable. */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* DOM printing (Grab Sheet, on-page reports): show only the printable region,
    nothing else — so the company letterhead + form print without the app chrome. */
 @media print {

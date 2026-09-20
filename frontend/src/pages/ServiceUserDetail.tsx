@@ -57,9 +57,9 @@ function DocActions({ exists, canEdit, startLabel, onOpen }: {
   }
   return (
     <div className="flex items-center gap-2">
-      <button className="btn-secondary btn btn-sm gap-1.5" onClick={() => onOpen('view')}><Icon name="eye" /> View</button>
-      {canEdit && <button className="btn-secondary btn btn-sm gap-1.5" onClick={() => onOpen('edit')}><Icon name="edit" /> Edit</button>}
-      {canEdit && <button className="btn-secondary btn btn-sm gap-1.5" onClick={() => onOpen('new')} title="Archive this as a dated copy and start a new version"><Icon name="plus" /> New</button>}
+      <button className="btn-secondary btn btn-sm gap-1.5" onClick={() => onOpen('view')} title="View"><Icon name="eye" /><span className="hidden sm:inline">View</span></button>
+      {canEdit && <button className="btn-secondary btn btn-sm gap-1.5" onClick={() => onOpen('edit')} title="Edit"><Icon name="edit" /><span className="hidden sm:inline">Edit</span></button>}
+      {canEdit && <button className="btn-secondary btn btn-sm gap-1.5" onClick={() => onOpen('new')} title="Archive this as a dated copy and start a new version"><Icon name="plus" /><span className="hidden sm:inline">New</span></button>}
     </div>
   );
 }
@@ -305,7 +305,7 @@ export default function ServiceUserDetail() {
           <div className="flex items-start gap-4">
             <Avatar photo={su.photo} firstName={su.firstName} lastName={su.lastName} size="lg" />
             <div>
-            <h1 className="text-2xl font-bold text-gray-900">{su.title ? `${su.title} ` : ''}{su.firstName} {su.lastName}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{su.title ? `${su.title} ` : ''}{su.firstName} {su.lastName}</h1>
             <p className="text-sm text-gray-500">
               {su.preferredName && `“${su.preferredName}” · `}
               {su.dateOfBirth && `${differenceInYears(new Date(), new Date(su.dateOfBirth))} yrs · DOB ${format(new Date(su.dateOfBirth), 'dd MMM yyyy')}`}

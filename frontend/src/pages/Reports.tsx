@@ -447,8 +447,8 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+    <div className="space-y-4 sm:space-y-6">
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Reports</h1>
 
       {/* Filters + Search — not relevant to the caseload Capacity tab or the
           self-contained Rota tab (which has its own carer + date controls). */}
@@ -524,13 +524,14 @@ export default function Reports() {
       </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+      {/* Tabs — on a phone this becomes a single swipeable strip instead of a
+          block that overflows the screen; unchanged on desktop. */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit max-w-full overflow-x-auto no-scrollbar">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === t.key ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
