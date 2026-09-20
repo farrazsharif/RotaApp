@@ -444,7 +444,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
 
-        <form onSubmit={onSave} className="p-6 space-y-4 overflow-y-auto">
+        <form onSubmit={onSave} className="p-6 space-y-4 overflow-y-auto overflow-x-hidden">
           {error && (
             <div className="bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">
               {error.response?.data?.error || 'An error occurred'}
@@ -866,9 +866,9 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
         </div>
 
         <form onSubmit={onSave} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-y-auto overflow-x-hidden lg:overflow-hidden">
             {/* Left: shift details */}
-            <div className="w-1/2 p-6 space-y-4 overflow-y-auto border-r">
+            <div className="w-full lg:w-1/2 p-6 space-y-4 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r">
               {error && (
                 <div className="bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">
                   {error.response?.data?.error || 'An error occurred'}
@@ -1047,7 +1047,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
             </div>
 
             {/* Right: employee assignment */}
-            <div className="w-1/2 p-6 space-y-4 overflow-y-auto">
+            <div className="w-full lg:w-1/2 p-6 space-y-4 lg:overflow-y-auto">
               <div>
                 <h3 className="font-semibold text-gray-900">Carer Assignment</h3>
                 <p className="text-xs text-gray-500">{assignedIds.length} of {cover} slot{cover > 1 ? 's' : ''} filled</p>
