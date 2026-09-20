@@ -573,6 +573,29 @@ function OrganisationTab() {
         </select>
       </div>
 
+      <div className="border-t border-gray-100 pt-4">
+        <label className="label">Shift swaps (cover)</label>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            className="h-4 w-4 mt-0.5 accent-blue-600"
+            checked={s.handoversEnabled !== false}
+            onChange={(e) => set({ handoversEnabled: e.target.checked })}
+          />
+          <span className="text-sm text-gray-700">
+            Allow carers to request and accept shift swaps.
+            <span className="block text-xs text-gray-500">
+              Untick to freeze the rota while you finalise month-end hours for payroll — carers won't be able to swap or cover shifts until you turn this back on. The office can still revert swaps.
+            </span>
+          </span>
+        </label>
+        {s.handoversEnabled === false && (
+          <p className="mt-2 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            ⏸ Shift swaps are currently paused for carers.
+          </p>
+        )}
+      </div>
+
       <div className="flex gap-3 pt-1 items-center">
         <div className="flex-1" />
         <Saved show={mut.isSuccess && !mut.isPending && !form} />

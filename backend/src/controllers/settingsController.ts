@@ -55,6 +55,7 @@ export async function loadOrgSettings() {
 
 const STRING_FIELDS = ['companyName', 'logo', 'address', 'phone', 'email', 'cqcProviderId', 'icoNumber', 'timezone', 'defaultRole'] as const;
 const NUMBER_FIELDS = ['defaultHourlyRate', 'overtimeThreshold', 'inviteExpiryDays'] as const;
+const BOOLEAN_FIELDS = ['handoversEnabled'] as const;
 
 // Clean the carer-app visit checklist into a stored JSON string: array of
 // { id, label, phrase?, detail? }. Anything malformed is dropped. Accepts either
@@ -139,6 +140,9 @@ export async function updateOrgSettings(req: AuthRequest, res: Response) {
       const n = Number(body[key]);
       data[key] = Number.isFinite(n) ? n : 0;
     }
+  }
+  for (const key of BOOLEAN_FIELDS) {
+    if (body[key] !== undefined) data[key] = !!body[key];
   }
 
   const settings = await upsertOrgSettings(data);

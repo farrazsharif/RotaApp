@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { handoversApi, type Handover } from '../api/handovers';
+import { settingsApi } from '../api/settings';
 import { formatTime12h } from '../lib/time';
 
 // Incoming "please cover my call" requests from other carers, shown at the top
@@ -12,6 +13,9 @@ export default function CoverRequests() {
     queryFn: handoversApi.mine,
     refetchInterval: 60000,
   });
+
+  const { data: orgSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get, staleTime: 5 * 60 * 1000 });
+  const swapsPaused = orgSettings?.handoversEnabled === false;
 
   const respondMut = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'ACCEPT' | 'DECLINE' }) => handoversApi.respond(id, action),
@@ -43,10 +47,15 @@ export default function CoverRequests() {
               {h.shift.serviceUser?.site?.name ? ` · ${h.shift.serviceUser.site.name}` : ''}
             </p>
             {h.reason && <p className="mt-1 text-sm text-gray-500 italic">“{h.reason}”</p>}
+            {swapsPaused && (
+              <p className="mt-2 text-sm font-medium text-amber-800">
+                ⏸ Shift swaps are paused while the office finalises hours — you can't accept cover right now.
+              </p>
+            )}
             <div className="mt-3 flex gap-2">
               <button
                 onClick={() => respondMut.mutate({ id: h.id, action: 'ACCEPT' })}
-                disabled={respondMut.isPending}
+                disabled={respondMut.isPending || swapsPaused}
                 className="flex-1 rounded-xl bg-green-600 py-2.5 font-bold text-white disabled:opacity-50"
               >
                 Accept & Cover

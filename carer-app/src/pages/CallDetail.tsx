@@ -324,6 +324,8 @@ export default function CallDetail() {
   // The company's configurable visit checklist (falls back to a sensible default).
   const { data: orgSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get, staleTime: 5 * 60 * 1000 });
   const taskDefs = resolveCallLogTasks(orgSettings?.callLogTasks);
+  // Office can freeze swaps while finalising month-end hours; hide the request UI.
+  const swapsPaused = orgSettings?.handoversEnabled === false;
 
   // Shared call log: one log per visit that every carer on the call signs.
   const sharedLog = callLogs.find((l) => l.shiftId === shift?.id);
@@ -786,9 +788,16 @@ export default function CallDetail() {
                 <p className="text-sm text-gray-600">
                   <span className="font-medium">{outgoing.toUser.firstName} {outgoing.toUser.lastName}</span> declined. You can ask someone else.
                 </p>
-                <button onClick={() => setShowHandover(true)} className="mt-2 text-sm font-semibold text-blue-600">
-                  Ask another carer
-                </button>
+                {!swapsPaused && (
+                  <button onClick={() => setShowHandover(true)} className="mt-2 text-sm font-semibold text-blue-600">
+                    Ask another carer
+                  </button>
+                )}
+              </div>
+            ) : swapsPaused ? (
+              <div>
+                <p className="font-semibold text-gray-800">🤝 Shift swaps paused</p>
+                <p className="text-sm text-gray-500 mt-0.5">Cover requests are temporarily turned off while the office finalises hours. Please contact the office if you can't attend.</p>
               </div>
             ) : !showHandover ? (
               <button onClick={() => setShowHandover(true)} className="w-full text-left">

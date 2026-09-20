@@ -1004,6 +1004,9 @@ model OrgSettings {
   defaultHourlyRate Float    @default(0)
   overtimeThreshold Float    @default(40)
   inviteExpiryDays  Int      @default(7)
+  // When false, carers can't request or accept shift swaps/cover — used to
+  // freeze the rota while month-end hours are finalised for payroll.
+  handoversEnabled  Boolean  @default(true)
   defaultRole       String   @default("EMPLOYEE")
   permissions       String   @default("{}") // JSON: { permissionKey: Role[] } overrides
   callLogTasks      String   @default("[]") // JSON: [{ id, label, phrase?, detail? }] carer-app visit checklist

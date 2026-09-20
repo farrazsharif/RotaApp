@@ -4,6 +4,7 @@ import api from '../lib/axios';
 export interface CarerOrgSettings {
   companyName?: string;
   callLogTasks?: string | null;
+  handoversEnabled?: boolean; // false = shift swaps/cover are paused (payroll freeze)
 }
 
 export const settingsApi = {

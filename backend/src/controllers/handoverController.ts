@@ -3,6 +3,10 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { emitToUser } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
+import { loadOrgSettings } from './settingsController';
+
+// Shown when swaps are frozen (e.g. while month-end hours are finalised).
+const SWAPS_PAUSED = 'Shift swaps are currently paused (month-end). Please try again later or ask the office.';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -77,6 +81,10 @@ export async function eligibleCarers(req: AuthRequest, res: Response) {
 export async function requestHandover(req: AuthRequest, res: Response) {
   const { shiftId, toUserId, reason } = req.body as { shiftId?: string; toUserId?: string; reason?: string };
   if (!shiftId || !toUserId) return res.status(400).json({ error: 'shiftId and toUserId are required' });
+
+  // Master switch: swaps can be frozen while payroll hours are finalised.
+  const settings = await loadOrgSettings();
+  if (!settings.handoversEnabled) return res.status(403).json({ error: SWAPS_PAUSED });
   if (toUserId === req.user!.id) return res.status(400).json({ error: 'You cannot hand a call to yourself' });
 
   const shift = await prisma.shift.findUnique({
@@ -164,6 +172,10 @@ export async function respondHandover(req: AuthRequest, res: Response) {
   }
 
   // ACCEPT — reassign the call immediately so the covering carer can clock in.
+  // Blocked while swaps are frozen (payroll); declines above stay allowed so a
+  // carer can still clear a stale request.
+  const settings = await loadOrgSettings();
+  if (!settings.handoversEnabled) return res.status(403).json({ error: SWAPS_PAUSED });
   await reassignShift(handover.shiftId, handover.fromUserId, handover.toUserId);
   await prisma.shiftHandover.update({ where: { id: handover.id }, data: { status: 'ACCEPTED', respondedAt: new Date() } });
 

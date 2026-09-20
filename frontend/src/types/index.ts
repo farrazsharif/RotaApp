@@ -64,6 +64,7 @@ export interface OrgSettings {
   defaultHourlyRate: number;
   overtimeThreshold: number;
   inviteExpiryDays: number;
+  handoversEnabled?: boolean; // false = carers can't swap/cover shifts (payroll freeze)
   defaultRole: Role;
   callLogTasks?: string | null; // JSON array of carer-app visit checklist task defs
   staffFileRequirements?: string | null; // JSON array of editable staff-file compliance requirements
