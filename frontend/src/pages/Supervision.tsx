@@ -228,12 +228,12 @@ export default function Supervision() {
       <h1 className="text-2xl font-bold text-gray-900">Supervision</h1>
 
       <div className="border-b border-gray-200">
-        <nav className="flex flex-wrap gap-1 -mb-px">
+        <nav className="flex gap-1 -mb-px overflow-x-auto no-scrollbar">
           {TABS.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`shrink-0 whitespace-nowrap px-3 py-2 sm:px-4 sm:py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
