@@ -10,3 +10,4 @@ build/
 *.db-journal
 .DS_Store
 *.log
+.claude/settings.local.json
