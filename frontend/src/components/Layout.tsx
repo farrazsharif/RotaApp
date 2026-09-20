@@ -100,7 +100,7 @@ export default function Layout() {
           <span className="text-xl font-bold text-blue-400">Caremid</span>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-4">
+        <nav className="flex-1 overflow-y-auto py-2">
           {visibleNav.map((item) => (
             <NavLink
               key={item.to}
@@ -108,7 +108,7 @@ export default function Layout() {
               end={item.exact}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors ${
+                `flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-blue-600 text-white'
                     : 'text-gray-300 hover:bg-gray-800 hover:text-white'
