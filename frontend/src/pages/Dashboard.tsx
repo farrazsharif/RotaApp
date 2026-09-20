@@ -1,7 +1,8 @@
 import { ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { reportsApi } from '../api/reports';
+import { settingsApi } from '../api/settings';
 import { shiftsApi } from '../api/shifts';
 import { clockApi } from '../api/clock';
 import { supervisionApi } from '../api/supervision';
@@ -68,6 +69,17 @@ export default function Dashboard() {
     queryKey: ['clock-active'], queryFn: clockApi.active, enabled: isManager, refetchInterval: 30_000,
   });
 
+  // Shift-swaps on/off — the same org setting as Settings › Shift swaps (cover),
+  // surfaced here so the office can pause/allow carer swaps without leaving the
+  // dashboard. Only shown to staff who can save settings (manage_settings).
+  const qc = useQueryClient();
+  const { data: orgSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get, enabled: can('manage_settings') });
+  const swapsOn = orgSettings?.handoversEnabled !== false;
+  const swapMut = useMutation({
+    mutationFn: (enabled: boolean) => settingsApi.update({ handoversEnabled: enabled }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
+  });
+
   const todayShifts = myShifts.filter((s) => format(new Date(s.date), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd'));
   const alertTotal = stats ? stats.lateCheckins + stats.unassignedToday + stats.missedMeds + stats.expiringCompliance : 0;
   const visitsPct = stats && stats.visitsToday.total ? Math.round((stats.visitsToday.completed / stats.visitsToday.total) * 100) : 0;
@@ -84,7 +96,19 @@ export default function Dashboard() {
         <div className="flex flex-wrap gap-2">
           {can('manage_schedule') && <Link to="/schedule" className="btn-secondary btn">+ Add shift</Link>}
           {can('manage_schedule') && <Link to="/schedule" className="btn-secondary btn">Publish rota</Link>}
-          {can('manage_schedule') && <button disabled title="Coming soon" className="btn-secondary btn">Swap shift</button>}
+          {can('manage_settings') && (
+            <button
+              onClick={() => swapMut.mutate(!swapsOn)}
+              disabled={swapMut.isPending || !orgSettings}
+              title={swapsOn ? 'Carers can request and accept shift swaps — click to pause' : 'Shift swaps are paused for carers — click to allow'}
+              className="btn btn-secondary gap-2"
+            >
+              <span>Shift swaps</span>
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${swapsOn ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                {swapMut.isPending ? '…' : swapsOn ? 'ON' : 'OFF'}
+              </span>
+            </button>
+          )}
           {can('manage_billing') && <Link to="/finances" className="btn-primary btn">New invoice</Link>}
         </div>
       </div>
