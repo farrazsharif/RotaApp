@@ -590,8 +590,9 @@ export default function Schedule() {
               </button>
             ))}
           </div>
-          {/* Zoom (accessibility) — scales the schedule grid; tap % to reset. */}
-          <div className="flex items-center rounded-lg border border-gray-300 overflow-hidden text-sm">
+          {/* Zoom (accessibility) — scales the schedule grid; tap % to reset.
+              Hidden on mobile (pinch-zoom covers it there); shown from sm up. */}
+          <div className="hidden sm:flex items-center rounded-lg border border-gray-300 overflow-hidden text-sm">
             <button onClick={() => zoomBy(-0.1)} disabled={zoom <= 0.8} className="px-2.5 py-1.5 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 font-bold" aria-label="Zoom out" title="Zoom out">A−</button>
             <button onClick={() => setZoom(1)} className="px-2 py-1.5 bg-white text-gray-600 hover:bg-gray-50 border-x border-gray-200 tabular-nums" title="Reset zoom">{Math.round(zoom * 100)}%</button>
             <button onClick={() => zoomBy(0.1)} disabled={zoom >= 2} className="px-2.5 py-1.5 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 font-bold" aria-label="Zoom in" title="Zoom in">A+</button>
