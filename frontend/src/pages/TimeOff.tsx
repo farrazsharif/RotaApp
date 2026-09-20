@@ -49,9 +49,9 @@ export default function TimeOff() {
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Time Off</h1>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Time Off</h1>
         <button className="btn-primary btn" onClick={() => setShowNew(true)}>+ Request Time Off</button>
       </div>
 
