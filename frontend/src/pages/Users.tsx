@@ -59,10 +59,10 @@ export default function Users() {
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Staff</h1>
-        <div className="flex gap-3">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Staff</h1>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden text-sm">
             {([{ k: 'all', label: 'All' }, { k: 'LOCAL', label: 'Local' }, { k: 'OVERSEAS', label: `Overseas${overseasCount ? ` · ${overseasCount}` : ''}` }] as const).map((t) => (
               <button
@@ -74,7 +74,7 @@ export default function Users() {
               </button>
             ))}
           </div>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="input w-48" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" className="input w-full sm:w-48" />
           {can('manage_staff') && <button className="btn-primary btn" onClick={() => setShowModal(true)}>+ Add Staff</button>}
         </div>
       </div>
