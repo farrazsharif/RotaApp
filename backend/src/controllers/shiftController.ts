@@ -461,7 +461,7 @@ export async function deleteShift(req: AuthRequest, res: Response) {
   const beforeCancel = await prisma.shift.findMany({
     where: { id: { in: idsToCancel } },
     select: {
-      id: true, status: true, cancelledAt: true, cancelBillable: true,
+      id: true, date: true, status: true, cancelledAt: true, cancelBillable: true,
       cancelChargeType: true, cancelChargePercent: true, cancelChargeAmount: true, cancelReason: true,
     },
   });

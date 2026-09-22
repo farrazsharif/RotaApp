@@ -10,6 +10,27 @@ import { logAudit } from '../lib/audit';
 //    fields; undo restores them (un-cancels the visit).
 const UNDOABLE_ACTIONS = new Set(['SHIFT_DELETED', 'SHIFT_CANCELLED']);
 
+// Undo is for accidental deletes/cancels of visits that haven't happened yet —
+// past (already-occurred) visits are never restored. "Future" = dated today or
+// later (visit dates are stored at the start of the day).
+function startOfToday(): Date { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+function isFutureVisit(dateVal: unknown): boolean {
+  if (typeof dateVal !== 'string' && !(dateVal instanceof Date)) return false;
+  const d = new Date(dateVal as string);
+  return !isNaN(d.getTime()) && d >= startOfToday();
+}
+// Whether an undo entry still has at least one future-dated visit to restore.
+function hasFutureVisit(action: string, undoData: string | null): boolean {
+  if (!undoData) return false;
+  try {
+    const parsed = JSON.parse(undoData) as { shifts?: { date?: unknown }[]; cancels?: { date?: unknown }[] };
+    const items = action === 'SHIFT_CANCELLED' ? parsed.cancels : parsed.shifts;
+    return Array.isArray(items) && items.some((it) => isFutureVisit(it?.date));
+  } catch {
+    return false;
+  }
+}
+
 export async function listAudit(req: AuthRequest, res: Response) {
   const { from, to, q } = req.query as { from?: string; to?: string; q?: string };
   const where: Record<string, unknown> = {};
@@ -54,7 +75,7 @@ export async function listAudit(req: AuthRequest, res: Response) {
   res.json(logs.map(({ undoData, ...l }) => ({
     ...l,
     actorFullName: l.actorId ? (nameById.get(l.actorId) ?? null) : null,
-    undoable: UNDOABLE_ACTIONS.has(l.action) && !l.undoneAt && !!undoData,
+    undoable: UNDOABLE_ACTIONS.has(l.action) && !l.undoneAt && hasFutureVisit(l.action, undoData),
   })));
 }
 
@@ -87,6 +108,7 @@ interface ShiftSnapshot {
 
 interface CancelSnapshot {
   id: string;
+  date: string;
   status: string;
   cancelledAt: string | null;
   cancelBillable: boolean;
@@ -144,8 +166,9 @@ export async function undoAuditEntry(req: AuthRequest, res: Response) {
   const already = new Set(existing.map((s) => s.id));
 
   // Re-create the scalar rows in one shot; anything already back (re-created
-  // since, or a double-tap) is skipped.
-  const toCreate = shifts.filter((s) => !already.has(s.id) && (!s.serviceUserId || suOk.has(s.serviceUserId)));
+  // since, or a double-tap) is skipped, as are past-dated visits (undo restores
+  // only visits that haven't happened yet).
+  const toCreate = shifts.filter((s) => !already.has(s.id) && isFutureVisit(s.date) && (!s.serviceUserId || suOk.has(s.serviceUserId)));
   if (toCreate.length > 0) {
     await prisma.shift.createMany({
       data: toCreate.map((s) => ({
@@ -217,7 +240,8 @@ async function undoCancel(req: AuthRequest, res: Response, entryId: string, undo
   const cancelledSet = new Set(stillCancelled.map((s) => s.id));
   const billedSet = new Set(billedLines.map((l) => l.sourceShiftId).filter((x): x is string => !!x));
 
-  const restorable = cancels.filter((c) => cancelledSet.has(c.id) && !billedSet.has(c.id));
+  // Only un-cancel future visits that are still cancelled and not already billed.
+  const restorable = cancels.filter((c) => isFutureVisit(c.date) && cancelledSet.has(c.id) && !billedSet.has(c.id));
 
   // Group by identical restore payload so a big series collapses to one or two
   // updateMany calls instead of hundreds of single updates.
@@ -251,7 +275,7 @@ async function undoCancel(req: AuthRequest, res: Response, entryId: string, undo
     req,
     'SHIFT_CANCEL_UNDONE',
     target ?? undefined,
-    `${restorable.length} visit(s) un-cancelled${skipped ? ` · ${skipped} skipped (invoiced or already changed)` : ''}`,
+    `${restorable.length} visit(s) un-cancelled${skipped ? ` · ${skipped} skipped (past, invoiced, or already changed)` : ''}`,
   );
 
   res.json({ restored: restorable.length, skipped });
