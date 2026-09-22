@@ -455,6 +455,17 @@ export async function deleteShift(req: AuthRequest, res: Response) {
     return res.json({ message: 'Deleted', count: idsToCancel.length, deleted: true });
   }
 
+  // Snapshot each visit's pre-cancel status + billing fields BEFORE cancelling,
+  // so the cancel can be undone from the audit log (restore the exact prior
+  // values). Only these fields change, so they're all we need.
+  const beforeCancel = await prisma.shift.findMany({
+    where: { id: { in: idsToCancel } },
+    select: {
+      id: true, status: true, cancelledAt: true, cancelBillable: true,
+      cancelChargeType: true, cancelChargePercent: true, cancelChargeAmount: true, cancelReason: true,
+    },
+  });
+
   await prisma.shift.updateMany({ where: { id: { in: idsToCancel } }, data: cancelBillingData(req.query as Record<string, unknown>) });
 
   // Cancelling the rest of a recurring series ends it — stop the permanent
@@ -481,7 +492,7 @@ export async function deleteShift(req: AuthRequest, res: Response) {
   }
 
   const chargeable = req.query.billable === '1' || req.query.billable === 'true';
-  await logAudit(req, 'SHIFT_CANCELLED', auditTarget, `Visit cancelled${auditScope}${chargeable ? ' · chargeable' : ''}`);
+  await logAudit(req, 'SHIFT_CANCELLED', auditTarget, `Visit cancelled${auditScope}${chargeable ? ' · chargeable' : ''}`, { cancels: beforeCancel });
 
   res.json({ message: 'Cancelled', count: idsToCancel.length });
 }

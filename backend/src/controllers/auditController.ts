@@ -3,11 +3,12 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { logAudit } from '../lib/audit';
 
-// Audit actions that can be reversed from the log. For now only a hard delete of
-// visits: undoData holds a full snapshot of the deleted rows, and the undo
-// re-creates them verbatim (Caremid deletes visits for real, so there's no flag
-// to flip — we rebuild the rows from the snapshot).
-const UNDOABLE_ACTIONS = new Set(['SHIFT_DELETED']);
+// Audit actions that can be reversed from the log.
+//  - SHIFT_DELETED: undoData holds a full snapshot of the (hard-)deleted rows;
+//    undo re-creates them verbatim (Caremid deletes visits for real).
+//  - SHIFT_CANCELLED: undoData holds each visit's pre-cancel status + billing
+//    fields; undo restores them (un-cancels the visit).
+const UNDOABLE_ACTIONS = new Set(['SHIFT_DELETED', 'SHIFT_CANCELLED']);
 
 export async function listAudit(req: AuthRequest, res: Response) {
   const { from, to, q } = req.query as { from?: string; to?: string; q?: string };
@@ -84,9 +85,21 @@ interface ShiftSnapshot {
   coverCarerIds: string[];
 }
 
-// POST /audit/:id/undo — reverse an undoable audit entry. Currently supports
-// SHIFT_DELETED: re-create the deleted visits from the snapshot. Any manager who
-// can manage the schedule can undo (not only the original actor).
+interface CancelSnapshot {
+  id: string;
+  status: string;
+  cancelledAt: string | null;
+  cancelBillable: boolean;
+  cancelChargeType: string | null;
+  cancelChargePercent: number | null;
+  cancelChargeAmount: number | null;
+  cancelReason: string | null;
+}
+
+// POST /audit/:id/undo — reverse an undoable audit entry. Supports SHIFT_DELETED
+// (re-create the deleted visits) and SHIFT_CANCELLED (restore each visit's
+// pre-cancel state). Any manager who can manage the schedule can undo (not only
+// the original actor).
 export async function undoAuditEntry(req: AuthRequest, res: Response) {
   const entry = await prisma.auditLog.findFirst({ where: { id: req.params.id } });
   if (!entry) return res.status(404).json({ error: 'Audit entry not found' });
@@ -94,6 +107,9 @@ export async function undoAuditEntry(req: AuthRequest, res: Response) {
   if (entry.undoneAt) return res.status(400).json({ error: 'This entry has already been undone.' });
   if (!entry.undoData) return res.status(400).json({ error: 'No undo information was recorded for this entry.' });
 
+  if (entry.action === 'SHIFT_CANCELLED') return undoCancel(req, res, entry.id, entry.undoData, entry.target);
+
+  // --- SHIFT_DELETED: re-create the deleted visits from the snapshot ---
   let shifts: ShiftSnapshot[] = [];
   try {
     const parsed = JSON.parse(entry.undoData) as { shifts?: unknown };
@@ -177,4 +193,66 @@ export async function undoAuditEntry(req: AuthRequest, res: Response) {
   await logAudit(req, 'SHIFT_DELETE_UNDONE', entry.target ?? undefined, `${toCreate.length} visit(s) restored`);
 
   res.json({ restored: toCreate.length });
+}
+
+// Undo a SHIFT_CANCELLED entry: restore each visit's pre-cancel status + billing
+// fields. Skips any visit that's no longer cancelled (changed since) or that has
+// since landed on an invoice (a chargeable cancellation may already be billed —
+// un-cancelling under it would desync the invoice, so we leave those).
+async function undoCancel(req: AuthRequest, res: Response, entryId: string, undoData: string, target: string | null) {
+  let cancels: CancelSnapshot[] = [];
+  try {
+    const parsed = JSON.parse(undoData) as { cancels?: unknown };
+    if (Array.isArray(parsed?.cancels)) cancels = parsed.cancels as CancelSnapshot[];
+  } catch {
+    return res.status(400).json({ error: 'The undo information for this entry is unreadable.' });
+  }
+  if (cancels.length === 0) return res.status(400).json({ error: 'No visits to restore for this entry.' });
+
+  const ids = cancels.map((c) => c.id);
+  const [stillCancelled, billedLines] = await Promise.all([
+    prisma.shift.findMany({ where: { id: { in: ids }, status: 'CANCELLED' }, select: { id: true } }),
+    prisma.invoiceLine.findMany({ where: { sourceShiftId: { in: ids } }, select: { sourceShiftId: true } }),
+  ]);
+  const cancelledSet = new Set(stillCancelled.map((s) => s.id));
+  const billedSet = new Set(billedLines.map((l) => l.sourceShiftId).filter((x): x is string => !!x));
+
+  const restorable = cancels.filter((c) => cancelledSet.has(c.id) && !billedSet.has(c.id));
+
+  // Group by identical restore payload so a big series collapses to one or two
+  // updateMany calls instead of hundreds of single updates.
+  const groups = new Map<string, { data: Record<string, unknown>; ids: string[] }>();
+  for (const c of restorable) {
+    const data = {
+      status: c.status ?? 'SCHEDULED',
+      cancelledAt: c.cancelledAt ? new Date(c.cancelledAt) : null,
+      cancelBillable: !!c.cancelBillable,
+      cancelChargeType: c.cancelChargeType ?? null,
+      cancelChargePercent: c.cancelChargePercent ?? null,
+      cancelChargeAmount: c.cancelChargeAmount ?? null,
+      cancelReason: c.cancelReason ?? null,
+    };
+    const key = JSON.stringify(data);
+    const g = groups.get(key) ?? { data, ids: [] as string[] };
+    g.ids.push(c.id);
+    groups.set(key, g);
+  }
+  for (const g of groups.values()) {
+    await prisma.shift.updateMany({ where: { id: { in: g.ids } }, data: g.data });
+  }
+
+  await prisma.auditLog.update({
+    where: { id: entryId },
+    data: { undoneAt: new Date(), undoneById: req.user?.id ?? null },
+  });
+
+  const skipped = cancels.length - restorable.length;
+  await logAudit(
+    req,
+    'SHIFT_CANCEL_UNDONE',
+    target ?? undefined,
+    `${restorable.length} visit(s) un-cancelled${skipped ? ` · ${skipped} skipped (invoiced or already changed)` : ''}`,
+  );
+
+  res.json({ restored: restorable.length, skipped });
 }

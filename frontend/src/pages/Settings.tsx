@@ -131,6 +131,7 @@ const ACTION_LABEL: Record<string, string> = {
   SHIFT_CANCELLED: 'Visit cancelled',
   SHIFT_DELETED: 'Visit deleted',
   SHIFT_DELETE_UNDONE: 'Visit delete undone',
+  SHIFT_CANCEL_UNDONE: 'Cancellation undone',
   SHIFT_ASSIGNMENT_RESTORED: 'Assignment change undone',
   CALL_LOG_AMENDED: 'Call log amended',
   RESPITE_ADDED: 'Respite period added',
@@ -242,7 +243,12 @@ function AuditLogTab() {
                       <button
                         className="btn btn-secondary btn-sm"
                         disabled={undoMut.isPending}
-                        onClick={() => { if (window.confirm('Restore the deleted visit(s) from this entry?')) undoMut.mutate(l.id); }}
+                        onClick={() => {
+                          const msg = l.action === 'SHIFT_CANCELLED'
+                            ? 'Un-cancel the visit(s) from this entry? (Any already on an invoice are left as-is.)'
+                            : 'Restore the deleted visit(s) from this entry?';
+                          if (window.confirm(msg)) undoMut.mutate(l.id);
+                        }}
                       >
                         {undoMut.isPending && undoMut.variables === l.id ? 'Undoing…' : '↩ Undo'}
                       </button>
