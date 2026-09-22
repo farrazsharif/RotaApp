@@ -114,12 +114,16 @@ app.use(broadcastChanges);
 
 // Health check that also verifies database connectivity, so uptime monitors
 // (e.g. UptimeRobot) go red on a DB outage, not just a web-server crash.
+// Deployed git commit (Render sets RENDER_GIT_COMMIT); short form for readability.
+// Lets a deploy be verified externally — /health shows which commit is live.
+const COMMIT = (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'unknown').slice(0, 7);
+
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ok', db: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', db: 'ok', commit: COMMIT, timestamp: new Date().toISOString() });
   } catch {
-    res.status(503).json({ status: 'error', db: 'down', timestamp: new Date().toISOString() });
+    res.status(503).json({ status: 'error', db: 'down', commit: COMMIT, timestamp: new Date().toISOString() });
   }
 });
 
