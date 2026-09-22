@@ -130,6 +130,7 @@ const ACTION_LABEL: Record<string, string> = {
   SHIFTS_CANCELLED_BULK: 'Visits cancelled (bulk)',
   SHIFT_CANCELLED: 'Visit cancelled',
   SHIFT_DELETED: 'Visit deleted',
+  SHIFT_DELETE_UNDONE: 'Visit delete undone',
   SHIFT_ASSIGNMENT_RESTORED: 'Assignment change undone',
   CALL_LOG_AMENDED: 'Call log amended',
   RESPITE_ADDED: 'Respite period added',
@@ -151,6 +152,19 @@ function AuditLogTab() {
     queryKey: ['audit', applied],
     queryFn: () => auditApi.list(applied),
   });
+
+  const qc = useQueryClient();
+  const { can } = usePermissions();
+  const [undoErr, setUndoErr] = useState('');
+  // Any manager who can manage the schedule may reverse a delete — the backend
+  // enforces the same permission.
+  const canUndo = can('manage_schedule');
+  const undoMut = useMutation({
+    mutationFn: (id: string) => auditApi.undo(id),
+    onSuccess: () => { setUndoErr(''); qc.invalidateQueries({ queryKey: ['audit'] }); qc.invalidateQueries({ queryKey: ['shifts'] }); },
+    onError: (err: unknown) => setUndoErr((err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Could not undo this action.'),
+  });
+  const showActions = canUndo && logs.some((l) => l.undoable || l.undoneAt);
 
   const search = () => setApplied({ from: from || undefined, to: to || undefined, q: q.trim() || undefined });
   const clear = () => { setFrom(''); setTo(''); setQ(''); setApplied({}); };
@@ -187,6 +201,7 @@ function AuditLogTab() {
         {hasFilter && !isFetching && (
           <p className="text-xs text-gray-500">{logs.length} matching {logs.length === 1 ? 'entry' : 'entries'}{applied.from || applied.to ? ` · ${applied.from || 'earliest'} → ${applied.to || 'now'}` : ''}.</p>
         )}
+        {undoErr && <p className="text-sm text-red-600">{undoErr}</p>}
       </div>
       {isLoading ? (
         <div className="p-6 text-gray-400 text-sm">Loading…</div>
@@ -200,6 +215,7 @@ function AuditLogTab() {
               <th className="text-left px-4 py-2.5 font-medium text-gray-600">Who</th>
               <th className="text-left px-4 py-2.5 font-medium text-gray-600">Action</th>
               <th className="text-left px-4 py-2.5 font-medium text-gray-600">Details</th>
+              {showActions && <th className="text-right px-4 py-2.5 font-medium text-gray-600">Undo</th>}
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -218,6 +234,21 @@ function AuditLogTab() {
                 </td>
                 <td className="px-4 py-2.5"><span className="badge-blue badge">{ACTION_LABEL[l.action] || l.action}</span></td>
                 <td className="px-4 py-2.5 text-gray-600">{l.target}{l.details ? ` — ${l.details}` : ''}</td>
+                {showActions && (
+                  <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                    {l.undoneAt ? (
+                      <span className="text-xs text-gray-400" title={`Undone ${format(new Date(l.undoneAt), 'dd MMM yyyy HH:mm')}`}>Undone</span>
+                    ) : l.undoable && canUndo ? (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={undoMut.isPending}
+                        onClick={() => { if (window.confirm('Restore the deleted visit(s) from this entry?')) undoMut.mutate(l.id); }}
+                      >
+                        {undoMut.isPending && undoMut.variables === l.id ? 'Undoing…' : '↩ Undo'}
+                      </button>
+                    ) : null}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

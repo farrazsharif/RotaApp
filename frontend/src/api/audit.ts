@@ -10,4 +10,5 @@ export interface AuditFilters {
 export const auditApi = {
   list: (filters?: AuditFilters) =>
     api.get<AuditLog[]>('/audit', { params: filters }).then((r) => r.data),
+  undo: (id: string) => api.post<{ restored: number }>(`/audit/${id}/undo`).then((r) => r.data),
 };

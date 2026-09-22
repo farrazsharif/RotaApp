@@ -417,6 +417,24 @@ export async function deleteShift(req: AuthRequest, res: Response) {
     if (billed > 0) {
       return res.status(400).json({ error: 'One or more of these visits are already on an invoice — cancel them instead of deleting.' });
     }
+    // Snapshot the full visit rows (scalars + cover carers) BEFORE deleting, so
+    // the delete can be undone from the audit log by re-creating them verbatim.
+    const toRestore = await prisma.shift.findMany({
+      where: { id: { in: idsToCancel } },
+      include: { coverCarers: { select: { id: true } } },
+    });
+    const undoShifts = toRestore.map((s) => ({
+      id: s.id, userId: s.userId, serviceUserId: s.serviceUserId, runId: s.runId,
+      seriesId: s.seriesId, seriesPermanent: s.seriesPermanent,
+      date: s.date, startTime: s.startTime, endTime: s.endTime, visitName: s.visitName,
+      cover: s.cover, role: s.role, notes: s.notes, givesMedication: s.givesMedication,
+      ecmNote: s.ecmNote, status: s.status,
+      cancelBillable: s.cancelBillable, cancelChargeType: s.cancelChargeType,
+      cancelChargePercent: s.cancelChargePercent, cancelChargeAmount: s.cancelChargeAmount,
+      cancelReason: s.cancelReason, cancelledAt: s.cancelledAt, published: s.published,
+      coverCarerIds: s.coverCarers.map((c) => c.id),
+    }));
+
     // Reminder rows have no FK, so clear them explicitly. Handovers cascade;
     // call/clock/invoice links are SetNull per the schema.
     await prisma.shiftReminder.deleteMany({ where: { shiftId: { in: idsToCancel } } });
@@ -433,7 +451,7 @@ export async function deleteShift(req: AuthRequest, res: Response) {
       emitToUser(shift.userId, 'notification', notification);
       await sendPushToUser(shift.userId, { title: notification.title, body: message });
     }
-    await logAudit(req, 'SHIFT_DELETED', auditTarget, `Visit deleted${auditScope}`);
+    await logAudit(req, 'SHIFT_DELETED', auditTarget, `Visit deleted${auditScope}`, { shifts: undoShifts });
     return res.json({ message: 'Deleted', count: idsToCancel.length, deleted: true });
   }
 

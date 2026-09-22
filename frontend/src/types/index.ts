@@ -26,6 +26,8 @@ export interface AuditLog {
   target?: string | null;
   details?: string | null;
   createdAt: string;
+  undoable?: boolean; // true = this entry can still be reversed from the log
+  undoneAt?: string | null; // set once it has been undone
 }
 
 export interface PermissionDef {

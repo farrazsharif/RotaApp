@@ -42,6 +42,12 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "trainingCourses" TEXT NOT NULL DEFAULT '[]'`);
   // Master switch for carer shift swaps/cover — false freezes the rota (payroll).
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "handoversEnabled" BOOLEAN NOT NULL DEFAULT true`);
+  // Undo support on the audit log: undoData is a JSON snapshot the reversal needs
+  // (e.g. the full deleted visit rows for a SHIFT_DELETED entry); undoneAt/
+  // undoneById stamp when and by whom the entry was undone (null = still undoable).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "undoData" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "undoneAt" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "undoneById" TEXT`);
   // Per-person permission override (JSON array of capability keys; null = follow role).
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "permissionsOverride" TEXT`);
   // Staff emergency contact address.

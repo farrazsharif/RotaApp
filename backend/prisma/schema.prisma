@@ -985,6 +985,13 @@ model AuditLog {
   details   String? // short human description of what changed
   createdAt DateTime @default(now())
 
+  // Undo support: undoData is a JSON snapshot the reversal needs (e.g. the full
+  // deleted visit rows for a SHIFT_DELETED entry). undoneAt/undoneById stamp when
+  // and by whom it was undone; null undoneAt = still undoable.
+  undoData   String?
+  undoneAt   DateTime?
+  undoneById String?
+
   @@index([createdAt])
   @@index([companyId])
 }
