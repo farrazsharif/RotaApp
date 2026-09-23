@@ -52,6 +52,20 @@ function buildClient() {
           }
           const companyId = ctx.companyId;
 
+          // Diagnostic: an authenticated request always carries a real company.
+          // If the context is active (not a bypass) yet companyId is empty,
+          // every tenant query silently returns nothing — the "empty app"
+          // symptom (no staff/clients/visits). Log it loudly with the model,
+          // operation and session so a recurrence is traceable rather than a
+          // mystery. Behaviour is unchanged; this only records the anomaly.
+          if (!companyId) {
+            console.error(
+              `[tenant] EMPTY company context on ${model}.${operation} ` +
+              `(userId=${ctx.userId ?? 'unknown'}) — query scoped to no company; ` +
+              `results will be empty. This should never happen for an authenticated request.`,
+            );
+          }
+
           if (WHERE_OPS.has(operation)) {
             args.where = { ...(args.where ?? {}), companyId };
           } else if (operation === 'create') {

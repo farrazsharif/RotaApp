@@ -65,7 +65,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     req.user = { id: user.id, companyId: user.companyId, role: user.role as Role, email: user.email, platformAdmin: user.platformAdmin, customPermissions, siteIds: user.sites.map((s) => s.id) };
     // Activate tenant scoping for the remainder of this request so every
     // Prisma query is automatically filtered to this user's company.
-    runWithCompany(user.companyId, () => next());
+    runWithCompany(user.companyId, () => next(), user.id);
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
