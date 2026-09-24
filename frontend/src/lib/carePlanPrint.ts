@@ -68,11 +68,11 @@ export function buildCarePlanHtml(serviceUser: ServiceUser, data: CarePlanPrintD
   const standardTaskRows = TASK_FIELDS
     .map(({ key, label }) => ({ label, value: (data[key] as string) || '' }))
     .filter((t) => t.value)
-    .map((t) => `<div class="field"><div class="task-title">${esc(t.label)} — tasks</div><div class="field-value">${esc(t.value)}</div></div>`)
+    .map((t) => `<div class="field"><div class="task-title">${esc(t.label)} Tasks</div><div class="field-value">${esc(t.value)}</div></div>`)
     .join('');
   const extraTaskRows = (data.tasksExtra || [])
     .filter((t) => (t.title || '').trim() || (t.tasks || '').trim())
-    .map((t) => `<div class="field"><div class="task-title">${esc((t.title || 'Task section').trim())} — tasks</div><div class="field-value">${esc(t.tasks || '')}</div></div>`)
+    .map((t) => `<div class="field"><div class="task-title">${esc((t.title || 'Task section').trim())} Tasks</div><div class="field-value">${esc(t.tasks || '')}</div></div>`)
     .join('');
   const taskRows = standardTaskRows + extraTaskRows;
 
