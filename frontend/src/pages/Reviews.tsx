@@ -7,6 +7,7 @@ import { Review, ReviewType } from '../types';
 import { format } from 'date-fns';
 import ReviewFormModal from '../components/ReviewFormModal';
 import PaperSeedModal from '../components/PaperSeedModal';
+import SearchableSelect from '../components/SearchableSelect';
 
 export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   const { isManager } = useAuth();
@@ -87,12 +88,13 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
           />
           {isManager && (
             <div className="flex gap-2">
-              <select value={newForUserId} onChange={(e) => setNewForUserId(e.target.value)} className="input">
-                <option value="">Select service user…</option>
-                {serviceUsers.map((su) => (
-                  <option key={su.id} value={su.id}>{su.firstName} {su.lastName}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={newForUserId}
+                onChange={setNewForUserId}
+                options={serviceUsers.map((su) => ({ value: su.id, label: `${su.firstName} ${su.lastName}` }))}
+                placeholder="Select service user…"
+                className="w-56"
+              />
               <select value={newType} onChange={(e) => setNewType(e.target.value as ReviewType)} className="input">
                 <option value="SIX_WEEK">6-Week</option>
                 <option value="QUARTERLY">Quarterly</option>
