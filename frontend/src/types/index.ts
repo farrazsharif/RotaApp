@@ -550,6 +550,7 @@ export interface CarePlan {
   tasksLunch?: string;
   tasksTea?: string;
   tasksBed?: string;
+  tasksExtra?: string; // JSON array of { title, tasks } custom task sections
   numberOfCarers?: string;
   carePackageInfo?: string;
   otherNotes?: string;

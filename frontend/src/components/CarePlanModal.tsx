@@ -42,14 +42,18 @@ interface FormState {
   tasksLunch: string;
   tasksTea: string;
   tasksBed: string;
+  tasksExtra: TaskSection[];
   numberOfCarers: string;
   carePackageInfo: string;
   otherNotes: string;
   reviewDate: string;
 }
 
+// A custom task section beyond the four standard slots (e.g. Shopping, Sitting).
+interface TaskSection { title: string; tasks: string; }
+
 const emptyForm = (): FormState => ({
-  schedule: {}, extraCalls: [], tasksMorning: '', tasksLunch: '', tasksTea: '', tasksBed: '',
+  schedule: {}, extraCalls: [], tasksMorning: '', tasksLunch: '', tasksTea: '', tasksBed: '', tasksExtra: [],
   numberOfCarers: '', carePackageInfo: '', otherNotes: '', reviewDate: '',
 });
 
@@ -97,8 +101,13 @@ export default function CarePlanModal({ serviceUser, onClose, startEdit, startNe
         const parsed = plan.extraCalls ? JSON.parse(plan.extraCalls) : [];
         if (Array.isArray(parsed)) extraCalls = parsed.filter((c) => c && typeof c === 'object').map((c) => ({ name: String(c.name || ''), when: String(c.when || '') }));
       } catch { extraCalls = []; }
+      let tasksExtra: TaskSection[] = [];
+      try {
+        const parsed = plan.tasksExtra ? JSON.parse(plan.tasksExtra) : [];
+        if (Array.isArray(parsed)) tasksExtra = parsed.filter((t) => t && typeof t === 'object').map((t) => ({ title: String(t.title || ''), tasks: String(t.tasks || '') }));
+      } catch { tasksExtra = []; }
       setForm({
-        schedule, extraCalls,
+        schedule, extraCalls, tasksExtra,
         tasksMorning: plan.tasksMorning || '', tasksLunch: plan.tasksLunch || '',
         tasksTea: plan.tasksTea || '', tasksBed: plan.tasksBed || '',
         numberOfCarers: plan.numberOfCarers || '', carePackageInfo: plan.carePackageInfo || '',
@@ -136,11 +145,14 @@ export default function CarePlanModal({ serviceUser, onClose, startEdit, startNe
 
   // Drop rows with no name before persisting.
   const cleanExtraCalls = () => form.extraCalls.filter((c) => c.name.trim() || c.when.trim());
+  // Keep only sections that have a title or some tasks written.
+  const cleanTasksExtra = () => form.tasksExtra.filter((t) => t.title.trim() || t.tasks.trim());
 
   const savePayload = () => ({
     schedule: JSON.stringify(form.schedule),
     extraCalls: JSON.stringify(cleanExtraCalls()),
     tasksMorning: form.tasksMorning, tasksLunch: form.tasksLunch, tasksTea: form.tasksTea, tasksBed: form.tasksBed,
+    tasksExtra: JSON.stringify(cleanTasksExtra()),
     numberOfCarers: form.numberOfCarers, carePackageInfo: form.carePackageInfo, otherNotes: form.otherNotes,
     reviewDate: form.reviewDate || undefined,
   });
@@ -175,6 +187,11 @@ export default function CarePlanModal({ serviceUser, onClose, startEdit, startNe
     setForm((f) => ({ ...f, extraCalls: f.extraCalls.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
   const removeExtraCall = (i: number) => setForm((f) => ({ ...f, extraCalls: f.extraCalls.filter((_, j) => j !== i) }));
 
+  const addTaskSection = () => setForm((f) => ({ ...f, tasksExtra: [...f.tasksExtra, { title: '', tasks: '' }] }));
+  const setTaskSection = (i: number, patch: Partial<TaskSection>) =>
+    setForm((f) => ({ ...f, tasksExtra: f.tasksExtra.map((t, j) => (j === i ? { ...t, ...patch } : t)) }));
+  const removeTaskSection = (i: number) => setForm((f) => ({ ...f, tasksExtra: f.tasksExtra.filter((_, j) => j !== i) }));
+
   const reviewOverdue = plan?.reviewDate ? new Date(plan.reviewDate) < new Date() : false;
 
   // The print/view document data, assembled from the live form (extra calls
@@ -183,6 +200,7 @@ export default function CarePlanModal({ serviceUser, onClose, startEdit, startNe
     schedule: form.schedule,
     extraCalls: cleanExtraCalls(),
     tasksMorning: form.tasksMorning, tasksLunch: form.tasksLunch, tasksTea: form.tasksTea, tasksBed: form.tasksBed,
+    tasksExtra: cleanTasksExtra(),
     numberOfCarers: form.numberOfCarers, carePackageInfo: form.carePackageInfo, otherNotes: form.otherNotes,
     reviewDate: form.reviewDate,
   });
@@ -357,6 +375,36 @@ export default function CarePlanModal({ serviceUser, onClose, startEdit, startNe
                     </Field>
                   ))}
                 </div>
+                {(form.tasksExtra.length > 0 || !ro) && (
+                  <div className="mt-3 space-y-3">
+                    {form.tasksExtra.map((sec, i) => (
+                      <div key={i} className="rounded-lg border border-gray-200 p-3">
+                        {ro ? (
+                          <>
+                            <div className="text-sm font-medium text-gray-800">{sec.title || 'Untitled section'}</div>
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap mt-1">{sec.tasks || <span className="text-gray-400">—</span>}</p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <input
+                                value={sec.title}
+                                onChange={(e) => setTaskSection(i, { title: e.target.value })}
+                                placeholder="Section title (e.g. Shopping, Sitting service)…"
+                                className="field-input flex-1"
+                              />
+                              <button type="button" onClick={() => removeTaskSection(i)} className="text-sm text-red-600 hover:text-red-700 px-2 shrink-0" title="Remove this section">Remove</button>
+                            </div>
+                            <AutoGrowTextarea value={sec.tasks} minRows={3} onChange={(e) => setTaskSection(i, { tasks: e.target.value })} placeholder="Tasks for this call…" className="field-input mt-2" />
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    {!ro && (
+                      <button type="button" onClick={addTaskSection} className="btn-secondary btn btn-sm">+ Add task section</button>
+                    )}
+                  </div>
+                )}
               </FormSection>
 
               <FormSection title="Other notes">

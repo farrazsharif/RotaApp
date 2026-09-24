@@ -485,6 +485,9 @@ model CarePlan {
   tasksLunch      String?
   tasksTea        String?
   tasksBed        String?
+  // Custom task sections beyond the four standard slots — JSON array of
+  // { title, tasks } (e.g. Shopping, Sitting service, Domestic).
+  tasksExtra      String    @default("[]")
   numberOfCarers  String?
   carePackageInfo String?
   otherNotes      String?

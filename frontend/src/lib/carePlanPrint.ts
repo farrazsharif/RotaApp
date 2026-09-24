@@ -21,6 +21,7 @@ export interface CarePlanPrintData {
   tasksLunch: string;
   tasksTea: string;
   tasksBed: string;
+  tasksExtra?: { title: string; tasks: string }[];
   numberOfCarers: string;
   carePackageInfo: string;
   otherNotes: string;
@@ -64,11 +65,16 @@ export function buildCarePlanHtml(serviceUser: ServiceUser, data: CarePlanPrintD
     </tr>
   `).join('');
 
-  const taskRows = TASK_FIELDS
+  const standardTaskRows = TASK_FIELDS
     .map(({ key, label }) => ({ label, value: (data[key] as string) || '' }))
     .filter((t) => t.value)
     .map((t) => `<div class="field"><div class="field-label">${esc(t.label)} — tasks</div><div class="field-value">${esc(t.value)}</div></div>`)
     .join('');
+  const extraTaskRows = (data.tasksExtra || [])
+    .filter((t) => (t.title || '').trim() || (t.tasks || '').trim())
+    .map((t) => `<div class="field"><div class="field-label">${esc((t.title || 'Task section').trim())} — tasks</div><div class="field-value">${esc(t.tasks || '')}</div></div>`)
+    .join('');
+  const taskRows = standardTaskRows + extraTaskRows;
 
   const html = `<!DOCTYPE html><html><head><title>Care Plan — ${esc(`${serviceUser.firstName} ${serviceUser.lastName}`)}</title>
     <style>

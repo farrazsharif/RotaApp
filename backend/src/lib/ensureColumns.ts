@@ -48,6 +48,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "undoData" TEXT`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "undoneAt" TIMESTAMP(3)`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "undoneById" TEXT`);
+  // Care plan: custom task sections beyond the four standard slots (JSON array).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "CarePlan" ADD COLUMN IF NOT EXISTS "tasksExtra" TEXT NOT NULL DEFAULT '[]'`);
   // Money handling: opt-in flag + opening balance for a client's finance ledger.
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "handlesMoney" BOOLEAN NOT NULL DEFAULT false`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "financeOpeningBalance" DOUBLE PRECISION NOT NULL DEFAULT 0`);
