@@ -129,11 +129,13 @@ export async function updateMedication(req: AuthRequest, res: Response) {
 export async function deleteMedication(req: AuthRequest, res: Response) {
   const med = await prisma.medication.findUnique({ where: { id: req.params.id }, select: { name: true, serviceUserId: true, endDate: true } });
   // Discontinue = soft-delete (keeps the administration history) and stamp the
-  // discontinue date so the MAR chart shows it was given up to today, then ends.
-  const today = new Date();
-  const endDate = !med?.endDate || med.endDate > today ? today : med.endDate;
+  // discontinue date so the MAR chart shows it was given up to that point, then
+  // ends. Defaults to now, but a manager can back-date it — carers often report
+  // a med was stopped a few days earlier.
+  const provided = req.body?.endDate ? new Date(String(req.body.endDate)) : null;
+  const endDate = provided && !isNaN(provided.getTime()) ? provided : new Date();
   await prisma.medication.update({ where: { id: req.params.id }, data: { active: false, endDate } });
-  if (med) await logAudit(req, 'MEDICATION_DISCONTINUED', med.name, await forPatient(med.serviceUserId));
+  if (med) await logAudit(req, 'MEDICATION_DISCONTINUED', med.name, `${await forPatient(med.serviceUserId)} · discontinued ${endDate.toISOString().slice(0, 10)}`);
   res.json({ message: 'Medication discontinued' });
 }
 

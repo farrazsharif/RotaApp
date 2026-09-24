@@ -232,9 +232,26 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
   });
 
   const discontinueMut = useMutation({
-    mutationFn: (id: string) => medicationsApi.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['medications', serviceUser.id] }); },
+    mutationFn: (vars: { id: string; endDate?: string }) => medicationsApi.delete(vars.id, vars.endDate),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['medications', serviceUser.id] }); setDiscTarget(null); },
   });
+
+  // Discontinue dialog: capture WHEN a med was stopped (carers often report a
+  // few days late), defaulting to now but back-datable.
+  const [discTarget, setDiscTarget] = useState<{ id: string; name: string } | null>(null);
+  const [discDate, setDiscDate] = useState('');
+  const [discTime, setDiscTime] = useState('');
+  function openDiscontinue(med: Medication) {
+    const now = new Date();
+    setDiscDate(format(now, 'yyyy-MM-dd'));
+    setDiscTime(format(now, 'HH:mm'));
+    setDiscTarget({ id: med.id, name: med.name });
+  }
+  function confirmDiscontinue() {
+    if (!discTarget) return;
+    const iso = discDate ? new Date(`${discDate}T${discTime || '00:00'}`).toISOString() : undefined;
+    discontinueMut.mutate({ id: discTarget.id, endDate: iso });
+  }
 
   const adminFor = (medicationId: string, when: Date) =>
     admins.find((a) => a.medicationId === medicationId && new Date(a.scheduledFor).getTime() === when.getTime());
@@ -244,6 +261,32 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {discTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4" onClick={() => setDiscTarget(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <h3 className="font-semibold text-gray-900">Discontinue {discTarget.name}</h3>
+              <p className="text-sm text-gray-500 mt-1">When was it actually stopped? Back-date it if the carer told you later.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Date</label>
+                <input type="date" value={discDate} onChange={(e) => setDiscDate(e.target.value)} className="input" />
+              </div>
+              <div>
+                <label className="label">Time</label>
+                <input type="time" value={discTime} onChange={(e) => setDiscTime(e.target.value)} className="input" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="btn-secondary btn" onClick={() => setDiscTarget(null)}>Cancel</button>
+              <button className="btn-danger btn" disabled={!discDate || discontinueMut.isPending} onClick={confirmDiscontinue}>
+                {discontinueMut.isPending ? 'Discontinuing…' : 'Discontinue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
           <div>
@@ -431,7 +474,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                           </button>
                         )}
                         {canEdit && (
-                          <button className="text-xs text-red-600 hover:underline" onClick={() => discontinueMut.mutate(med.id)}>
+                          <button className="text-xs text-red-600 hover:underline" onClick={() => openDiscontinue(med)}>
                             Discontinue
                           </button>
                         )}

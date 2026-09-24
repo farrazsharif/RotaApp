@@ -22,7 +22,9 @@ export const medicationsApi = {
   create: (data: MedicationData) => api.post<Medication>('/medications', data).then((r) => r.data),
   update: (id: string, data: Partial<MedicationData> & { active?: boolean }) =>
     api.put<Medication>(`/medications/${id}`, data).then((r) => r.data),
-  delete: (id: string) => api.delete(`/medications/${id}`).then((r) => r.data),
+  // endDate (ISO) back-dates the discontinuation; omitted = now.
+  delete: (id: string, endDate?: string) =>
+    api.delete(`/medications/${id}`, endDate ? { data: { endDate } } : undefined).then((r) => r.data),
 
   administrations: (serviceUserId: string, date: string) =>
     api.get<MedAdministration[]>('/medications/administrations', { params: { serviceUserId, date } }).then((r) => r.data),
