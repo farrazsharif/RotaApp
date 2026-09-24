@@ -57,10 +57,10 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
             <p className="text-sm text-gray-500">Supervision every 3 months per staff member</p>
           </div>
         )}
-        <div className={`flex flex-wrap gap-3 ${embedded ? 'ml-auto' : ''}`}>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by staff or assessor…" className="input w-64" />
+        <div className={`flex flex-wrap items-center gap-2 ${embedded ? 'ml-auto' : ''}`}>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by staff or assessor…" className="input w-64 shrink-0" />
           {isManager && (
-            <div className="flex gap-2">
+            <>
               <SearchableSelect
                 value={newForUserId}
                 onChange={setNewForUserId}
@@ -77,7 +77,7 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
               >
                 📄 Record previous (paper)
               </button>
-            </div>
+            </>
           )}
         </div>
       </div>
