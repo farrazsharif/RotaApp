@@ -6,6 +6,7 @@ import Layout from '../components/Layout';
 import { shiftDetailApi } from '../api/shiftDetail';
 import { clockApi } from '../api/clock';
 import { callLogsApi } from '../api/callLogs';
+import { financeApi } from '../api/finance';
 import { medicationsApi } from '../api/medications';
 import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
@@ -273,6 +274,17 @@ export default function CallDetail() {
   const [editingLog, setEditingLog] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  // Financial record composer (only shown for clients whose money the carer handles).
+  const [showFinanceForm, setShowFinanceForm] = useState(false);
+  const [finDesc, setFinDesc] = useState('');
+  const [finOut, setFinOut] = useState('');
+  const [finIn, setFinIn] = useState('');
+  const [finReceipt, setFinReceipt] = useState<File | null>(null);
+  const [finSignName, setFinSignName] = useState('');
+  const [finSigned, setFinSigned] = useState(false); // patient "signed" the inline e-sign
+  const [finUnableToSign, setFinUnableToSign] = useState(false);
+  const [finUnableReason, setFinUnableReason] = useState('');
+  const [finError, setFinError] = useState<string | null>(null);
 
   const { data: shift, isLoading } = useQuery({
     queryKey: ['shift', id],
@@ -302,6 +314,71 @@ export default function CallDetail() {
     queryFn: () => callLogsApi.list(shift!.serviceUserId!),
     enabled: !!shift?.serviceUserId,
   });
+
+  // Financial record — only clients whose money the carer handles. The ledger
+  // (balance + recent transactions) loads once we know the service user.
+  const handlesMoney = !!shift?.serviceUser?.handlesMoney;
+  const { data: ledger } = useQuery({
+    queryKey: ['finance', shift?.serviceUserId],
+    queryFn: () => financeApi.list(shift!.serviceUserId!),
+    enabled: handlesMoney && !!shift?.serviceUserId,
+  });
+
+  const resetFinanceForm = () => {
+    setFinDesc('');
+    setFinOut('');
+    setFinIn('');
+    setFinReceipt(null);
+    setFinSignName('');
+    setFinSigned(false);
+    setFinUnableToSign(false);
+    setFinUnableReason('');
+    setFinError(null);
+    setShowFinanceForm(false);
+  };
+
+  const financeMut = useMutation({
+    mutationFn: async () => {
+      const amountOut = parseFloat(finOut);
+      const amountIn = parseFloat(finIn);
+      const body: {
+        serviceUserId: string;
+        shiftId: string;
+        description: string;
+        amountIn?: number;
+        amountOut?: number;
+        clientSignature?: string;
+        unableToSign?: boolean;
+        unableReason?: string;
+      } = {
+        serviceUserId: shift!.serviceUserId!,
+        shiftId: shift!.id,
+        description: finDesc.trim(),
+      };
+      if (!Number.isNaN(amountOut) && amountOut > 0) body.amountOut = amountOut;
+      if (!Number.isNaN(amountIn) && amountIn > 0) body.amountIn = amountIn;
+      if (finUnableToSign) {
+        body.unableToSign = true;
+        body.unableReason = finUnableReason.trim();
+      } else {
+        body.clientSignature = JSON.stringify({ kind: 'esign', name: finSignName.trim(), at: new Date().toISOString() });
+      }
+      const res = await financeApi.create(body);
+      if (finReceipt) await financeApi.uploadReceipt(res.id, finReceipt);
+      return res;
+    },
+    onSuccess: () => {
+      resetFinanceForm();
+      qc.invalidateQueries({ queryKey: ['finance', shift?.serviceUserId] });
+    },
+    onError: (err: any) => setFinError(err?.response?.data?.error || 'Could not save the transaction. Please try again.'),
+  });
+
+  // A transaction needs an amount (in or out) and EITHER an e-signature OR
+  // unable-to-sign + a reason.
+  const finHasAmount = (parseFloat(finOut) > 0) || (parseFloat(finIn) > 0);
+  const finSignatureOk = finUnableToSign ? !!finUnableReason.trim() : finSigned && !!finSignName.trim();
+  const finCanSubmit = !!finDesc.trim() && finHasAmount && finSignatureOk && !financeMut.isPending;
 
   // Supported-living running support log for this visit.
   const isSLClient = shift?.serviceUser?.careType === 'SUPPORTED_LIVING';
@@ -930,6 +1007,179 @@ export default function CallDetail() {
             </div>
           )}
         </div>
+
+        {/* Financial record — only for clients whose money the carer handles.
+            Shows the current balance + recent transactions, and lets the carer
+            record spending/received money against this visit. */}
+        {handlesMoney && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">💷 Financial record</h2>
+              <div className="text-right">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Balance</p>
+                <p className="text-lg font-bold text-gray-800 tabular-nums">
+                  £{(ledger?.currentBalance ?? 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            {ledger && ledger.transactions.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {[...ledger.transactions]
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .slice(0, 8)
+                  .map((t) => (
+                    <div key={t.id} className="rounded-lg border border-gray-100 bg-gray-50 p-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-gray-700">
+                          {format(new Date(t.date), 'd MMM')}
+                          {t.carerName ? <span className="font-normal text-gray-400"> · {t.carerName}</span> : null}
+                        </span>
+                        <span className="text-sm font-semibold tabular-nums shrink-0">
+                          {t.amountOut > 0 && <span className="text-red-600">−£{t.amountOut.toFixed(2)}</span>}
+                          {t.amountIn > 0 && <span className="text-green-600">+£{t.amountIn.toFixed(2)}</span>}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-0.5">
+                        <p className="text-sm text-gray-800">
+                          {t.description}
+                          {t.hasReceipt && <span className="ml-1 text-xs text-green-600 font-medium">receipt ✓</span>}
+                        </p>
+                        <span className="text-xs text-gray-400 tabular-nums shrink-0">£{t.balance.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-gray-400">No transactions recorded yet.</p>
+            )}
+
+            {!showFinanceForm ? (
+              <button
+                onClick={() => setShowFinanceForm(true)}
+                className="mt-3 w-full bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm"
+              >
+                + Add transaction
+              </button>
+            ) : (
+              <div className="mt-3 border-t border-gray-100 pt-3 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Description</label>
+                  <input
+                    value={finDesc}
+                    onChange={(e) => setFinDesc(e.target.value)}
+                    placeholder="e.g. Groceries at the corner shop"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Amount spent (£)</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={finOut}
+                      onChange={(e) => setFinOut(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-gray-500 mb-1">Amount received (£)</label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={finIn}
+                      onChange={(e) => setFinIn(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400">Enter at least one amount.</p>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Receipt photo (optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => setFinReceipt(e.target.files?.[0] ?? null)}
+                    className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-blue-700"
+                  />
+                  {finReceipt && <p className="mt-1 text-xs text-gray-500">📎 {finReceipt.name}</p>}
+                </div>
+
+                {/* Patient signature block */}
+                <div className="rounded-lg bg-gray-50 border border-gray-100 p-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={finUnableToSign}
+                      onChange={(e) => { setFinUnableToSign(e.target.checked); setFinSigned(false); }}
+                      className="w-4 h-4"
+                    />
+                    Unable to sign
+                  </label>
+
+                  {!finUnableToSign ? (
+                    <div className="mt-2">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Patient signature</label>
+                      <div className="flex gap-2">
+                        <input
+                          value={finSignName}
+                          onChange={(e) => { setFinSignName(e.target.value); setFinSigned(false); }}
+                          placeholder="Patient's full name"
+                          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFinSigned(true)}
+                          disabled={!finSignName.trim()}
+                          className={`rounded-lg px-4 py-2 text-sm font-semibold ${finSigned ? 'bg-green-600 text-white' : 'bg-blue-600 text-white disabled:opacity-40'}`}
+                        >
+                          {finSigned ? 'Signed ✓' : 'Sign'}
+                        </button>
+                      </div>
+                      {finSigned && <p className="mt-1 text-xs text-green-600">Signed by {finSignName.trim()}.</p>}
+                    </div>
+                  ) : (
+                    <div className="mt-2">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">Reason</label>
+                      <input
+                        value={finUnableReason}
+                        onChange={(e) => setFinUnableReason(e.target.value)}
+                        placeholder="Why the patient couldn't sign"
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {finError && <p className="text-xs text-red-600">{finError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => financeMut.mutate()}
+                    disabled={!finCanSubmit}
+                    className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40"
+                  >
+                    {financeMut.isPending ? 'Saving…' : 'Save transaction'}
+                  </button>
+                  <button
+                    onClick={resetFinanceForm}
+                    className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Supported-living running support log — add entries through the shift */}
         {isSLClient && !isFutureDay && (

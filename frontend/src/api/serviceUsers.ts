@@ -51,6 +51,8 @@ export interface ServiceUserData {
   needsMedication?: boolean;
   needsMobility?: boolean;
   needsPersonalCare?: boolean;
+  handlesMoney?: boolean;
+  financeOpeningBalance?: number;
   careNotes?: string;
   contractedWeeklyHours?: number | null;
   visitDuration?: number;

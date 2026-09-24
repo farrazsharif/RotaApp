@@ -145,6 +145,11 @@ function buildData(body: Record<string, unknown>) {
   if (body.needsMedication !== undefined) data.needsMedication = !!body.needsMedication;
   if (body.needsMobility !== undefined) data.needsMobility = !!body.needsMobility;
   if (body.needsPersonalCare !== undefined) data.needsPersonalCare = !!body.needsPersonalCare;
+  if (body.handlesMoney !== undefined) data.handlesMoney = !!body.handlesMoney;
+  if (body.financeOpeningBalance !== undefined) {
+    const n = Number(body.financeOpeningBalance);
+    data.financeOpeningBalance = isNaN(n) ? 0 : n;
+  }
   if (body.visitDuration !== undefined) data.visitDuration = Number(body.visitDuration) || 30;
   if (body.contractedWeeklyHours !== undefined) {
     const n = Number(body.contractedWeeklyHours);

@@ -93,7 +93,8 @@ const emptyForm: FormState = {
   nextOfKinName: '', nextOfKinPhone: '', nextOfKinMobile: '', nextOfKinAddress: '', nextOfKinRelation: '', nextOfKinEmail: '',
   gpName: '', gpPractice: '', gpPhone: '', gpAddress: '',
   pharmacyName: '', pharmacyPhone: '', pharmacyAddress: '',
-  needsMedication: false, needsMobility: false, needsPersonalCare: false, careNotes: '',
+  needsMedication: false, needsMobility: false, needsPersonalCare: false,
+  handlesMoney: false, financeOpeningBalance: 0, careNotes: '',
   contractedWeeklyHours: null,
   visitDuration: 30, preferredCaregiverIds: [],
 };
@@ -150,6 +151,7 @@ export default function ServiceUserForm() {
       gpName: su.gpName || '', gpPractice: su.gpPractice || '', gpPhone: su.gpPhone || '', gpAddress: su.gpAddress || '',
       pharmacyName: su.pharmacyName || '', pharmacyPhone: su.pharmacyPhone || '', pharmacyAddress: su.pharmacyAddress || '',
       needsMedication: su.needsMedication, needsMobility: su.needsMobility, needsPersonalCare: su.needsPersonalCare,
+      handlesMoney: su.handlesMoney ?? false, financeOpeningBalance: su.financeOpeningBalance ?? 0,
       careNotes: su.careNotes || '', contractedWeeklyHours: su.contractedWeeklyHours ?? null, visitDuration: su.visitDuration,
       preferredCaregiverIds: su.preferredCaregivers.map((c) => c.id),
     });
@@ -472,6 +474,26 @@ export default function ServiceUserForm() {
             <input type="checkbox" checked={form.needsPersonalCare} onChange={(e) => setForm({ ...form, needsPersonalCare: e.target.checked })} />
             Personal Care
           </label>
+        </div>
+        <div className="mt-3 border-t border-gray-100 pt-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={!!form.handlesMoney} onChange={(e) => setForm({ ...form, handlesMoney: e.target.checked })} />
+            Manage this client's money (financial transactions)
+          </label>
+          {form.handlesMoney && (
+            <div className="mt-3">
+              <label className="label">Opening balance (£)</label>
+              <input
+                type="number"
+                step={0.01}
+                value={form.financeOpeningBalance ?? ''}
+                onChange={(e) => setForm({ ...form, financeOpeningBalance: e.target.value === '' ? 0 : Number(e.target.value) })}
+                className="input max-w-[10rem]"
+                placeholder="0.00"
+              />
+              <p className="text-xs text-gray-500 mt-1">Starting cash held for this client. The ledger's running balance builds from here.</p>
+            </div>
+          )}
         </div>
         <div className="mt-3">
           <label className="label">Care Notes</label>

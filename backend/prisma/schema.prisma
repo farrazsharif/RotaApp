@@ -177,6 +177,11 @@ model ServiceUser {
   needsMedication          Boolean  @default(false)
   needsMobility            Boolean  @default(false)
   needsPersonalCare        Boolean  @default(false)
+  // Money handling: when true, carers can record financial transactions
+  // (money spent on this client's behalf) during visits, and the office sees a
+  // ledger. Off for most clients. financeOpeningBalance seeds the running balance.
+  handlesMoney             Boolean  @default(false)
+  financeOpeningBalance    Float    @default(0)
   careNotes                String?
   contractedWeeklyHours    Float? // council-agreed hours of care per week (care package); null = not set
   visitDuration            Int      @default(30)
@@ -260,6 +265,34 @@ model ServiceUserStatusChange {
 
   @@index([serviceUserId, effectiveAt])
   @@index([companyId])
+}
+
+// A financial transaction a carer records on a client's behalf — money spent
+// (amountOut) or received/topped up (amountIn) during a visit. Only for clients
+// flagged handlesMoney. The office sees a running-balance ledger seeded by the
+// client's financeOpeningBalance. Receipt photo lives in R2 under receiptKey; the
+// patient's e-signature (or an "unable to sign" reason) is captured per
+// transaction for audit. Scalar-only (no FK relations) to match the migration-
+// free table bootstrap in ensureColumns.
+model FinancialTransaction {
+  companyId       String? // tenant scope (app-enforced via Prisma extension)
+  id              String   @id @default(cuid())
+  serviceUserId   String
+  shiftId         String? // the visit it was recorded on, if any
+  userId          String? // the carer who recorded it
+  date            DateTime @default(now())
+  description     String
+  amountIn        Float    @default(0) // money received / cash topped up (£)
+  amountOut       Float    @default(0) // money spent on the client's behalf (£)
+  receiptKey      String? // R2 object key for the receipt photo
+  receiptName     String?
+  clientSignature String? // patient e-signature JSON ({"kind":"esign",...}) or drawn data URL
+  unableToSign    Boolean  @default(false)
+  unableReason    String?
+  createdAt       DateTime @default(now())
+
+  @@index([companyId])
+  @@index([serviceUserId, date])
 }
 
 // An uploaded file (DBS certificate, contract, GP letter, etc.) attached to

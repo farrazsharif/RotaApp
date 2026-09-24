@@ -48,6 +48,34 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "undoData" TEXT`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "undoneAt" TIMESTAMP(3)`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "undoneById" TEXT`);
+  // Money handling: opt-in flag + opening balance for a client's finance ledger.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "handlesMoney" BOOLEAN NOT NULL DEFAULT false`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "financeOpeningBalance" DOUBLE PRECISION NOT NULL DEFAULT 0`);
+  // Financial transactions table. Created here (idempotent) as a safety net so
+  // the feature works even where the deploy doesn't run `prisma db push`. Scalar
+  // columns only (no FK constraints) — the app enforces tenant scope and
+  // relations. Matches the FinancialTransaction Prisma model.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "FinancialTransaction" (
+      "id"              TEXT PRIMARY KEY,
+      "companyId"       TEXT,
+      "serviceUserId"   TEXT NOT NULL,
+      "shiftId"         TEXT,
+      "userId"          TEXT,
+      "date"            TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "description"     TEXT NOT NULL,
+      "amountIn"        DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "amountOut"       DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "receiptKey"      TEXT,
+      "receiptName"     TEXT,
+      "clientSignature" TEXT,
+      "unableToSign"    BOOLEAN NOT NULL DEFAULT false,
+      "unableReason"    TEXT,
+      "createdAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialTransaction_companyId_idx" ON "FinancialTransaction"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialTransaction_serviceUserId_date_idx" ON "FinancialTransaction"("serviceUserId","date")`);
   // Per-person permission override (JSON array of capability keys; null = follow role).
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "permissionsOverride" TEXT`);
   // Staff emergency contact address.

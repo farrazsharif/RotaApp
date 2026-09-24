@@ -8,8 +8,11 @@ import { servicePlansApi } from '../api/servicePlans';
 import { medicationsApi } from '../api/medications';
 import { callLogsApi } from '../api/callLogs';
 import { respiteApi, type RespitePeriod } from '../api/respite';
+import { financeApi } from '../api/finance';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
+import { parseSignature } from '../components/SignatureField';
+import PrintBrandingHeader from '../components/PrintBrandingHeader';
 import { format, differenceInYears, addDays } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
@@ -113,7 +116,7 @@ export default function ServiceUserDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { isManager } = useAuth();
-  const { canAccessSite } = usePermissions();
+  const { canAccessSite, can } = usePermissions();
   // Each document modal tracks whether it's open and, when open, the mode it
   // was opened in (view / edit / new) so the right View/Edit/New button works.
   const [carePlanOpen, setCarePlanOpen] = useState(false);
@@ -989,6 +992,11 @@ export default function ServiceUserDetail() {
         )}
       </Section>
 
+      {/* Financial Record — client's money ledger (only if we manage their money) */}
+      {su.handlesMoney && (
+        <FinancialRecord serviceUserId={id} canManage={can('manage_service_users') && !outOfScope} />
+      )}
+
       <DocumentsTab ownerType="SERVICE_USER" ownerId={id} canManage={isManager} />
 
       {isManager && (
@@ -1023,6 +1031,204 @@ export default function ServiceUserDetail() {
       {familyAccessOpen && <FamilyAccessModal serviceUser={su} onClose={() => setFamilyAccessOpen(false)} />}
       {grabSheetOpen && <EmergencyGrabSheetModal serviceUser={su} canManage={isManager} onClose={() => setGrabSheetOpen(false)} />}
     </div>
+  );
+}
+
+// Client's money ledger. Shown on the detail page only when we manage this
+// client's money (su.handlesMoney). Managers can add and delete transactions
+// and attach receipts; everyone sees the running balance, receipts and
+// signatures. The balances + table live in a .report-printable region so the
+// Print button prints just this ledger (with the company letterhead) via the
+// app's existing DOM-print CSS.
+const gbp = (n: number | null | undefined) =>
+  (typeof n === 'number' ? n : 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function TxnSignature({ signature, unableToSign, unableReason }: { signature?: string | null; unableToSign?: boolean; unableReason?: string | null }) {
+  if (unableToSign) {
+    return <span className="text-xs text-gray-500 italic">Unable to sign{unableReason ? ` — ${unableReason}` : ''}</span>;
+  }
+  const parsed = parseSignature(signature);
+  if (parsed.kind === 'drawn') {
+    return <img src={parsed.dataUrl} alt="signature" className="h-8 max-w-[120px] object-contain" />;
+  }
+  if (parsed.kind === 'esign' || parsed.kind === 'text') {
+    return <span className="text-sm text-gray-800" style={{ fontFamily: "'Caveat', 'Segoe Script', cursive" }}>{parsed.name}</span>;
+  }
+  return <span className="text-gray-300">—</span>;
+}
+
+function FinancialRecord({ serviceUserId, canManage }: { serviceUserId: string; canManage: boolean }) {
+  const qc = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [description, setDescription] = useState('');
+  const [amountIn, setAmountIn] = useState('');
+  const [amountOut, setAmountOut] = useState('');
+  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+
+  const { data: ledger, isLoading } = useQuery({
+    queryKey: ['finance', serviceUserId],
+    queryFn: () => financeApi.list(serviceUserId),
+    enabled: !!serviceUserId,
+  });
+
+  const resetForm = () => { setDescription(''); setAmountIn(''); setAmountOut(''); setDate(format(new Date(), 'yyyy-MM-dd')); };
+
+  const createMut = useMutation({
+    mutationFn: () => financeApi.create({
+      serviceUserId,
+      description: description.trim(),
+      amountIn: amountIn.trim() ? Number(amountIn) : undefined,
+      amountOut: amountOut.trim() ? Number(amountOut) : undefined,
+      date: date ? new Date(date).toISOString() : undefined,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['finance', serviceUserId] });
+      resetForm();
+      setAdding(false);
+    },
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (txnId: string) => financeApi.remove(txnId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['finance', serviceUserId] }),
+  });
+
+  const viewReceipt = async (txnId: string) => {
+    try {
+      const url = await financeApi.receiptUrl(txnId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch { /* the link fetch failed — nothing to open */ }
+  };
+
+  const txns = ledger?.transactions ?? [];
+
+  return (
+    <Section
+      title="Financial Record"
+      action={
+        <div className="flex items-center gap-2 no-print">
+          {canManage && (
+            <button className="btn-secondary btn btn-sm" onClick={() => setAdding((v) => !v)}>
+              {adding ? 'Close' : 'Add transaction'}
+            </button>
+          )}
+          <button className="btn-secondary btn btn-sm" onClick={() => window.print()}>Print</button>
+        </div>
+      }
+    >
+      {canManage && adding && (
+        <div className="no-print rounded-lg border border-gray-200 bg-gray-50/60 p-3 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label">Description *</label>
+              <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Cash withdrawal, shopping" />
+            </div>
+            <div>
+              <label className="label">Money in (£)</label>
+              <input type="number" step={0.01} min={0} className="input" value={amountIn} onChange={(e) => setAmountIn(e.target.value)} placeholder="0.00" />
+            </div>
+            <div>
+              <label className="label">Money out (£)</label>
+              <input type="number" step={0.01} min={0} className="input" value={amountOut} onChange={(e) => setAmountOut(e.target.value)} placeholder="0.00" />
+            </div>
+            <div>
+              <label className="label">Date</label>
+              <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button className="btn-secondary btn btn-sm" onClick={() => { setAdding(false); resetForm(); }}>Cancel</button>
+            <button
+              className="btn-primary btn btn-sm"
+              disabled={!description.trim() || (!amountIn.trim() && !amountOut.trim()) || createMut.isPending}
+              onClick={() => createMut.mutate()}
+            >
+              {createMut.isPending ? 'Saving…' : 'Add transaction'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="report-printable">
+        {/* Company letterhead + title — only on the printout */}
+        <div className="hidden print:block mb-4">
+          <PrintBrandingHeader />
+          <div className="text-base font-bold text-gray-900">
+            Financial Record — {ledger?.clientName || ''}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-x-8 gap-y-2 mb-3">
+          <div>
+            <p className="text-xs text-gray-500">Current balance</p>
+            <p className="text-lg font-semibold text-gray-900 tabular-nums">£{gbp(ledger?.currentBalance)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Opening balance</p>
+            <p className="text-lg font-semibold text-gray-700 tabular-nums">£{gbp(ledger?.openingBalance)}</p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <p className="text-sm text-gray-400">Loading transactions…</p>
+        ) : txns.length === 0 ? (
+          <p className="text-sm text-gray-400">No transactions recorded yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="text-left p-2 border font-medium text-gray-600">Date</th>
+                  <th className="text-left p-2 border font-medium text-gray-600">Description</th>
+                  <th className="text-left p-2 border font-medium text-gray-600">Carer</th>
+                  <th className="text-right p-2 border font-medium text-gray-600">Money in (£)</th>
+                  <th className="text-right p-2 border font-medium text-gray-600">Money out (£)</th>
+                  <th className="text-right p-2 border font-medium text-gray-600">Balance (£)</th>
+                  <th className="text-left p-2 border font-medium text-gray-600">Receipt</th>
+                  <th className="text-left p-2 border font-medium text-gray-600">Signature</th>
+                  {canManage && <th className="p-2 border font-medium text-gray-600 no-print" />}
+                </tr>
+              </thead>
+              <tbody>
+                {txns.map((t) => (
+                  <tr key={t.id}>
+                    <td className="p-2 border text-gray-700 whitespace-nowrap">{t.date ? format(new Date(t.date), 'dd MMM yyyy') : '—'}</td>
+                    <td className="p-2 border text-gray-800">{t.description}</td>
+                    <td className="p-2 border text-gray-600 whitespace-nowrap">{t.carerName || '—'}</td>
+                    <td className="p-2 border text-right tabular-nums text-green-700">{t.amountIn ? gbp(t.amountIn) : ''}</td>
+                    <td className="p-2 border text-right tabular-nums text-red-700">{t.amountOut ? gbp(t.amountOut) : ''}</td>
+                    <td className="p-2 border text-right tabular-nums font-medium text-gray-900">{gbp(t.balance)}</td>
+                    <td className="p-2 border">
+                      {t.hasReceipt
+                        ? <button className="text-blue-600 hover:underline" onClick={() => viewReceipt(t.id)}>View</button>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="p-2 border">
+                      <TxnSignature signature={t.clientSignature} unableToSign={t.unableToSign} unableReason={t.unableReason} />
+                    </td>
+                    {canManage && (
+                      <td className="p-2 border text-center no-print">
+                        <button
+                          className="text-red-600 hover:text-red-700 text-lg leading-none"
+                          title="Delete transaction"
+                          aria-label="Delete transaction"
+                          disabled={removeMut.isPending}
+                          onClick={() => {
+                            if (window.confirm('Delete this transaction? This cannot be undone.')) removeMut.mutate(t.id);
+                          }}
+                        >
+                          🗑
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Section>
   );
 }
 

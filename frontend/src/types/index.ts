@@ -492,6 +492,8 @@ export interface ServiceUser {
   needsMedication: boolean;
   needsMobility: boolean;
   needsPersonalCare: boolean;
+  handlesMoney?: boolean;
+  financeOpeningBalance?: number;
   careNotes?: string;
   contractedWeeklyHours?: number | null;
   visitDuration: number;
@@ -505,6 +507,39 @@ export interface ServiceUser {
 }
 
 export type ServiceUserStatus = 'ACTIVE' | 'ON_HOLD' | 'HOSPITALISED' | 'DISCHARGED' | 'DECEASED';
+
+// A single line in a client's financial-transactions ledger. Amounts are GBP
+// numbers; `balance` is the running balance after this row; `date`/`createdAt`
+// are ISO strings. `clientSignature` is a stored signature string (esign JSON
+// or drawn data URL) — render via parseSignature (see SignatureField).
+export interface FinancialTransaction {
+  id: string;
+  serviceUserId: string;
+  shiftId?: string | null;
+  userId?: string | null;
+  date: string;
+  description: string;
+  amountIn?: number | null;
+  amountOut?: number | null;
+  receiptName?: string | null;
+  clientSignature?: string | null;
+  unableToSign?: boolean;
+  unableReason?: string | null;
+  createdAt: string;
+  carerName?: string | null;
+  balance: number;
+  hasReceipt: boolean;
+}
+
+// GET /financial-transactions?serviceUserId=<id> response shape.
+export interface FinanceLedger {
+  serviceUserId: string;
+  clientName: string;
+  handlesMoney: boolean;
+  openingBalance: number;
+  currentBalance: number;
+  transactions: FinancialTransaction[];
+}
 
 export interface CarePlan {
   id: string;

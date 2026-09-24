@@ -18,6 +18,7 @@ export interface ServiceUserBrief {
   phone?: string | null;
   careType?: 'DOMICILIARY' | 'SUPPORTED_LIVING';
   site?: { id: string; name: string; color: string } | null;
+  handlesMoney?: boolean;
 }
 
 export interface ServiceUser {
@@ -156,6 +157,33 @@ export interface CallLog {
   // Returned by the list endpoint — used for the recent-visit history panel.
   user?: { id: string; firstName: string; lastName: string } | null;
   shift?: { id: string; date: string; startTime: string; endTime: string; visitName?: string | null } | null;
+}
+
+export interface FinancialTransaction {
+  id: string;
+  shiftId?: string | null;
+  userId?: string | null;
+  date: string;
+  description: string;
+  amountIn: number;
+  amountOut: number;
+  receiptName?: string | null;
+  clientSignature?: string | null;
+  unableToSign: boolean;
+  unableReason?: string | null;
+  createdAt: string;
+  carerName?: string | null;
+  balance: number;
+  hasReceipt: boolean;
+}
+
+export interface FinanceLedger {
+  serviceUserId: string;
+  clientName: string;
+  handlesMoney: boolean;
+  openingBalance: number;
+  currentBalance: number;
+  transactions: FinancialTransaction[];
 }
 
 export type MedAdminStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN' | 'CANCELLED';
