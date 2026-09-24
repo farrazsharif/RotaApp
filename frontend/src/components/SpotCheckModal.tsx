@@ -6,6 +6,7 @@ import { serviceUsersApi } from '../api/serviceUsers';
 import { supervisionApi, YesNoNa } from '../api/supervision';
 import { useAuth } from '../contexts/AuthContext';
 import { SPOT_CHECK_ITEMS } from '../lib/spotCheckSchema';
+import SearchableSelect from './SearchableSelect';
 import SignatureField from './SignatureField';
 import AutoGrowTextarea from './AutoGrowTextarea';
 
@@ -93,10 +94,13 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
               {readOnly ? (
                 <p className="text-sm text-gray-800">{existing ? `${existing.carer?.firstName} ${existing.carer?.lastName}` : '—'}</p>
               ) : (
-                <select value={carerId} onChange={(e) => setCarerId(e.target.value)} className="input">
-                  <option value="">Select carer</option>
-                  {carers.map((c) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
-                </select>
+                <SearchableSelect
+                  value={carerId}
+                  onChange={setCarerId}
+                  options={carers.map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))}
+                  placeholder="Select carer"
+                  className="w-full"
+                />
               )}
             </div>
             <div>
@@ -104,10 +108,16 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
               {readOnly ? (
                 <p className="text-sm text-gray-800">{existing?.serviceUser ? `${existing.serviceUser.firstName} ${existing.serviceUser.lastName}` : '—'}</p>
               ) : (
-                <select value={serviceUserId} onChange={(e) => setServiceUserId(e.target.value)} className="input">
-                  <option value="">Not specified</option>
-                  {serviceUsers.map((s) => <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}
-                </select>
+                <SearchableSelect
+                  value={serviceUserId}
+                  onChange={setServiceUserId}
+                  options={[
+                    { value: '', label: 'Not specified' },
+                    ...serviceUsers.map((s) => ({ value: s.id, label: `${s.firstName} ${s.lastName}` })),
+                  ]}
+                  placeholder="Not specified"
+                  className="w-full"
+                />
               )}
             </div>
             <div>

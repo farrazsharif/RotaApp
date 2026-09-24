@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import SupervisionFormModal from '../components/SupervisionFormModal';
 import PaperSupervisionModal from '../components/PaperSupervisionModal';
+import SearchableSelect from '../components/SearchableSelect';
 
 const staffName = (s: Supervision) => (s.user ? `${s.user.firstName} ${s.user.lastName}` : '—');
 
@@ -60,10 +61,13 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by staff or assessor…" className="input w-64" />
           {isManager && (
             <div className="flex gap-2">
-              <select value={newForUserId} onChange={(e) => setNewForUserId(e.target.value)} className="input">
-                <option value="">Select staff…</option>
-                {staff.map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-              </select>
+              <SearchableSelect
+                value={newForUserId}
+                onChange={setNewForUserId}
+                options={staff.map((u) => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
+                placeholder="Select staff…"
+                className="w-56"
+              />
               <button className="btn-secondary btn whitespace-nowrap" disabled={!newForUserId} onClick={startNew}>+ New Supervision</button>
               <button
                 className="btn-secondary btn whitespace-nowrap"

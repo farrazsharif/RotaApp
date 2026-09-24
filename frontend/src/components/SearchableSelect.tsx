@@ -11,11 +11,12 @@ interface Props {
   options: SearchableOption[];
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 // A single-select dropdown you can type into to filter — a searchable
 // replacement for a long <select> (e.g. picking one carer from 50+).
-export default function SearchableSelect({ value, onChange, options, placeholder = 'Select…', className = '' }: Props) {
+export default function SearchableSelect({ value, onChange, options, placeholder = 'Select…', className = '', disabled = false }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -42,14 +43,15 @@ export default function SearchableSelect({ value, onChange, options, placeholder
     <div className={`relative ${className}`} ref={ref}>
       <button
         type="button"
-        onClick={() => { setOpen((o) => !o); setQuery(''); setActive(0); }}
-        className="input w-full text-left flex items-center justify-between gap-2"
+        disabled={disabled}
+        onClick={() => { if (disabled) return; setOpen((o) => !o); setQuery(''); setActive(0); }}
+        className="input w-full text-left flex items-center justify-between gap-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
       >
         <span className={selected ? 'text-gray-900' : 'text-gray-400'}>{selected ? selected.label : placeholder}</span>
         <span className="text-gray-400 text-xs shrink-0">▾</span>
       </button>
 
-      {open && (
+      {open && !disabled && (
         <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
           <div className="p-2 border-b border-gray-100">
             <input

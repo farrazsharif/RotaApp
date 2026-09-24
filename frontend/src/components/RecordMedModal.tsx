@@ -6,6 +6,7 @@ import { MedAdministration, MedStatus } from '../types';
 import { formatTime12h } from '../lib/time';
 import { format } from 'date-fns';
 import AutoGrowTextarea from './AutoGrowTextarea';
+import SearchableSelect from './SearchableSelect';
 
 const STATUSES: { v: MedStatus; label: string }[] = [
   { v: 'GIVEN', label: 'Administered' },
@@ -91,12 +92,16 @@ export default function RecordMedModal({ serviceUser, medication, scheduledFor, 
 
         <div>
           <label className="label">Given by (carer)</label>
-          <select value={carerId} onChange={(e) => setCarerId(e.target.value)} className="input">
-            <option value="">— Not attributed —</option>
-            {[...carers].sort((a, b) => a.firstName.localeCompare(b.firstName)).map((c) => (
-              <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-            ))}
-          </select>
+          <SearchableSelect
+            value={carerId}
+            onChange={setCarerId}
+            options={[
+              { value: '', label: '— Not attributed —' },
+              ...[...carers].sort((a, b) => a.firstName.localeCompare(b.firstName)).map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}` })),
+            ]}
+            placeholder="— Not attributed —"
+            className="w-full"
+          />
         </div>
 
         <div>

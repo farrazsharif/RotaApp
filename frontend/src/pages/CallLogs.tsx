@@ -10,6 +10,7 @@ import { formatTime12h } from '../lib/time';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import { parseCallLogTicks } from '../lib/callLogTasks';
 import AutoGrowTextarea from '../components/AutoGrowTextarea';
+import SearchableSelect from '../components/SearchableSelect';
 
 // Green/amber chips summarising the tasks a carer ticked on the visit.
 function TaskBadges({ tasks }: { tasks?: string | null }) {
@@ -323,14 +324,18 @@ export default function CallLogs() {
         <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="label">Client (call)</label>
-          <select value={serviceUserId} onChange={(e) => setServiceUserId(e.target.value)} className="input w-56">
-            <option value="">All service users</option>
-            {[...serviceUsers]
-              .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' }))
-              .map((s) => (
-                <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
-              ))}
-          </select>
+          <SearchableSelect
+            value={serviceUserId}
+            onChange={setServiceUserId}
+            options={[
+              { value: '', label: 'All service users' },
+              ...[...serviceUsers]
+                .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' }))
+                .map((s) => ({ value: s.id, label: `${s.firstName} ${s.lastName}` })),
+            ]}
+            placeholder="All service users"
+            className="w-56"
+          />
         </div>
         <div>
           <label className="label">From</label>

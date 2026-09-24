@@ -10,6 +10,7 @@ import RecordVisitModal from '../components/RecordVisitModal';
 import ShiftDetailDrawer from '../components/ShiftDetailDrawer';
 import { format, differenceInMinutes, startOfWeek, endOfWeek, subDays, subWeeks } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import SearchableSelect from '../components/SearchableSelect';
 
 function duration(record: ClockRecord) {
   if (!record.clockOut) return 'In progress';
@@ -328,12 +329,16 @@ export default function Attendance() {
         {isManager && (
           <div>
             <label className="label">Carer</label>
-            <select value={carerId} onChange={(e) => setCarerId(e.target.value)} className="input min-w-[12rem]">
-              <option value="">All carers</option>
-              {carers.map((c) => (
-                <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-              ))}
-            </select>
+            <SearchableSelect
+              value={carerId}
+              onChange={setCarerId}
+              options={[
+                { value: '', label: 'All carers' },
+                ...carers.map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}` })),
+              ]}
+              placeholder="All carers"
+              className="min-w-[12rem]"
+            />
           </div>
         )}
         <div className="ml-auto flex gap-6 text-right">

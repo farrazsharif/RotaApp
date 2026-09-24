@@ -12,6 +12,7 @@ import { serviceUsersApi } from '../api/serviceUsers';
 import { downloadInvoiceCsv, downloadInvoicePdf } from '../lib/invoiceExport';
 import { Funder, FunderType, FundingArrangement, Invoice, InvoiceStatus, ServiceUser } from '../types';
 import AutoGrowTextarea from '../components/AutoGrowTextarea';
+import SearchableSelect from '../components/SearchableSelect';
 
 const FUNDER_TYPE_META: Record<FunderType, { label: string; className: string }> = {
   COUNCIL: { label: 'Council / LA', className: 'bg-blue-100 text-blue-700' },
@@ -523,10 +524,17 @@ function InvoicesManager() {
             </div>
             <div className="min-w-[180px]">
               <label className="label">Service User</label>
-              <select value={serviceUserId} onChange={(e) => setServiceUserId(e.target.value)} className="input" disabled={!funderId}>
-                <option value="">All service users</option>
-                {funderSUs.map((a) => <option key={a.serviceUserId} value={a.serviceUserId}>{a.serviceUser?.firstName} {a.serviceUser?.lastName}</option>)}
-              </select>
+              <SearchableSelect
+                value={serviceUserId}
+                onChange={setServiceUserId}
+                options={[
+                  { value: '', label: 'All service users' },
+                  ...funderSUs.map((a) => ({ value: a.serviceUserId, label: `${a.serviceUser?.firstName ?? ''} ${a.serviceUser?.lastName ?? ''}`.trim() })),
+                ]}
+                placeholder="All service users"
+                className="w-full"
+                disabled={!funderId}
+              />
             </div>
             <div><label className="label">Period Start</label><input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="input" /></div>
             <div><label className="label">Period End</label><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="input" /></div>

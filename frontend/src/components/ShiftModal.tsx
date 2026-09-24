@@ -12,6 +12,7 @@ import { Shift } from '../types';
 import { format } from 'date-fns';
 import { VISIT_PRESETS } from '../lib/visits';
 import AutoGrowTextarea from './AutoGrowTextarea';
+import SearchableSelect from './SearchableSelect';
 
 interface Props {
   shift?: Shift | null;
@@ -454,14 +455,14 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
           <fieldset disabled={readOnly} className="space-y-4 border-0 p-0 m-0 disabled:opacity-90">
           <div>
             <label className="label">Service User (Patient) *</label>
-            <select {...register('serviceUserId', { required: true })} value={watch('serviceUserId') ?? ''} className="input">
-              <option value="">Select a patient…</option>
-              {serviceUsers.map((su) => (
-                <option key={su.id} value={su.id}>
-                  {su.firstName} {su.lastName}{su.postcode ? ` — ${su.postcode}` : ''}
-                </option>
-              ))}
-            </select>
+            <input type="hidden" {...register('serviceUserId', { required: true })} />
+            <SearchableSelect
+              value={watch('serviceUserId') ?? ''}
+              onChange={(v) => setValue('serviceUserId', v, { shouldValidate: true })}
+              options={serviceUsers.map((su) => ({ value: su.id, label: `${su.firstName} ${su.lastName}${su.postcode ? ` — ${su.postcode}` : ''}` }))}
+              placeholder="Select a patient…"
+              className="w-full"
+            />
             {errors.serviceUserId && <p className="text-xs text-red-500 mt-1">Required</p>}
           </div>
 
@@ -901,14 +902,14 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
 
               <div>
                 <label className="label">Service User (Patient) *</label>
-                <select {...register('serviceUserId', { required: true })} value={watch('serviceUserId') ?? ''} className="input">
-                  <option value="">Select a patient…</option>
-                  {serviceUsers.map((su) => (
-                    <option key={su.id} value={su.id}>
-                      {su.firstName} {su.lastName}{su.postcode ? ` — ${su.postcode}` : ''}
-                    </option>
-                  ))}
-                </select>
+                <input type="hidden" {...register('serviceUserId', { required: true })} />
+                <SearchableSelect
+                  value={watch('serviceUserId') ?? ''}
+                  onChange={(v) => setValue('serviceUserId', v, { shouldValidate: true })}
+                  options={serviceUsers.map((su) => ({ value: su.id, label: `${su.firstName} ${su.lastName}${su.postcode ? ` — ${su.postcode}` : ''}` }))}
+                  placeholder="Select a patient…"
+                  className="w-full"
+                />
                 {errors.serviceUserId && <p className="text-xs text-red-500 mt-1">Required</p>}
               </div>
 

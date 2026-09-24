@@ -4,6 +4,7 @@ import { placementsApi } from '../api/placements';
 import { Placement, ServiceUser, User } from '../types';
 import { format } from 'date-fns';
 import AutoGrowTextarea from './AutoGrowTextarea';
+import SearchableSelect from './SearchableSelect';
 
 interface Props {
   placement?: Placement | null;              // editing an existing one
@@ -57,17 +58,23 @@ export default function PlacementModal({ placement, defaults, clients, carers, o
         <div className="p-5 space-y-4">
           <div>
             <label className="label">Client</label>
-            <select value={serviceUserId} onChange={(e) => setServiceUserId(e.target.value)} className="input">
-              <option value="">Select a live-in client…</option>
-              {clients.map((c) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
-            </select>
+            <SearchableSelect
+              value={serviceUserId}
+              onChange={setServiceUserId}
+              options={clients.map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))}
+              placeholder="Select a live-in client…"
+              className="w-full"
+            />
           </div>
           <div>
             <label className="label">Live-in carer</label>
-            <select value={carerId} onChange={(e) => setCarerId(e.target.value)} className="input">
-              <option value="">Select a carer…</option>
-              {carers.map((c) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
-            </select>
+            <SearchableSelect
+              value={carerId}
+              onChange={setCarerId}
+              options={carers.map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}` }))}
+              placeholder="Select a carer…"
+              className="w-full"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
