@@ -87,15 +87,15 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
             className="input w-64"
           />
           {isManager && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <SearchableSelect
                 value={newForUserId}
                 onChange={setNewForUserId}
                 options={serviceUsers.map((su) => ({ value: su.id, label: `${su.firstName} ${su.lastName}` }))}
                 placeholder="Select service user…"
-                className="w-56"
+                className="w-56 shrink-0"
               />
-              <select value={newType} onChange={(e) => setNewType(e.target.value as ReviewType)} className="input">
+              <select value={newType} onChange={(e) => setNewType(e.target.value as ReviewType)} className="input shrink-0">
                 <option value="SIX_WEEK">6-Week</option>
                 <option value="QUARTERLY">Quarterly</option>
               </select>

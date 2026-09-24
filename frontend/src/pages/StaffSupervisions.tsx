@@ -66,7 +66,7 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                 onChange={setNewForUserId}
                 options={staff.map((u) => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }))}
                 placeholder="Select staff…"
-                className="w-56"
+                className="w-56 shrink-0"
               />
               <button className="btn-secondary btn whitespace-nowrap" disabled={!newForUserId} onClick={startNew}>+ New Supervision</button>
               <button

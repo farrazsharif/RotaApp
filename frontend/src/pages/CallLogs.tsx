@@ -334,7 +334,7 @@ export default function CallLogs() {
                 .map((s) => ({ value: s.id, label: `${s.firstName} ${s.lastName}` })),
             ]}
             placeholder="All service users"
-            className="w-56"
+            className="w-56 shrink-0"
           />
         </div>
         <div>

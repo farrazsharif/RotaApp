@@ -337,7 +337,7 @@ export default function Attendance() {
                 ...carers.map((c) => ({ value: c.id, label: `${c.firstName} ${c.lastName}` })),
               ]}
               placeholder="All carers"
-              className="min-w-[12rem]"
+              className="w-48 shrink-0"
             />
           </div>
         )}

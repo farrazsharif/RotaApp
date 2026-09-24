@@ -47,12 +47,12 @@ export default function SearchableSelect({ value, onChange, options, placeholder
         onClick={() => { if (disabled) return; setOpen((o) => !o); setQuery(''); setActive(0); }}
         className="input w-full text-left flex items-center justify-between gap-2 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
       >
-        <span className={selected ? 'text-gray-900' : 'text-gray-400'}>{selected ? selected.label : placeholder}</span>
+        <span className={`flex-1 min-w-0 truncate ${selected ? 'text-gray-900' : 'text-gray-400'}`}>{selected ? selected.label : placeholder}</span>
         <span className="text-gray-400 text-xs shrink-0">▾</span>
       </button>
 
       {open && !disabled && (
-        <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+        <div className="absolute z-30 mt-1 w-full min-w-[14rem] bg-white border border-gray-200 rounded-lg shadow-lg">
           <div className="p-2 border-b border-gray-100">
             <input
               autoFocus
@@ -76,9 +76,10 @@ export default function SearchableSelect({ value, onChange, options, placeholder
                 <li key={o.value}>
                   <button
                     type="button"
+                    title={o.label}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => pick(o.value)}
-                    className={`w-full text-left px-3 py-2 ${i === active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'} ${o.value === value ? 'font-semibold' : ''}`}
+                    className={`w-full text-left px-3 py-2 truncate ${i === active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'} ${o.value === value ? 'font-semibold' : ''}`}
                   >
                     {o.label}
                   </button>
