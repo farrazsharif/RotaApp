@@ -68,11 +68,11 @@ export function buildCarePlanHtml(serviceUser: ServiceUser, data: CarePlanPrintD
   const standardTaskRows = TASK_FIELDS
     .map(({ key, label }) => ({ label, value: (data[key] as string) || '' }))
     .filter((t) => t.value)
-    .map((t) => `<div class="field"><div class="field-label">${esc(t.label)} — tasks</div><div class="field-value">${esc(t.value)}</div></div>`)
+    .map((t) => `<div class="field"><div class="task-title">${esc(t.label)} — tasks</div><div class="field-value">${esc(t.value)}</div></div>`)
     .join('');
   const extraTaskRows = (data.tasksExtra || [])
     .filter((t) => (t.title || '').trim() || (t.tasks || '').trim())
-    .map((t) => `<div class="field"><div class="field-label">${esc((t.title || 'Task section').trim())} — tasks</div><div class="field-value">${esc(t.tasks || '')}</div></div>`)
+    .map((t) => `<div class="field"><div class="task-title">${esc((t.title || 'Task section').trim())} — tasks</div><div class="field-value">${esc(t.tasks || '')}</div></div>`)
     .join('');
   const taskRows = standardTaskRows + extraTaskRows;
 
@@ -89,6 +89,7 @@ export function buildCarePlanHtml(serviceUser: ServiceUser, data: CarePlanPrintD
       .day-col { font-weight: bold; white-space: nowrap; }
       .field { margin-bottom: 10px; }
       .field-label { font-size: 10px; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: 0.02em; }
+      .task-title { font-size: 16px; font-weight: 700; color: #111; margin-bottom: 4px; }
       .field-value { font-size: 12px; white-space: pre-wrap; margin-top: 2px; }
       .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       .sign-row { display: flex; justify-content: space-between; margin-top: 40px; font-size: 11px; }
