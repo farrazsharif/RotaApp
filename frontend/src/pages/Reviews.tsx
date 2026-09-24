@@ -79,15 +79,15 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
             <p className="text-sm text-gray-500">6-week review after service start, then quarterly reviews</p>
           </div>
         )}
-        <div className={`flex flex-wrap gap-3 ${embedded ? 'ml-auto' : ''}`}>
+        <div className={`flex flex-wrap items-center gap-2 ${embedded ? 'ml-auto' : ''}`}>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by client or assessor…"
-            className="input w-64"
+            className="input w-64 shrink-0"
           />
           {isManager && (
-            <div className="flex flex-wrap items-center gap-2">
+            <>
               <SearchableSelect
                 value={newForUserId}
                 onChange={setNewForUserId}
@@ -95,7 +95,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                 placeholder="Select service user…"
                 className="w-56 shrink-0"
               />
-              <select value={newType} onChange={(e) => setNewType(e.target.value as ReviewType)} className="input shrink-0">
+              <select value={newType} onChange={(e) => setNewType(e.target.value as ReviewType)} className="input w-32 shrink-0">
                 <option value="SIX_WEEK">6-Week</option>
                 <option value="QUARTERLY">Quarterly</option>
               </select>
@@ -110,7 +110,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
               >
                 📄 Record previous (paper)
               </button>
-            </div>
+            </>
           )}
         </div>
       </div>
