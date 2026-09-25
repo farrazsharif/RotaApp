@@ -49,6 +49,19 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   }
   const overdueReviews = [...latestPerUser.values()].filter(isOverdue);
 
+  // Review coverage across ACTIVE service users: up to date (has a review not yet
+  // due), due/overdue (has one past its next-review date), or no record at all.
+  const reviewStats = (() => {
+    let upToDate = 0, due = 0, noRecord = 0;
+    for (const su of serviceUsers) {
+      const latest = latestPerUser.get(su.id);
+      if (!latest) noRecord += 1;
+      else if (isOverdue(latest)) due += 1;
+      else upToDate += 1;
+    }
+    return { active: serviceUsers.length, upToDate, due, noRecord };
+  })();
+
   // Only a user's most recent review row offers "Review now" — older, superseded
   // rows shouldn't. The follow-up is always a quarterly (the 6-week is a one-off
   // at the start of the care package).
@@ -112,6 +125,25 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
               </button>
             </>
           )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-gray-900 tabular-nums">{reviewStats.active}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Active service users</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-green-600 tabular-nums">{reviewStats.upToDate}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Up to date</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-red-600 tabular-nums">{reviewStats.due}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Review due / overdue</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-amber-600 tabular-nums">{reviewStats.noRecord}</div>
+          <div className="text-xs text-gray-500 mt-0.5">No review yet</div>
         </div>
       </div>
 
