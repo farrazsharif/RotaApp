@@ -35,6 +35,25 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
     !term || `${r.serviceUser?.firstName} ${r.serviceUser?.lastName} ${r.assessorName || ''}`.toLowerCase().includes(term)
   );
 
+  // Click-to-sort on Service User (name) and Next Review (date). Clicking the
+  // active column flips direction; undated next-reviews sort to the bottom.
+  const [sortBy, setSortBy] = useState<'name' | 'nextReview' | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const toggleSort = (col: 'name' | 'nextReview') => {
+    if (sortBy === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortBy(col); setSortDir('asc'); }
+  };
+  const sorted = [...filtered];
+  if (sortBy) {
+    sorted.sort((a, b) => {
+      const cmp = sortBy === 'name'
+        ? `${a.serviceUser?.firstName ?? ''} ${a.serviceUser?.lastName ?? ''}`.localeCompare(`${b.serviceUser?.firstName ?? ''} ${b.serviceUser?.lastName ?? ''}`, undefined, { sensitivity: 'base' })
+        : (a.nextReviewDate ? new Date(a.nextReviewDate).getTime() : Infinity) - (b.nextReviewDate ? new Date(b.nextReviewDate).getTime() : Infinity);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }
+  const sortArrow = (col: 'name' | 'nextReview') => (sortBy === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
+
   const isOverdue = (r: Review) => !!r.nextReviewDate && new Date(r.nextReviewDate) < new Date();
   // Only the most recent review per service user determines whether their
   // next review is overdue — older reviews' due dates have been superseded.
@@ -175,17 +194,21 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Service User</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">
+                  <button type="button" onClick={() => toggleSort('name')} className="inline-flex items-center hover:text-gray-900">Service User{sortArrow('name')}</button>
+                </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Review Date</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Next Review</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">
+                  <button type="button" onClick={() => toggleSort('nextReview')} className="inline-flex items-center hover:text-gray-900">Next Review{sortArrow('nextReview')}</button>
+                </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Assessor</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Last Updated</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filtered.map((r) => (
+              {sorted.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">
                     {r.serviceUser ? `${r.serviceUser.firstName} ${r.serviceUser.lastName}` : '—'}
