@@ -49,17 +49,20 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   }
   const overdueReviews = [...latestPerUser.values()].filter(isOverdue);
 
-  // Review coverage across ACTIVE service users: up to date (has a review not yet
-  // due), due/overdue (has one past its next-review date), or no record at all.
+  // Review coverage across ACTIVE service users (discharged/deceased excluded —
+  // same rule as the CQC report; on-hold/hospitalised keep their open package):
+  // up to date (has a review not yet due), due/overdue (past its next-review
+  // date), or no record at all.
   const reviewStats = (() => {
+    const activeSUs = serviceUsers.filter((su) => su.status !== 'DISCHARGED' && su.status !== 'DECEASED');
     let upToDate = 0, due = 0, noRecord = 0;
-    for (const su of serviceUsers) {
+    for (const su of activeSUs) {
       const latest = latestPerUser.get(su.id);
       if (!latest) noRecord += 1;
       else if (isOverdue(latest)) due += 1;
       else upToDate += 1;
     }
-    return { active: serviceUsers.length, upToDate, due, noRecord };
+    return { active: activeSUs.length, upToDate, due, noRecord };
   })();
 
   // Only a user's most recent review row offers "Review now" — older, superseded
