@@ -91,7 +91,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
       <div className="flex flex-wrap items-center justify-between gap-4">
         {!embedded && (
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Reviews</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Service Review</h1>
             <p className="text-sm text-gray-500">6-week review after service start, then quarterly reviews</p>
           </div>
         )}

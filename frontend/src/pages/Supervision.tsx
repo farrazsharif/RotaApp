@@ -8,7 +8,7 @@ import PaperSeedModal from '../components/PaperSeedModal';
 import Reviews from './Reviews';
 import StaffSupervisions from './StaffSupervisions';
 
-const TABS = ['Overview', 'Reviews', 'Spot checks', 'Supervisions'] as const;
+const TABS = ['Overview', 'Service Review', 'Spot checks', 'Supervisions'] as const;
 type Tab = typeof TABS[number];
 
 function Tile({ n, label, tone }: { n: number; label: string; tone: 'danger' | 'warning' | 'accent' }) {
@@ -244,7 +244,7 @@ export default function Supervision() {
       </div>
 
       {tab === 'Overview' && <Overview />}
-      {tab === 'Reviews' && <Reviews embedded />}
+      {tab === 'Service Review' && <Reviews embedded />}
       {tab === 'Spot checks' && <SpotChecks />}
       {tab === 'Supervisions' && <StaffSupervisions embedded />}
     </div>
