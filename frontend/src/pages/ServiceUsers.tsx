@@ -105,10 +105,12 @@ export default function ServiceUsers() {
 
   const hasFilters = !!(search || filterSites.length || filterStatus);
 
-  // Client count per site (and unsited), from the unfiltered list so the numbers
-  // always reflect everyone in care.
-  const siteCount = (id: string) => allUsers.filter((u) => u.site?.id === id).length;
-  const noSiteCount = allUsers.filter((u) => !u.site).length;
+  // Client count per site (and unsited), from the unfiltered list. Counts only
+  // clients currently in care — ACTIVE or HOSPITALISED (excludes on-hold,
+  // end-of-care and passed-away).
+  const countedInCare = (u: ServiceUser) => u.status === 'ACTIVE' || u.status === 'HOSPITALISED';
+  const siteCount = (id: string) => allUsers.filter((u) => countedInCare(u) && u.site?.id === id).length;
+  const noSiteCount = allUsers.filter((u) => countedInCare(u) && !u.site).length;
   const toggleSite = (id: string) =>
     setFilterSites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
