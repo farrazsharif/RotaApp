@@ -8,6 +8,7 @@ import { ServiceUser, ServiceUserStatus } from '../types';
 import { differenceInYears } from 'date-fns';
 import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
+import MultiSelectDropdown from '../components/MultiSelectDropdown';
 import { siteTintStyle, lightTint } from '../lib/siteColor';
 
 const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; className: string }> = {
@@ -34,7 +35,7 @@ export default function ServiceUsers() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
-  const [filterSite, setFilterSite] = useState('');
+  const [filterSites, setFilterSites] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState('');
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('serviceUsersView') as 'grid' | 'list') || 'grid');
   const setViewMode = (v: 'grid' | 'list') => { setView(v); localStorage.setItem('serviceUsersView', v); };
@@ -44,10 +45,10 @@ export default function ServiceUsers() {
   const [editSiteId, setEditSiteId] = useState<string | null>(null);
 
   const { data: serviceUsers = [], isLoading } = useQuery({
-    queryKey: ['service-users', search, filterSite, filterStatus],
+    // Site filtering is done client-side (multi-select), so it's not in the key.
+    queryKey: ['service-users', search, filterStatus],
     queryFn: () => serviceUsersApi.list({
       search: search || undefined,
-      siteId: filterSite || undefined,
       status: (filterStatus || undefined) as ServiceUserStatus | undefined,
     }),
     // Keep the current results on screen while a new search/filter loads, so the
@@ -102,11 +103,20 @@ export default function ServiceUsers() {
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
-  const hasFilters = !!(search || filterSite || filterStatus);
+  const hasFilters = !!(search || filterSites.length || filterStatus);
 
-  const sortedUsers = [...serviceUsers].sort((a, b) =>
-    `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' })
-  );
+  // Client count per site (and unsited), from the unfiltered list so the numbers
+  // always reflect everyone in care.
+  const siteCount = (id: string) => allUsers.filter((u) => u.site?.id === id).length;
+  const noSiteCount = allUsers.filter((u) => !u.site).length;
+  const toggleSite = (id: string) =>
+    setFilterSites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const sortedUsers = [...serviceUsers]
+    .filter((u) => filterSites.length === 0 || (u.site ? filterSites.includes(u.site.id) : filterSites.includes('none')))
+    .sort((a, b) =>
+      `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' })
+    );
 
   return (
     <div className="space-y-5">
@@ -115,7 +125,7 @@ export default function ServiceUsers() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Service Users</h1>
           <p className="text-sm text-gray-500">
-            {serviceUsers.length} {serviceUsers.length === 1 ? 'person' : 'people'}{hasFilters ? ' matching filters' : ' in your care'}
+            {sortedUsers.length} {sortedUsers.length === 1 ? 'person' : 'people'}{hasFilters ? ' matching filters' : ' in your care'}
           </p>
         </div>
         {isManager && (
@@ -165,12 +175,14 @@ export default function ServiceUsers() {
             className="input pl-9 w-full"
           />
         </div>
-        <select value={filterSite} onChange={(e) => setFilterSite(e.target.value)} className="input w-auto">
-          <option value="">All sites</option>
-          {sites.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
+        <div className="w-44 sm:w-56 shrink-0">
+          <MultiSelectDropdown
+            options={sites.map((s) => ({ value: s.id, label: `${s.name} (${siteCount(s.id)})` }))}
+            selected={filterSites}
+            onChange={setFilterSites}
+            allLabel={`All sites (${allUsers.length})`}
+          />
+        </div>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input w-auto">
           <option value="">All statuses</option>
           {Object.entries(STATUS_META).map(([value, meta]) => (
@@ -180,7 +192,7 @@ export default function ServiceUsers() {
         {hasFilters && (
           <button
             className="text-sm text-gray-500 hover:text-gray-800 px-2"
-            onClick={() => { setSearch(''); setFilterSite(''); setFilterStatus(''); }}
+            onClick={() => { setSearch(''); setFilterSites([]); setFilterStatus(''); }}
           >
             Clear
           </button>
@@ -203,7 +215,39 @@ export default function ServiceUsers() {
         </div>
       </div>
 
-      {serviceUsers.length === 0 ? (
+      {/* Per-site client counts — also a quick multi-select (click to toggle). */}
+      {sites.length > 0 && (
+        <div className="card p-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-500 mr-1">Clients by site</span>
+          {[...sites.map((s) => ({ id: s.id, name: s.name, color: s.color, count: siteCount(s.id) })),
+            ...(noSiteCount ? [{ id: 'none', name: 'No site', color: '#cbd5e1', count: noSiteCount }] : [])]
+            .map((s) => {
+              const on = filterSites.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => toggleSite(s.id)}
+                  title={on ? `Remove ${s.name} from the filter` : `Filter to ${s.name}`}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition ${
+                    on ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                  <span className="truncate max-w-[12rem]">{s.name}</span>
+                  <span className="font-semibold tabular-nums">{s.count}</span>
+                </button>
+              );
+            })}
+          {filterSites.length > 0 && (
+            <button className="text-xs text-gray-500 hover:text-gray-800 px-1" onClick={() => setFilterSites([])}>
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {sortedUsers.length === 0 ? (
         <div className="card text-center py-16 text-gray-400">
           <p className="text-5xl mb-3">🧑‍🦽</p>
           <p className="text-gray-600 font-medium">{hasFilters ? 'No service users match your search' : 'No service users yet'}</p>
