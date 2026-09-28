@@ -81,11 +81,16 @@ export async function checkShiftReminders() {
 }
 
 export function startShiftReminders() {
-  if (!pushConfigured) {
-    console.log('Push notifications not configured (missing VAPID keys) — shift reminders disabled.');
-    return;
-  }
-  setInterval(() => {
-    checkShiftReminders().catch((err) => console.error('Shift reminder check failed:', err));
-  }, 60_000);
+  // Shift reminders (the 30-minute "before" and the on-time "starting now" push)
+  // are DISABLED for now. The 60-second poller queried the DB every minute
+  // around the clock, which kept the Neon compute from ever scaling to zero
+  // (compute-hours cost). To re-enable, restore the interval below.
+  console.log('Shift reminders are disabled (poller off to save Neon compute).');
+  // if (!pushConfigured) {
+  //   console.log('Push notifications not configured (missing VAPID keys) — shift reminders disabled.');
+  //   return;
+  // }
+  // setInterval(() => {
+  //   checkShiftReminders().catch((err) => console.error('Shift reminder check failed:', err));
+  // }, 60_000);
 }
