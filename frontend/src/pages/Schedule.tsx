@@ -7,6 +7,7 @@ import { EventClickArg, EventContentArg, EventDropArg } from '@fullcalendar/core
 import enGbLocale from '@fullcalendar/core/locales/en-gb';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { shiftsApi, CancelBilling, AssignUndo } from '../api/shifts';
+import { sitesApi } from '../api/sites';
 import { usersApi } from '../api/users';
 import { useAuth } from '../contexts/AuthContext';
 import ShiftModal from '../components/ShiftModal';
@@ -142,6 +143,8 @@ export default function Schedule() {
   const [search, setSearch] = useState('');
   const [assignFilter, setAssignFilter] = useState<'all' | 'assigned' | 'unassigned' | 'topublish'>('all');
   const [visitFilter, setVisitFilter] = useState<string[]>([]); // selected call types; empty = all
+  const [filterSites, setFilterSites] = useState<string[]>([]); // selected sites; empty = all
+  const toggleSite = (id: string) => setFilterSites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   const [callMenuOpen, setCallMenuOpen] = useState(false);
   const [pubResult, setPubResult] = useState<string | null>(null);
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
@@ -196,6 +199,7 @@ export default function Schedule() {
   const { data: users = [] } = useQuery({
     queryKey: ['users'], queryFn: () => usersApi.list({ active: true }), enabled: isManager,
   });
+  const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list, enabled: isManager });
 
   const dropMut = useMutation({
     mutationFn: ({ id, date }: { id: string; date: string }) => shiftsApi.update(id, { date }),
@@ -287,6 +291,7 @@ export default function Schedule() {
       return true;
     })
     .filter((s) => visitFilter.length === 0 || (s.visitName ? visitFilter.includes(s.visitName) : false))
+    .filter((s) => filterSites.length === 0 || (s.serviceUser?.site ? filterSites.includes(s.serviceUser.site.id) : false))
     .filter((s) => {
       if (!term) return true;
       const names = [
@@ -714,6 +719,33 @@ export default function Schedule() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Filter the board by site — click a chip to show only that site's visits. */}
+      {isManager && sites.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-500 mr-1">Sites</span>
+          {sites.map((s) => {
+            const on = filterSites.includes(s.id);
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => toggleSite(s.id)}
+                title={on ? `Remove ${s.name} from the filter` : `Show only ${s.name}`}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition ${
+                  on ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                <span className="truncate max-w-[12rem]">{s.name}</span>
+              </button>
+            );
+          })}
+          {filterSites.length > 0 && (
+            <button className="text-xs text-gray-500 hover:text-gray-800 px-1" onClick={() => setFilterSites([])}>Clear</button>
+          )}
         </div>
       )}
 
