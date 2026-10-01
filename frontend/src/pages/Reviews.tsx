@@ -75,7 +75,6 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   });
   const sortArrow = (c: 'name' | 'nextReview') => (sortBy === c ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
 
-  const overdueReviews = [...latestPerUser.values()].filter(isOverdue);
 
   // Review coverage across ACTIVE service users (discharged/deceased excluded —
   // same rule as the CQC report; on-hold/hospitalised keep their open package):
@@ -178,19 +177,6 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
         </div>
       </div>
 
-      {overdueReviews.length > 0 && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
-          <p className="font-semibold mb-1">⚠ {overdueReviews.length} review{overdueReviews.length > 1 ? 's' : ''} overdue</p>
-          <ul className="list-disc list-inside space-y-0.5">
-            {overdueReviews.slice(0, 6).map((r) => (
-              <li key={r.id}>
-                {r.serviceUser ? `${r.serviceUser.firstName} ${r.serviceUser.lastName}` : 'Unknown'} — next review was due {format(new Date(r.nextReviewDate!), 'dd MMM yyyy')}
-              </li>
-            ))}
-          </ul>
-          {overdueReviews.length > 6 && <p className="mt-1 font-medium text-red-600">…and {overdueReviews.length - 6} more — see the list below.</p>}
-        </div>
-      )}
 
       {sortedRows.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
