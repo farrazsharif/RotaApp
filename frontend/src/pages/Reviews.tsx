@@ -15,7 +15,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   const [search, setSearch] = useState('');
   const [newForUserId, setNewForUserId] = useState('');
   const [newType, setNewType] = useState<ReviewType>('SIX_WEEK');
-  const [modal, setModal] = useState<{ serviceUserId: string; serviceUserName: string; reviewType: ReviewType; editReview: Review | null } | null>(null);
+  const [modal, setModal] = useState<{ serviceUserId: string; serviceUserName: string; reviewType: ReviewType; editReview: Review | null; locked?: boolean } | null>(null);
   const [paperFor, setPaperFor] = useState<{ serviceUserId: string; serviceUserName: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -43,6 +43,18 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
       // Same-day reviews: fall back to creation order
       || (r.reviewDate === existing.reviewDate && new Date(r.createdAt) > new Date(existing.createdAt));
     if (later) latestPerUser.set(r.serviceUserId, r);
+  }
+
+  // All of a client's reviews, newest first — powers the per-row "Past reviews"
+  // dropdown. Only the latest is editable; older ones open locked (read-only).
+  const reviewsByUser = new Map<string, Review[]>();
+  for (const r of reviews) {
+    const arr = reviewsByUser.get(r.serviceUserId) ?? [];
+    arr.push(r);
+    reviewsByUser.set(r.serviceUserId, arr);
+  }
+  for (const arr of reviewsByUser.values()) {
+    arr.sort((a, b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime());
   }
 
   // One row per ACTIVE service user (discharged/deceased excluded), joined with
@@ -205,6 +217,8 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
             <tbody className="divide-y">
               {sortedRows.map(({ su, review }) => {
                 const overdue = review ? isOverdue(review) : false;
+                // The client's earlier reviews (everything except the latest shown here).
+                const pastRevs = (reviewsByUser.get(su.id) ?? []).filter((x) => x.id !== review?.id);
                 return (
                   <tr key={su.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{su.firstName} {su.lastName}</td>
@@ -254,7 +268,26 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                           <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
                         </span>
                       ) : (
-                        <span className="flex gap-2 justify-end">
+                        <span className="flex gap-2 justify-end items-center">
+                          {pastRevs.length > 0 && (
+                            <select
+                              value=""
+                              className="input w-auto text-xs py-1"
+                              title="View an earlier review (read-only)"
+                              onChange={(e) => {
+                                const old = pastRevs.find((x) => x.id === e.target.value);
+                                if (old) setModal({ serviceUserId: old.serviceUserId, serviceUserName: `${su.firstName} ${su.lastName}`, reviewType: old.type, editReview: old, locked: true });
+                                e.target.value = '';
+                              }}
+                            >
+                              <option value="">Past ({pastRevs.length})</option>
+                              {pastRevs.map((x) => (
+                                <option key={x.id} value={x.id}>
+                                  {format(new Date(x.reviewDate), 'dd MMM yyyy')} · {x.type === 'QUARTERLY' ? 'Quarterly' : '6-Week'}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                           {isManager && overdue && latestReviewIds.has(review.id) && (
                             <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => startFollowUp(review)}>Review now</button>
                           )}
@@ -289,6 +322,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
           serviceUserName={modal.serviceUserName}
           reviewType={modal.reviewType}
           editReview={modal.editReview}
+          locked={modal.locked}
           onClose={() => setModal(null)}
         />
       )}

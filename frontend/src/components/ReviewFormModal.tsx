@@ -12,6 +12,9 @@ interface Props {
   serviceUserName: string;
   reviewType: ReviewType;
   editReview: Review | null;
+  // When true, force read-only even for managers — used for superseded reviews
+  // (a newer review exists), so historical records can be viewed but not changed.
+  locked?: boolean;
   onClose: () => void;
 }
 
@@ -153,9 +156,9 @@ function parseOutcomes(json?: string): ReviewOutcome[] {
   } catch { return []; }
 }
 
-export default function ReviewFormModal({ serviceUserId, serviceUserName, reviewType, editReview, onClose }: Props) {
+export default function ReviewFormModal({ serviceUserId, serviceUserName, reviewType, editReview, locked, onClose }: Props) {
   const canEdit = usePermissions().can('manage_reviews');
-  const ro = !canEdit;
+  const ro = !canEdit || !!locked;
   const qc = useQueryClient();
   const sections = reviewType === 'QUARTERLY' ? QUARTERLY_SECTIONS : SIX_WEEK_SECTIONS;
 
@@ -220,7 +223,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
         <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white z-10">
           <div>
             <h2 className="text-lg font-semibold">{REVIEW_TYPE_LABELS[reviewType]} — {serviceUserName}</h2>
-            {ro && <p className="text-xs text-gray-500">read-only</p>}
+            {ro && <p className="text-xs text-gray-500">{locked ? '🔒 Locked — superseded by a newer review' : 'Read-only'}</p>}
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
@@ -388,7 +391,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
         <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
           <div className="flex-1" />
           <button onClick={onClose} className="btn-secondary btn">Close</button>
-          {canEdit && (
+          {!ro && (
             <button className="btn-primary btn" disabled={saveMut.isPending || !reviewDate} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : editReview ? 'Save Changes' : 'Save Review'}
             </button>
