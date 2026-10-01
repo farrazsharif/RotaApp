@@ -6,6 +6,7 @@ import { Review, ReviewOutcome, ReviewType } from '../types';
 import { format, addMonths } from 'date-fns';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import SignatureField from './SignatureField';
+import PrintBrandingHeader from './PrintBrandingHeader';
 
 interface Props {
   serviceUserId: string;
@@ -228,9 +229,15 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 report-printable">
+          {/* Company letterhead + title — print only. */}
+          <PrintBrandingHeader className="hidden print:flex" />
+          <div className="hidden print:block">
+            <h1 className="text-lg font-bold text-gray-900">{REVIEW_TYPE_LABELS[reviewType]} — {serviceUserName}</h1>
+            <p className="text-xs text-gray-600">Review date: {format(new Date(reviewDate), 'dd MMM yyyy')}{assessorName ? `  ·  Assessor: ${assessorName}` : ''}</p>
+          </div>
           {error && (
-            <div className="bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm">
+            <div className="bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm no-print">
               {error.response?.data?.error || 'An error occurred'}
             </div>
           )}
@@ -391,6 +398,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
         <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
           <div className="flex-1" />
           <button onClick={onClose} className="btn-secondary btn">Close</button>
+          <button onClick={() => window.print()} className="btn-secondary btn no-print">🖨 Print</button>
           {!ro && (
             <button className="btn-primary btn" disabled={saveMut.isPending || !reviewDate} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : editReview ? 'Save Changes' : 'Save Review'}
