@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reviewsApi } from '../api/reviews';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
-import { Review, ReviewType } from '../types';
+import { Review, ReviewType, ServiceUser } from '../types';
 import { format } from 'date-fns';
 import ReviewFormModal from '../components/ReviewFormModal';
 import PaperSeedModal from '../components/PaperSeedModal';
@@ -31,28 +31,36 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   });
 
   const term = search.trim().toLowerCase();
-  const filtered = reviews.filter((r) =>
-    !term || `${r.serviceUser?.firstName} ${r.serviceUser?.lastName} ${r.assessorName || ''}`.toLowerCase().includes(term)
+
+  // One row per ACTIVE service user (discharged/deceased excluded), joined with
+  // their latest review — so clients with no review yet still appear (flagged),
+  // not just those who already have a review.
+  type ReviewRow = { su: ServiceUser; review: Review | null };
+  const rows: ReviewRow[] = serviceUsers
+    .filter((su) => su.status !== 'DISCHARGED' && su.status !== 'DECEASED')
+    .map((su) => ({ su, review: latestPerUser.get(su.id) ?? null }));
+
+  const filteredRows = rows.filter(({ su, review }) =>
+    !term || `${su.firstName} ${su.lastName} ${review?.assessorName || ''}`.toLowerCase().includes(term)
   );
 
-  // Click-to-sort on Service User (name) and Next Review (date). Clicking the
-  // active column flips direction; undated next-reviews sort to the bottom.
+  // Click-to-sort on Service User (name) and Next Review (date); default is by
+  // name. Clients with no next-review date sort to the bottom.
   const [sortBy, setSortBy] = useState<'name' | 'nextReview' | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const toggleSort = (col: 'name' | 'nextReview') => {
-    if (sortBy === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortBy(col); setSortDir('asc'); }
+  const toggleSort = (c: 'name' | 'nextReview') => {
+    if (sortBy === c) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortBy(c); setSortDir('asc'); }
   };
-  const sorted = [...filtered];
-  if (sortBy) {
-    sorted.sort((a, b) => {
-      const cmp = sortBy === 'name'
-        ? `${a.serviceUser?.firstName ?? ''} ${a.serviceUser?.lastName ?? ''}`.localeCompare(`${b.serviceUser?.firstName ?? ''} ${b.serviceUser?.lastName ?? ''}`, undefined, { sensitivity: 'base' })
-        : (a.nextReviewDate ? new Date(a.nextReviewDate).getTime() : Infinity) - (b.nextReviewDate ? new Date(b.nextReviewDate).getTime() : Infinity);
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-  }
-  const sortArrow = (col: 'name' | 'nextReview') => (sortBy === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
+  const sortCol = sortBy ?? 'name';
+  const sortWay = sortBy ? sortDir : 'asc';
+  const sortedRows = [...filteredRows].sort((a, b) => {
+    const cmp = sortCol === 'name'
+      ? `${a.su.firstName} ${a.su.lastName}`.localeCompare(`${b.su.firstName} ${b.su.lastName}`, undefined, { sensitivity: 'base' })
+      : (a.review?.nextReviewDate ? new Date(a.review.nextReviewDate).getTime() : Infinity) - (b.review?.nextReviewDate ? new Date(b.review.nextReviewDate).getTime() : Infinity);
+    return sortWay === 'asc' ? cmp : -cmp;
+  });
+  const sortArrow = (c: 'name' | 'nextReview') => (sortBy === c ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
 
   const isOverdue = (r: Review) => !!r.nextReviewDate && new Date(r.nextReviewDate) < new Date();
   // Only the most recent review per service user determines whether their
@@ -183,11 +191,10 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {sortedRows.length === 0 ? (
         <div className="card text-center py-12 text-gray-400">
           <p className="text-4xl mb-3">📋</p>
-          <p>{term ? 'No reviews match your search' : 'No reviews recorded yet'}</p>
-          {isManager && !term && <p className="text-sm mt-1">Select a service user above and click "New Review" to get started.</p>}
+          <p>{term ? 'No service users match your search' : 'No active service users'}</p>
         </div>
       ) : (
         <div className="card p-0 overflow-x-auto">
@@ -197,6 +204,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">
                   <button type="button" onClick={() => toggleSort('name')} className="inline-flex items-center hover:text-gray-900">Service User{sortArrow('name')}</button>
                 </th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Review Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">
@@ -208,64 +216,81 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {sorted.map((r) => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">
-                    {r.serviceUser ? `${r.serviceUser.firstName} ${r.serviceUser.lastName}` : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={r.type === 'QUARTERLY' ? 'badge-purple badge' : 'badge-blue badge'}>
-                      {r.type === 'QUARTERLY' ? 'Quarterly' : '6-Week'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {format(new Date(r.reviewDate), 'dd MMM yyyy')}
-                    {r.source === 'paper' && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Paper</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {r.nextReviewDate ? (
-                      isOverdue(r) ? (
-                        <span className="badge-red badge">⚠ {format(new Date(r.nextReviewDate), 'dd MMM yyyy')}</span>
+              {sortedRows.map(({ su, review }) => {
+                const overdue = review ? isOverdue(review) : false;
+                return (
+                  <tr key={su.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{su.firstName} {su.lastName}</td>
+                    <td className="px-4 py-3">
+                      {!review
+                        ? <span className="badge-yellow badge">No review yet</span>
+                        : overdue
+                          ? <span className="badge-red badge">Overdue</span>
+                          : <span className="badge-green badge">Up to date</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {review
+                        ? <span className={review.type === 'QUARTERLY' ? 'badge-purple badge' : 'badge-blue badge'}>{review.type === 'QUARTERLY' ? 'Quarterly' : '6-Week'}</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {review ? (
+                        <>
+                          {format(new Date(review.reviewDate), 'dd MMM yyyy')}
+                          {review.source === 'paper' && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Paper</span>}
+                        </>
+                      ) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {review?.nextReviewDate ? (
+                        overdue
+                          ? <span className="badge-red badge">⚠ {format(new Date(review.nextReviewDate), 'dd MMM yyyy')}</span>
+                          : <span className="text-gray-600">{format(new Date(review.nextReviewDate), 'dd MMM yyyy')}</span>
+                      ) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{review?.assessorName || '—'}</td>
+                    <td className="px-4 py-3 text-gray-500">{review ? format(new Date(review.updatedAt), 'dd MMM yyyy') : '—'}</td>
+                    <td className="px-4 py-3 text-right">
+                      {!review ? (
+                        isManager && (
+                          <button
+                            className="btn-primary btn btn-sm whitespace-nowrap"
+                            onClick={() => setModal({ serviceUserId: su.id, serviceUserName: `${su.firstName} ${su.lastName}`, reviewType: 'SIX_WEEK', editReview: null })}
+                          >
+                            + New Review
+                          </button>
+                        )
+                      ) : confirmDelete === review.id ? (
+                        <span className="flex items-center gap-2 justify-end">
+                          <span className="text-xs text-red-700">Delete?</span>
+                          <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(review.id)}>Yes</button>
+                          <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
+                        </span>
                       ) : (
-                        <span className="text-gray-600">{format(new Date(r.nextReviewDate), 'dd MMM yyyy')}</span>
-                      )
-                    ) : (
-                      <span className="text-gray-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{r.assessorName || '—'}</td>
-                  <td className="px-4 py-3 text-gray-500">{format(new Date(r.updatedAt), 'dd MMM yyyy')}</td>
-                  <td className="px-4 py-3 text-right">
-                    {confirmDelete === r.id ? (
-                      <span className="flex items-center gap-2 justify-end">
-                        <span className="text-xs text-red-700">Delete?</span>
-                        <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(r.id)}>Yes</button>
-                        <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
-                      </span>
-                    ) : (
-                      <span className="flex gap-2 justify-end">
-                        {isManager && isOverdue(r) && latestReviewIds.has(r.id) && (
-                          <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => startFollowUp(r)}>Review now</button>
-                        )}
-                        <button
-                          className="btn-secondary btn btn-sm"
-                          onClick={() => setModal({
-                            serviceUserId: r.serviceUserId,
-                            serviceUserName: r.serviceUser ? `${r.serviceUser.firstName} ${r.serviceUser.lastName}` : '',
-                            reviewType: r.type,
-                            editReview: r,
-                          })}
-                        >
-                          {isManager ? 'Open / Edit' : 'View'}
-                        </button>
-                        {isManager && (
-                          <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(r.id)}>Delete</button>
-                        )}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        <span className="flex gap-2 justify-end">
+                          {isManager && overdue && latestReviewIds.has(review.id) && (
+                            <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => startFollowUp(review)}>Review now</button>
+                          )}
+                          <button
+                            className="btn-secondary btn btn-sm"
+                            onClick={() => setModal({
+                              serviceUserId: review.serviceUserId,
+                              serviceUserName: `${su.firstName} ${su.lastName}`,
+                              reviewType: review.type,
+                              editReview: review,
+                            })}
+                          >
+                            {isManager ? 'Open / Edit' : 'View'}
+                          </button>
+                          {isManager && (
+                            <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(review.id)}>Delete</button>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
