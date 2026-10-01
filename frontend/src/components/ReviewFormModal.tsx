@@ -229,7 +229,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
 
-        <div className="p-6 space-y-6 report-printable">
+        <div className="p-6 space-y-6 review-printable">
           {/* Company letterhead + title — print only. */}
           <PrintBrandingHeader className="hidden print:flex" />
           <div className="hidden print:block">

@@ -98,6 +98,35 @@
   .no-print { display: none !important; }
 }
 
+/* Review documents can run to several pages, so (unlike the single-page grab
+   sheet, which is lifted out of flow with position:absolute) the review region
+   must stay in the normal document flow — absolutely-positioned content is
+   clipped to the first sheet in Chrome and never breaks onto later pages.
+   When a .review-printable region is on the page: remove everything that isn't
+   the region, inside it, or an ancestor of it from the layout, then flatten the
+   region's ancestors (the modal's fixed overlay and its scroll box) so nothing
+   caps the height or clips the form. The form then flows across as many pages
+   as it needs. */
+@media print {
+  body:has(.review-printable) *:not(:has(.review-printable), .review-printable, .review-printable *) {
+    display: none !important;
+  }
+  body:has(.review-printable) :has(.review-printable) {
+    position: static !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+  }
+  .review-printable, .review-printable * { visibility: visible !important; }
+  .review-printable {
+    position: static !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  .no-print { display: none !important; }
+}
+
 /* FullCalendar customisation */
 .fc .fc-toolbar-title { @apply text-lg font-semibold text-gray-800; }
 .fc .fc-button { @apply btn btn-secondary btn-sm !important; }
