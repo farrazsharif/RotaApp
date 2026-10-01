@@ -93,10 +93,15 @@ function SpotChecks() {
   const byName = (a: { carerName: string }, b: { carerName: string }) =>
     a.carerName.localeCompare(b.carerName, undefined, { sensitivity: 'base' });
   const rows = [...data.spotChecks.rows].sort(byName);
-  const due = rows.filter((r) => r.due);
 
-  // Search filters the table by carer name (the "due" banner still summarises
-  // everyone due).
+  // Coverage across active carers: up to date (checked, not yet due), overdue
+  // (checked but past due), or never spot-checked.
+  const scActive = rows.length;
+  const scNever = rows.filter((r) => !r.lastCheck).length;
+  const scOverdue = rows.filter((r) => r.lastCheck && r.due).length;
+  const scUpToDate = rows.filter((r) => r.lastCheck && !r.due).length;
+
+  // Search filters the table by carer name.
   const q = search.trim().toLowerCase();
   const visibleRows = q ? rows.filter((r) => r.carerName.toLowerCase().includes(q)) : rows;
 
@@ -107,17 +112,24 @@ function SpotChecks() {
         <button className="btn-primary btn" onClick={() => setNewFor('any')}>+ New spot check</button>
       </div>
 
-      {due.length > 0 && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
-          <p className="font-semibold mb-1">⚠ {due.length} spot check{due.length > 1 ? 's' : ''} due</p>
-          <ul className="list-disc list-inside space-y-0.5">
-            {due.slice(0, 6).map((r) => (
-              <li key={r.carerId}>{r.carerName} — {r.nextDue ? `next check was due ${format(new Date(r.nextDue), 'dd MMM yyyy')}` : 'never checked'}</li>
-            ))}
-          </ul>
-          {due.length > 6 && <p className="mt-1 font-medium text-red-600">…and {due.length - 6} more — use the list below (each has a “📄 Paper” button to log a check already done on paper).</p>}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-gray-900 tabular-nums">{scActive}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Active carers</div>
         </div>
-      )}
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-green-600 tabular-nums">{scUpToDate}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Up to date</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-red-600 tabular-nums">{scOverdue}</div>
+          <div className="text-xs text-gray-500 mt-0.5">Due / overdue</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-2xl font-bold text-amber-600 tabular-nums">{scNever}</div>
+          <div className="text-xs text-gray-500 mt-0.5">No spot check yet</div>
+        </div>
+      </div>
 
       {rows.length === 0 ? (
         <div className="card text-center py-12 text-gray-400"><p>No active carers to spot-check.</p></div>
@@ -139,6 +151,7 @@ function SpotChecks() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Last Checked</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Next Due</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Result</th>
@@ -148,23 +161,26 @@ function SpotChecks() {
             </thead>
             <tbody className="divide-y">
               {visibleRows.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-gray-400">No carers match “{search.trim()}”.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-10 text-center text-gray-400">No carers match “{search.trim()}”.</td></tr>
               )}
               {visibleRows.map((r) => {
                 const overdays = r.nextDue ? differenceInCalendarDays(new Date(), new Date(r.nextDue)) : null;
                 return (
                   <tr key={r.carerId} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{r.carerName}</td>
+                    <td className="px-4 py-3">
+                      {!r.lastCheck
+                        ? <span className="badge-yellow badge">No spot check yet</span>
+                        : r.due
+                          ? <span className="badge-red badge">Overdue{overdays && overdays > 0 ? ` ${overdays}d` : ''}</span>
+                          : <span className="badge-green badge">Up to date</span>}
+                    </td>
                     <td className="px-4 py-3 text-gray-600">
                       {r.lastCheck ? format(new Date(r.lastCheck), 'dd MMM yyyy') : <span className="text-gray-300">Never</span>}
                       {r.lastSource === 'paper' && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Paper</span>}
                     </td>
-                    <td className="px-4 py-3">
-                      {r.due ? (
-                        <span className="badge-red badge">⚠ {overdays === null ? 'Never checked' : overdays > 0 ? `Overdue ${overdays}d` : 'Due today'}</span>
-                      ) : (
-                        <span className="text-gray-600">{r.nextDue ? format(new Date(r.nextDue), 'dd MMM yyyy') : '—'}</span>
-                      )}
+                    <td className="px-4 py-3 text-gray-600">
+                      {r.nextDue ? format(new Date(r.nextDue), 'dd MMM yyyy') : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       {r.concerns === null ? <span className="text-gray-300">—</span> :
