@@ -32,6 +32,19 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
 
   const term = search.trim().toLowerCase();
 
+  const isOverdue = (r: Review) => !!r.nextReviewDate && new Date(r.nextReviewDate) < new Date();
+  // Only the most recent review per service user determines whether their
+  // next review is overdue — older reviews' due dates have been superseded.
+  const latestPerUser = new Map<string, Review>();
+  for (const r of reviews) {
+    const existing = latestPerUser.get(r.serviceUserId);
+    const later = !existing
+      || new Date(r.reviewDate) > new Date(existing.reviewDate)
+      // Same-day reviews: fall back to creation order
+      || (r.reviewDate === existing.reviewDate && new Date(r.createdAt) > new Date(existing.createdAt));
+    if (later) latestPerUser.set(r.serviceUserId, r);
+  }
+
   // One row per ACTIVE service user (discharged/deceased excluded), joined with
   // their latest review — so clients with no review yet still appear (flagged),
   // not just those who already have a review.
@@ -62,18 +75,6 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   });
   const sortArrow = (c: 'name' | 'nextReview') => (sortBy === c ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
 
-  const isOverdue = (r: Review) => !!r.nextReviewDate && new Date(r.nextReviewDate) < new Date();
-  // Only the most recent review per service user determines whether their
-  // next review is overdue — older reviews' due dates have been superseded.
-  const latestPerUser = new Map<string, Review>();
-  for (const r of reviews) {
-    const existing = latestPerUser.get(r.serviceUserId);
-    const later = !existing
-      || new Date(r.reviewDate) > new Date(existing.reviewDate)
-      // Same-day reviews: fall back to creation order
-      || (r.reviewDate === existing.reviewDate && new Date(r.createdAt) > new Date(existing.createdAt));
-    if (later) latestPerUser.set(r.serviceUserId, r);
-  }
   const overdueReviews = [...latestPerUser.values()].filter(isOverdue);
 
   // Review coverage across ACTIVE service users (discharged/deceased excluded —
