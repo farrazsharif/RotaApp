@@ -124,6 +124,20 @@
     width: 100% !important;
     padding: 0 !important;
   }
+  /* Answer pills (Yes / No / N/A): the selected one is a solid colour fill on
+     screen, but print drops backgrounds, leaving only an outline that vanishes
+     in black & white. Force colours to print, and render the selected pill as a
+     solid high-contrast block (filled, white text) so it reads clearly on a
+     mono printer — the Yes/No/N/A label still identifies the answer. */
+  .review-printable, .review-printable * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .review-printable button.text-white {
+    background: #111 !important;
+    color: #fff !important;
+    border-color: #111 !important;
+  }
   .no-print { display: none !important; }
 }
 
