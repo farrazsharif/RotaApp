@@ -204,13 +204,13 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                   <button type="button" onClick={() => toggleSort('name')} className="inline-flex items-center hover:text-gray-900">Service User{sortArrow('name')}</button>
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Review Date</th>
+                <th className="hidden lg:table-cell text-left px-4 py-3 font-medium text-gray-600">Type</th>
+                <th className="hidden lg:table-cell text-left px-4 py-3 font-medium text-gray-600">Review Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">
                   <button type="button" onClick={() => toggleSort('nextReview')} className="inline-flex items-center hover:text-gray-900">Next Review{sortArrow('nextReview')}</button>
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Assessor</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Last Updated</th>
+                <th className="hidden xl:table-cell text-left px-4 py-3 font-medium text-gray-600">Assessor</th>
+                <th className="hidden xl:table-cell text-left px-4 py-3 font-medium text-gray-600">Last Updated</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -229,12 +229,12 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                           ? <span className="badge-red badge">Overdue</span>
                           : <span className="badge-green badge">Up to date</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="hidden lg:table-cell px-4 py-3">
                       {review
                         ? <span className={review.type === 'QUARTERLY' ? 'badge-purple badge' : 'badge-blue badge'}>{review.type === 'QUARTERLY' ? 'Quarterly' : '6-Week'}</span>
                         : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
+                    <td className="hidden lg:table-cell px-4 py-3 text-gray-600">
                       {review ? (
                         <>
                           {format(new Date(review.reviewDate), 'dd MMM yyyy')}
@@ -249,8 +249,8 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                           : <span className="text-gray-600">{format(new Date(review.nextReviewDate), 'dd MMM yyyy')}</span>
                       ) : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{review?.assessorName || '—'}</td>
-                    <td className="px-4 py-3 text-gray-500">{review ? format(new Date(review.updatedAt), 'dd MMM yyyy') : '—'}</td>
+                    <td className="hidden xl:table-cell px-4 py-3 text-gray-600">{review?.assessorName || '—'}</td>
+                    <td className="hidden xl:table-cell px-4 py-3 text-gray-500">{review ? format(new Date(review.updatedAt), 'dd MMM yyyy') : '—'}</td>
                     <td className="px-4 py-3 text-right">
                       {!review ? (
                         isManager && (
