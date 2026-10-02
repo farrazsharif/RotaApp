@@ -96,9 +96,11 @@ function coverLabel(cover: number): string {
   return cover === 3 ? 'Triple cover' : cover === 2 ? 'Double cover' : 'Single cover';
 }
 
-type ViewKey = 'day' | 'week' | '2week' | '4week' | 'month';
+type ViewKey = 'day' | 'week' | '2week' | '4week' | 'month' | 'range';
+// 'range' renders via DayColumns (an arbitrary span of days), not FullCalendar —
+// the entry here is a placeholder so the Record type is satisfied; it's unused.
 const FC_VIEW: Record<ViewKey, string> = {
-  day: 'timeGridDay', week: 'dayGridWeek', '2week': 'dayGrid2', '4week': 'dayGrid4', month: 'dayGridMonth',
+  day: 'timeGridDay', week: 'dayGridWeek', '2week': 'dayGrid2', '4week': 'dayGrid4', month: 'dayGridMonth', range: 'dayGrid4',
 };
 
 export default function Schedule() {
@@ -156,6 +158,9 @@ export default function Schedule() {
   const [mode, setMode] = useState<'calendar' | 'carer' | 'list'>('calendar');
   const [viewKey, setViewKey] = useState<ViewKey>('week');
   const [anchor, setAnchor] = useState(new Date());
+  // Custom From–To span for the "Range" view (defaults to the current week).
+  const [rangeFrom, setRangeFrom] = useState(() => format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+  const [rangeTo, setRangeTo] = useState(() => format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 6), 'yyyy-MM-dd'));
 
   // Simple 2-month cap: permanent visits still generate 12 months of shifts in
   // the database, but the schedule only surfaces visits up to ~2 months ahead so
@@ -167,10 +172,16 @@ export default function Schedule() {
   const range = useMemo(() => {
     if (viewKey === 'day') { const start = startOfDay(anchor); return { start, end: addDays(start, 1) }; }
     if (viewKey === 'month') { const start = startOfMonth(anchor); return { start, end: addDays(endOfMonth(anchor), 1) }; }
+    if (viewKey === 'range') {
+      const start = startOfDay(new Date(rangeFrom + 'T00:00:00'));
+      const last = startOfDay(new Date(rangeTo + 'T00:00:00'));
+      // End is exclusive (one past the last day); guard a reversed/blank range.
+      return { start, end: addDays(last >= start ? last : start, 1) };
+    }
     const start = startOfWeek(anchor, { weekStartsOn: 1 });
     const weeks = viewKey === 'week' ? 1 : viewKey === '2week' ? 2 : 4;
     return { start, end: addDays(start, 7 * weeks) };
-  }, [anchor, viewKey]);
+  }, [anchor, viewKey, rangeFrom, rangeTo]);
 
   // Fetch ONLY the visible range (plus a week's buffer each side for smooth
   // paging), capped at the 2-month future horizon. Previously this loaded a
@@ -179,8 +190,12 @@ export default function Schedule() {
   // rendering sluggish. Scoping to the view keeps the working set small and the
   // whole schedule fast.
   const fetchFrom = format(addDays(range.start, -7), 'yyyy-MM-dd');
+  // Preset views cap at the 2-month future horizon; a custom Range the manager
+  // deliberately picked is fetched in full so its total is accurate.
   const fetchTo = format(
-    new Date(Math.min(futureHorizon.getTime(), addDays(range.end, 7).getTime())),
+    viewKey === 'range'
+      ? addDays(range.end, 7)
+      : new Date(Math.min(futureHorizon.getTime(), addDays(range.end, 7).getTime())),
     'yyyy-MM-dd',
   );
 
@@ -266,7 +281,9 @@ export default function Schedule() {
   // future shifts a background job may have regenerated.
   const notCancelled = shifts.filter(
     (s) => s.status !== 'CANCELLED'
-      && new Date(s.date) < futureHorizon
+      // Preset views hide far-future rows past the 2-month horizon; a custom
+      // Range shows (and totals) every day the manager picked.
+      && (viewKey === 'range' || new Date(s.date) < futureHorizon)
       && statusAtShift(s.serviceUser, s.date, s.startTime) !== 'DECEASED',
   );
 
@@ -399,6 +416,13 @@ export default function Schedule() {
   }, []);
 
   const shiftBy = (dir: number) => {
+    if (viewKey === 'range') {
+      // Step the whole custom window by its own length.
+      const spanDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000));
+      setRangeFrom((f) => format(addDays(new Date(f + 'T00:00:00'), dir * spanDays), 'yyyy-MM-dd'));
+      setRangeTo((t) => format(addDays(new Date(t + 'T00:00:00'), dir * spanDays), 'yyyy-MM-dd'));
+      return;
+    }
     if (dir > 0 && atFutureCap) return;
     setAnchor((a) => {
       const d = new Date(a);
@@ -539,7 +563,7 @@ export default function Schedule() {
   }
 
   const VIEW_TABS: { k: ViewKey; label: string }[] = [
-    { k: 'day', label: 'Day' }, { k: 'week', label: 'Week' }, { k: '2week', label: '2 wk' }, { k: '4week', label: '4 wk' }, { k: 'month', label: 'Month' },
+    { k: 'day', label: 'Day' }, { k: 'week', label: 'Week' }, { k: '2week', label: '2 wk' }, { k: '4week', label: '4 wk' }, { k: 'month', label: 'Month' }, { k: 'range', label: 'Range' },
   ];
 
   // Full-page loading state on first open — the schedule pulls a lot of visits,
@@ -567,20 +591,41 @@ export default function Schedule() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex">
             <button className="btn-secondary btn btn-sm rounded-r-none" onClick={() => shiftBy(-1)} aria-label="Previous">‹</button>
-            <button className="btn-secondary btn btn-sm rounded-l-none border-l-0 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => shiftBy(1)} disabled={atFutureCap} title={atFutureCap ? 'The schedule only shows up to 2 months ahead' : undefined} aria-label="Next">›</button>
+            <button className="btn-secondary btn btn-sm rounded-l-none border-l-0 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => shiftBy(1)} disabled={atFutureCap && viewKey !== 'range'} title={atFutureCap && viewKey !== 'range' ? 'The schedule only shows up to 2 months ahead' : undefined} aria-label="Next">›</button>
           </div>
           <button className="btn-secondary btn btn-sm" onClick={() => setAnchor(new Date())}>Today</button>
-          <div className="inline-flex items-center gap-1.5">
-            <input
-              type="date"
-              value={format(anchor, 'yyyy-MM-dd')}
-              onChange={(e) => { if (e.target.value) setAnchor(new Date(e.target.value + 'T00:00:00')); }}
-              className="border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-700"
-              title="Jump to a date"
-              aria-label="Jump to a date"
-            />
-            <span className="text-sm font-semibold text-blue-600">{format(anchor, 'EEE')}</span>
-          </div>
+          {viewKey === 'range' ? (
+            <div className="inline-flex items-center gap-1.5">
+              <input
+                type="date"
+                value={rangeFrom}
+                onChange={(e) => { if (e.target.value) setRangeFrom(e.target.value); }}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-700"
+                aria-label="Range start"
+              />
+              <span className="text-sm text-gray-400">to</span>
+              <input
+                type="date"
+                value={rangeTo}
+                min={rangeFrom}
+                onChange={(e) => { if (e.target.value) setRangeTo(e.target.value); }}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-700"
+                aria-label="Range end"
+              />
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5">
+              <input
+                type="date"
+                value={format(anchor, 'yyyy-MM-dd')}
+                onChange={(e) => { if (e.target.value) setAnchor(new Date(e.target.value + 'T00:00:00')); }}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm text-gray-700"
+                title="Jump to a date"
+                aria-label="Jump to a date"
+              />
+              <span className="text-sm font-semibold text-blue-600">{format(anchor, 'EEE')}</span>
+            </div>
+          )}
           <span className="font-semibold text-gray-800 ml-1">{title}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -777,14 +822,6 @@ export default function Schedule() {
         </div>
       )}
 
-      {isManager && (
-        <ShiftRangeCounter
-          defaultFrom={format(range.start, 'yyyy-MM-dd')}
-          defaultTo={format(addDays(range.end, -1), 'yyyy-MM-dd')}
-          siteIds={filterSites}
-        />
-      )}
-
       {mode === 'list' ? (
         <ListView
           days={rangeDays}
@@ -804,7 +841,7 @@ export default function Schedule() {
           missingCarers={missingCarers}
           onOpen={openShift}
         />
-      ) : mode === 'calendar' && viewKey === '4week' ? (
+      ) : mode === 'calendar' && (viewKey === '4week' || viewKey === 'range') ? (
         <DayColumns
           days={rangeDays}
           shifts={rangeShifts}
@@ -884,59 +921,6 @@ function SummaryTile({ value, label, tone }: { value: number | string; label: st
     <div className="bg-white border border-gray-100 rounded-lg px-3 py-1.5 flex items-baseline gap-2">
       <div className={`text-lg font-bold leading-none ${c}`}>{value}</div>
       <div className="text-xs text-gray-500 leading-tight">{label}</div>
-    </div>
-  );
-}
-
-// Count shifts over any From–To range — a quick total for a week, a month, or
-// any custom period, counted in the DB so it's accurate beyond the dates the
-// calendar currently has loaded. Honours the page's active site chips.
-function ShiftRangeCounter({ defaultFrom, defaultTo, siteIds }: { defaultFrom: string; defaultTo: string; siteIds: string[] }) {
-  const [open, setOpen] = useState(false);
-  const [from, setFrom] = useState(defaultFrom);
-  const [to, setTo] = useState(defaultTo);
-  const valid = !!from && !!to && from <= to;
-  const { data, isFetching } = useQuery({
-    queryKey: ['shift-count', from, to, siteIds],
-    queryFn: () => shiftsApi.count({ startDate: from, endDate: to, siteIds }),
-    enabled: open && valid,
-  });
-  const n = data?.count ?? 0;
-
-  if (!open) {
-    return (
-      <button className="text-sm text-blue-600 hover:underline" onClick={() => setOpen(true)}>
-        📊 Count shifts in a date range…
-      </button>
-    );
-  }
-  return (
-    <div className="bg-white border border-gray-100 rounded-lg p-3 flex flex-wrap items-end gap-3">
-      <div>
-        <label className="label text-xs">From</label>
-        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input py-1 text-sm" />
-      </div>
-      <div>
-        <label className="label text-xs">To</label>
-        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input py-1 text-sm" />
-      </div>
-      <button className="text-xs text-blue-600 hover:underline pb-1.5" onClick={() => { setFrom(defaultFrom); setTo(defaultTo); }}>
-        This view
-      </button>
-      <div className="pb-1">
-        {!valid ? (
-          <span className="text-sm text-gray-400">Pick a valid range</span>
-        ) : isFetching ? (
-          <span className="text-sm text-gray-400">Counting…</span>
-        ) : (
-          <span>
-            <span className="text-lg font-bold text-gray-900 tabular-nums">{n}</span>
-            <span className="text-sm text-gray-500"> shift{n === 1 ? '' : 's'}{siteIds.length ? ' · selected sites' : ''}</span>
-          </span>
-        )}
-      </div>
-      <span className="text-[11px] text-gray-400 pb-1.5">excludes cancelled</span>
-      <button className="text-xs text-gray-500 hover:text-gray-800 ml-auto pb-1.5" onClick={() => setOpen(false)}>Hide</button>
     </div>
   );
 }
