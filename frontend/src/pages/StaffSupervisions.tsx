@@ -106,10 +106,10 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Review Date</th>
+                <th className="hidden lg:table-cell text-left px-4 py-3 font-medium text-gray-600">Review Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Next Review</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Assessor</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Last Updated</th>
+                <th className="hidden xl:table-cell text-left px-4 py-3 font-medium text-gray-600">Assessor</th>
+                <th className="hidden xl:table-cell text-left px-4 py-3 font-medium text-gray-600">Last Updated</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -117,7 +117,7 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
               {filtered.map((s) => (
                 <tr key={s.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{staffName(s)}</td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="hidden lg:table-cell px-4 py-3 text-gray-600">
                     {format(new Date(s.date), 'dd MMM yyyy')}
                     {s.source === 'paper' && (
                       <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded" title={s.note || 'Recorded from a paper supervision'}>Paper</span>
@@ -130,8 +130,8 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                         : <span className="text-gray-600">{format(new Date(s.nextReviewDate), 'dd MMM yyyy')}</span>
                     ) : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{s.assessorName || '—'}</td>
-                  <td className="px-4 py-3 text-gray-500">{format(new Date(s.updatedAt || s.createdAt), 'dd MMM yyyy')}</td>
+                  <td className="hidden xl:table-cell px-4 py-3 text-gray-600">{s.assessorName || '—'}</td>
+                  <td className="hidden xl:table-cell px-4 py-3 text-gray-500">{format(new Date(s.updatedAt || s.createdAt), 'dd MMM yyyy')}</td>
                   <td className="px-4 py-3 text-right">
                     {confirmDelete === s.id ? (
                       <span className="flex items-center gap-2 justify-end">

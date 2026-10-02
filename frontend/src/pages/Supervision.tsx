@@ -152,10 +152,10 @@ function SpotChecks() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Carer</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Last Checked</th>
+                <th className="hidden lg:table-cell text-left px-4 py-3 font-medium text-gray-600">Last Checked</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Next Due</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Result</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Observer</th>
+                <th className="hidden xl:table-cell text-left px-4 py-3 font-medium text-gray-600">Result</th>
+                <th className="hidden xl:table-cell text-left px-4 py-3 font-medium text-gray-600">Observer</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -175,18 +175,18 @@ function SpotChecks() {
                           ? <span className="badge-red badge">Overdue{overdays && overdays > 0 ? ` ${overdays}d` : ''}</span>
                           : <span className="badge-green badge">Up to date</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
+                    <td className="hidden lg:table-cell px-4 py-3 text-gray-600">
                       {r.lastCheck ? format(new Date(r.lastCheck), 'dd MMM yyyy') : <span className="text-gray-300">Never</span>}
                       {r.lastSource === 'paper' && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Paper</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       {r.nextDue ? format(new Date(r.nextDue), 'dd MMM yyyy') : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="hidden xl:table-cell px-4 py-3">
                       {r.concerns === null ? <span className="text-gray-300">—</span> :
                         <span className={`text-xs px-2 py-1 rounded-full ${r.concerns > 0 ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-700'}`}>{r.concerns > 0 ? `${r.concerns} concern${r.concerns === 1 ? '' : 's'}` : 'No concerns'}</span>}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{r.observerName || '—'}</td>
+                    <td className="hidden xl:table-cell px-4 py-3 text-gray-600">{r.observerName || '—'}</td>
                     <td className="px-4 py-3 text-right">
                       {confirmDelete && confirmDelete === r.lastCheckId ? (
                         <span className="flex items-center gap-2 justify-end">
