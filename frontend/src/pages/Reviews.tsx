@@ -10,7 +10,7 @@ import PaperSeedModal from '../components/PaperSeedModal';
 import SearchableSelect from '../components/SearchableSelect';
 
 export default function Reviews({ embedded = false }: { embedded?: boolean }) {
-  const { isManager } = useAuth();
+  const { isManager, isAdmin } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [newForUserId, setNewForUserId] = useState('');
@@ -177,14 +177,17 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
               <button className="btn-secondary btn whitespace-nowrap" disabled={!newForUserId} onClick={startNewReview}>
                 + New Review
               </button>
-              <button
-                className="btn-secondary btn whitespace-nowrap"
-                disabled={!newForUserId}
-                title="Log a review already held on paper, so the next one is scheduled"
-                onClick={() => { const su = serviceUsers.find((s) => s.id === newForUserId); if (su) setPaperFor({ serviceUserId: su.id, serviceUserName: `${su.firstName} ${su.lastName}` }); }}
-              >
-                📄 Record previous (paper)
-              </button>
+              {/* Recording a review held on paper is an administrator-only action. */}
+              {isAdmin && (
+                <button
+                  className="btn-secondary btn whitespace-nowrap"
+                  disabled={!newForUserId}
+                  title="Log a review already held on paper, so the next one is scheduled"
+                  onClick={() => { const su = serviceUsers.find((s) => s.id === newForUserId); if (su) setPaperFor({ serviceUserId: su.id, serviceUserName: `${su.firstName} ${su.lastName}` }); }}
+                >
+                  📄 Record previous (paper)
+                </button>
+              )}
             </>
           )}
         </div>

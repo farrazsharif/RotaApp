@@ -38,6 +38,10 @@ export async function createReview(req: AuthRequest, res: Response) {
   if (!serviceUserId || !reviewDate) {
     return res.status(400).json({ error: 'serviceUserId and reviewDate are required' });
   }
+  // Recording a previous review held on paper is an administrator-only action.
+  if (source === 'paper' && req.user!.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Only an administrator can record a previous (paper) review.' });
+  }
 
   const review = await prisma.review.create({
     data: {
