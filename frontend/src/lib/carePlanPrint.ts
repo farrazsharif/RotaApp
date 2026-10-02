@@ -159,11 +159,6 @@ export function buildCarePlanHtml(serviceUser: ServiceUser, data: CarePlanPrintD
 
     <h2>Other</h2>
     <div class="field"><div class="field-label">Other Notes</div><div class="field-value">${esc(data.otherNotes || '—')}</div></div>
-
-    <div class="sign-row">
-      <div class="line">Carer signature / date</div>
-      <div class="line">Service User / Representative signature / date</div>
-    </div>
     </body></html>`;
 
   return html;
