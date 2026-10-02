@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listShifts, getShift, createShift, updateShift, deleteShift, bulkCreateShifts, cancelBulkShifts, assignShiftCarer, restoreShiftAssignments, publishShift, publishBulkShifts } from '../controllers/shiftController';
+import { listShifts, countShifts, getShift, createShift, updateShift, deleteShift, bulkCreateShifts, cancelBulkShifts, assignShiftCarer, restoreShiftAssignments, publishShift, publishBulkShifts } from '../controllers/shiftController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 
@@ -8,6 +8,8 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', listShifts);
+// Must precede '/:id' or "count" would be captured as a shift id.
+router.get('/count', countShifts);
 router.get('/:id', getShift);
 router.post('/', requirePermission('manage_schedule'), createShift);
 router.post('/bulk', requirePermission('manage_schedule'), bulkCreateShifts);

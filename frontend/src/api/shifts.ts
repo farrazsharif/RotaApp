@@ -48,6 +48,18 @@ export interface CreateShiftData {
 export const shiftsApi = {
   list: (filters?: ShiftFilters) =>
     api.get<Shift[]>('/shifts', { params: filters }).then((r) => r.data),
+  // Total non-cancelled shifts in an arbitrary date range (counted in the DB),
+  // optionally restricted to given sites. Powers the Schedule range counter.
+  count: (filters: { startDate?: string; endDate?: string; siteIds?: string[] }) =>
+    api
+      .get<{ count: number }>('/shifts/count', {
+        params: {
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          siteIds: filters.siteIds && filters.siteIds.length ? filters.siteIds.join(',') : undefined,
+        },
+      })
+      .then((r) => r.data),
   get: (id: string) => api.get<Shift>(`/shifts/${id}`).then((r) => r.data),
   create: (data: CreateShiftData) => api.post<Shift>('/shifts', data).then((r) => r.data),
   update: (

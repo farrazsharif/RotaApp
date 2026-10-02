@@ -777,6 +777,14 @@ export default function Schedule() {
         </div>
       )}
 
+      {isManager && (
+        <ShiftRangeCounter
+          defaultFrom={format(range.start, 'yyyy-MM-dd')}
+          defaultTo={format(addDays(range.end, -1), 'yyyy-MM-dd')}
+          siteIds={filterSites}
+        />
+      )}
+
       {mode === 'list' ? (
         <ListView
           days={rangeDays}
@@ -876,6 +884,59 @@ function SummaryTile({ value, label, tone }: { value: number | string; label: st
     <div className="bg-white border border-gray-100 rounded-lg px-3 py-1.5 flex items-baseline gap-2">
       <div className={`text-lg font-bold leading-none ${c}`}>{value}</div>
       <div className="text-xs text-gray-500 leading-tight">{label}</div>
+    </div>
+  );
+}
+
+// Count shifts over any From–To range — a quick total for a week, a month, or
+// any custom period, counted in the DB so it's accurate beyond the dates the
+// calendar currently has loaded. Honours the page's active site chips.
+function ShiftRangeCounter({ defaultFrom, defaultTo, siteIds }: { defaultFrom: string; defaultTo: string; siteIds: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(defaultTo);
+  const valid = !!from && !!to && from <= to;
+  const { data, isFetching } = useQuery({
+    queryKey: ['shift-count', from, to, siteIds],
+    queryFn: () => shiftsApi.count({ startDate: from, endDate: to, siteIds }),
+    enabled: open && valid,
+  });
+  const n = data?.count ?? 0;
+
+  if (!open) {
+    return (
+      <button className="text-sm text-blue-600 hover:underline" onClick={() => setOpen(true)}>
+        📊 Count shifts in a date range…
+      </button>
+    );
+  }
+  return (
+    <div className="bg-white border border-gray-100 rounded-lg p-3 flex flex-wrap items-end gap-3">
+      <div>
+        <label className="label text-xs">From</label>
+        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input py-1 text-sm" />
+      </div>
+      <div>
+        <label className="label text-xs">To</label>
+        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input py-1 text-sm" />
+      </div>
+      <button className="text-xs text-blue-600 hover:underline pb-1.5" onClick={() => { setFrom(defaultFrom); setTo(defaultTo); }}>
+        This view
+      </button>
+      <div className="pb-1">
+        {!valid ? (
+          <span className="text-sm text-gray-400">Pick a valid range</span>
+        ) : isFetching ? (
+          <span className="text-sm text-gray-400">Counting…</span>
+        ) : (
+          <span>
+            <span className="text-lg font-bold text-gray-900 tabular-nums">{n}</span>
+            <span className="text-sm text-gray-500"> shift{n === 1 ? '' : 's'}{siteIds.length ? ' · selected sites' : ''}</span>
+          </span>
+        )}
+      </div>
+      <span className="text-[11px] text-gray-400 pb-1.5">excludes cancelled</span>
+      <button className="text-xs text-gray-500 hover:text-gray-800 ml-auto pb-1.5" onClick={() => setOpen(false)}>Hide</button>
     </div>
   );
 }

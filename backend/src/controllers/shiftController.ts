@@ -79,6 +79,52 @@ export async function listShifts(req: AuthRequest, res: Response) {
   res.json(shifts);
 }
 
+// Total number of (non-cancelled) shifts in an arbitrary date range — powers
+// the Schedule page's "count shifts in a date range" tool. Counts in the DB
+// rather than shipping rows, so any period can be totalled regardless of what
+// the calendar currently has loaded. Respects site-scoping and an optional
+// explicit site filter (the Schedule site chips).
+export async function countShifts(req: AuthRequest, res: Response) {
+  // Manager-only aggregate — carers never see company-wide totals.
+  if (req.user!.role === Role.EMPLOYEE) return res.status(403).json({ error: 'Forbidden' });
+
+  const { startDate, endDate, siteIds } = req.query;
+  const where: Record<string, unknown> = { status: { not: 'CANCELLED' } };
+
+  // Inclusive day window. Shifts are stored date-only (server-midday), so
+  // bracket with UTC day boundaries: from 00:00 on the start day up to (but not
+  // including) 00:00 the day after the end day — this captures every shift on
+  // the end date whatever time-of-day it was stored at.
+  if (startDate || endDate) {
+    const date: Record<string, unknown> = {};
+    if (startDate) date.gte = new Date(`${String(startDate)}T00:00:00.000Z`);
+    if (endDate) {
+      const end = new Date(`${String(endDate)}T00:00:00.000Z`);
+      end.setUTCDate(end.getUTCDate() + 1);
+      date.lt = end;
+    }
+    where.date = date;
+  }
+
+  // Scoped managers only count shifts for service users in their sites.
+  Object.assign(where, relatedServiceUserScopeWhere(req.user));
+
+  // Optional explicit site filter (the Schedule site chips). When the manager
+  // is already site-scoped, narrow within that scope rather than widening past it.
+  if (siteIds) {
+    const ids = String(siteIds).split(',').map((s) => s.trim()).filter(Boolean);
+    if (ids.length) {
+      const su = (where.serviceUser as Record<string, unknown>) || {};
+      const scopeIn = (su.siteId as { in?: string[] } | undefined)?.in;
+      const finalIds = scopeIn ? ids.filter((id) => scopeIn.includes(id)) : ids;
+      where.serviceUser = { ...su, siteId: { in: finalIds } };
+    }
+  }
+
+  const count = await prisma.shift.count({ where });
+  res.json({ count });
+}
+
 export async function getShift(req: AuthRequest, res: Response) {
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id }, include: shiftInclude });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
