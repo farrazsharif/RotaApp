@@ -4,7 +4,7 @@ import { reviewsApi } from '../api/reviews';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { useAuth } from '../contexts/AuthContext';
 import { Review, ReviewType, ServiceUser } from '../types';
-import { format } from 'date-fns';
+import { format, addWeeks } from 'date-fns';
 import ReviewFormModal from '../components/ReviewFormModal';
 import PaperSeedModal from '../components/PaperSeedModal';
 import SearchableSelect from '../components/SearchableSelect';
@@ -33,6 +33,20 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   const term = search.trim().toLowerCase();
 
   const isOverdue = (r: Review) => !!r.nextReviewDate && new Date(r.nextReviewDate) < new Date();
+
+  // The review schedule starts from the care start date: the first (6-week)
+  // review falls 6 weeks after service start, and every review thereafter carries
+  // its own 3-monthly next-review date. So a client's due date is their latest
+  // review's next date, or — when they have no review yet — 6 weeks from their
+  // service start. This is what reminds the supervisor to book the first review.
+  const firstReviewDue = (su: ServiceUser): Date | null =>
+    su.serviceStartDate ? addWeeks(new Date(su.serviceStartDate), 6) : null;
+  const rowDueDate = (su: ServiceUser, review: Review | null): Date | null =>
+    review ? (review.nextReviewDate ? new Date(review.nextReviewDate) : null) : firstReviewDue(su);
+  const rowOverdue = (su: ServiceUser, review: Review | null): boolean => {
+    const d = rowDueDate(su, review);
+    return !!d && d < new Date();
+  };
   // Only the most recent review per service user determines whether their
   // next review is overdue — older reviews' due dates have been superseded.
   const latestPerUser = new Map<string, Review>();
@@ -82,7 +96,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   const sortedRows = [...filteredRows].sort((a, b) => {
     const cmp = sortCol === 'name'
       ? `${a.su.firstName} ${a.su.lastName}`.localeCompare(`${b.su.firstName} ${b.su.lastName}`, undefined, { sensitivity: 'base' })
-      : (a.review?.nextReviewDate ? new Date(a.review.nextReviewDate).getTime() : Infinity) - (b.review?.nextReviewDate ? new Date(b.review.nextReviewDate).getTime() : Infinity);
+      : (rowDueDate(a.su, a.review)?.getTime() ?? Infinity) - (rowDueDate(b.su, b.review)?.getTime() ?? Infinity);
     return sortWay === 'asc' ? cmp : -cmp;
   });
   const sortArrow = (c: 'name' | 'nextReview') => (sortBy === c ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
@@ -96,10 +110,16 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
     const activeSUs = serviceUsers.filter((su) => su.status !== 'DISCHARGED' && su.status !== 'DECEASED');
     let upToDate = 0, due = 0, noRecord = 0;
     for (const su of activeSUs) {
-      const latest = latestPerUser.get(su.id);
-      if (!latest) noRecord += 1;
-      else if (isOverdue(latest)) due += 1;
-      else upToDate += 1;
+      const latest = latestPerUser.get(su.id) ?? null;
+      if (latest) {
+        if (isOverdue(latest)) due += 1;
+        else upToDate += 1;
+      } else if (rowOverdue(su, null)) {
+        // No review yet, but the first 6-week review is now past due.
+        due += 1;
+      } else {
+        noRecord += 1;
+      }
     }
     return { active: activeSUs.length, upToDate, due, noRecord };
   })();
@@ -216,18 +236,19 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
             </thead>
             <tbody className="divide-y">
               {sortedRows.map(({ su, review }) => {
-                const overdue = review ? isOverdue(review) : false;
+                const overdue = rowOverdue(su, review);
+                const dueDate = rowDueDate(su, review);
                 // The client's earlier reviews (everything except the latest shown here).
                 const pastRevs = (reviewsByUser.get(su.id) ?? []).filter((x) => x.id !== review?.id);
                 return (
                   <tr key={su.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{su.firstName} {su.lastName}</td>
                     <td className="px-4 py-3">
-                      {!review
-                        ? <span className="badge-yellow badge">No review yet</span>
-                        : overdue
-                          ? <span className="badge-red badge">Overdue</span>
-                          : <span className="badge-green badge">Up to date</span>}
+                      {overdue
+                        ? <span className="badge-red badge">Overdue</span>
+                        : review
+                          ? <span className="badge-green badge">Up to date</span>
+                          : <span className="badge-yellow badge">No review yet</span>}
                     </td>
                     <td className="hidden lg:table-cell px-4 py-3">
                       {review
@@ -243,10 +264,13 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                       ) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3">
-                      {review?.nextReviewDate ? (
-                        overdue
-                          ? <span className="badge-red badge">⚠ {format(new Date(review.nextReviewDate), 'dd MMM yyyy')}</span>
-                          : <span className="text-gray-600">{format(new Date(review.nextReviewDate), 'dd MMM yyyy')}</span>
+                      {dueDate ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          {overdue
+                            ? <span className="badge-red badge">⚠ {format(dueDate, 'dd MMM yyyy')}</span>
+                            : <span className="text-gray-600">{format(dueDate, 'dd MMM yyyy')}</span>}
+                          {!review && <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded" title="First review is due 6 weeks after the service start date">6-week</span>}
+                        </span>
                       ) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="hidden xl:table-cell px-4 py-3 text-gray-600">{review?.assessorName || '—'}</td>
