@@ -730,6 +730,34 @@ export default function Schedule() {
                 </>
               )}
             </div>
+
+            {/* Site filter — chips sit inline with the other filters; click to
+                show only that site's visits. */}
+            {sites.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-medium text-gray-500">Sites</span>
+                {sites.map((s) => {
+                  const on = filterSites.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => toggleSite(s.id)}
+                      title={on ? `Remove ${s.name} from the filter` : `Show only ${s.name}`}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition ${
+                        on ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                      <span className="truncate max-w-[10rem]">{s.name}</span>
+                    </button>
+                  );
+                })}
+                {filterSites.length > 0 && (
+                  <button className="text-xs text-gray-500 hover:text-gray-800 px-1" onClick={() => setFilterSites([])}>Clear</button>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {undoInfo && (
@@ -764,33 +792,6 @@ export default function Schedule() {
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Filter the board by site — click a chip to show only that site's visits. */}
-      {isManager && sites.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-gray-500 mr-1">Sites</span>
-          {sites.map((s) => {
-            const on = filterSites.includes(s.id);
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => toggleSite(s.id)}
-                title={on ? `Remove ${s.name} from the filter` : `Show only ${s.name}`}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition ${
-                  on ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                <span className="truncate max-w-[12rem]">{s.name}</span>
-              </button>
-            );
-          })}
-          {filterSites.length > 0 && (
-            <button className="text-xs text-gray-500 hover:text-gray-800 px-1" onClick={() => setFilterSites([])}>Clear</button>
-          )}
         </div>
       )}
 
