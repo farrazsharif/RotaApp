@@ -44,6 +44,15 @@ function isPastShift(date: string | Date, startTime: string, endTime: string): b
   return end.getTime() <= Date.now();
 }
 
+// Minutes a visit is scheduled for, from its wall-clock start/end times.
+// Overnight visits (end at/before start, e.g. 11pm–12am) wrap past midnight.
+function shiftDurationMinutes(startTime: string, endTime: string): number {
+  const toM = (t: string) => { const [h, m] = (t || '00:00').split(':').map(Number); return h * 60 + (m || 0); };
+  let d = toM(endTime) - toM(startTime);
+  if (d < 0) d += 24 * 60;
+  return d;
+}
+
 // Display rank for a shift's site — drives the "group by site, then time"
 // ordering across the day-based schedule views. Sites are ranked by the manager-
 // set `order`; shifts with no site sort last.
@@ -337,7 +346,10 @@ export default function Schedule() {
     const unassigned = rangeShifts.filter(needsStaff).length;
     const drafts = rangeShifts.filter((s) => !s.published).length;
     const coverage = total ? Math.round(((total - unassigned) / total) * 100) : 100;
-    return { total, unassigned, drafts, coverage };
+    // Total scheduled visit time in view (sum of visit durations).
+    const minutes = rangeShifts.reduce((sum, s) => sum + shiftDurationMinutes(s.startTime, s.endTime), 0);
+    const hours = Math.round((minutes / 60) * 10) / 10;
+    return { total, unassigned, drafts, coverage, hours };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeShifts]);
 
@@ -799,8 +811,9 @@ export default function Schedule() {
       <div className="space-y-3">
       {/* Summary strip */}
       {isManager && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
           <SummaryTile value={summary.total} label="Visits in view" />
+          <SummaryTile value={Number.isInteger(summary.hours) ? summary.hours : summary.hours.toFixed(1)} label="Scheduled hours" />
           <SummaryTile value={summary.unassigned} label="Unassigned" tone={summary.unassigned ? 'danger' : undefined} />
           <SummaryTile value={summary.drafts} label="Drafts, not published" tone={summary.drafts ? 'warning' : undefined} />
           <SummaryTile value={`${summary.coverage}%`} label="Coverage filled" tone={summary.coverage >= 90 ? 'success' : summary.coverage >= 75 ? 'warning' : 'danger'} />
