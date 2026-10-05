@@ -181,6 +181,10 @@ export async function getSpotCheck(req: AuthRequest, res: Response) {
 export async function createSpotCheck(req: AuthRequest, res: Response) {
   const { carerId, serviceUserId, date, time, location, answers, generalComments, observerName, observerSignature, source } = req.body;
   if (!carerId || !date) return res.status(400).json({ error: 'carerId and date are required' });
+  // Recording a spot check held on paper is an administrator-only action.
+  if (source === 'paper' && req.user!.role !== Role.ADMIN) {
+    return res.status(403).json({ error: 'Only an administrator can record a previous (paper) spot check.' });
+  }
 
   // Confirm the carer (and optional service user) belong to this company — the
   // scoped client returns null for anything outside it.

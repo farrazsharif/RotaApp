@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { supervisionApi } from '../api/supervision';
+import { useAuth } from '../contexts/AuthContext';
 import SpotCheckModal from '../components/SpotCheckModal';
 import PaperSeedModal from '../components/PaperSeedModal';
 import Reviews from './Reviews';
@@ -73,6 +74,7 @@ function Overview() {
 }
 
 function SpotChecks() {
+  const { isAdmin } = useAuth();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ['supervision-summary'], queryFn: supervisionApi.summary });
   const [newFor, setNewFor] = useState<string | 'any' | null>(null);
@@ -197,7 +199,7 @@ function SpotChecks() {
                       ) : (
                         <span className="flex gap-2 justify-end items-center">
                           <button className={`${r.due ? 'btn-primary' : 'btn-secondary'} btn btn-sm whitespace-nowrap`} onClick={() => setNewFor(r.carerId)}>Spot check</button>
-                          {!r.lastCheckId && (
+                          {isAdmin && !r.lastCheckId && (
                             <button className="btn-secondary btn btn-sm whitespace-nowrap" title="Log a spot check already done on paper" onClick={() => setPaperFor({ carerId: r.carerId, carerName: r.carerName })}>📄 Paper</button>
                           )}
                           {r.lastCheckId && <button className="btn-secondary btn btn-sm" onClick={() => setViewId(r.lastCheckId)}>View</button>}

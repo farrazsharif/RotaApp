@@ -11,7 +11,7 @@ import SearchableSelect from '../components/SearchableSelect';
 const staffName = (s: Supervision) => (s.user ? `${s.user.firstName} ${s.user.lastName}` : '—');
 
 export default function StaffSupervisions({ embedded = false }: { embedded?: boolean }) {
-  const { isManager } = useAuth();
+  const { isManager, isAdmin } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [newForUserId, setNewForUserId] = useState('');
@@ -69,14 +69,17 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                 className="w-56 shrink-0"
               />
               <button className="btn-secondary btn whitespace-nowrap" disabled={!newForUserId} onClick={startNew}>+ New Supervision</button>
-              <button
-                className="btn-secondary btn whitespace-nowrap"
-                disabled={!newForUserId}
-                title="Log a supervision already held on paper, so the next one is scheduled"
-                onClick={() => { const u = staff.find((x) => x.id === newForUserId); if (u) setPaperFor({ userId: u.id, staffName: `${u.firstName} ${u.lastName}` }); }}
-              >
-                📄 Record previous (paper)
-              </button>
+              {/* Recording a supervision held on paper is an administrator-only action. */}
+              {isAdmin && (
+                <button
+                  className="btn-secondary btn whitespace-nowrap"
+                  disabled={!newForUserId}
+                  title="Log a supervision already held on paper, so the next one is scheduled"
+                  onClick={() => { const u = staff.find((x) => x.id === newForUserId); if (u) setPaperFor({ userId: u.id, staffName: `${u.firstName} ${u.lastName}` }); }}
+                >
+                  📄 Record previous (paper)
+                </button>
+              )}
             </>
           )}
         </div>

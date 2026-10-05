@@ -56,6 +56,10 @@ export async function getSupervision(req: AuthRequest, res: Response) {
 export async function createSupervision(req: AuthRequest, res: Response) {
   const { userId, date } = req.body;
   if (!userId || !date) return res.status(400).json({ error: 'userId and date are required' });
+  // Recording a supervision held on paper is an administrator-only action.
+  if (req.body.source === 'paper' && req.user!.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Only an administrator can record a previous (paper) supervision.' });
+  }
   const data = buildData(req.body);
   data.userId = userId;
   data.date = new Date(date);
