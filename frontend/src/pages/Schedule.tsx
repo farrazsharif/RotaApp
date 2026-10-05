@@ -668,10 +668,12 @@ export default function Schedule() {
         </div>
       </div>
 
-      {/* Row 2: search + filters + actions (managers) */}
+      {/* Row 2: search + filters + actions (managers). The left group (search,
+          filters, sites) wraps within itself so the actions (⋯ / Publish) stay
+          pinned top-right instead of dropping to a new line. */}
       {isManager && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client or carer…" className="input w-56 text-sm" />
             <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden divide-x divide-gray-200">
               {([{ k: 'all', label: 'All' }, { k: 'assigned', label: 'Assigned' }, { k: 'unassigned', label: `Unassigned${unassignedCount ? ` · ${unassignedCount}` : ''}` }, { k: 'topublish', label: `To publish${readyInRange.length ? ` · ${readyInRange.length}` : ''}` }] as const).map((opt) => (
@@ -756,7 +758,7 @@ export default function Schedule() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {undoInfo && (
               <button
                 onClick={() => restoreMut.mutate(undoInfo.payload)}
