@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
+import { dbsOverThreeYears } from '../lib/dbs';
 import { settingsApi } from '../api/settings';
 import { trainingApi, TrainingData } from '../api/training';
 import { importantDatesApi, ImportantDateData } from '../api/importantDates';
@@ -757,6 +758,9 @@ function DbsTab({ userId, initial }: { userId: string; initial: User }) {
         <h2 className="font-semibold text-gray-900">DBS Record</h2>
         <span className="text-xs text-gray-400">Administrator only · sensitive data</span>
       </div>
+      {dbsOverThreeYears(initial.dbsDateOfIssue) && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded-lg text-sm">⚠ This DBS was issued over 3 years ago — due for renewal.</div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div><label className="label">Position Applied</label><input className="input" value={f.dbsPositionApplied} onChange={(e) => set('dbsPositionApplied', e.target.value)} /></div>
         <div><label className="label">DBS Certificate No.</label><input className="input" value={f.dbsCertificateNo} onChange={(e) => set('dbsCertificateNo', e.target.value)} /></div>

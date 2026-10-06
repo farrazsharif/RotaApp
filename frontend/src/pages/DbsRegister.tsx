@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { usersApi, DbsImportRow, DbsImportResult } from '../api/users';
+import { dbsOverThreeYears } from '../lib/dbs';
 import { User } from '../types';
 
 // Company DBS register — one row per active staff member with their DBS record,
@@ -28,6 +29,7 @@ export default function DbsRegister() {
   }, [staff, term]);
 
   const withDbs = staff.filter((u) => u.dbsCertificateNo).length;
+  const overdue = staff.filter((u) => dbsOverThreeYears(u.dbsDateOfIssue)).length;
 
   const fmt = (v?: string | null) => (v ? format(new Date(v), 'dd MMM yyyy') : '—');
 
@@ -36,7 +38,11 @@ export default function DbsRegister() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">DBS Register</h1>
-          <p className="text-sm text-gray-500">{withDbs} of {staff.length} active staff have a DBS record · administrator only</p>
+          <p className="text-sm text-gray-500">
+            {withDbs} of {staff.length} active staff have a DBS record
+            {overdue > 0 && <span className="text-red-600 font-medium"> · {overdue} over 3 years (renew)</span>}
+            {' '}· administrator only
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name or certificate…" className="input w-64" />
@@ -69,7 +75,14 @@ export default function DbsRegister() {
                   <td className="px-4 py-3 font-medium text-gray-900">{u.firstName} {u.lastName}</td>
                   <td className="hidden lg:table-cell px-4 py-3 text-gray-600">{u.dbsPositionApplied || '—'}</td>
                   <td className="px-4 py-3 text-gray-700 tabular-nums">{u.dbsCertificateNo || <span className="badge-yellow badge">No DBS record</span>}</td>
-                  <td className="px-4 py-3 text-gray-600 tabular-nums">{fmt(u.dbsDateOfIssue)}</td>
+                  <td className="px-4 py-3 text-gray-600 tabular-nums">
+                    {u.dbsDateOfIssue ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        {fmt(u.dbsDateOfIssue)}
+                        {dbsOverThreeYears(u.dbsDateOfIssue) && <span className="badge-red badge whitespace-nowrap">⚠ Over 3 years</span>}
+                      </span>
+                    ) : '—'}
+                  </td>
                   <td className="px-4 py-3"><RiskBadge level={u.dbsRiskLevel} /></td>
                   <td className="hidden xl:table-cell px-4 py-3 text-gray-600">{u.dbsIssuedBy || '—'}</td>
                   <td className="px-4 py-3 text-right"><span className="text-xs text-blue-600">Open</span></td>
