@@ -214,7 +214,7 @@ export default function StaffDetail() {
 
       <div className="border-b border-gray-200">
         <nav className="flex gap-1 -mb-px overflow-x-auto no-scrollbar">
-          {TABS.filter((t) => (t !== 'Permissions' || (can('manage_permissions') && user.role !== 'ADMIN')) && (t !== 'DBS' || isAdmin)).map((t) => (
+          {TABS.filter((t) => (t !== 'Permissions' || (can('manage_permissions') && user.role !== 'ADMIN')) && (t !== 'DBS' || can('manage_dbs'))).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -259,7 +259,7 @@ export default function StaffDetail() {
       {tab === 'Important Dates' && <ImportantDatesTab userId={user.id} isManager={isManager} />}
       {tab === 'Emergency Contact' && <EmergencyContactTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'Fit for Work' && <FitForWorkTab userId={user.id} isManager={isManager} initial={user} />}
-      {tab === 'DBS' && isAdmin && <DbsTab userId={user.id} initial={user} />}
+      {tab === 'DBS' && can('manage_dbs') && <DbsTab userId={user.id} initial={user} />}
       {tab === 'Supervision' && <SupervisionTab userId={user.id} staffName={`${user.firstName} ${user.lastName}`} isManager={isManager} />}
       {tab === 'Documents' && <DocumentsTab ownerType="USER" ownerId={user.id} canManage={isManager} />}
 
@@ -756,7 +756,7 @@ function DbsTab({ userId, initial }: { userId: string; initial: User }) {
     <div className="card space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-gray-900">DBS Record</h2>
-        <span className="text-xs text-gray-400">Administrator only · sensitive data</span>
+        <span className="text-xs text-gray-400">Restricted access · sensitive data</span>
       </div>
       {dbsOverThreeYears(initial.dbsDateOfIssue) && (
         <div className="bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded-lg text-sm">⚠ This DBS was issued over 3 years ago — due for renewal.</div>

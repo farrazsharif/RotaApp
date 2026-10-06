@@ -41,7 +41,7 @@ export default function DbsRegister() {
           <p className="text-sm text-gray-500">
             {withDbs} of {staff.length} active staff have a DBS record
             {overdue > 0 && <span className="text-red-600 font-medium"> · {overdue} over 3 years (renew)</span>}
-            {' '}· administrator only
+            {' '}· restricted access
           </p>
         </div>
         <div className="flex items-center gap-2">

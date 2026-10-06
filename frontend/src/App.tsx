@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { PermissionKey } from './types';
 import { SocketProvider } from './contexts/SocketContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -64,9 +65,9 @@ function PlatformRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { isAdmin } = useAuth();
-  if (!isAdmin) return <Navigate to="/" replace />;
+function CapabilityRoute({ cap, children }: { cap: PermissionKey; children: React.ReactNode }) {
+  const { can } = usePermissions();
+  if (!can(cap)) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -126,7 +127,7 @@ function AppRoutes() {
         <Route path="finances" element={<Finances />} />
         <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
         <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
-        <Route path="dbs" element={<AdminRoute><DbsRegister /></AdminRoute>} />
+        <Route path="dbs" element={<CapabilityRoute cap="manage_dbs"><DbsRegister /></CapabilityRoute>} />
         <Route path="settings" element={<Settings />} />
         <Route path="settings/billing" element={<Billing />} />
         <Route path="settings/service-plan-template" element={<ServicePlanTemplate />} />

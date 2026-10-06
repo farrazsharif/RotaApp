@@ -10,7 +10,7 @@ export type NotificationType =
   | 'TIME_OFF_APPROVED' | 'TIME_OFF_REJECTED' | 'CLOCK_REMINDER';
 
 export type PermissionKey =
-  | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access'
+  | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access' | 'manage_dbs'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
   | 'manage_supervision'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'

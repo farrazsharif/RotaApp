@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma';
 import { getTenant } from '../lib/tenantContext';
 
 export type PermissionKey =
-  | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access'
+  | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access' | 'manage_dbs'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
   | 'manage_supervision'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
@@ -30,6 +30,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'delete_staff',          label: 'Deactivate & delete staff',        group: 'People',    default: A },
   { key: 'reset_staff_passwords', label: "Reset staff passwords",            group: 'People',    default: A },
   { key: 'manage_family_access',  label: 'Manage family portal access',      group: 'People',    default: AM },
+  { key: 'manage_dbs',            label: 'View & edit DBS register and records', group: 'People',  default: A },
 
   { key: 'manage_service_users',  label: 'Manage service users, care & service plans', group: 'Care', default: AM },
   { key: 'manage_reviews',        label: 'Create & edit reviews',            group: 'Care',      default: AM },
@@ -120,6 +121,15 @@ export function sanitisePermissions(input: unknown): Record<string, Role[]> {
     out[key] = Array.from(new Set(roles));
   }
   return out;
+}
+
+// Non-middleware capability check — same resolution as requirePermission, for
+// use inside a controller (e.g. deciding whether to include sensitive fields).
+export async function userHasPermission(req: AuthRequest, key: PermissionKey): Promise<boolean> {
+  if (!req.user) return false;
+  if (req.user.customPermissions) return req.user.customPermissions.includes(key);
+  const map = await getEffectivePermissions();
+  return (map[key] || []).includes(req.user.role);
 }
 
 export function requirePermission(key: PermissionKey) {

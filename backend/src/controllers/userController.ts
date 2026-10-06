@@ -8,7 +8,7 @@ import { createPasswordSetupToken, portalUrlForRole } from './authController';
 import { sendEmail, setPasswordEmail } from '../lib/email';
 import { isScoped, staffInScope } from '../lib/scope';
 import { logAudit } from '../lib/audit';
-import { capabilitiesFor, sanitiseCapabilityList } from '../middleware/permissions';
+import { capabilitiesFor, sanitiseCapabilityList, userHasPermission } from '../middleware/permissions';
 import { evaluateCompliance, parseRequirements, ComplianceInput } from '../lib/staffCompliance';
 import { loadOrgSettings } from './settingsController';
 
@@ -84,8 +84,8 @@ export async function listUsers(req: AuthRequest, res: Response) {
     select: { userId: true },
   });
   const invited = new Set(tokens.map((t) => t.userId));
-  const admin = req.user!.role === Role.ADMIN;
-  res.json(users.map((u) => ({ ...(admin ? u : stripDbs(u)), pendingSetup: !u.active && invited.has(u.id) })));
+  const canDbs = await userHasPermission(req, 'manage_dbs');
+  res.json(users.map((u) => ({ ...(canDbs ? u : stripDbs(u)), pendingSetup: !u.active && invited.has(u.id) })));
 }
 
 export async function getUser(req: AuthRequest, res: Response) {
@@ -101,7 +101,7 @@ export async function getUser(req: AuthRequest, res: Response) {
   const roleCaps = (() => { try { return user.customRole ? JSON.parse(user.customRole.permissions) as string[] : null; } catch { return null; } })();
   const capabilities = await capabilitiesFor(user.role as Role, override ?? roleCaps);
   const { permissionsOverride, customRole, ...rest } = user;
-  const body = req.user!.role === Role.ADMIN ? rest : stripDbs(rest);
+  const body = (await userHasPermission(req, 'manage_dbs')) ? rest : stripDbs(rest);
   res.json({ ...body, customRole: customRole ? { id: customRole.id, name: customRole.name, baseType: customRole.baseType } : null, permissionsOverride: override, capabilities, pendingSetup: !user.active && !!token });
 }
 
@@ -315,7 +315,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (sensitive.length) {
     await logAudit(req, 'STAFF_UPDATED', `${user.firstName} ${user.lastName}`, `changed ${sensitive.join(', ')}`);
   }
-  res.json(req.user!.role === Role.ADMIN ? user : stripDbs(user));
+  res.json((await userHasPermission(req, 'manage_dbs')) ? user : stripDbs(user));
 }
 
 // Re-sends the welcome / set-password email for someone who was invited but
