@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { settingsApi } from '../api/settings';
 import { primePrintBranding } from '../lib/printBranding';
 
-const navItems: { to: string; label: string; icon: string; exact?: boolean; managerOnly?: boolean; capability?: PermissionKey; platformOnly?: boolean }[] = [
+const navItems: { to: string; label: string; icon: string; exact?: boolean; managerOnly?: boolean; adminOnly?: boolean; capability?: PermissionKey; platformOnly?: boolean }[] = [
   { to: '/platform', label: 'Platform Admin', icon: '🏢', platformOnly: true },
   { to: '/', label: 'Dashboard', icon: '🏠', exact: true },
   { to: '/schedule', label: 'Schedule', icon: '📅', capability: 'manage_schedule' },
@@ -26,11 +26,12 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; mana
   { to: '/cqc', label: 'CQC', icon: '🛡️', capability: 'manage_cqc' },
   { to: '/finances', label: 'Finances', icon: '💷', capability: 'manage_billing' },
   { to: '/users', label: 'Staff', icon: '👥', capability: 'manage_staff' },
+  { to: '/dbs', label: 'DBS Register', icon: '🪪', adminOnly: true },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
 export default function Layout() {
-  const { user, logout, isManager } = useAuth();
+  const { user, logout, isManager, isAdmin } = useAuth();
   const { can } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
@@ -79,6 +80,7 @@ export default function Layout() {
     // Settings, none of the per-company care screens.
     if (user?.platformAdmin && !item.platformOnly && item.to !== '/settings') return false;
     if (item.managerOnly && !isManager) return false;
+    if (item.adminOnly && !isAdmin) return false;
     if (item.capability && !can(item.capability)) return false;
     return true;
   });

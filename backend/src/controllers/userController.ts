@@ -21,7 +21,22 @@ const userSelect = {
   emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true, emergencyContactAddress: true,
   staffType: true,
   fitForWork: true,
+  dbsCertificateNo: true, dbsPositionApplied: true, dbsDateOfIssue: true, dbsRiskLevel: true, dbsIssuedBy: true,
+  dbsAppointingManager: true, dbsOffenceDisclosed: true, dbsOffenceDate: true, dbsNotes: true,
 };
+
+// DBS fields carried on userSelect. They're sensitive (criminal-record data),
+// so they're stripped from any response to a non-administrator — only the
+// admin-only DBS screens ever see them.
+const DBS_KEYS = [
+  'dbsCertificateNo', 'dbsPositionApplied', 'dbsDateOfIssue', 'dbsRiskLevel', 'dbsIssuedBy',
+  'dbsAppointingManager', 'dbsOffenceDisclosed', 'dbsOffenceDate', 'dbsNotes',
+] as const;
+function stripDbs<T extends Record<string, unknown>>(u: T): T {
+  const copy = { ...u };
+  for (const k of DBS_KEYS) delete (copy as Record<string, unknown>)[k];
+  return copy;
+}
 
 // Parse a user's stored permission override (JSON array) or null if unset.
 function parseOverride(raw: string | null | undefined): string[] | null {
@@ -69,7 +84,8 @@ export async function listUsers(req: AuthRequest, res: Response) {
     select: { userId: true },
   });
   const invited = new Set(tokens.map((t) => t.userId));
-  res.json(users.map((u) => ({ ...u, pendingSetup: !u.active && invited.has(u.id) })));
+  const admin = req.user!.role === Role.ADMIN;
+  res.json(users.map((u) => ({ ...(admin ? u : stripDbs(u)), pendingSetup: !u.active && invited.has(u.id) })));
 }
 
 export async function getUser(req: AuthRequest, res: Response) {
@@ -85,7 +101,8 @@ export async function getUser(req: AuthRequest, res: Response) {
   const roleCaps = (() => { try { return user.customRole ? JSON.parse(user.customRole.permissions) as string[] : null; } catch { return null; } })();
   const capabilities = await capabilitiesFor(user.role as Role, override ?? roleCaps);
   const { permissionsOverride, customRole, ...rest } = user;
-  res.json({ ...rest, customRole: customRole ? { id: customRole.id, name: customRole.name, baseType: customRole.baseType } : null, permissionsOverride: override, capabilities, pendingSetup: !user.active && !!token });
+  const body = req.user!.role === Role.ADMIN ? rest : stripDbs(rest);
+  res.json({ ...body, customRole: customRole ? { id: customRole.id, name: customRole.name, baseType: customRole.baseType } : null, permissionsOverride: override, capabilities, pendingSetup: !user.active && !!token });
 }
 
 // PUT /api/users/:id/permissions — set (or clear) this person's per-person
@@ -298,7 +315,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (sensitive.length) {
     await logAudit(req, 'STAFF_UPDATED', `${user.firstName} ${user.lastName}`, `changed ${sensitive.join(', ')}`);
   }
-  res.json(user);
+  res.json(req.user!.role === Role.ADMIN ? user : stripDbs(user));
 }
 
 // Re-sends the welcome / set-password email for someone who was invited but
@@ -345,4 +362,141 @@ export async function permanentDeleteUser(req: AuthRequest, res: Response) {
   await prisma.user.delete({ where: { id } });
   await logAudit(req, 'STAFF_DELETED', u ? `${u.firstName} ${u.lastName}` : id, u?.email);
   res.json({ message: 'User deleted' });
+}
+
+// ---- DBS record (admin only) -----------------------------------------------
+
+// The DBS fields a staff record carries. Kept in one place so the per-staff
+// edit and the bulk import write exactly the same shape.
+const DBS_RISK = new Set(['Low', 'Medium', 'High']);
+
+interface DbsFields {
+  dbsCertificateNo: string | null;
+  dbsPositionApplied: string | null;
+  dbsDateOfIssue: Date | null;
+  dbsRiskLevel: string | null;
+  dbsIssuedBy: string | null;
+  dbsAppointingManager: string | null;
+  dbsOffenceDisclosed: string | null;
+  dbsOffenceDate: Date | null;
+  dbsNotes: string | null;
+}
+
+// Accepts an ISO string, an existing Date, or a UK "dd/mm/yyyy" text date.
+// Returns null for blanks / unparseable values rather than throwing.
+function parseFlexibleDate(v: unknown): Date | null {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  const s = String(v).trim();
+  if (!s) return null;
+  const uk = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
+  if (uk) {
+    const [, d, m, y] = uk;
+    const year = y.length === 2 ? 2000 + Number(y) : Number(y);
+    const dt = new Date(Date.UTC(year, Number(m) - 1, Number(d)));
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  const dt = new Date(s);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+const str = (v: unknown): string | null => {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s ? s : null;
+};
+
+// Normalise a risk level to Low/Medium/High (title-case), else keep as-is text.
+function normRisk(v: unknown): string | null {
+  const s = str(v);
+  if (!s) return null;
+  const t = s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  return DBS_RISK.has(t) ? t : s;
+}
+
+function dbsFieldsFromBody(b: Record<string, unknown>): DbsFields {
+  return {
+    dbsCertificateNo: str(b.dbsCertificateNo ?? b.certificateNo),
+    dbsPositionApplied: str(b.dbsPositionApplied ?? b.positionApplied),
+    dbsDateOfIssue: parseFlexibleDate(b.dbsDateOfIssue ?? b.dateOfIssue),
+    dbsRiskLevel: normRisk(b.dbsRiskLevel ?? b.riskLevel ?? b.risk),
+    dbsIssuedBy: str(b.dbsIssuedBy ?? b.issuedBy),
+    dbsAppointingManager: str(b.dbsAppointingManager ?? b.appointingManager),
+    dbsOffenceDisclosed: str(b.dbsOffenceDisclosed ?? b.offenceDisclosed),
+    dbsOffenceDate: parseFlexibleDate(b.dbsOffenceDate ?? b.offenceDate),
+    dbsNotes: str(b.dbsNotes ?? b.notes),
+  };
+}
+
+// Update one staff member's DBS record. Admin-only (gated on the route).
+export async function updateUserDbs(req: AuthRequest, res: Response) {
+  const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true } });
+  if (!target) return res.status(404).json({ error: 'Staff member not found' });
+  const fields = dbsFieldsFromBody(req.body || {});
+  const user = await prisma.user.update({ where: { id: req.params.id }, data: fields as never, select: userSelect });
+  await logAudit(req, 'STAFF_DBS_UPDATED', `${user.firstName} ${user.lastName}`, user.email);
+  res.json(user);
+}
+
+// Match a full name to one active staff member of this company. Normalises
+// case and whitespace. Returns the single match, or null when none / ambiguous.
+function normName(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// Bulk import DBS rows from the office spreadsheet. Matches each row's name to a
+// staff member; rows with no (single) match are skipped and reported. With
+// commit=false it only previews; commit=true writes the matched rows.
+// Admin-only (gated on the route).
+export async function importDbs(req: AuthRequest, res: Response) {
+  const rows = Array.isArray(req.body?.rows) ? (req.body.rows as Record<string, unknown>[]) : null;
+  const commit = req.body?.commit === true;
+  if (!rows) return res.status(400).json({ error: 'rows[] is required' });
+
+  // All active staff of this company (tenant-scoped), for name matching.
+  const staff = await prisma.user.findMany({
+    where: { active: true, role: { not: Role.FAMILY_MEMBER } },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  const byName = new Map<string, { id: string; name: string }[]>();
+  for (const u of staff) {
+    const key = normName(`${u.firstName} ${u.lastName}`);
+    const arr = byName.get(key) ?? [];
+    arr.push({ id: u.id, name: `${u.firstName} ${u.lastName}` });
+    byName.set(key, arr);
+  }
+
+  const matched: { name: string; userId: string; userName: string }[] = [];
+  const unmatched: string[] = [];
+  const ambiguous: string[] = [];
+  const toWrite: { id: string; fields: DbsFields }[] = [];
+
+  for (const row of rows) {
+    const rawName = str(row.name ?? row.Name);
+    if (!rawName) continue;
+    const hits = byName.get(normName(rawName)) ?? [];
+    if (hits.length === 0) { unmatched.push(rawName); continue; }
+    if (hits.length > 1) { ambiguous.push(rawName); continue; }
+    matched.push({ name: rawName, userId: hits[0].id, userName: hits[0].name });
+    toWrite.push({ id: hits[0].id, fields: dbsFieldsFromBody(row) });
+  }
+
+  let updated = 0;
+  if (commit && toWrite.length) {
+    for (const w of toWrite) {
+      await prisma.user.update({ where: { id: w.id }, data: w.fields as never });
+      updated += 1;
+    }
+    await logAudit(req, 'STAFF_DBS_IMPORTED', `${updated} staff`, undefined);
+  }
+
+  res.json({
+    totalRows: rows.length,
+    matchedCount: matched.length,
+    unmatchedCount: unmatched.length,
+    ambiguousCount: ambiguous.length,
+    matched, unmatched, ambiguous,
+    committed: commit,
+    updated,
+  });
 }

@@ -97,6 +97,16 @@ export interface User {
   emergencyContactRelation?: string;
   emergencyContactAddress?: string;
   fitForWork?: FitForWork | null;
+  // DBS record (admin-only) — mirrors the office DBS register.
+  dbsCertificateNo?: string | null;
+  dbsPositionApplied?: string | null;
+  dbsDateOfIssue?: string | null;
+  dbsRiskLevel?: string | null; // Low | Medium | High
+  dbsIssuedBy?: string | null;
+  dbsAppointingManager?: string | null;
+  dbsOffenceDisclosed?: string | null;
+  dbsOffenceDate?: string | null;
+  dbsNotes?: string | null;
   createdAt: string;
 }
 

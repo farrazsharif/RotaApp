@@ -84,6 +84,17 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emergencyContactAddress" TEXT`);
   // Recruitment category (LOCAL | OVERSEAS) — drives overseas-only staff-file docs.
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "staffType" TEXT NOT NULL DEFAULT 'LOCAL'`);
+  // DBS record fields (one current certificate per staff member) — mirrors the
+  // office DBS Database & Risk Assessment register.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsCertificateNo" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsPositionApplied" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsDateOfIssue" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsRiskLevel" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsIssuedBy" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsAppointingManager" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsOffenceDisclosed" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsOffenceDate" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsNotes" TEXT`);
   // Care plan: extra named calls beyond the four standard slots (JSON array of
   // { name, when }) — e.g. Shopping, Domestic, GP appointment.
   await prisma.$executeRawUnsafe(`ALTER TABLE "CarePlan" ADD COLUMN IF NOT EXISTS "extraCalls" TEXT NOT NULL DEFAULT '[]'`);

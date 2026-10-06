@@ -16,6 +16,7 @@ import LateCheckins from './pages/LateCheckins';
 import MissedMeds from './pages/MissedMeds';
 import Users from './pages/Users';
 import StaffDetail from './pages/StaffDetail';
+import DbsRegister from './pages/DbsRegister';
 import ServiceUsers from './pages/ServiceUsers';
 import ClientDocuments from './pages/ClientDocuments';
 import ServiceUserDetail from './pages/ServiceUserDetail';
@@ -60,6 +61,12 @@ function ManagerRoute({ children }: { children: React.ReactNode }) {
 function PlatformRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user?.platformAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useAuth();
+  if (!isAdmin) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -119,6 +126,7 @@ function AppRoutes() {
         <Route path="finances" element={<Finances />} />
         <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
         <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
+        <Route path="dbs" element={<AdminRoute><DbsRegister /></AdminRoute>} />
         <Route path="settings" element={<Settings />} />
         <Route path="settings/billing" element={<Billing />} />
         <Route path="settings/service-plan-template" element={<ServicePlanTemplate />} />

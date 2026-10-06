@@ -27,7 +27,7 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-const TABS = ['Details', 'Compliance', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'Supervision', 'Documents'] as const;
+const TABS = ['Details', 'Compliance', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'DBS', 'Supervision', 'Documents'] as const;
 type Tab = typeof TABS[number];
 
 // The health-declaration checklist from the paper "Fit for Work Declaration".
@@ -213,7 +213,7 @@ export default function StaffDetail() {
 
       <div className="border-b border-gray-200">
         <nav className="flex gap-1 -mb-px overflow-x-auto no-scrollbar">
-          {TABS.filter((t) => t !== 'Permissions' || (can('manage_permissions') && user.role !== 'ADMIN')).map((t) => (
+          {TABS.filter((t) => (t !== 'Permissions' || (can('manage_permissions') && user.role !== 'ADMIN')) && (t !== 'DBS' || isAdmin)).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -258,6 +258,7 @@ export default function StaffDetail() {
       {tab === 'Important Dates' && <ImportantDatesTab userId={user.id} isManager={isManager} />}
       {tab === 'Emergency Contact' && <EmergencyContactTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'Fit for Work' && <FitForWorkTab userId={user.id} isManager={isManager} initial={user} />}
+      {tab === 'DBS' && isAdmin && <DbsTab userId={user.id} initial={user} />}
       {tab === 'Supervision' && <SupervisionTab userId={user.id} staffName={`${user.firstName} ${user.lastName}`} isManager={isManager} />}
       {tab === 'Documents' && <DocumentsTab ownerType="USER" ownerId={user.id} canManage={isManager} />}
 
@@ -714,6 +715,68 @@ function ImportantDatesTab({ userId, isManager }: { userId: string; isManager: b
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Per-staff DBS record (admin only). Mirrors the office DBS register columns.
+function DbsTab({ userId, initial }: { userId: string; initial: User }) {
+  const qc = useQueryClient();
+  const [saved, setSaved] = useState(false);
+  const d = (v?: string | null) => (v ? v.slice(0, 10) : '');
+  const [f, setF] = useState({
+    dbsPositionApplied: initial.dbsPositionApplied || '',
+    dbsCertificateNo: initial.dbsCertificateNo || '',
+    dbsDateOfIssue: d(initial.dbsDateOfIssue),
+    dbsRiskLevel: initial.dbsRiskLevel || '',
+    dbsIssuedBy: initial.dbsIssuedBy || '',
+    dbsAppointingManager: initial.dbsAppointingManager || '',
+    dbsOffenceDisclosed: initial.dbsOffenceDisclosed || '',
+    dbsOffenceDate: d(initial.dbsOffenceDate),
+    dbsNotes: initial.dbsNotes || '',
+  });
+  const set = (k: keyof typeof f, v: string) => { setF((p) => ({ ...p, [k]: v })); setSaved(false); };
+  const save = useMutation({
+    mutationFn: () => usersApi.updateDbs(userId, {
+      dbsPositionApplied: f.dbsPositionApplied || null,
+      dbsCertificateNo: f.dbsCertificateNo || null,
+      dbsDateOfIssue: f.dbsDateOfIssue || null,
+      dbsRiskLevel: f.dbsRiskLevel || null,
+      dbsIssuedBy: f.dbsIssuedBy || null,
+      dbsAppointingManager: f.dbsAppointingManager || null,
+      dbsOffenceDisclosed: f.dbsOffenceDisclosed || null,
+      dbsOffenceDate: f.dbsOffenceDate || null,
+      dbsNotes: f.dbsNotes || null,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['user', userId] }); setSaved(true); },
+  });
+
+  return (
+    <div className="card space-y-4 max-w-3xl">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-gray-900">DBS Record</h2>
+        <span className="text-xs text-gray-400">Administrator only · sensitive data</span>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div><label className="label">Position Applied</label><input className="input" value={f.dbsPositionApplied} onChange={(e) => set('dbsPositionApplied', e.target.value)} /></div>
+        <div><label className="label">DBS Certificate No.</label><input className="input" value={f.dbsCertificateNo} onChange={(e) => set('dbsCertificateNo', e.target.value)} /></div>
+        <div><label className="label">Date of Issue</label><input type="date" className="input" value={f.dbsDateOfIssue} onChange={(e) => set('dbsDateOfIssue', e.target.value)} /></div>
+        <div><label className="label">Level of Harm Risk</label>
+          <select className="input" value={f.dbsRiskLevel} onChange={(e) => set('dbsRiskLevel', e.target.value)}>
+            <option value="">—</option><option>Low</option><option>Medium</option><option>High</option>
+          </select>
+        </div>
+        <div><label className="label">Issued By</label><input className="input" value={f.dbsIssuedBy} onChange={(e) => set('dbsIssuedBy', e.target.value)} placeholder="e.g. Notified by Total DBS" /></div>
+        <div><label className="label">Appointing Manager</label><input className="input" value={f.dbsAppointingManager} onChange={(e) => set('dbsAppointingManager', e.target.value)} /></div>
+        <div><label className="label">Was Offence Disclosed</label><input className="input" value={f.dbsOffenceDisclosed} onChange={(e) => set('dbsOffenceDisclosed', e.target.value)} placeholder="N/A" /></div>
+        <div><label className="label">Offence Date</label><input type="date" className="input" value={f.dbsOffenceDate} onChange={(e) => set('dbsOffenceDate', e.target.value)} /></div>
+      </div>
+      <div><label className="label">Notes &amp; Explanation</label><textarea className="input" rows={3} value={f.dbsNotes} onChange={(e) => set('dbsNotes', e.target.value)} /></div>
+      <div className="flex items-center gap-3">
+        <button className="btn-primary btn" disabled={save.isPending} onClick={() => save.mutate()}>{save.isPending ? 'Saving…' : 'Save DBS'}</button>
+        {saved && <span className="text-sm text-green-600">Saved ✓</span>}
+        {save.isError && <span className="text-sm text-red-600">Couldn’t save — try again</span>}
+      </div>
     </div>
   );
 }

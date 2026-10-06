@@ -66,6 +66,17 @@ model User {
   // Fit for Work Declaration (staff health questionnaire + signature),
   // stored as one JSON blob. See FitForWork type on the frontend.
   fitForWork               Json?
+  // DBS record (one current certificate per staff member) — mirrors the office
+  // "DBS Database and Risk Assessment" register. All optional; blank until set.
+  dbsCertificateNo         String?
+  dbsPositionApplied       String?
+  dbsDateOfIssue           DateTime?
+  dbsRiskLevel             String? // Low | Medium | High
+  dbsIssuedBy              String?
+  dbsAppointingManager     String?
+  dbsOffenceDisclosed      String? // free text, e.g. "N/A", "No", "Yes, Verbally"
+  dbsOffenceDate           DateTime?
+  dbsNotes                 String?
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
