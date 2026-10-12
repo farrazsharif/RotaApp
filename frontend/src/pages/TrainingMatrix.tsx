@@ -153,27 +153,29 @@ export default function TrainingMatrix() {
       </div>
 
       <div className="card p-0 overflow-x-auto review-printable">
-        <table className="text-xs border-collapse print:text-[7px]">
+        <table className="border-collapse text-[11px] print:text-[7px]">
           <thead>
-            <tr className="bg-gray-50 border-b">
-              <th className="sticky left-0 z-10 bg-gray-50 text-left px-3 py-2 font-medium text-gray-700 border-r min-w-[9rem]">Staff Name</th>
+            <tr>
+              <th className="sticky left-0 z-20 bg-gray-100 text-left px-3 py-2 font-semibold text-gray-700 border border-gray-300 align-bottom min-w-[8.5rem]">Staff Name</th>
               {courses.map((c) => (
-                <th key={c} className="px-2 py-2 font-medium text-gray-600 text-left align-bottom min-w-[5.5rem] max-w-[7rem]">{c}</th>
+                <th key={c} className="bg-gray-100 border border-gray-300 p-0 align-bottom">
+                  <div className="[writing-mode:vertical-rl] rotate-180 whitespace-nowrap font-medium text-gray-600 leading-none py-2 px-1 mx-auto">{c}</div>
+                </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y">
-            {rows.length === 0 && <tr><td colSpan={courses.length + 1} className="px-4 py-10 text-center text-gray-400">No staff match.</td></tr>}
+          <tbody>
+            {rows.length === 0 && <tr><td colSpan={courses.length + 1} className="px-4 py-10 text-center text-gray-400 border border-gray-300">No staff match.</td></tr>}
             {rows.map((u) => {
               const byCourse = latest.get(u.id);
               return (
-                <tr key={u.id} className="hover:bg-blue-50/30">
-                  <td className="sticky left-0 z-10 bg-white px-3 py-1.5 font-medium text-gray-900 border-r whitespace-nowrap cursor-pointer hover:underline" onClick={() => navigate(`/users/${u.id}`)}>{u.firstName} {u.lastName}</td>
+                <tr key={u.id} className="hover:bg-blue-50/40">
+                  <td className="sticky left-0 z-10 bg-white px-3 py-1 font-medium text-gray-900 border border-gray-300 whitespace-nowrap cursor-pointer hover:underline" onClick={() => navigate(`/users/${u.id}`)}>{u.firstName} {u.lastName}</td>
                   {courses.map((c) => {
                     const rec = byCourse?.get(c.toLowerCase());
                     const st = statusOf(rec);
                     return (
-                      <td key={c} className={`px-2 py-1.5 text-center tabular-nums ${CELL_CLASS[st]}`} title={`${c}${rec ? ` · expires ${format(expiryOf(rec), 'dd MMM yyyy')}` : ' · not recorded'}`}>
+                      <td key={c} className={`px-1 py-1 text-center tabular-nums whitespace-nowrap border border-gray-300 ${CELL_CLASS[st]}`} title={`${c}${rec ? ` · expires ${format(expiryOf(rec), 'dd MMM yyyy')}` : ' · not recorded'}`}>
                         {rec ? format(new Date(rec.date), 'dd/MM/yy') : '—'}
                       </td>
                     );
