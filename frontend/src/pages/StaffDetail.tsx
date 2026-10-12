@@ -508,7 +508,6 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
                 <th className="text-left p-2.5 font-medium">Date</th>
                 <th className="text-left p-2.5 font-medium">Expires</th>
                 <th className="text-center p-2.5 font-medium">Valid</th>
-                <th className="text-center p-2.5 font-medium">Accredited</th>
                 {isManager && <th className="text-right p-2.5 font-medium">Actions</th>}
               </tr>
             </thead>
@@ -519,7 +518,6 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
                   <td className="p-2.5 text-gray-600">{format(new Date(t.date), 'dd-MM-yyyy')}</td>
                   <td className="p-2.5 text-gray-600">{t.expiresAt ? format(new Date(t.expiresAt), 'dd-MM-yyyy') : '—'}</td>
                   <td className="p-2.5 text-center"><StatusIcon ok={isValid(t)} /></td>
-                  <td className="p-2.5 text-center"><StatusIcon ok={t.accredited} /></td>
                   {isManager && (
                     <td className="p-2.5 text-right">
                       {confirmDeleteId === t.id ? (
@@ -571,10 +569,6 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
             <label className="label">Description</label>
             <AutoGrowTextarea value={form.description} minRows={2} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input text-sm" />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={form.accredited} onChange={(e) => setForm({ ...form, accredited: e.target.checked })} />
-            Accredited
-          </label>
           <div className="flex gap-3">
             {editingId && <button className="btn-secondary btn" onClick={resetForm}>Cancel Edit</button>}
             <div className="flex-1" />
