@@ -612,16 +612,32 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
   const staffScope = relatedStaffScopeWhere(req.user);
   const employeeSiteFilter = isScoped(req.user) ? { sites: { some: { id: { in: req.user!.siteIds } } } } : {};
 
-  const [totalEmployees, pendingTimeOff, weekShifts, todayShifts, todayClock, missedMeds, trainingExpiring, importantSoon] = await Promise.all([
+  const [totalEmployees, pendingTimeOff, weekShifts, todayShifts, todayClock, missedMeds, trainingRecords, importantSoon] = await Promise.all([
     prisma.user.count({ where: { active: true, role: 'EMPLOYEE', ...employeeSiteFilter } }),
     prisma.timeOffRequest.count({ where: { status: 'PENDING', ...staffScope } }),
     prisma.shift.findMany({ where: { date: { gte: weekStart, lt: weekEndExcl }, status: { not: 'CANCELLED' }, ...suScope }, select: { date: true, userId: true } }),
     prisma.shift.findMany({ where: { date: { gte: todayStart, lt: todayEnd }, status: { not: 'CANCELLED' }, ...suScope }, select: { id: true, startTime: true, userId: true, status: true } }),
     prisma.clockRecord.findMany({ where: { clockIn: { gte: todayStart } }, select: { shiftId: true } }),
     prisma.medAdministration.count({ where: { status: 'MISSED', scheduledFor: { gte: todayStart, lt: todayEnd }, ...suScope } }),
-    prisma.training.count({ where: { expiresAt: { not: null, lte: in30 }, ...staffScope } }),
+    prisma.training.findMany({
+      where: { expiresAt: { not: null }, user: isScoped(req.user) ? { active: true, sites: { some: { id: { in: req.user!.siteIds } } } } : { active: true } },
+      select: { userId: true, course: true, expiresAt: true },
+      orderBy: { date: 'desc' },
+    }),
     prisma.importantDate.count({ where: { date: { gte: todayStart, lte: in30 }, ...staffScope } }),
   ]);
+
+  // Training expiring/expired = the LATEST record per (staff, course) whose
+  // expiry has passed or falls within 30 days. Dedupe so superseded history
+  // records (e.g. before an annual refresher) aren't counted.
+  const seenTraining = new Set<string>();
+  let trainingExpiring = 0;
+  for (const r of trainingRecords) {
+    const k = `${r.userId}::${r.course.toLowerCase()}`;
+    if (seenTraining.has(k)) continue;
+    seenTraining.add(k);
+    if (r.expiresAt && r.expiresAt.getTime() <= in30.getTime()) trainingExpiring += 1;
+  }
 
   const shiftsThisWeek = weekShifts.length;
 
