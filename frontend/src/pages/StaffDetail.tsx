@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
+import { documentsApi } from '../api/documents';
 import { dbsOverThreeYears } from '../lib/dbs';
 import { settingsApi } from '../api/settings';
 import { trainingApi, TrainingData } from '../api/training';
@@ -395,19 +396,28 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [refreshOpen, setRefreshOpen] = useState(false);
   const [refreshDate, setRefreshDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [refreshFile, setRefreshFile] = useState<File | null>(null);
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
 
   const { data: records = [], isLoading } = useQuery({ queryKey: ['training', userId], queryFn: () => trainingApi.list(userId) });
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  const { data: docConfig } = useQuery({ queryKey: ['documents-config'], queryFn: documentsApi.config });
   const courses = resolveTrainingCourses(settings?.trainingCourses);
 
-  // Annual refresher — renews every course the staff holds (+1 year expiry).
+  // Annual refresher — renews every course the staff holds (+1 year expiry),
+  // and optionally files the refresher certificate against the staff member.
   const refreshMut = useMutation({
-    mutationFn: () => trainingApi.refresh(userId, refreshDate),
+    mutationFn: async () => {
+      const r = await trainingApi.refresh(userId, refreshDate);
+      if (refreshFile) await documentsApi.upload('USER', userId, refreshFile, 'Training Certificate');
+      return r;
+    },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ['training', userId] });
       qc.invalidateQueries({ queryKey: ['user-compliance', userId] });
+      qc.invalidateQueries({ queryKey: ['documents', 'USER', userId] });
       setRefreshOpen(false);
+      setRefreshFile(null);
       setRefreshMsg(`Renewed ${r.count} course${r.count === 1 ? '' : 's'} — next due ${format(new Date(new Date(refreshDate).setFullYear(new Date(refreshDate).getFullYear() + 1)), 'dd MMM yyyy')}.`);
       setTimeout(() => setRefreshMsg(null), 6000);
     },
@@ -454,7 +464,7 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
           <label className="flex items-center gap-1.5"><input type="radio" checked={showAll} onChange={() => setShowAll(true)} /> All</label>
         </div>
         {isManager && records.length > 0 && !refreshOpen && (
-          <button className="btn-secondary btn btn-sm" onClick={() => { setRefreshMsg(null); setRefreshDate(format(new Date(), 'yyyy-MM-dd')); setRefreshOpen(true); }} title="Renew all courses in one go (annual refresher)">
+          <button className="btn-secondary btn btn-sm" onClick={() => { setRefreshMsg(null); setRefreshDate(format(new Date(), 'yyyy-MM-dd')); setRefreshFile(null); setRefreshOpen(true); }} title="Renew all courses in one go (annual refresher)">
             ↻ Record annual refresher
           </button>
         )}
@@ -472,11 +482,18 @@ function TrainingTab({ userId, isManager }: { userId: string; isManager: boolean
               <label className="label">Refresher date</label>
               <input type="date" value={refreshDate} max={format(new Date(), 'yyyy-MM-dd')} onChange={(e) => { if (e.target.value) setRefreshDate(e.target.value); }} className="input" />
             </div>
+            {docConfig?.configured && (
+              <div>
+                <label className="label">Certificate (optional)</label>
+                <input type="file" accept=".pdf,image/*" onChange={(e) => setRefreshFile(e.target.files?.[0] ?? null)} className="block text-sm text-gray-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" />
+              </div>
+            )}
             <button className="btn-primary btn" disabled={refreshMut.isPending} onClick={() => refreshMut.mutate()}>
-              {refreshMut.isPending ? 'Renewing…' : 'Renew all courses'}
+              {refreshMut.isPending ? (refreshFile ? 'Renewing & uploading…' : 'Renewing…') : 'Renew all courses'}
             </button>
-            <button className="btn-secondary btn" onClick={() => setRefreshOpen(false)}>Cancel</button>
+            <button className="btn-secondary btn" onClick={() => { setRefreshOpen(false); setRefreshFile(null); }}>Cancel</button>
           </div>
+          {refreshFile && <p className="text-xs text-gray-600">📎 {refreshFile.name} — filed under the staff member's Documents (Training Certificate).</p>}
         </div>
       )}
 
