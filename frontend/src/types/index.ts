@@ -602,6 +602,7 @@ export interface Training {
   userId: string;
   course: string;
   date: string;
+  monthOnly?: boolean; // show month+year only (day is a placeholder)
   expiresAt?: string;
   accredited: boolean;
   description?: string;

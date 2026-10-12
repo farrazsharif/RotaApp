@@ -126,7 +126,8 @@ function normName(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-interface ImportRow { name: string; courses: Record<string, string> }
+type ImportCell = string | { date: string; monthOnly?: boolean };
+interface ImportRow { name: string; courses: Record<string, ImportCell> }
 
 // Bulk import of the office training matrix. Each row is one staff member with
 // a { course: date } map. Names are matched to active staff; unmatched rows are
@@ -155,7 +156,7 @@ export async function importTraining(req: AuthRequest, res: Response) {
   const ambiguous: string[] = [];
   const allCourses = new Set<string>();
   // Planned writes: userId -> course -> { date, expires }
-  const plan: { userId: string; course: string; date: Date; expires: Date }[] = [];
+  const plan: { userId: string; course: string; date: Date; expires: Date; monthOnly: boolean }[] = [];
 
   for (const row of rows) {
     const rawName = (row?.name || '').trim();
@@ -164,15 +165,17 @@ export async function importTraining(req: AuthRequest, res: Response) {
     if (hits.length === 0) { unmatched.push(rawName); continue; }
     if (hits.length > 1) { ambiguous.push(rawName); continue; }
     let cells = 0;
-    for (const [course, raw] of Object.entries(row.courses || {})) {
+    for (const [course, cell] of Object.entries(row.courses || {})) {
       const name = (course || '').trim();
       if (!name) continue;
       allCourses.add(name);
-      const date = parseTrainingDate(raw);
+      const rawDate = typeof cell === 'string' ? cell : cell?.date;
+      const monthOnly = typeof cell === 'string' ? false : !!cell?.monthOnly;
+      const date = parseTrainingDate(rawDate);
       if (!date) continue;
       const expires = new Date(date);
       expires.setFullYear(expires.getFullYear() + 1);
-      plan.push({ userId: hits[0].id, course: name, date, expires });
+      plan.push({ userId: hits[0].id, course: name, date, expires, monthOnly });
       cells += 1;
     }
     matched.push({ name: rawName, userId: hits[0].id, userName: hits[0].name, cells });
@@ -195,9 +198,9 @@ export async function importTraining(req: AuthRequest, res: Response) {
     for (const p of plan) {
       const id = latestId.get(`${p.userId}::${p.course.toLowerCase()}`);
       if (id) {
-        await prisma.training.update({ where: { id }, data: { date: p.date, expiresAt: p.expires } });
+        await prisma.training.update({ where: { id }, data: { date: p.date, expiresAt: p.expires, monthOnly: p.monthOnly } });
       } else {
-        await prisma.training.create({ data: { userId: p.userId, course: p.course, date: p.date, expiresAt: p.expires } });
+        await prisma.training.create({ data: { userId: p.userId, course: p.course, date: p.date, expiresAt: p.expires, monthOnly: p.monthOnly } });
       }
       written += 1;
     }

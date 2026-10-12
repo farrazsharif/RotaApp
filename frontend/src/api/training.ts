@@ -10,8 +10,9 @@ export interface TrainingData {
   description?: string;
 }
 
-// One staff row for the matrix import: name + { course: dateString } map.
-export interface TrainingImportRow { name: string; courses: Record<string, string> }
+// One staff row for the matrix import: name + { course: { date, monthOnly } } map.
+// monthOnly is set when the cell was a month-level date (day a placeholder).
+export interface TrainingImportRow { name: string; courses: Record<string, { date: string; monthOnly: boolean }> }
 export interface TrainingImportResult {
   totalRows: number;
   matchedCount: number;

@@ -18,6 +18,13 @@ function expiryOf(rec: Training): Date {
   d.setFullYear(d.getFullYear() + 1);
   return d;
 }
+// Match the sheet's formats: a month-level record shows month+year only, a
+// precise record shows the full date. `compact` trims the year for the grid.
+function fmtCell(rec: Training, compact: boolean): string {
+  const d = new Date(rec.date);
+  if (rec.monthOnly) return format(d, compact ? 'MMM yy' : 'MM/yyyy');
+  return format(d, compact ? 'dd/MM/yy' : 'dd/MM/yyyy');
+}
 function statusOf(rec: Training | undefined): Status {
   if (!rec) return 'missing';
   const expiry = expiryOf(rec).getTime();
@@ -105,7 +112,7 @@ export default function TrainingMatrix() {
         const byCourse = latest.get(u.id);
         const row = ws.addRow([`${u.firstName} ${u.lastName}`, ...courses.map((c) => {
           const rec = byCourse?.get(c.toLowerCase());
-          return rec ? format(new Date(rec.date), 'dd/MM/yyyy') : '-';
+          return rec ? fmtCell(rec, false) : '-';
         })]);
         courses.forEach((c, i) => {
           const fill = CELL_FILL[statusOf(byCourse?.get(c.toLowerCase()))];
@@ -176,7 +183,7 @@ export default function TrainingMatrix() {
                     const st = statusOf(rec);
                     return (
                       <td key={c} className={`px-1 py-1 text-center tabular-nums whitespace-nowrap border border-gray-300 ${CELL_CLASS[st]}`} title={`${c}${rec ? ` · expires ${format(expiryOf(rec), 'dd MMM yyyy')}` : ' · not recorded'}`}>
-                        {rec ? format(new Date(rec.date), 'dd/MM/yy') : '—'}
+                        {rec ? fmtCell(rec, true) : '—'}
                       </td>
                     );
                   })}
@@ -232,10 +239,16 @@ async function parseMatrix(file: File): Promise<TrainingImportRow[]> {
     const vals = ws.getRow(r).values as unknown[];
     const name = cellText(vals[1]).trim();
     if (!name) continue;
-    const coursesMap: Record<string, string> = {};
+    const coursesMap: Record<string, { date: string; monthOnly: boolean }> = {};
     for (const { col, course } of courseCols) {
-      const d = cellText(vals[col]).trim();
-      if (d && d !== '-') coursesMap[course] = d;
+      const raw = vals[col];
+      const d = cellText(raw).trim();
+      if (!d || d === '-') continue;
+      // In the sheet, specific full dates are typed as text (e.g. "7.11.2014"),
+      // while month-level cells are Excel date cells — so treat a real date cell
+      // as month+year and a dd.mm.yyyy text date as a full date.
+      const monthOnly = raw instanceof Date;
+      coursesMap[course] = { date: d, monthOnly };
     }
     out.push({ name, courses: coursesMap });
   }

@@ -687,6 +687,9 @@ model Training {
   userId      String
   course      String
   date        DateTime
+  // True when only the month+year is meaningful (the day is a placeholder) —
+  // drives month-only display in the training matrix, set on import.
+  monthOnly   Boolean   @default(false)
   expiresAt   DateTime?
   accredited  Boolean   @default(false)
   description String?
