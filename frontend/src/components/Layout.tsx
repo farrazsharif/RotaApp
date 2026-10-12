@@ -26,6 +26,7 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; mana
   { to: '/cqc', label: 'CQC', icon: '🛡️', capability: 'manage_cqc' },
   { to: '/finances', label: 'Finances', icon: '💷', capability: 'manage_billing' },
   { to: '/users', label: 'Staff', icon: '👥', capability: 'manage_staff' },
+  { to: '/training', label: 'Training', icon: '🎓', capability: 'manage_staff' },
   { to: '/dbs', label: 'DBS Register', icon: '🪪', capability: 'manage_dbs' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];

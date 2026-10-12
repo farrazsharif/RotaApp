@@ -53,6 +53,29 @@ export async function loadOrgSettings() {
   return upsertOrgSettings();
 }
 
+// Merge course names into the company's training-course catalogue (incoming
+// order first, then any existing courses not already present). Used by the
+// training-matrix importer so imported columns appear in the picker/matrix.
+export async function ensureTrainingCourses(courses: string[]): Promise<void> {
+  const settings = await upsertOrgSettings();
+  let current: string[] = [];
+  try {
+    const a = JSON.parse((settings as { trainingCourses?: string | null }).trainingCourses || '[]');
+    if (Array.isArray(a)) current = a.filter((x): x is string => typeof x === 'string');
+  } catch { /* ignore malformed */ }
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const c of [...courses, ...current]) {
+    const t = (c || '').trim();
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(t);
+  }
+  if (merged.length) await upsertOrgSettings({ trainingCourses: JSON.stringify(merged) });
+}
+
 const STRING_FIELDS = ['companyName', 'logo', 'address', 'phone', 'email', 'cqcProviderId', 'icoNumber', 'timezone', 'defaultRole'] as const;
 const NUMBER_FIELDS = ['defaultHourlyRate', 'overtimeThreshold', 'inviteExpiryDays'] as const;
 const BOOLEAN_FIELDS = ['handoversEnabled'] as const;

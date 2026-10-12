@@ -3,10 +3,12 @@
 // stored value falls back to these built-in defaults.
 
 export const DEFAULT_TRAINING_COURSES = [
-  'First Aid', 'Safeguarding Adults e-learning', 'Safeguarding Children',
-  'Manual Handling', 'Infection Control', 'Medication Administration',
-  'Health & Safety', 'Fire Safety', 'Food Hygiene', 'GDPR / Data Protection',
-  'Equality & Diversity', 'Dementia Care', 'Other',
+  'Induction Training', 'Moving & Handling', 'Medication', 'Safeguarding',
+  'Food Hygiene', 'Dementia', 'Understand Your Role', 'Your Personal Development',
+  'Duty of Care', 'Equality and Diversity', 'Work in a Person Centred Way',
+  'Communication', 'Privacy and Dignity', 'Fire Safety', 'Awareness of mental health',
+  'Health and Safety', 'Infection Prevention and Control', 'Peg Feed Training',
+  'Care Certificate',
 ];
 
 // Resolve the stored JSON string into a course list: empty / invalid falls back

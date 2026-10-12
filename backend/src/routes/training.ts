@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listTraining, createTraining, refreshTraining, updateTraining, deleteTraining } from '../controllers/trainingController';
+import { listTraining, createTraining, refreshTraining, updateTraining, deleteTraining, importTraining } from '../controllers/trainingController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 import { Role } from '../constants';
@@ -11,6 +11,7 @@ router.use(authenticate);
 router.get('/', listTraining);
 router.post('/', requirePermission('manage_staff'), createTraining);
 router.post('/refresh', requirePermission('manage_staff'), refreshTraining);
+router.post('/import', requirePermission('manage_staff'), importTraining);
 router.put('/:id', requirePermission('manage_staff'), updateTraining);
 router.delete('/:id', requirePermission('manage_staff'), deleteTraining);
 

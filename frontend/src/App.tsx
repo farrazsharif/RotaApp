@@ -18,6 +18,7 @@ import MissedMeds from './pages/MissedMeds';
 import Users from './pages/Users';
 import StaffDetail from './pages/StaffDetail';
 import DbsRegister from './pages/DbsRegister';
+import TrainingMatrix from './pages/TrainingMatrix';
 import ServiceUsers from './pages/ServiceUsers';
 import ClientDocuments from './pages/ClientDocuments';
 import ServiceUserDetail from './pages/ServiceUserDetail';
@@ -128,6 +129,7 @@ function AppRoutes() {
         <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
         <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
         <Route path="dbs" element={<CapabilityRoute cap="manage_dbs"><DbsRegister /></CapabilityRoute>} />
+        <Route path="training" element={<CapabilityRoute cap="manage_staff"><TrainingMatrix /></CapabilityRoute>} />
         <Route path="settings" element={<Settings />} />
         <Route path="settings/billing" element={<Billing />} />
         <Route path="settings/service-plan-template" element={<ServicePlanTemplate />} />
