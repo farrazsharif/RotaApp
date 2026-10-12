@@ -2,25 +2,30 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { registerSW } from 'virtual:pwa-register'
+import { Capacitor } from '@capacitor/core'
 import './index.css'
 import App from './App.tsx'
 
-// Always run the latest deployed version: register the service worker
-// immediately, then re-check for a new build on tab focus / reconnect (and
-// hourly while open). autoUpdate then activates the new worker and reloads.
-const updateSW = registerSW({
-  immediate: true,
-  onNeedRefresh() { updateSW(true) },
-  onRegisteredSW(_swUrl, registration) {
-    if (!registration) return
-    const check = () => { registration.update().catch(() => {}) }
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') check()
-    })
-    window.addEventListener('online', check)
-    setInterval(check, 60 * 60 * 1000)
-  },
-})
+// Web only: register the service worker so the PWA always runs the latest
+// deployed build (re-checks on focus / reconnect / hourly, then autoUpdate
+// reloads). Inside the native app (Capacitor) the assets are already bundled
+// and the WebView serves them locally, so a service worker is redundant and can
+// cache-fight the native layer — skip it there.
+if (!Capacitor.isNativePlatform()) {
+  const updateSW = registerSW({
+    immediate: true,
+    onNeedRefresh() { updateSW(true) },
+    onRegisteredSW(_swUrl, registration) {
+      if (!registration) return
+      const check = () => { registration.update().catch(() => {}) }
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check()
+      })
+      window.addEventListener('online', check)
+      setInterval(check, 60 * 60 * 1000)
+    },
+  })
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
