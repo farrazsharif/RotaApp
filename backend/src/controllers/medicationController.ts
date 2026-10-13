@@ -5,6 +5,7 @@ import { MedStatus } from '../constants';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { ownerShiftIdForDose } from '../lib/doseOwnership';
+import { clampIntervalDays, isMedDueOn } from '../lib/medSchedule';
 
 // Human-readable status words for audit details (matches the portal labels).
 const STATUS_WORD: Record<string, string> = {
@@ -60,7 +61,7 @@ export async function listMedications(req: AuthRequest, res: Response) {
 }
 
 export async function createMedication(req: AuthRequest, res: Response) {
-  const { serviceUserId, name, dose, route, instructions, times, daysOfWeek, startDate, endDate, applicationSites, isBlisterPack, packContents } = req.body;
+  const { serviceUserId, name, dose, route, instructions, times, daysOfWeek, intervalDays, startDate, endDate, applicationSites, isBlisterPack, packContents } = req.body;
   if (!serviceUserId || !name) return res.status(400).json({ error: 'serviceUserId and name required' });
   const med = await prisma.medication.create({
     data: {
@@ -73,6 +74,7 @@ export async function createMedication(req: AuthRequest, res: Response) {
       packContents: packContents ? String(packContents) : null,
       times: parseTimes(times),
       daysOfWeek: parseDays(daysOfWeek),
+      intervalDays: clampIntervalDays(intervalDays),
       applicationSites: parseApplicationSites(applicationSites),
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
@@ -107,7 +109,7 @@ export async function createMedicationByCarer(req: AuthRequest, res: Response) {
 }
 
 export async function updateMedication(req: AuthRequest, res: Response) {
-  const { name, dose, route, instructions, times, daysOfWeek, startDate, endDate, active, applicationSites, isBlisterPack, packContents } = req.body;
+  const { name, dose, route, instructions, times, daysOfWeek, intervalDays, startDate, endDate, active, applicationSites, isBlisterPack, packContents } = req.body;
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
   if (dose !== undefined) data.dose = dose || null;
@@ -117,6 +119,7 @@ export async function updateMedication(req: AuthRequest, res: Response) {
   if (packContents !== undefined) data.packContents = packContents ? String(packContents) : null;
   if (times !== undefined) data.times = parseTimes(times);
   if (daysOfWeek !== undefined) data.daysOfWeek = parseDays(daysOfWeek);
+  if (intervalDays !== undefined) data.intervalDays = clampIntervalDays(intervalDays);
   if (applicationSites !== undefined) data.applicationSites = parseApplicationSites(applicationSites);
   if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
   if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
@@ -189,7 +192,7 @@ export async function cancelledDoses(req: AuthRequest, res: Response) {
 
   const meds = await prisma.medication.findMany({
     where: { serviceUserId: String(serviceUserId), active: true, ...relatedServiceUserScopeWhere(req.user) },
-    select: { id: true, times: true, daysOfWeek: true, startDate: true, endDate: true },
+    select: { id: true, times: true, daysOfWeek: true, intervalDays: true, startDate: true, endDate: true, createdAt: true },
   });
   if (meds.length === 0) return res.json([]);
 
@@ -211,7 +214,6 @@ export async function cancelledDoses(req: AuthRequest, res: Response) {
     const dayShifts = (byDay.get(dayKey) ?? []).filter((s) => s.givesMedication !== false);
     if (dayShifts.length === 0) continue; // no visits that day → nothing was cancelled
     const active = dayShifts.filter((s) => s.status !== 'CANCELLED');
-    const dow = new Date(Date.UTC(y, m0, d)).getUTCDay();
     const ymd = `${y}-${String(m0 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
     for (const med of meds) {
@@ -219,9 +221,7 @@ export async function cancelledDoses(req: AuthRequest, res: Response) {
       const endYmd = med.endDate ? med.endDate.toISOString().slice(0, 10) : null;
       if (startYmd && ymd < startYmd) continue;
       if (endYmd && ymd > endYmd) continue;
-      let days: number[] = [];
-      try { days = JSON.parse((med.daysOfWeek as string) || '[]'); } catch { days = []; }
-      if (days.length > 0 && !days.includes(dow)) continue;
+      if (!isMedDueOn(med, new Date(Date.UTC(y, m0, d)))) continue;
       let times: string[] = [];
       try { times = JSON.parse(med.times || '[]'); } catch { times = []; }
 

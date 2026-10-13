@@ -11,6 +11,7 @@ export interface MedicationData {
   packContents?: string;
   times?: string[];
   daysOfWeek?: number[];
+  intervalDays?: number;
   applicationSites?: BodyMapPoint[];
   startDate?: string;
   endDate?: string;

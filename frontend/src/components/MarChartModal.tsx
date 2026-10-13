@@ -4,6 +4,7 @@ import { medicationsApi } from '../api/medications';
 import { ServiceUser, Medication, MedAdministration, MedStatus } from '../types';
 import { format, getDaysInMonth, parse } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import { isMedDueOn } from '../lib/medSchedule';
 import { usePermissions } from '../hooks/usePermissions';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import RecordMedModal from './RecordMedModal';
@@ -25,9 +26,6 @@ const STATUS_COLOR: Record<MedStatus, string> = {
   GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8', CANCELLED: '#6b7280',
 };
 
-function parseDays(s?: string): number[] {
-  try { const a = JSON.parse(s || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
-}
 function parseTimes(times: string): string[] {
   try {
     const a = JSON.parse(times);
@@ -126,18 +124,18 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
 
   const charts = meds
     .filter(medActiveInMonth)
-    .map((med: Medication) => ({ med, times: parseTimes(med.times), days: parseDays(med.daysOfWeek) }));
+    .map((med: Medication) => ({ med, times: parseTimes(med.times) }));
 
-  // Is day `d` of this month one the med is scheduled for? Empty list = every
-  // day. Weekday derived in UTC to match how doses are recorded/matched.
-  const dueOn = (days: number[], d: number) =>
-    days.length === 0 || days.includes(new Date(Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), d)).getUTCDay());
+  // Is day `d` of this month one the med is due on? Covers both weekday and
+  // "every N days" schedules. Computed in UTC to match how doses are matched.
+  const dueOn = (med: Medication, d: number) =>
+    isMedDueOn(med, new Date(Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), d)));
 
   function exportPdf() {
     const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c));
     const monthLabel = format(monthDate, 'MMMM yyyy');
 
-    const tables = charts.map(({ med, times, days: medDays }) => `
+    const tables = charts.map(({ med, times }) => `
       <div class="med-block">
       <h2>${esc(med.name)}${med.dose ? ` · ${esc(med.dose)}` : ''}${med.route ? ` · ${esc(med.route)}` : ''}${!med.active ? ` <span style="color:#dc2626;font-size:11px">— DISCONTINUED${med.endDate ? ' ' + esc(format(new Date(med.endDate), 'dd MMM yyyy')) : ''}</span>` : ''}</h2>
       ${med.instructions ? `<p class="instructions">${esc(med.instructions)}</p>` : ''}
@@ -154,7 +152,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                 ${days.map((d) => {
                   if (d > daysInMonth) return '<td class="invalid-day"></td>';
                   if (outsideActiveWindow(med, d)) return '<td class="invalid-day" title="Not active on this date"></td>';
-                  if (!dueOn(medDays, d)) return '<td style="background:#eef2f7"></td>';
+                  if (!dueOn(med, d)) return '<td style="background:#eef2f7"></td>';
                   const rec = recordFor(med.id, d, t);
                   if (!rec) return isCancelled(med.id, d, t) ? '<td style="color:#6b7280;font-weight:bold;" title="Visit cancelled">C</td>' : '<td></td>';
                   const code = esc(initialsFor(rec));
@@ -238,7 +236,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
           {charts.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">No medications to show for this month</p>
           ) : (
-            charts.map(({ med, times, days: medDays }) => (
+            charts.map(({ med, times }) => (
               <div key={med.id} className="overflow-x-auto">
                 <h3 className="font-semibold text-gray-900 mb-1 flex flex-wrap items-center gap-2">
                   <span>{med.name}{med.dose ? ` · ${med.dose}` : ''}{med.route ? ` · ${med.route}` : ''}</span>
@@ -271,7 +269,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                           {days.map((d) => {
                             if (d > daysInMonth) return <td key={d} className="border border-gray-300 bg-gray-200" />;
                             if (outsideActiveWindow(med, d)) return <td key={d} className="border border-gray-300 bg-gray-200" title="Not active on this date" />;
-                            if (!dueOn(medDays, d)) return <td key={d} className="border border-gray-300 bg-blue-50" />;
+                            if (!dueOn(med, d)) return <td key={d} className="border border-gray-300 bg-blue-50" />;
                             const rec = recordFor(med.id, d, t);
                             const cancelled = !rec && isCancelled(med.id, d, t);
                             const [hh, mm] = t.split(':').map(Number);

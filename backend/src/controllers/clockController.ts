@@ -6,6 +6,7 @@ import { Role } from '../constants';
 import { relatedStaffScopeWhere } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { ownerShiftIdForDose } from '../lib/doseOwnership';
+import { isMedDueOn } from '../lib/medSchedule';
 import { capabilitiesFor } from '../middleware/permissions';
 
 // The logged-in carer's calls for a given day (default today), ordered by visit time.
@@ -96,15 +97,10 @@ async function dueDosesForShift(shiftId: string | null) {
     if (startYmd && visitYmd < startYmd) continue;
     if (endYmd && visitYmd > endYmd) continue;
 
-    // Weekday schedule: a med with specific days (e.g. Mon+Thu) only appears on
-    // visits on those days. Empty list = every day. Weekday derived from the
-    // visit date (0=Sun..6=Sat), consistent with visitYmd.
-    let days: number[] = [];
-    try { days = JSON.parse((med as { daysOfWeek?: string }).daysOfWeek || '[]'); } catch { days = []; }
-    if (days.length > 0) {
-      const dow = new Date(`${visitYmd}T00:00:00Z`).getUTCDay();
-      if (!days.includes(dow)) continue;
-    }
+    // Schedule: a med only appears on visits on the days it's due — either its
+    // weekday schedule (e.g. Mon+Thu; empty = every day) or an "every N days"
+    // interval counted from its start date. Derived in UTC, matching visitYmd.
+    if (!isMedDueOn(med, new Date(`${visitYmd}T00:00:00Z`))) continue;
 
     let times: string[] = [];
     try { times = JSON.parse(med.times || '[]'); } catch { times = []; }

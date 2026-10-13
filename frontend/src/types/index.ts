@@ -267,6 +267,7 @@ export interface Medication {
   packContents?: string;
   times: string; // JSON array of "HH:MM"
   daysOfWeek?: string; // JSON array of weekday numbers 0-6 (0=Sun); empty = every day
+  intervalDays?: number; // >=2 = due every N days from start/created; 0 = weekday mode
   applicationSites: string; // JSON array of BodyMapPoint
   startDate?: string;
   endDate?: string;

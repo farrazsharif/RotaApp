@@ -733,6 +733,9 @@ model Medication {
   packContents     String? // free-text list of the medications inside the blister pack (for the record)
   times            String    @default("[]") // JSON array of "HH:MM" dose times
   daysOfWeek       String    @default("[]") // JSON array of weekday numbers 0-6 (0=Sun); empty = every day
+  // >=2 = due every N days counting from startDate (or createdAt), ignoring
+  // daysOfWeek; 0/<2 = use the daysOfWeek weekday schedule.
+  intervalDays     Int       @default(0)
   // JSON array of { view: 'front'|'back'|'faceFront'|'faceSide', x, y } body-map
   // points (x/y as % of the diagram) — where a cream/lotion should be applied.
   applicationSites String    @default("[]")
