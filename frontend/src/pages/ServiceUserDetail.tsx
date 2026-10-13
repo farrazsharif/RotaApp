@@ -117,6 +117,13 @@ export default function ServiceUserDetail() {
   const qc = useQueryClient();
   const { isManager } = useAuth();
   const { canAccessSite, can } = usePermissions();
+  // Presentation only: two interchangeable layouts for this page. "classic" is
+  // the original stacked layout; "rail" is a master-detail view with a left
+  // navigation rail that shows one section at a time. The choice is remembered.
+  const [layout, setLayout] = useState<'classic' | 'rail'>(() => (localStorage.getItem('caremid.serviceUserLayout') as 'classic' | 'rail') || 'rail');
+  const setLayoutMode = (m: 'classic' | 'rail') => { try { localStorage.setItem('caremid.serviceUserLayout', m); } catch { /* ignore */ } setLayout(m); };
+  // Which rail section is showing (rail layout only; ignored in classic).
+  const [section, setSection] = useState('overview');
   // Each document modal tracks whether it's open and, when open, the mode it
   // was opened in (view / edit / new) so the right View/Edit/New button works.
   const [carePlanOpen, setCarePlanOpen] = useState(false);
@@ -281,12 +288,685 @@ export default function ServiceUserDetail() {
   const openDoc = (key: DocKey) => {
     switch (key) {
       case 'CARE_PLAN': openCarePlan('new'); break;
-      case 'RISK_ASSESSMENT': document.getElementById('doc-risk-assessments')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
+      case 'RISK_ASSESSMENT':
+        // In the rail layout the Risk Assessments card lives on its own section,
+        // so switch to it first; the scroll then lands on the (now mounted) card.
+        setSection('risk');
+        document.getElementById('doc-risk-assessments')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        break;
       case 'PERSONAL_SERVICE_PLAN': openServicePlan('new'); break;
       case 'ONE_PAGE_PROFILE': openRa('ONE_PAGE_PROFILE', 'new'); break;
       case 'LIKES_DISLIKES': openLikesDislikes('new'); break;
       case 'CONTRACT_OF_CARE': openContract('new'); break;
       case 'SUPPORT_PLAN': openSlPlan('new'); break;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Section render helpers. Each returns the SAME JSX used in both layouts, so
+  // the markup is written once and composed either stacked (Classic) or one at
+  // a time behind the rail (Rail). Nothing below changes data or behaviour.
+  // ---------------------------------------------------------------------------
+
+  // The personal-info grid. Respite sits inside it in Classic; in Rail it gets
+  // its own section, so it's excluded here and rendered separately.
+  const renderOverviewGrid = (includeRespite: boolean) => (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {/* Personal details — the full set captured on the edit form. */}
+      <Section title="Personal Details">
+        <div className="grid grid-cols-2 gap-x-6">
+          <Field label="Title" value={su.title} />
+          <Field label="Preferred Name" value={su.preferredName} />
+          <Field label="First Name" value={su.firstName} />
+          <Field label="Last Name" value={su.lastName} />
+          <Field label="Gender" value={su.gender} />
+          <Field label="Date of Birth" value={su.dateOfBirth ? format(new Date(su.dateOfBirth), 'dd MMM yyyy') : undefined} />
+          <Field label="Age" value={su.dateOfBirth ? `${differenceInYears(new Date(), new Date(su.dateOfBirth))} years` : undefined} />
+          <Field label="NHS Number" value={su.nhsNumber} />
+          <Field label="Package ID" value={su.packageId} />
+          <Field label="Ethnic Origin" value={su.ethnicOrigin} />
+          <Field label="Area / Site" value={su.site?.name} />
+          <Field label="Service Start Date" value={su.serviceStartDate ? format(new Date(su.serviceStartDate), 'dd MMM yyyy') : undefined} />
+        </div>
+      </Section>
+
+      {/* Contact */}
+      <Section title="Contact & Address">
+        <div className="grid grid-cols-2 gap-x-6">
+          <Field label="Address" value={su.address} />
+          <Field label="Postcode" value={su.postcode} />
+          <Field label="Phone" value={su.phone} />
+          <Field label="Email" value={su.email} />
+          <Field label="Key Safe" value={su.keySafe} />
+          <Field label="Meds Safe Code" value={su.medsSafeCode} />
+        </div>
+        {su.postcode && (
+          <div className="mt-4">
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${su.address || ''} ${su.postcode}`.trim())}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Open in Google Maps →
+            </a>
+            {geo ? (
+              <iframe
+                title="Service user location"
+                className="w-full h-36 rounded-lg border mt-2"
+                loading="lazy"
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${geo.lon - 0.01}%2C${geo.lat - 0.01}%2C${geo.lon + 0.01}%2C${geo.lat + 0.01}&layer=mapnik&marker=${geo.lat}%2C${geo.lon}`}
+              />
+            ) : (
+              <div className="w-full h-36 rounded-lg border mt-2 flex items-center justify-center text-sm text-gray-400">
+                Loading map…
+              </div>
+            )}
+          </div>
+        )}
+      </Section>
+
+      {/* Away / Respite — cancels visits in the window as non-chargeable */}
+      {includeRespite && <RespiteSection serviceUserId={id} isManager={isManager} />}
+
+      {/* Emergency contact & next of kin */}
+      <Section title="Emergency Contact">
+        <div className="grid grid-cols-2 gap-x-6">
+          <Field label="Name" value={su.emergencyContactName} />
+          <Field label="Relationship" value={su.emergencyContactRelation} />
+          <Field label="Phone" value={su.emergencyContactPhone} />
+          <Field label="Mobile" value={su.emergencyContactMobile} />
+          <Field label="Email" value={su.emergencyContactEmail} />
+          <Field label="Address" value={su.emergencyContactAddress} />
+        </div>
+        <div className="border-t mt-2.5 pt-2.5">
+          <p className="text-xs font-semibold text-gray-500 mb-1">Next of Kin</p>
+          <div className="grid grid-cols-2 gap-x-6">
+            <Field label="Name" value={su.nextOfKinName} />
+            <Field label="Relationship" value={su.nextOfKinRelation} />
+            <Field label="Phone" value={su.nextOfKinPhone} />
+            <Field label="Mobile" value={su.nextOfKinMobile} />
+            <Field label="Email" value={su.nextOfKinEmail} />
+            <Field label="Address" value={su.nextOfKinAddress} />
+          </div>
+        </div>
+      </Section>
+
+      {/* GP & Pharmacy — merged; two lean columns side by side. */}
+      <Section title="GP & Pharmacy">
+        <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1">GP</p>
+            <Field label="Name" value={su.gpName} />
+            <Field label="Practice / Surgery" value={su.gpPractice} />
+            <Field label="Phone" value={su.gpPhone} />
+            <Field label="Address" value={su.gpAddress} />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1">Pharmacy</p>
+            <Field label="Name" value={su.pharmacyName} />
+            <Field label="Phone" value={su.pharmacyPhone} />
+            <Field label="Address" value={su.pharmacyAddress} />
+          </div>
+        </div>
+      </Section>
+
+      {/* Care summary — merges care needs, weekly hours, visits, support
+          categories and preferred caregivers into one full-width card. */}
+      <Section title="Care Summary" className="lg:col-span-2">
+        <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Care needs</p>
+              <div className="flex flex-wrap gap-1">
+                {su.needsMedication && <span className="badge-red badge">Medication</span>}
+                {su.needsMobility && <span className="badge-yellow badge">Mobility</span>}
+                {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
+                {!su.needsMedication && !su.needsMobility && !su.needsPersonalCare && <span className="text-sm text-gray-400">None recorded</span>}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Support categories</p>
+              <div className="flex flex-wrap gap-1">
+                {parseCategories(su.supportCategories).length === 0
+                  ? <span className="text-sm text-gray-400">None recorded</span>
+                  : parseCategories(su.supportCategories).map((c) => (
+                      <span key={c} className="badge-blue badge">{c}</span>
+                    ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Preferred caregivers</p>
+              {su.preferredCaregivers.length === 0 ? (
+                <span className="text-sm text-gray-400">None set</span>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {su.preferredCaregivers.map((c) => (
+                    <span key={c.id} className="px-2.5 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">{c.firstName} {c.lastName}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Field label="Contracted weekly hours" value={su.contractedWeeklyHours != null ? `${su.contractedWeeklyHours} h/week` : undefined} />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-1">Visits</p>
+            {visits.length === 0 ? (
+              <p className="text-sm text-gray-400">No visits set</p>
+            ) : (
+              <>
+                <div className="space-y-0.5">
+                  {visits.map((v, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm border-b border-gray-100 last:border-0 py-1">
+                      <span className="text-gray-800">
+                        {v.type}
+                        {v.cover && v.cover > 1 && (
+                          <span className="ml-2 text-xs font-medium text-purple-600">{coverLabel(v.cover)}</span>
+                        )}
+                        {!visitIsDaily(v) && (
+                          <span className="ml-2 text-xs font-medium text-blue-600">
+                            {v.days!.slice().sort((a, b) => a - b).map((d) => DAYS[d].slice(0, 3)).join(', ')}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-gray-500">{durationLabel(v.duration)}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {(() => {
+                    const daily = visits.filter(visitIsDaily).length;
+                    const partial = visits.length - daily;
+                    return partial === 0
+                      ? `${visits.length} visit${visits.length > 1 ? 's' : ''} every day`
+                      : `${daily} daily · ${partial} on selected days`;
+                  })()}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+        {su.careNotes && (
+          <div className="border-t border-gray-100 pt-2">
+            <p className="text-xs font-semibold text-gray-500 mb-0.5">Care notes</p>
+            <p className="text-sm text-gray-800 whitespace-pre-wrap">{su.careNotes}</p>
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+
+  // Away / Respite as a standalone card (used as its own rail section).
+  const renderRespite = () => <RespiteSection serviceUserId={id} isManager={isManager} />;
+
+  // Office Notes
+  const renderOfficeNotes = () => (isManager ? <ServiceUserNotes serviceUserId={id} canManage={isManager} /> : null);
+
+  // Documents checklist — derived from the same source as the header badge.
+  const renderDocumentsChecklist = () => (
+    <Section
+      title="Documents"
+      action={
+        missingDocs.length === 0
+          ? <span className="badge-green badge">✓ File complete</span>
+          : <span className="badge-red badge">⚠ {missingDocs.length} missing</span>
+      }
+    >
+      <p className="text-sm text-gray-500 -mt-1">
+        {missingDocs.length === 0
+          ? `All ${applicableDocCount} required documents are in place.`
+          : `${applicableDocCount - missingDocs.length} of ${applicableDocCount} required documents in place — ${missingDocs.length} outstanding.`}
+      </p>
+      <div className="space-y-2">
+        {docStatuses.map((d) => (
+          <div key={d.key} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
+            <div className="flex items-center gap-2 min-w-0">
+              {!d.applicable
+                ? <span className="text-gray-300 w-4 text-center">—</span>
+                : d.done
+                  ? <span className="text-green-600 font-semibold w-4 text-center">✓</span>
+                  : <span className="text-red-600 font-semibold w-4 text-center">⚠</span>}
+              <span className={`text-sm ${d.applicable ? 'text-gray-800' : 'text-gray-400'}`}>{d.label}</span>
+              {!d.applicable && <span className="text-xs text-gray-400">(not applicable)</span>}
+            </div>
+            {d.applicable && (
+              d.done
+                ? <span className="badge-green badge shrink-0">Done</span>
+                : (
+                  <button className="btn-secondary btn btn-sm shrink-0" onClick={() => openDoc(d.key)}>
+                    {isManager ? (d.key === 'RISK_ASSESSMENT' ? 'Add →' : 'Create') : 'Open'}
+                  </button>
+                )
+            )}
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+
+  // Care Plan
+  const renderCarePlan = () => (
+    <Section
+      title="Care Plan"
+      action={
+        <div className="flex items-center gap-3">
+          {carePlan?.reviewDate && (
+            <span className={`text-xs ${reviewOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+              Review {format(new Date(carePlan.reviewDate), 'dd MMM yyyy')}{reviewOverdue ? ' · overdue' : ''}
+            </span>
+          )}
+          <DocActions exists={!!carePlan} canEdit={canEditDocs} startLabel="Create Care Plan" onOpen={openCarePlan} />
+        </div>
+      }
+    >
+      {!hasCarePlan ? (
+        <p className="text-sm text-gray-400">No care plan recorded yet.</p>
+      ) : (
+        <div className="space-y-4">
+          {scheduleRows.length > 0 && (
+            <div className="overflow-x-auto">
+              <p className="text-xs font-semibold text-gray-500 mb-1">Weekly Visit Profile</p>
+              <table className="text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left p-2 border font-medium text-gray-600">Day</th>
+                    {SLOTS.map(([k, label]) => <th key={k} className="text-left p-2 border font-medium text-gray-600">{label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduleRows.map((day) => (
+                    <tr key={day}>
+                      <td className="p-2 border font-medium text-gray-700">{day}</td>
+                      {SLOTS.map(([k]) => <td key={k} className="p-2 border text-gray-800">{carePlanSchedule[day]?.[k] || '—'}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {carePlanExtraCalls.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1">Additional Calls</p>
+              <div className="space-y-1">
+                {carePlanExtraCalls.map((c, i) => (
+                  <p key={i} className="text-sm text-gray-800">
+                    <span className="font-medium">{c.name || '—'}</span>
+                    {c.when && <span className="text-gray-500"> · {c.when}</span>}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {([['Morning', carePlan?.tasksMorning], ['Lunch', carePlan?.tasksLunch], ['Tea', carePlan?.tasksTea], ['Bed', carePlan?.tasksBed]] as [string, string | undefined][])
+              .filter(([, v]) => v?.trim())
+              .map(([label, v]) => (
+                <div key={label}>
+                  <p className="text-xs font-semibold text-gray-500">{label} — tasks</p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{v}</p>
+                </div>
+              ))}
+          </div>
+          {carePlan?.numberOfCarers && <div><p className="text-xs font-semibold text-gray-500">Number of Carers</p><p className="text-sm text-gray-800">{carePlan.numberOfCarers}</p></div>}
+          {carePlan?.carePackageInfo && <div><p className="text-xs font-semibold text-gray-500">Care Package Information</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{carePlan.carePackageInfo}</p></div>}
+          {carePlan?.otherNotes && <div><p className="text-xs font-semibold text-gray-500">Other Notes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{carePlan.otherNotes}</p></div>}
+        </div>
+      )}
+    </Section>
+  );
+
+  // Likes & Dislikes
+  const renderLikesDislikes = () => (
+    <Section
+      title="Likes & Dislikes"
+      action={<DocActions exists={!!likesDislikes} canEdit={canEditDocs} startLabel="Add" onOpen={openLikesDislikes} />}
+    >
+      {(() => {
+        let paper: { onFile?: boolean; reviewDate?: string } | null = null;
+        if (likesDislikes?.paperMeta) { try { const p = JSON.parse(likesDislikes.paperMeta); if (p && typeof p === 'object') paper = p; } catch { /* ignore */ } }
+        const overdue = !!paper?.onFile && !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
+        if (paper?.onFile) {
+          return (
+            <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+              <span className="badge-gray badge mr-2">📄 On file</span>
+              Held on paper{paper.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(paper.reviewDate), 'dd MMM yyyy')}` : ''}
+            </p>
+          );
+        }
+        if (!likesDislikes || (!likesDislikes.likes && !likesDislikes.dislikes)) {
+          return <p className="text-sm text-gray-400">Nothing recorded yet.</p>;
+        }
+        return (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {likesDislikes.likes && <div><p className="text-xs font-semibold text-gray-500">Likes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.likes}</p></div>}
+            {likesDislikes.dislikes && <div><p className="text-xs font-semibold text-gray-500">Dislikes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.dislikes}</p></div>}
+          </div>
+        );
+      })()}
+    </Section>
+  );
+
+  // Personal Service Plan
+  const renderServicePlan = () => (
+    <Section
+      title="Personal Service Plan"
+      action={<DocActions exists={!!servicePlan} canEdit={canEditDocs} startLabel="Start Plan" onOpen={openServicePlan} />}
+    >
+      {(() => {
+        let paper: { onFile?: boolean; reviewDate?: string } | null = null;
+        if (servicePlan?.data) { try { const d = JSON.parse(servicePlan.data); if (d && typeof d.__paper === 'object') paper = d.__paper; } catch { /* ignore */ } }
+        const overdue = !!paper?.onFile && !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
+        if (paper?.onFile) {
+          return (
+            <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+              <span className="badge-gray badge mr-2">📄 On file</span>
+              Held on paper{paper.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(paper.reviewDate), 'dd MMM yyyy')}` : ''}
+            </p>
+          );
+        }
+        return (
+          <p className="text-sm text-gray-600">
+            {servicePlan
+              ? `Full assessment — last updated ${format(new Date(servicePlan.updatedAt), 'dd MMM yyyy, h:mm a')}.`
+              : 'Comprehensive assessment (health, communication, personal care, medication, manual handling, safeguarding, consent and more). Not started yet.'}
+          </p>
+        );
+      })()}
+    </Section>
+  );
+
+  // Supported Living — housing provider, support plan & support log
+  const renderSupportedLiving = () => (
+    su.careType === 'SUPPORTED_LIVING' ? (
+      <>
+        <Section title="Housing Provider (Supported Living)">
+          {su.site?.housingProvider || su.site?.housingOfficerName || su.site?.housingOfficerPhone || su.site?.housingOfficerEmail ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><p className="text-xs text-gray-400">Scheme</p><p className="text-sm text-gray-800">{su.site?.name}</p></div>
+              {su.site?.housingProvider && <div><p className="text-xs text-gray-400">Housing provider</p><p className="text-sm text-gray-800">{su.site.housingProvider}</p></div>}
+              {su.site?.housingOfficerName && <div><p className="text-xs text-gray-400">Housing officer</p><p className="text-sm text-gray-800">{su.site.housingOfficerName}</p></div>}
+              {su.site?.housingOfficerPhone && <div><p className="text-xs text-gray-400">Officer phone</p><p className="text-sm text-gray-800">{su.site.housingOfficerPhone}</p></div>}
+              {su.site?.housingOfficerEmail && <div><p className="text-xs text-gray-400">Officer email</p><p className="text-sm text-gray-800">{su.site.housingOfficerEmail}</p></div>}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">No housing provider recorded on the scheme. {isManager && 'Add it on the site (Settings → Sites).'}</p>
+          )}
+        </Section>
+
+        <Section
+          title="Support Plan"
+          action={<DocActions exists={riskAssessments.some((r) => r.type === 'SL_SUPPORT_PLAN')} canEdit={canEditDocs} startLabel="Start" onOpen={openSlPlan} />}
+        >
+          {(() => {
+            const summary = riskAssessments.find((r) => r.type === 'SL_SUPPORT_PLAN');
+            const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
+            if (summary?.onFile) {
+              return (
+                <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                  <span className="badge-gray badge mr-2">📄 On file</span>
+                  Held on paper{summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}
+                </p>
+              );
+            }
+            return (
+              <p className="text-sm text-gray-500">
+                {summary
+                  ? `Enablement support plan — last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}.`
+                  : 'Record how this person is supported across budgeting, medication, cooking, benefits, mental health, behaviour, de-escalation and more.'}
+              </p>
+            );
+          })()}
+        </Section>
+
+        <Section title="Support Log">
+          {supportLogEntries.length === 0 ? (
+            <p className="text-sm text-gray-400">No support-log entries yet. Support workers add time-stamped entries through their shift.</p>
+          ) : (
+            <div className="space-y-3">
+              {[...supportLogEntries].reverse().slice(0, 20).map((e) => {
+                let keys: string[] = [];
+                try { const v = JSON.parse(e.domains); if (Array.isArray(v)) keys = v; } catch { /* ignore */ }
+                return (
+                  <div key={e.id} className="border-b last:border-0 pb-3 last:pb-0">
+                    <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                      <span className="font-medium text-gray-700">{e.userName}</span>
+                      <span>{format(new Date(e.createdAt), 'EEE dd MMM yyyy, h:mm a')}</span>
+                    </div>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{e.body}</p>
+                    {keys.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {keys.map((k) => <span key={k} className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">🤝 {domainLabel(k)}</span>)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {supportLogEntries.length > 20 && <p className="text-xs text-gray-400">Showing the latest 20 of {supportLogEntries.length} entries.</p>}
+            </div>
+          )}
+        </Section>
+      </>
+    ) : null
+  );
+
+  // One Page Profile (person-centred)
+  const renderOnePageProfile = () => (
+    <Section title="One Page Profile">
+      <div className="space-y-2">
+        {PROFILE_TYPES.map((t) => {
+          const summary = riskAssessments.find((r) => r.type === t.type);
+          const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
+          return (
+            <div key={t.type} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800">
+                  {t.title}
+                  {summary?.onFile && <span className="ml-2 badge-gray badge">📄 On file</span>}
+                </p>
+                <p className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                  {!summary
+                    ? 'Not started yet.'
+                    : summary.onFile
+                      ? `Held on paper${summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}`
+                      : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
+                </p>
+              </div>
+              <div className="shrink-0">
+                <DocActions exists={!!summary} canEdit={canEditDocs} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+
+  // Contract of Care
+  const renderContractOfCare = () => (
+    <Section
+      title="Contract of Care"
+      action={<DocActions exists={riskAssessments.some((r) => r.type === 'CONTRACT_OF_CARE')} canEdit={canEditDocs} startLabel="Start" onOpen={openContract} />}
+    >
+      {(() => {
+        // The Contract of Care isn't on a review cycle — it changes only when
+        // the visits/times change (make a new contract), so no review date.
+        const summary = riskAssessments.find((r) => r.type === 'CONTRACT_OF_CARE');
+        if (summary?.onFile) {
+          return (
+            <p className="text-sm text-gray-500">
+              <span className="badge-gray badge mr-2">📄 On file</span>
+              Held on paper{summary.completedDate ? ` · dated ${format(new Date(summary.completedDate), 'dd MMM yyyy')}` : ''}
+            </p>
+          );
+        }
+        return (
+          <p className="text-sm text-gray-500">
+            {summary
+              ? `Signed agreement of weekly visits — last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}.`
+              : 'Pick the weekly visits, auto-total the hours, and capture service user & manager signatures.'}
+          </p>
+        );
+      })()}
+    </Section>
+  );
+
+  // Risk Assessments
+  const renderRiskAssessments = () => (
+    <Section id="doc-risk-assessments" title="Risk Assessments">
+      <div className="space-y-2">
+        {RA_TYPES.map((t) => {
+          const summary = riskAssessments.find((r) => r.type === t.type);
+          const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
+          return (
+            <div key={t.type} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800">
+                  {t.title}
+                  {summary?.onFile && <span className="ml-2 badge-gray badge">📄 On file</span>}
+                </p>
+                <p className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                  {!summary
+                    ? 'Not started yet.'
+                    : summary.onFile
+                      ? `Held on paper${summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}`
+                      : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
+                </p>
+              </div>
+              <div className="shrink-0">
+                <DocActions exists={!!summary} canEdit={canEditDocs} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+
+  // Medications
+  const renderMedications = () => (
+    <Section
+      title="Medications"
+      action={
+        <div className="flex gap-2">
+          <button className="btn-secondary btn btn-sm" onClick={() => setMarChartOpen(true)}>MAR Chart</button>
+          <button className="btn-secondary btn btn-sm" onClick={() => setEmarOpen(true)}>Open eMAR</button>
+        </div>
+      }
+    >
+      {meds.length === 0 ? (
+        <p className="text-sm text-gray-400">No active medications.</p>
+      ) : (
+        <div className="space-y-2">
+          {meds.map((med: Medication) => {
+            const times = parseTimes(med.times);
+            return (
+              <div key={med.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b last:border-0 pb-2 last:pb-0">
+                <span className="font-medium text-gray-900">{med.name}</span>
+                {med.dose && <span className="text-sm text-gray-500">{med.dose}</span>}
+                <span className="text-xs text-gray-400">{med.route || 'Oral'}</span>
+                <span className="flex-1" />
+                <span className="text-xs text-gray-600">{times.length ? times.join(', ') : 'PRN / as required'}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+
+  // Call logs
+  const renderCallLogs = () => (
+    <Section
+      title="Call Logs"
+      action={<button className="btn-secondary btn btn-sm" onClick={() => setLogsOpen(true)}>Open</button>}
+    >
+      {logs.length === 0 ? (
+        <p className="text-sm text-gray-400">No call logs yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {logs.slice(0, 5).map((log) => (
+            <div key={log.id} className="rounded-lg border border-gray-200 p-3">
+              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                <span className="font-medium text-gray-700">{log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown carer'}</span>
+                <span>{format(new Date(log.createdAt), 'EEE dd MMM yyyy, h:mm a')}</span>
+              </div>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
+            </div>
+          ))}
+          {logs.length > 5 && <p className="text-xs text-gray-400">Showing 5 of {logs.length} — open for full history.</p>}
+        </div>
+      )}
+    </Section>
+  );
+
+  // Financial Record — client's money ledger (only if we manage their money)
+  const renderFinancial = () => (
+    su.handlesMoney ? (
+      <FinancialRecord serviceUserId={id} canManage={can('manage_service_users') && !outOfScope} />
+    ) : null
+  );
+
+  // Uploaded documents (file attachments)
+  const renderUploadedDocs = () => <DocumentsTab ownerType="SERVICE_USER" ownerId={id} canManage={isManager} />;
+
+  // Delete Service User (admin)
+  const renderDelete = () => (
+    isManager ? (
+      <div className="card border-red-200 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-red-700">Delete Service User</h2>
+          <p className="text-sm text-gray-500">Permanently remove {su.firstName} {su.lastName} and their records. This cannot be undone.</p>
+        </div>
+        {confirmDelete ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-red-700">Are you sure?</span>
+            <button className="btn-danger btn" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>
+              {deleteMut.isPending ? 'Deleting…' : 'Yes, delete'}
+            </button>
+            <button className="btn-secondary btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
+          </div>
+        ) : (
+          <button className="btn-danger btn" onClick={() => setConfirmDelete(true)}>Delete Service User</button>
+        )}
+      </div>
+    ) : null
+  );
+
+  // The rail's items. Financial only appears when we manage this client's money
+  // (same gating as the section itself); everything else is always available to
+  // anyone who can open this page.
+  const RAIL: { key: string; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'care', label: 'Care Plans' },
+    { key: 'risk', label: 'Risk Assessments' },
+    { key: 'meds', label: 'Medication' },
+    { key: 'respite', label: 'Respite' },
+    { key: 'activity', label: 'Activity Log' },
+    ...(su.handlesMoney ? [{ key: 'financial', label: 'Financial' }] : []),
+    { key: 'documents', label: 'Documents' },
+  ];
+
+  // The active rail section's content.
+  const renderRailSection = () => {
+    switch (section) {
+      case 'overview':
+        return <>{renderOverviewGrid(false)}{renderOfficeNotes()}{renderDelete()}</>;
+      case 'care':
+        return <>{renderDocumentsChecklist()}{renderCarePlan()}{renderLikesDislikes()}{renderServicePlan()}{renderSupportedLiving()}{renderOnePageProfile()}{renderContractOfCare()}</>;
+      case 'risk':
+        return renderRiskAssessments();
+      case 'meds':
+        return renderMedications();
+      case 'respite':
+        return renderRespite();
+      case 'activity':
+        return renderCallLogs();
+      case 'financial':
+        return renderFinancial();
+      case 'documents':
+        return renderUploadedDocs();
+      default:
+        return renderOverviewGrid(false);
     }
   };
 
@@ -351,6 +1031,21 @@ export default function ServiceUserDetail() {
             </div>
           </div>
           <div className="flex items-start gap-2">
+            {/* Layout switch — remembers the choice (presentation only). */}
+            <div className="flex items-center gap-1">
+              <button
+                className={`px-2.5 py-1 rounded-full text-xs font-medium ${layout === 'rail' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}
+                onClick={() => setLayoutMode('rail')}
+              >
+                Rail
+              </button>
+              <button
+                className={`px-2.5 py-1 rounded-full text-xs font-medium ${layout === 'classic' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}
+                onClick={() => setLayoutMode('classic')}
+              >
+                Classic
+              </button>
+            </div>
             <button className="btn-secondary btn" onClick={() => setGrabSheetOpen(true)}>🚑 Grab Sheet</button>
             {isManager && (
               <>
@@ -428,594 +1123,53 @@ export default function ServiceUserDetail() {
         />
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Personal details — the full set captured on the edit form. */}
-        <Section title="Personal Details">
-          <div className="grid grid-cols-2 gap-x-6">
-            <Field label="Title" value={su.title} />
-            <Field label="Preferred Name" value={su.preferredName} />
-            <Field label="First Name" value={su.firstName} />
-            <Field label="Last Name" value={su.lastName} />
-            <Field label="Gender" value={su.gender} />
-            <Field label="Date of Birth" value={su.dateOfBirth ? format(new Date(su.dateOfBirth), 'dd MMM yyyy') : undefined} />
-            <Field label="Age" value={su.dateOfBirth ? `${differenceInYears(new Date(), new Date(su.dateOfBirth))} years` : undefined} />
-            <Field label="NHS Number" value={su.nhsNumber} />
-            <Field label="Package ID" value={su.packageId} />
-            <Field label="Ethnic Origin" value={su.ethnicOrigin} />
-            <Field label="Area / Site" value={su.site?.name} />
-            <Field label="Service Start Date" value={su.serviceStartDate ? format(new Date(su.serviceStartDate), 'dd MMM yyyy') : undefined} />
-          </div>
-        </Section>
-
-        {/* Contact */}
-        <Section title="Contact & Address">
-          <div className="grid grid-cols-2 gap-x-6">
-            <Field label="Address" value={su.address} />
-            <Field label="Postcode" value={su.postcode} />
-            <Field label="Phone" value={su.phone} />
-            <Field label="Email" value={su.email} />
-            <Field label="Key Safe" value={su.keySafe} />
-            <Field label="Meds Safe Code" value={su.medsSafeCode} />
-          </div>
-          {su.postcode && (
-            <div className="mt-4">
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${su.address || ''} ${su.postcode}`.trim())}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline"
-              >
-                Open in Google Maps →
-              </a>
-              {geo ? (
-                <iframe
-                  title="Service user location"
-                  className="w-full h-36 rounded-lg border mt-2"
-                  loading="lazy"
-                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${geo.lon - 0.01}%2C${geo.lat - 0.01}%2C${geo.lon + 0.01}%2C${geo.lat + 0.01}&layer=mapnik&marker=${geo.lat}%2C${geo.lon}`}
-                />
-              ) : (
-                <div className="w-full h-36 rounded-lg border mt-2 flex items-center justify-center text-sm text-gray-400">
-                  Loading map…
-                </div>
-              )}
-            </div>
-          )}
-        </Section>
-
-        {/* Away / Respite — cancels visits in the window as non-chargeable */}
-        <RespiteSection serviceUserId={id} isManager={isManager} />
-
-        {/* Emergency contact & next of kin */}
-        <Section title="Emergency Contact">
-          <div className="grid grid-cols-2 gap-x-6">
-            <Field label="Name" value={su.emergencyContactName} />
-            <Field label="Relationship" value={su.emergencyContactRelation} />
-            <Field label="Phone" value={su.emergencyContactPhone} />
-            <Field label="Mobile" value={su.emergencyContactMobile} />
-            <Field label="Email" value={su.emergencyContactEmail} />
-            <Field label="Address" value={su.emergencyContactAddress} />
-          </div>
-          <div className="border-t mt-2.5 pt-2.5">
-            <p className="text-xs font-semibold text-gray-500 mb-1">Next of Kin</p>
-            <div className="grid grid-cols-2 gap-x-6">
-              <Field label="Name" value={su.nextOfKinName} />
-              <Field label="Relationship" value={su.nextOfKinRelation} />
-              <Field label="Phone" value={su.nextOfKinPhone} />
-              <Field label="Mobile" value={su.nextOfKinMobile} />
-              <Field label="Email" value={su.nextOfKinEmail} />
-              <Field label="Address" value={su.nextOfKinAddress} />
-            </div>
-          </div>
-        </Section>
-
-        {/* GP & Pharmacy — merged; two lean columns side by side. */}
-        <Section title="GP & Pharmacy">
-          <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1">GP</p>
-              <Field label="Name" value={su.gpName} />
-              <Field label="Practice / Surgery" value={su.gpPractice} />
-              <Field label="Phone" value={su.gpPhone} />
-              <Field label="Address" value={su.gpAddress} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1">Pharmacy</p>
-              <Field label="Name" value={su.pharmacyName} />
-              <Field label="Phone" value={su.pharmacyPhone} />
-              <Field label="Address" value={su.pharmacyAddress} />
-            </div>
-          </div>
-        </Section>
-
-        {/* Care summary — merges care needs, weekly hours, visits, support
-            categories and preferred caregivers into one full-width card. */}
-        <Section title="Care Summary" className="lg:col-span-2">
-          <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1">Care needs</p>
-                <div className="flex flex-wrap gap-1">
-                  {su.needsMedication && <span className="badge-red badge">Medication</span>}
-                  {su.needsMobility && <span className="badge-yellow badge">Mobility</span>}
-                  {su.needsPersonalCare && <span className="badge-purple badge">Personal Care</span>}
-                  {!su.needsMedication && !su.needsMobility && !su.needsPersonalCare && <span className="text-sm text-gray-400">None recorded</span>}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1">Support categories</p>
-                <div className="flex flex-wrap gap-1">
-                  {parseCategories(su.supportCategories).length === 0
-                    ? <span className="text-sm text-gray-400">None recorded</span>
-                    : parseCategories(su.supportCategories).map((c) => (
-                        <span key={c} className="badge-blue badge">{c}</span>
-                      ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1">Preferred caregivers</p>
-                {su.preferredCaregivers.length === 0 ? (
-                  <span className="text-sm text-gray-400">None set</span>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {su.preferredCaregivers.map((c) => (
-                      <span key={c.id} className="px-2.5 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700">{c.firstName} {c.lastName}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <Field label="Contracted weekly hours" value={su.contractedWeeklyHours != null ? `${su.contractedWeeklyHours} h/week` : undefined} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-1">Visits</p>
-              {visits.length === 0 ? (
-                <p className="text-sm text-gray-400">No visits set</p>
-              ) : (
-                <>
-                  <div className="space-y-0.5">
-                    {visits.map((v, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm border-b border-gray-100 last:border-0 py-1">
-                        <span className="text-gray-800">
-                          {v.type}
-                          {v.cover && v.cover > 1 && (
-                            <span className="ml-2 text-xs font-medium text-purple-600">{coverLabel(v.cover)}</span>
-                          )}
-                          {!visitIsDaily(v) && (
-                            <span className="ml-2 text-xs font-medium text-blue-600">
-                              {v.days!.slice().sort((a, b) => a - b).map((d) => DAYS[d].slice(0, 3)).join(', ')}
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-gray-500">{durationLabel(v.duration)}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {(() => {
-                      const daily = visits.filter(visitIsDaily).length;
-                      const partial = visits.length - daily;
-                      return partial === 0
-                        ? `${visits.length} visit${visits.length > 1 ? 's' : ''} every day`
-                        : `${daily} daily · ${partial} on selected days`;
-                    })()}
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-          {su.careNotes && (
-            <div className="border-t border-gray-100 pt-2">
-              <p className="text-xs font-semibold text-gray-500 mb-0.5">Care notes</p>
-              <p className="text-sm text-gray-800 whitespace-pre-wrap">{su.careNotes}</p>
-            </div>
-          )}
-        </Section>
-      </div>
-
-      {/* Office Notes */}
-      {isManager && <ServiceUserNotes serviceUserId={id} canManage={isManager} />}
-
-      {/* Documents checklist — derived from the same source as the header badge. */}
-      <Section
-        title="Documents"
-        action={
-          missingDocs.length === 0
-            ? <span className="badge-green badge">✓ File complete</span>
-            : <span className="badge-red badge">⚠ {missingDocs.length} missing</span>
-        }
-      >
-        <p className="text-sm text-gray-500 -mt-1">
-          {missingDocs.length === 0
-            ? `All ${applicableDocCount} required documents are in place.`
-            : `${applicableDocCount - missingDocs.length} of ${applicableDocCount} required documents in place — ${missingDocs.length} outstanding.`}
-        </p>
-        <div className="space-y-2">
-          {docStatuses.map((d) => (
-            <div key={d.key} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
-              <div className="flex items-center gap-2 min-w-0">
-                {!d.applicable
-                  ? <span className="text-gray-300 w-4 text-center">—</span>
-                  : d.done
-                    ? <span className="text-green-600 font-semibold w-4 text-center">✓</span>
-                    : <span className="text-red-600 font-semibold w-4 text-center">⚠</span>}
-                <span className={`text-sm ${d.applicable ? 'text-gray-800' : 'text-gray-400'}`}>{d.label}</span>
-                {!d.applicable && <span className="text-xs text-gray-400">(not applicable)</span>}
-              </div>
-              {d.applicable && (
-                d.done
-                  ? <span className="badge-green badge shrink-0">Done</span>
-                  : (
-                    <button className="btn-secondary btn btn-sm shrink-0" onClick={() => openDoc(d.key)}>
-                      {isManager ? (d.key === 'RISK_ASSESSMENT' ? 'Add →' : 'Create') : 'Open'}
-                    </button>
-                  )
-              )}
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* Care Plan */}
-      <Section
-        title="Care Plan"
-        action={
-          <div className="flex items-center gap-3">
-            {carePlan?.reviewDate && (
-              <span className={`text-xs ${reviewOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                Review {format(new Date(carePlan.reviewDate), 'dd MMM yyyy')}{reviewOverdue ? ' · overdue' : ''}
-              </span>
-            )}
-            <DocActions exists={!!carePlan} canEdit={canEditDocs} startLabel="Create Care Plan" onOpen={openCarePlan} />
-          </div>
-        }
-      >
-        {!hasCarePlan ? (
-          <p className="text-sm text-gray-400">No care plan recorded yet.</p>
-        ) : (
-          <div className="space-y-4">
-            {scheduleRows.length > 0 && (
-              <div className="overflow-x-auto">
-                <p className="text-xs font-semibold text-gray-500 mb-1">Weekly Visit Profile</p>
-                <table className="text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="text-left p-2 border font-medium text-gray-600">Day</th>
-                      {SLOTS.map(([k, label]) => <th key={k} className="text-left p-2 border font-medium text-gray-600">{label}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scheduleRows.map((day) => (
-                      <tr key={day}>
-                        <td className="p-2 border font-medium text-gray-700">{day}</td>
-                        {SLOTS.map(([k]) => <td key={k} className="p-2 border text-gray-800">{carePlanSchedule[day]?.[k] || '—'}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {carePlanExtraCalls.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1">Additional Calls</p>
-                <div className="space-y-1">
-                  {carePlanExtraCalls.map((c, i) => (
-                    <p key={i} className="text-sm text-gray-800">
-                      <span className="font-medium">{c.name || '—'}</span>
-                      {c.when && <span className="text-gray-500"> · {c.when}</span>}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="grid gap-4 sm:grid-cols-2">
-              {([['Morning', carePlan?.tasksMorning], ['Lunch', carePlan?.tasksLunch], ['Tea', carePlan?.tasksTea], ['Bed', carePlan?.tasksBed]] as [string, string | undefined][])
-                .filter(([, v]) => v?.trim())
-                .map(([label, v]) => (
-                  <div key={label}>
-                    <p className="text-xs font-semibold text-gray-500">{label} — tasks</p>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{v}</p>
-                  </div>
-                ))}
-            </div>
-            {carePlan?.numberOfCarers && <div><p className="text-xs font-semibold text-gray-500">Number of Carers</p><p className="text-sm text-gray-800">{carePlan.numberOfCarers}</p></div>}
-            {carePlan?.carePackageInfo && <div><p className="text-xs font-semibold text-gray-500">Care Package Information</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{carePlan.carePackageInfo}</p></div>}
-            {carePlan?.otherNotes && <div><p className="text-xs font-semibold text-gray-500">Other Notes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{carePlan.otherNotes}</p></div>}
-          </div>
-        )}
-      </Section>
-
-      {/* Likes & Dislikes */}
-      <Section
-        title="Likes & Dislikes"
-        action={<DocActions exists={!!likesDislikes} canEdit={canEditDocs} startLabel="Add" onOpen={openLikesDislikes} />}
-      >
-        {(() => {
-          let paper: { onFile?: boolean; reviewDate?: string } | null = null;
-          if (likesDislikes?.paperMeta) { try { const p = JSON.parse(likesDislikes.paperMeta); if (p && typeof p === 'object') paper = p; } catch { /* ignore */ } }
-          const overdue = !!paper?.onFile && !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
-          if (paper?.onFile) {
-            return (
-              <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                <span className="badge-gray badge mr-2">📄 On file</span>
-                Held on paper{paper.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(paper.reviewDate), 'dd MMM yyyy')}` : ''}
-              </p>
-            );
-          }
-          if (!likesDislikes || (!likesDislikes.likes && !likesDislikes.dislikes)) {
-            return <p className="text-sm text-gray-400">Nothing recorded yet.</p>;
-          }
-          return (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {likesDislikes.likes && <div><p className="text-xs font-semibold text-gray-500">Likes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.likes}</p></div>}
-              {likesDislikes.dislikes && <div><p className="text-xs font-semibold text-gray-500">Dislikes</p><p className="text-sm text-gray-800 whitespace-pre-wrap">{likesDislikes.dislikes}</p></div>}
-            </div>
-          );
-        })()}
-      </Section>
-
-      {/* Personal Service Plan */}
-      <Section
-        title="Personal Service Plan"
-        action={<DocActions exists={!!servicePlan} canEdit={canEditDocs} startLabel="Start Plan" onOpen={openServicePlan} />}
-      >
-        {(() => {
-          let paper: { onFile?: boolean; reviewDate?: string } | null = null;
-          if (servicePlan?.data) { try { const d = JSON.parse(servicePlan.data); if (d && typeof d.__paper === 'object') paper = d.__paper; } catch { /* ignore */ } }
-          const overdue = !!paper?.onFile && !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
-          if (paper?.onFile) {
-            return (
-              <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                <span className="badge-gray badge mr-2">📄 On file</span>
-                Held on paper{paper.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(paper.reviewDate), 'dd MMM yyyy')}` : ''}
-              </p>
-            );
-          }
-          return (
-            <p className="text-sm text-gray-600">
-              {servicePlan
-                ? `Full assessment — last updated ${format(new Date(servicePlan.updatedAt), 'dd MMM yyyy, h:mm a')}.`
-                : 'Comprehensive assessment (health, communication, personal care, medication, manual handling, safeguarding, consent and more). Not started yet.'}
-            </p>
-          );
-        })()}
-      </Section>
-
-      {/* Supported Living — housing provider & support plan */}
-      {su.careType === 'SUPPORTED_LIVING' && (
+      {layout === 'classic' ? (
+        // Classic — the original stacked layout, every section in order.
         <>
-          <Section title="Housing Provider (Supported Living)">
-            {su.site?.housingProvider || su.site?.housingOfficerName || su.site?.housingOfficerPhone || su.site?.housingOfficerEmail ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div><p className="text-xs text-gray-400">Scheme</p><p className="text-sm text-gray-800">{su.site?.name}</p></div>
-                {su.site?.housingProvider && <div><p className="text-xs text-gray-400">Housing provider</p><p className="text-sm text-gray-800">{su.site.housingProvider}</p></div>}
-                {su.site?.housingOfficerName && <div><p className="text-xs text-gray-400">Housing officer</p><p className="text-sm text-gray-800">{su.site.housingOfficerName}</p></div>}
-                {su.site?.housingOfficerPhone && <div><p className="text-xs text-gray-400">Officer phone</p><p className="text-sm text-gray-800">{su.site.housingOfficerPhone}</p></div>}
-                {su.site?.housingOfficerEmail && <div><p className="text-xs text-gray-400">Officer email</p><p className="text-sm text-gray-800">{su.site.housingOfficerEmail}</p></div>}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400">No housing provider recorded on the scheme. {isManager && 'Add it on the site (Settings → Sites).'}</p>
-            )}
-          </Section>
-
-          <Section
-            title="Support Plan"
-            action={<DocActions exists={riskAssessments.some((r) => r.type === 'SL_SUPPORT_PLAN')} canEdit={canEditDocs} startLabel="Start" onOpen={openSlPlan} />}
-          >
-            {(() => {
-              const summary = riskAssessments.find((r) => r.type === 'SL_SUPPORT_PLAN');
-              const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
-              if (summary?.onFile) {
-                return (
-                  <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                    <span className="badge-gray badge mr-2">📄 On file</span>
-                    Held on paper{summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}
-                  </p>
-                );
-              }
-              return (
-                <p className="text-sm text-gray-500">
-                  {summary
-                    ? `Enablement support plan — last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}.`
-                    : 'Record how this person is supported across budgeting, medication, cooking, benefits, mental health, behaviour, de-escalation and more.'}
-                </p>
-              );
-            })()}
-          </Section>
-
-          <Section title="Support Log">
-            {supportLogEntries.length === 0 ? (
-              <p className="text-sm text-gray-400">No support-log entries yet. Support workers add time-stamped entries through their shift.</p>
-            ) : (
-              <div className="space-y-3">
-                {[...supportLogEntries].reverse().slice(0, 20).map((e) => {
-                  let keys: string[] = [];
-                  try { const v = JSON.parse(e.domains); if (Array.isArray(v)) keys = v; } catch { /* ignore */ }
-                  return (
-                    <div key={e.id} className="border-b last:border-0 pb-3 last:pb-0">
-                      <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                        <span className="font-medium text-gray-700">{e.userName}</span>
-                        <span>{format(new Date(e.createdAt), 'EEE dd MMM yyyy, h:mm a')}</span>
-                      </div>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{e.body}</p>
-                      {keys.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {keys.map((k) => <span key={k} className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">🤝 {domainLabel(k)}</span>)}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {supportLogEntries.length > 20 && <p className="text-xs text-gray-400">Showing the latest 20 of {supportLogEntries.length} entries.</p>}
-              </div>
-            )}
-          </Section>
+          {renderOverviewGrid(true)}
+          {renderOfficeNotes()}
+          {renderDocumentsChecklist()}
+          {renderCarePlan()}
+          {renderLikesDislikes()}
+          {renderServicePlan()}
+          {renderSupportedLiving()}
+          {renderOnePageProfile()}
+          {renderContractOfCare()}
+          {renderRiskAssessments()}
+          {renderMedications()}
+          {renderCallLogs()}
+          {renderFinancial()}
+          {renderUploadedDocs()}
+          {renderDelete()}
         </>
-      )}
-
-      {/* One Page Profile (person-centred) */}
-      <Section title="One Page Profile">
-        <div className="space-y-2">
-          {PROFILE_TYPES.map((t) => {
-            const summary = riskAssessments.find((r) => r.type === t.type);
-            const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
-            return (
-              <div key={t.type} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800">
-                    {t.title}
-                    {summary?.onFile && <span className="ml-2 badge-gray badge">📄 On file</span>}
-                  </p>
-                  <p className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                    {!summary
-                      ? 'Not started yet.'
-                      : summary.onFile
-                        ? `Held on paper${summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}`
-                        : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
-                  </p>
-                </div>
-                <div className="shrink-0">
-                  <DocActions exists={!!summary} canEdit={canEditDocs} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
-
-      {/* Contract of Care */}
-      <Section
-        title="Contract of Care"
-        action={<DocActions exists={riskAssessments.some((r) => r.type === 'CONTRACT_OF_CARE')} canEdit={canEditDocs} startLabel="Start" onOpen={openContract} />}
-      >
-        {(() => {
-          // The Contract of Care isn't on a review cycle — it changes only when
-          // the visits/times change (make a new contract), so no review date.
-          const summary = riskAssessments.find((r) => r.type === 'CONTRACT_OF_CARE');
-          if (summary?.onFile) {
-            return (
-              <p className="text-sm text-gray-500">
-                <span className="badge-gray badge mr-2">📄 On file</span>
-                Held on paper{summary.completedDate ? ` · dated ${format(new Date(summary.completedDate), 'dd MMM yyyy')}` : ''}
-              </p>
-            );
-          }
-          return (
-            <p className="text-sm text-gray-500">
-              {summary
-                ? `Signed agreement of weekly visits — last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}.`
-                : 'Pick the weekly visits, auto-total the hours, and capture service user & manager signatures.'}
-            </p>
-          );
-        })()}
-      </Section>
-
-      {/* Risk Assessments */}
-      <Section id="doc-risk-assessments" title="Risk Assessments">
-        <div className="space-y-2">
-          {RA_TYPES.map((t) => {
-            const summary = riskAssessments.find((r) => r.type === t.type);
-            const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
-            return (
-              <div key={t.type} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-800">
-                    {t.title}
-                    {summary?.onFile && <span className="ml-2 badge-gray badge">📄 On file</span>}
-                  </p>
-                  <p className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                    {!summary
-                      ? 'Not started yet.'
-                      : summary.onFile
-                        ? `Held on paper${summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}`
-                        : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
-                  </p>
-                </div>
-                <div className="shrink-0">
-                  <DocActions exists={!!summary} canEdit={canEditDocs} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
-
-      {/* Medications */}
-      <Section
-        title="Medications"
-        action={
-          <div className="flex gap-2">
-            <button className="btn-secondary btn btn-sm" onClick={() => setMarChartOpen(true)}>MAR Chart</button>
-            <button className="btn-secondary btn btn-sm" onClick={() => setEmarOpen(true)}>Open eMAR</button>
-          </div>
-        }
-      >
-        {meds.length === 0 ? (
-          <p className="text-sm text-gray-400">No active medications.</p>
-        ) : (
-          <div className="space-y-2">
-            {meds.map((med: Medication) => {
-              const times = parseTimes(med.times);
-              return (
-                <div key={med.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b last:border-0 pb-2 last:pb-0">
-                  <span className="font-medium text-gray-900">{med.name}</span>
-                  {med.dose && <span className="text-sm text-gray-500">{med.dose}</span>}
-                  <span className="text-xs text-gray-400">{med.route || 'Oral'}</span>
-                  <span className="flex-1" />
-                  <span className="text-xs text-gray-600">{times.length ? times.join(', ') : 'PRN / as required'}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Section>
-
-      {/* Call logs */}
-      <Section
-        title="Call Logs"
-        action={<button className="btn-secondary btn btn-sm" onClick={() => setLogsOpen(true)}>Open</button>}
-      >
-        {logs.length === 0 ? (
-          <p className="text-sm text-gray-400">No call logs yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {logs.slice(0, 5).map((log) => (
-              <div key={log.id} className="rounded-lg border border-gray-200 p-3">
-                <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                  <span className="font-medium text-gray-700">{log.user ? `${log.user.firstName} ${log.user.lastName}` : 'Unknown carer'}</span>
-                  <span>{format(new Date(log.createdAt), 'EEE dd MMM yyyy, h:mm a')}</span>
-                </div>
-                <p className="text-sm text-gray-800 whitespace-pre-wrap">{log.note}</p>
-              </div>
-            ))}
-            {logs.length > 5 && <p className="text-xs text-gray-400">Showing 5 of {logs.length} — open for full history.</p>}
-          </div>
-        )}
-      </Section>
-
-      {/* Financial Record — client's money ledger (only if we manage their money) */}
-      {su.handlesMoney && (
-        <FinancialRecord serviceUserId={id} canManage={can('manage_service_users') && !outOfScope} />
-      )}
-
-      <DocumentsTab ownerType="SERVICE_USER" ownerId={id} canManage={isManager} />
-
-      {isManager && (
-        <div className="card border-red-200 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-red-700">Delete Service User</h2>
-            <p className="text-sm text-gray-500">Permanently remove {su.firstName} {su.lastName} and their records. This cannot be undone.</p>
-          </div>
-          {confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-red-700">Are you sure?</span>
-              <button className="btn-danger btn" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate()}>
-                {deleteMut.isPending ? 'Deleting…' : 'Yes, delete'}
+      ) : (
+        // Rail — master-detail: left nav rail, one section at a time on the right.
+        <div className="lg:flex lg:gap-5 lg:items-start">
+          <nav className="hidden lg:flex flex-col gap-1 w-48 shrink-0 lg:sticky lg:top-0 self-start card p-2">
+            {RAIL.map((it) => (
+              <button
+                key={it.key}
+                onClick={() => setSection(it.key)}
+                className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium text-left transition-colors ${section === it.key ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                {it.label}
               </button>
-              <button className="btn-secondary btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
+            ))}
+          </nav>
+          <div className="flex-1 min-w-0 space-y-5">
+            <div className="lg:hidden flex gap-1 overflow-x-auto no-scrollbar pb-1">
+              {RAIL.map((it) => (
+                <button
+                  key={it.key}
+                  onClick={() => setSection(it.key)}
+                  className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium ${section === it.key ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}
+                >
+                  {it.label}
+                </button>
+              ))}
             </div>
-          ) : (
-            <button className="btn-danger btn" onClick={() => setConfirmDelete(true)}>Delete Service User</button>
-          )}
+            {renderRailSection()}
+          </div>
         </div>
       )}
 
