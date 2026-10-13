@@ -1,0 +1,85 @@
+name: Nightly DB backup
+
+# Dumps the Neon production database every night and stores it in Cloudflare R2
+# (kept 30 days), so there's an independent off-site copy beyond Neon's own
+# point-in-time window. Setup + restore steps: docs/DB-BACKUP.md.
+#
+# It only reads the database — it never writes to it.
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 02:00 UTC daily (~02:00–03:00 UK)
+  workflow_dispatch: {}    # adds a manual "Run workflow" button
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check backup secrets are set
+        id: cfg
+        run: |
+          if [ -z "${{ secrets.DATABASE_URL }}" ] || [ -z "${{ secrets.R2_BACKUP_BUCKET }}" ]; then
+            echo "::warning::Backup secrets not configured yet — skipping. See docs/DB-BACKUP.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install PostgreSQL 17 client (pg_dump)
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump → upload to R2 → prune old backups
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          # R2 is picky about aws-cli v2's extra integrity checksums — only send
+          # them when actually required.
+          AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+          AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
+          RETENTION_DAYS: '30'
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          FILE="caremid-${STAMP}.dump"
+
+          echo "Dumping database (custom format, compressed)…"
+          pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges -f "$FILE"
+          SIZE="$(du -h "$FILE" | cut -f1)"
+          echo "Dump written: $FILE ($SIZE)"
+
+          echo "Uploading to s3://$R2_BUCKET/db/$FILE …"
+          aws s3 cp "$FILE" "s3://$R2_BUCKET/db/$FILE" \
+            --endpoint-url "$R2_ENDPOINT" --only-show-errors
+
+          echo "Pruning backups older than ${RETENTION_DAYS} days…"
+          CUTOFF="$(date -u -d "-${RETENTION_DAYS} days" +%Y-%m-%d)"
+          aws s3 ls "s3://$R2_BUCKET/db/" --endpoint-url "$R2_ENDPOINT" \
+            | awk '{print $4}' | while read -r f; do
+              [ -z "$f" ] && continue
+              d="$(echo "$f" | sed -n 's/^caremid-\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\)T.*/\1/p')"
+              [ -z "$d" ] && continue
+              if [[ "$d" < "$CUTOFF" ]]; then
+                echo "  deleting old backup: $f"
+                aws s3 rm "s3://$R2_BUCKET/db/$f" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+              fi
+            done
+
+          echo "✅ Backup complete: $FILE ($SIZE)"
