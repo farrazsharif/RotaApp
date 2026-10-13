@@ -128,6 +128,17 @@ export async function createCallLog(req: AuthRequest, res: Response) {
     }
   }
 
+  // A visit note documents a visit the carer actually attended — so a NEW log
+  // requires the carer to have clocked in to this shift (an open or completed
+  // record). The forgotten-visit flow records the visit first, so it still works.
+  // (Office backfill goes through createCallLogAsManager, which isn't gated here.)
+  if (shiftId) {
+    const myRecord = await prisma.clockRecord.findFirst({ where: { shiftId, userId: req.user!.id }, select: { id: true } });
+    if (!myRecord) {
+      return res.status(400).json({ error: 'Clock in to this visit before saving a note.' });
+    }
+  }
+
   const log = await prisma.callLog.create({
     data: {
       serviceUserId,

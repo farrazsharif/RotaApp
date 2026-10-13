@@ -698,6 +698,11 @@ export default function CallDetail() {
   // A past visit the carer never clocked into at all — they can record it late
   // themselves (own assigned visit, past day, within the 7-day window).
   const myAnyRecord = shift.clockRecords?.find((r) => r.userId === user?.id);
+  // A visit note can only be SAVED once the carer has attended — i.e. they're
+  // clocked in to this visit or have a clock record for it. Amending an existing
+  // shared log is still allowed (someone clocked in to create it). This mirrors
+  // the server guard, which rejects a new log with no clock record.
+  const canSaveLog = clockedIn || !!myAnyRecord || !!sharedLog;
   const assignedToMe = shift.userId === user?.id || (shift.coverCarers ?? []).some((c) => c.id === user?.id);
   const startOfTodayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
   const isPastDay = new Date(shift.date).getTime() < startOfTodayMs;
@@ -1382,10 +1387,13 @@ export default function CallDetail() {
                 rows={3}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
+              {!canSaveLog && (
+                <p className="text-xs text-orange-600 font-medium mt-2">Clock in to this visit before saving a note.</p>
+              )}
               <div className="mt-2 flex gap-2">
                 <button
                   onClick={() => logMut.mutate()}
-                  disabled={!finalNote.trim() || logMut.isPending}
+                  disabled={!finalNote.trim() || logMut.isPending || !canSaveLog}
                   className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-semibold text-sm disabled:opacity-40"
                 >
                   {logMut.isPending ? 'Saving…' : logSent ? 'Saved ✓' : isSharedCall ? 'Save & Sign' : 'Save Note'}
