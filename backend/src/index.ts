@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
+import helmet from 'helmet';
 import compression from 'compression';
 import { initSocket } from './lib/socket';
 import { errorHandler } from './middleware/errorHandler';
@@ -67,6 +68,19 @@ import { startShiftReminders } from './lib/shiftReminders';
 
 const app = express();
 const server = http.createServer(app);
+
+// Behind Render's proxy — trust the first hop so req.ip is the real client IP
+// (needed for correct rate-limiting) and HTTPS is detected for secure cookies.
+app.set('trust proxy', 1);
+
+// Security headers. CSP is left off here (this is a JSON API; CSP belongs on the
+// web frontends), and resource policy is cross-origin so the frontends on their
+// own domains can read API responses. Keeps HSTS, no-sniff, clickjacking and
+// referrer protections.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 
 initSocket(server);
 
