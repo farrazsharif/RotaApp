@@ -703,6 +703,10 @@ export default function CallDetail() {
   // shared log is still allowed (someone clocked in to create it). This mirrors
   // the server guard, which rejects a new log with no clock record.
   const canSaveLog = clockedIn || !!myAnyRecord || !!sharedLog;
+  // Signing needs the carer to have attended this visit (clocked in, or a clock
+  // record for it). A co-carer on a double-up who clocks in / records the visit
+  // AFTER the log was saved can still sign — they just need their own record.
+  const canSignLog = clockedIn || !!myAnyRecord;
   const assignedToMe = shift.userId === user?.id || (shift.coverCarers ?? []).some((c) => c.id === user?.id);
   const startOfTodayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
   const isPastDay = new Date(shift.date).getTime() < startOfTodayMs;
@@ -1432,20 +1436,25 @@ export default function CallDetail() {
                 </div>
               )}
 
-              {!done && (
+              {/* Sign / edit. An assigned carer who hasn't signed yet can sign —
+                  including the second carer on a double-up who clocked in or
+                  recorded the visit AFTER the log was saved (so their call is
+                  already "done"). Signing needs their own clock record; editing
+                  the note (and adding a missed task) stays open for a week. */}
+              {withinLogEditWindow && (
                 <>
                   <div className="mt-3 flex gap-2">
-                    {!iSigned ? (
+                    {!iSigned && assignedToMe ? (
                       <button
                         onClick={() => signMut.mutate(sharedLog.id)}
-                        disabled={signMut.isPending || !clockedIn}
+                        disabled={signMut.isPending || !canSignLog}
                         className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold text-sm disabled:opacity-40"
                       >
                         {signMut.isPending ? 'Signing…' : 'Confirm & Sign'}
                       </button>
-                    ) : (
+                    ) : iSigned ? (
                       <span className="flex-1 text-sm font-semibold text-green-700 py-2.5">✓ You've signed this log</span>
-                    )}
+                    ) : null}
                     <button
                       onClick={() => loadForEdit(sharedLog)}
                       className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm"
@@ -1453,23 +1462,10 @@ export default function CallDetail() {
                       Edit note
                     </button>
                   </div>
-                  {!iSigned && !clockedIn && (
-                    <p className="text-xs text-gray-400 mt-2">Clock in to sign this log.</p>
+                  {!iSigned && assignedToMe && !canSignLog && (
+                    <p className="text-xs text-gray-400 mt-2">Clock in to this visit to sign the log.</p>
                   )}
                 </>
-              )}
-
-              {/* After the visit is done, the carer can still amend the note for
-                  a week — e.g. to add a task they forgot on the day. */}
-              {done && withinLogEditWindow && (
-                <div className="mt-3">
-                  <button
-                    onClick={() => loadForEdit(sharedLog)}
-                    className="text-sm font-semibold text-blue-600"
-                  >
-                    ✏️ Edit note / add a missed task
-                  </button>
-                </div>
               )}
             </>
           ) : (
