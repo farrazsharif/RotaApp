@@ -14,6 +14,10 @@ export interface CareTask {
   // The call/visit name this task belongs to (matches Shift.visitName, e.g.
   // "Morning Call"). Empty/absent = the task applies to EVERY visit.
   visit?: string;
+  // Optional "log wording": the exact sentence that goes in the visit note when
+  // the carer marks this task done (e.g. "Assisted with a shower"). Blank = the
+  // note falls back to a grouped "Completed this visit: <task name>" sentence.
+  phrase?: string;
 }
 
 // Parse the stored JSON into a clean list. Tolerant of older {name, description}
@@ -29,6 +33,7 @@ export function parseCareTasks(raw?: string | null): CareTask[] {
         const o: CareTask = { name: String(t.name).trim() };
         if (t.description && String(t.description).trim()) o.description = String(t.description).trim();
         if (t.visit && String(t.visit).trim()) o.visit = String(t.visit).trim();
+        if (t.phrase && String(t.phrase).trim()) o.phrase = String(t.phrase).trim();
         return o;
       });
   } catch {
@@ -43,10 +48,43 @@ export function serializeCareTasks(tasks: CareTask[]): string {
       const o: CareTask = { name: (t.name || '').trim() };
       if (t.description && t.description.trim()) o.description = t.description.trim();
       if (t.visit && t.visit.trim()) o.visit = t.visit.trim();
+      if (t.phrase && t.phrase.trim()) o.phrase = t.phrase.trim();
       return o;
     })
     .filter((t) => t.name);
   return JSON.stringify(clean);
+}
+
+// Turn the care-task ticks on a visit into proper sentences for the visit note.
+// A done task with a manager-written `phrase` reads that sentence verbatim;
+// done tasks with no phrase are grouped ("Completed this visit: a, b."); tasks
+// the carer marked not-required are grouped ("Not required this visit: x, y.").
+export function buildCareTaskNote(ticks: { label: string; phrase?: string; refused?: boolean }[]): string {
+  const lcFirst = (s: string) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+  const joinList = (items: string[]) => {
+    if (items.length <= 1) return items[0] || '';
+    if (items.length === 2) return `${items[0]} and ${items[1]}`;
+    return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  };
+  const ensureSentence = (s: string) => {
+    const t = s.trim();
+    if (!t) return '';
+    const cap = t.charAt(0).toUpperCase() + t.slice(1);
+    return /[.!?]$/.test(cap) ? cap : `${cap}.`;
+  };
+  const phrasedDone: string[] = [];
+  const unphrasedDone: string[] = [];
+  const notRequired: string[] = [];
+  for (const t of ticks) {
+    if (t.refused) { notRequired.push(t.label); continue; }
+    const p = (t.phrase || '').trim();
+    if (p) phrasedDone.push(ensureSentence(p));
+    else unphrasedDone.push(t.label);
+  }
+  const out = [...phrasedDone];
+  if (unphrasedDone.length) out.push(`Completed this visit: ${joinList(unphrasedDone.map(lcFirst))}.`);
+  if (notRequired.length) out.push(`Not required this visit: ${joinList(notRequired.map(lcFirst))}.`);
+  return out.join(' ');
 }
 
 // The tasks that apply to a given call/visit: an exact (case-insensitive) match

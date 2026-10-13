@@ -55,6 +55,15 @@ export default function CareTasksEditor({ tasks, onChange, visitChoices }: {
                 rows={2}
                 className="input w-full ml-7 max-w-[calc(100%-1.75rem)]"
               />
+              <div className="ml-7 max-w-[calc(100%-1.75rem)]">
+                <input
+                  value={t.phrase || ''}
+                  onChange={(e) => update(i, { phrase: e.target.value })}
+                  placeholder="Log wording (optional) — e.g. Assisted with a shower"
+                  className="input w-full"
+                />
+                <p className="text-xs text-gray-400 mt-0.5">How it reads in the carer's visit note. Leave blank and it reads “Completed this visit: {t.name.trim() || 'task name'}”.</p>
+              </div>
             </div>
           );
         })

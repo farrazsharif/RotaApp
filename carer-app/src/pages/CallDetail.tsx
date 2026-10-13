@@ -15,7 +15,7 @@ import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
 import { settingsApi } from '../api/settings';
 import { resolveCallLogTasks, buildNoteFromTicks, parseCallLogTicks } from '../lib/callLogTasks';
-import { parseCareTasks, careTasksForVisit, careTaskId } from '../lib/careTasks';
+import { parseCareTasks, careTasksForVisit, careTaskId, buildCareTaskNote } from '../lib/careTasks';
 import { SUPPORT_DOMAINS, domainLabel, parseDomains } from '../lib/supportDomains';
 import { supportLogApi } from '../api/supportLog';
 import type { CallLogTaskDef, CallLogTaskTick } from '../lib/callLogTasks';
@@ -410,7 +410,14 @@ export default function CallDetail() {
   // The note that gets saved = auto-written checklist sentence + the carer's own
   // extra words. Tapping a chip cycles off → done → declined → off.
   const tickList = Object.values(ticks);
-  const autoText = buildNoteFromTicks(tickList);
+  // Care-task ticks (ids prefixed "care:") read as proper sentences via their own
+  // builder; the generic checklist uses its phrase/declined wording as before.
+  const composeAuto = (list: CallLogTaskTick[]) => {
+    const company = buildNoteFromTicks(list.filter((t) => !t.id.startsWith('care:')));
+    const care = buildCareTaskNote(list.filter((t) => t.id.startsWith('care:')));
+    return [company, care].filter(Boolean).join(' ');
+  };
+  const autoText = composeAuto(tickList);
   // Supported-living client → offer the support-domain chips and fold a summary
   // line into the saved note so the office/history shows what was supported.
   const isSL = shift?.serviceUser?.careType === 'SUPPORTED_LIVING';
@@ -437,13 +444,17 @@ export default function CallDetail() {
   // same CallLog.tasks store as the checklist above, so it persists/reads back
   // the same way. A stable id per task keeps its tick across re-opens.
   const careTaskDefs = careTasksForVisit(parseCareTasks(shift?.serviceUser?.careTasks), shift?.visitName)
-    .map((t) => ({ id: careTaskId(t), name: t.name, description: t.description }));
-  // Simple done/undone toggle for a care task (no "declined" state — it's a to-do).
-  const toggleCareTask = (def: { id: string; name: string }) => {
+    .map((t) => ({ id: careTaskId(t), name: t.name, description: t.description, phrase: t.phrase }));
+  // Three-state tap for a care task: not set → done → not required → clear.
+  // "Done" carries the manager's log wording (if any) so the note reads properly;
+  // "not required" is stored as a declined tick. Both ride on CallLog.tasks.
+  const cycleCareTask = (def: { id: string; name: string; phrase?: string }) => {
     setTicks((prev) => {
+      const cur = prev[def.id];
       const next = { ...prev };
-      if (next[def.id] && !next[def.id].refused) delete next[def.id];
-      else next[def.id] = { id: def.id, label: def.name, phrase: def.name };
+      if (!cur) next[def.id] = def.phrase ? { id: def.id, label: def.name, phrase: def.phrase } : { id: def.id, label: def.name };
+      else if (!cur.refused) next[def.id] = { id: def.id, label: def.name, refused: true };
+      else delete next[def.id];
       return next;
     });
   };
@@ -457,7 +468,7 @@ export default function CallDetail() {
     const domains = parseDomains(log.supportDomains);
     setSupportKeys(domains);
     // Strip the auto-written checklist + support-summary lines from the free text.
-    const auto = buildNoteFromTicks(t);
+    const auto = composeAuto(t);
     const sl = domains.length ? `Supported with: ${domains.map(domainLabel).join(', ')}.` : '';
     let rest = log.note;
     if (auto && rest.startsWith(auto)) rest = rest.slice(auto.length).trim();
@@ -1278,27 +1289,34 @@ export default function CallDetail() {
                 </div>
               )}
 
-              {/* This client's care tasks for this call — tick each off as done */}
+              {/* This client's care tasks for this call — tap once = done,
+                  again = not required, again = clear */}
               {careTaskDefs.length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs font-semibold text-gray-500 mb-1.5">
-                    Care tasks for this call <span className="font-normal text-gray-400">· tap to tick off</span>
+                    Care tasks for this call <span className="font-normal text-gray-400">· tap once = done, again = not required</span>
                   </p>
                   <div className="space-y-1.5">
                     {careTaskDefs.map((t) => {
-                      const doneTask = !!ticks[t.id] && !ticks[t.id].refused;
+                      const cur = ticks[t.id];
+                      const state = !cur ? 'off' : cur.refused ? 'notreq' : 'done';
                       return (
                         <button
                           key={t.id}
                           type="button"
-                          onClick={() => toggleCareTask(t)}
-                          className={`w-full text-left flex items-start gap-2 rounded-lg border px-3 py-2 ${doneTask ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}
+                          onClick={() => cycleCareTask(t)}
+                          className={`w-full text-left flex items-start gap-2 rounded-lg border px-3 py-2 ${
+                            state === 'done' ? 'bg-green-50 border-green-200' : state === 'notreq' ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'
+                          }`}
                         >
-                          <span className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border flex items-center justify-center text-xs font-bold ${doneTask ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
-                          <span className="min-w-0">
-                            <span className={`block text-sm font-medium ${doneTask ? 'text-green-800' : 'text-gray-800'}`}>{t.name}</span>
+                          <span className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border flex items-center justify-center text-xs font-bold ${
+                            state === 'done' ? 'bg-green-600 border-green-600 text-white' : state === 'notreq' ? 'bg-amber-500 border-amber-500 text-white' : 'border-gray-300 text-transparent'
+                          }`}>{state === 'notreq' ? '–' : '✓'}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className={`block text-sm font-medium ${state === 'done' ? 'text-green-800' : state === 'notreq' ? 'text-amber-800' : 'text-gray-800'}`}>{t.name}</span>
                             {t.description && <span className="block text-xs text-gray-500 whitespace-pre-wrap">{t.description}</span>}
                           </span>
+                          {state === 'notreq' && <span className="text-xs font-medium text-amber-700 shrink-0">Not required</span>}
                         </button>
                       );
                     })}

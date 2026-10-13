@@ -171,9 +171,11 @@ function buildData(body: Record<string, unknown>) {
             const name = typeof t?.name === 'string' ? t.name.trim() : '';
             const description = typeof t?.description === 'string' ? t.description.trim() : '';
             const visit = typeof t?.visit === 'string' ? t.visit.trim() : '';
-            const o: { name: string; description?: string; visit?: string } = { name };
+            const phrase = typeof t?.phrase === 'string' ? t.phrase.trim() : '';
+            const o: { name: string; description?: string; visit?: string; phrase?: string } = { name };
             if (description) o.description = description;
             if (visit) o.visit = visit;
+            if (phrase) o.phrase = phrase;
             return o;
           })
           .filter((t) => t.name);
