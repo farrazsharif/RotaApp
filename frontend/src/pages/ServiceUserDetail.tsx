@@ -37,6 +37,9 @@ import DocumentsTab from '../components/DocumentsTab';
 import ServiceUserNotes from '../components/ServiceUserNotes';
 import RespiteSection from '../components/RespiteSection';
 import { computeServiceUserDocs, missingDocLabels, type DocKey } from '../lib/serviceUserDocuments';
+import { parseCareTasks, serializeCareTasks, visitChoices, type CareTask } from '../lib/careTasks';
+import { VISIT_PRESETS } from '../lib/visits';
+import CareTasksEditor from '../components/CareTasksEditor';
 import { siteTintStyle } from '../lib/siteColor';
 import Icon from '../components/Icon';
 
@@ -156,6 +159,9 @@ export default function ServiceUserDetail() {
   const [effectiveAt, setEffectiveAt] = useState('');
   const [hospitalReturn, setHospitalReturn] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Care-tasks inline editor (managers): draft list while editing.
+  const [editTasks, setEditTasks] = useState(false);
+  const [taskDraft, setTaskDraft] = useState<CareTask[]>([]);
 
   const { data: su, isLoading, isError } = useQuery({
     queryKey: ['service-user', id],
@@ -227,6 +233,12 @@ export default function ServiceUserDetail() {
   const deleteMut = useMutation({
     mutationFn: () => serviceUsersApi.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-users'] }); navigate('/service-users'); },
+  });
+
+  // Save the care-tasks list (managers). Only this field is sent.
+  const tasksMut = useMutation({
+    mutationFn: () => serviceUsersApi.update(id, { careTasks: serializeCareTasks(taskDraft) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-user', id] }); setEditTasks(false); },
   });
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
@@ -501,6 +513,67 @@ export default function ServiceUserDetail() {
 
   // Office Notes
   const renderOfficeNotes = () => (isManager ? <ServiceUserNotes serviceUserId={id} canManage={isManager} /> : null);
+
+  // Care Tasks — per-visit tasks the carer must do. Read view groups by call;
+  // managers get an inline editor. The "On visit" choices are the client's own
+  // planned calls plus the standard presets.
+  const renderTasks = () => {
+    const tasks = parseCareTasks(su.careTasks);
+    const choices = visitChoices(visits.map((v) => v.type), VISIT_PRESETS);
+    const startEdit = () => { setTaskDraft(parseCareTasks(su.careTasks)); setEditTasks(true); };
+    // Group tasks by call for the read view: "All visits" first, then each
+    // planned call in order, then any other call a task names.
+    const byVisit = new Map<string, CareTask[]>();
+    for (const t of tasks) {
+      const key = t.visit || '';
+      if (!byVisit.has(key)) byVisit.set(key, []);
+      byVisit.get(key)!.push(t);
+    }
+    const orderedKeys: string[] = [];
+    const pushKey = (k: string) => { if (byVisit.has(k) && !orderedKeys.includes(k)) orderedKeys.push(k); };
+    pushKey('');
+    choices.forEach(pushKey);
+    for (const k of byVisit.keys()) if (!orderedKeys.includes(k)) orderedKeys.push(k);
+
+    return (
+      <Section
+        title="Care Tasks"
+        action={canEditDocs && !editTasks
+          ? <button className="btn-secondary btn btn-sm" onClick={startEdit}>{tasks.length ? 'Edit tasks' : '+ Add task'}</button>
+          : undefined}
+      >
+        {editTasks ? (
+          <div className="space-y-3">
+            <CareTasksEditor tasks={taskDraft} onChange={setTaskDraft} visitChoices={choices} />
+            <div className="flex justify-end gap-2">
+              <button className="btn-secondary btn btn-sm" onClick={() => setEditTasks(false)} disabled={tasksMut.isPending}>Cancel</button>
+              <button className="btn-primary btn btn-sm" onClick={() => tasksMut.mutate()} disabled={tasksMut.isPending}>
+                {tasksMut.isPending ? 'Saving…' : 'Save tasks'}
+              </button>
+            </div>
+          </div>
+        ) : tasks.length === 0 ? (
+          <p className="text-sm text-gray-400">No care tasks set.{canEditDocs ? ' Add tasks the carer must complete on each visit.' : ''}</p>
+        ) : (
+          <div className="space-y-3">
+            {orderedKeys.map((k) => (
+              <div key={k || '__all__'}>
+                <p className="text-xs font-semibold text-gray-500 mb-1">{k || 'All visits'}</p>
+                <div className="space-y-1">
+                  {byVisit.get(k)!.map((t, i) => (
+                    <div key={i} className="border-b border-gray-100 last:border-0 pb-1.5 last:pb-0">
+                      <p className="text-sm font-medium text-gray-800">{t.name}</p>
+                      {t.description && <p className="text-xs text-gray-500 whitespace-pre-wrap">{t.description}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+    );
+  };
 
   // Documents checklist — derived from the same source as the header badge.
   const renderDocumentsChecklist = () => (
@@ -937,6 +1010,7 @@ export default function ServiceUserDetail() {
   // anyone who can open this page.
   const RAIL: { key: string; label: string }[] = [
     { key: 'overview', label: 'Overview' },
+    { key: 'tasks', label: 'Tasks' },
     { key: 'care', label: 'Care Plans' },
     { key: 'risk', label: 'Risk Assessments' },
     { key: 'meds', label: 'Medication' },
@@ -951,6 +1025,8 @@ export default function ServiceUserDetail() {
     switch (section) {
       case 'overview':
         return <>{renderOverviewGrid(false)}{renderOfficeNotes()}{renderDelete()}</>;
+      case 'tasks':
+        return renderTasks();
       case 'care':
         return <>{renderDocumentsChecklist()}{renderCarePlan()}{renderLikesDislikes()}{renderServicePlan()}{renderSupportedLiving()}{renderOnePageProfile()}{renderContractOfCare()}</>;
       case 'risk':
@@ -1128,6 +1204,7 @@ export default function ServiceUserDetail() {
         <>
           {renderOverviewGrid(true)}
           {renderOfficeNotes()}
+          {renderTasks()}
           {renderDocumentsChecklist()}
           {renderCarePlan()}
           {renderLikesDislikes()}

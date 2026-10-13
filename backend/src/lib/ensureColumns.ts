@@ -8,6 +8,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   }
   // JSON array column — non-null with a default so existing rows stay valid.
   await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "supportCategories" TEXT NOT NULL DEFAULT '[]'`);
+  // Per-visit care tasks (JSON array of { name, description?, visit? }).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "careTasks" TEXT NOT NULL DEFAULT '[]'`);
   // Flag marking an open-ended recurring series for the permanent top-up job.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "seriesPermanent" BOOLEAN NOT NULL DEFAULT false`);
   // Does the carer administer medication on this visit? Off for personal-care-

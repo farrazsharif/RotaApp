@@ -8,6 +8,8 @@ import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
 import { VISIT_PRESETS } from '../lib/visits';
 import { SUPPORT_CATEGORIES, parseCategories } from '../lib/supportCategories';
+import { parseCareTasks, serializeCareTasks, visitChoices, type CareTask } from '../lib/careTasks';
+import CareTasksEditor from '../components/CareTasksEditor';
 import AutoGrowTextarea from '../components/AutoGrowTextarea';
 
 type FormState = ServiceUserData & { preferredCaregiverIds: string[] };
@@ -122,6 +124,7 @@ export default function ServiceUserForm() {
 
   const [form, setForm] = useState<FormState>(emptyForm);
   const [visits, setVisits] = useState<VisitRow[]>([]);
+  const [careTasks, setCareTasks] = useState<CareTask[]>([]);
   const [supportCats, setSupportCats] = useState<string[]>([]);
   // When true, contracted weekly hours track the visit template automatically;
   // untick to enter a council figure that differs from the schedule.
@@ -157,6 +160,7 @@ export default function ServiceUserForm() {
     });
     const loadedVisits = parseVisits(su.visits);
     setVisits(loadedVisits);
+    setCareTasks(parseCareTasks(su.careTasks));
     setSupportCats(parseCategories(su.supportCategories));
     // Treat it as auto unless a manual figure was saved that differs from what
     // the visits imply.
@@ -185,6 +189,7 @@ export default function ServiceUserForm() {
     ...form,
     contractedWeeklyHours: autoContracted ? computedWeeklyHours : form.contractedWeeklyHours,
     visits: JSON.stringify(visits),
+    careTasks: serializeCareTasks(careTasks),
     supportCategories: JSON.stringify(supportCats),
   });
 
@@ -643,6 +648,17 @@ export default function ServiceUserForm() {
             </div>
           </div>
         )}
+      </Section>
+
+      <Section title="Care Tasks">
+        <p className="text-xs text-gray-500 -mt-1 mb-1">
+          Tasks the carer must do on a visit. Assign each to a specific call (e.g. "Give shower" on the Morning Call) or leave on "All visits".
+        </p>
+        <CareTasksEditor
+          tasks={careTasks}
+          onChange={setCareTasks}
+          visitChoices={visitChoices(visits.map((v) => v.type), VISIT_PRESETS)}
+        />
       </Section>
 
       <Section title="Preferred Caregiver(s)">

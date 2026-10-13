@@ -159,6 +159,28 @@ function buildData(body: Record<string, unknown>) {
     const raw = typeof body.visits === 'string' ? body.visits : JSON.stringify(body.visits);
     try { JSON.parse(raw); data.visits = raw; } catch { /* ignore invalid */ }
   }
+  if (body.careTasks !== undefined) {
+    // Normalise to [{ name, description?, visit? }] — trim strings, drop nameless
+    // rows, and preserve the visit assignment (don't strip it).
+    const raw = typeof body.careTasks === 'string' ? body.careTasks : JSON.stringify(body.careTasks);
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        const clean = arr
+          .map((t: Record<string, unknown>) => {
+            const name = typeof t?.name === 'string' ? t.name.trim() : '';
+            const description = typeof t?.description === 'string' ? t.description.trim() : '';
+            const visit = typeof t?.visit === 'string' ? t.visit.trim() : '';
+            const o: { name: string; description?: string; visit?: string } = { name };
+            if (description) o.description = description;
+            if (visit) o.visit = visit;
+            return o;
+          })
+          .filter((t) => t.name);
+        data.careTasks = JSON.stringify(clean);
+      }
+    } catch { /* ignore invalid */ }
+  }
   if (body.supportCategories !== undefined) {
     const raw = typeof body.supportCategories === 'string' ? body.supportCategories : JSON.stringify(body.supportCategories);
     try {

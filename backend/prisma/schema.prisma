@@ -197,6 +197,9 @@ model ServiceUser {
   contractedWeeklyHours    Float? // council-agreed hours of care per week (care package); null = not set
   visitDuration            Int      @default(30)
   visits                   String   @default("[]") // JSON array of { type, duration }
+  // Per-visit care tasks the carer must do: JSON array of { name, description?, visit? }.
+  // visit = the call name it belongs to (e.g. "Morning Call"); empty = every visit.
+  careTasks                String   @default("[]")
   supportCategories        String   @default("[]") // JSON array of Capacity Tracker category labels
   active                   Boolean  @default(true)
   careType                 String   @default("DOMICILIARY") // DOMICILIARY (visit-based) | SUPPORTED_LIVING

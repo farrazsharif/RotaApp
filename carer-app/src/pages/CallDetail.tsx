@@ -15,6 +15,7 @@ import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
 import { settingsApi } from '../api/settings';
 import { resolveCallLogTasks, buildNoteFromTicks, parseCallLogTicks } from '../lib/callLogTasks';
+import { parseCareTasks, careTasksForVisit, careTaskId } from '../lib/careTasks';
 import { SUPPORT_DOMAINS, domainLabel, parseDomains } from '../lib/supportDomains';
 import { supportLogApi } from '../api/supportLog';
 import type { CallLogTaskDef, CallLogTaskTick } from '../lib/callLogTasks';
@@ -430,6 +431,21 @@ export default function CallDetail() {
   };
   const setTickDetail = (id: string, detail: string) => {
     setTicks((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], detail } } : prev));
+  };
+  // This client's per-visit care tasks that apply to THIS call (its own tasks
+  // for this call name + any "all visits" tasks). Ticked completion rides on the
+  // same CallLog.tasks store as the checklist above, so it persists/reads back
+  // the same way. A stable id per task keeps its tick across re-opens.
+  const careTaskDefs = careTasksForVisit(parseCareTasks(shift?.serviceUser?.careTasks), shift?.visitName)
+    .map((t) => ({ id: careTaskId(t), name: t.name, description: t.description }));
+  // Simple done/undone toggle for a care task (no "declined" state — it's a to-do).
+  const toggleCareTask = (def: { id: string; name: string }) => {
+    setTicks((prev) => {
+      const next = { ...prev };
+      if (next[def.id] && !next[def.id].refused) delete next[def.id];
+      else next[def.id] = { id: def.id, label: def.name, phrase: def.name };
+      return next;
+    });
   };
   // Re-open a saved log for editing: restore the ticks and put any words the
   // carer added beyond the auto-text back in the free-text box.
@@ -1255,6 +1271,34 @@ export default function CallDetail() {
                           className={`text-sm px-3 py-1.5 rounded-full font-medium border ${on ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`}
                         >
                           {on ? '✓ ' : ''}{d.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* This client's care tasks for this call — tick each off as done */}
+              {careTaskDefs.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">
+                    Care tasks for this call <span className="font-normal text-gray-400">· tap to tick off</span>
+                  </p>
+                  <div className="space-y-1.5">
+                    {careTaskDefs.map((t) => {
+                      const doneTask = !!ticks[t.id] && !ticks[t.id].refused;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => toggleCareTask(t)}
+                          className={`w-full text-left flex items-start gap-2 rounded-lg border px-3 py-2 ${doneTask ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}
+                        >
+                          <span className={`mt-0.5 h-5 w-5 shrink-0 rounded-full border flex items-center justify-center text-xs font-bold ${doneTask ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
+                          <span className="min-w-0">
+                            <span className={`block text-sm font-medium ${doneTask ? 'text-green-800' : 'text-gray-800'}`}>{t.name}</span>
+                            {t.description && <span className="block text-xs text-gray-500 whitespace-pre-wrap">{t.description}</span>}
+                          </span>
                         </button>
                       );
                     })}

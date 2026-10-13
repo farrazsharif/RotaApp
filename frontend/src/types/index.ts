@@ -508,6 +508,7 @@ export interface ServiceUser {
   contractedWeeklyHours?: number | null;
   visitDuration: number;
   visits?: string; // JSON array of { type, duration }
+  careTasks?: string; // JSON array of { name, description?, visit? }
   supportCategories?: string; // JSON array of CQC PIR category labels
   active: boolean;
   status: ServiceUserStatus;

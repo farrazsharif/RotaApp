@@ -19,6 +19,7 @@ export interface ServiceUserBrief {
   careType?: 'DOMICILIARY' | 'SUPPORTED_LIVING';
   site?: { id: string; name: string; color: string } | null;
   handlesMoney?: boolean;
+  careTasks?: string | null; // JSON array of { name, description?, visit? }
 }
 
 export interface ServiceUser {
