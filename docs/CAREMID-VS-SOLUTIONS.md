@@ -80,7 +80,7 @@ _Generated 2026-09-07 by diffing the two working copies (excluding node_modules,
 - `sendEmail` returns a boolean so callers surface real delivery failures; password-reset returns 502 if the email didn't send (instead of a false "sent"). `siblingUrl` derives carer/family app URLs from `CLIENT_URL` when per-app env vars are unset.
 
 **Carer app (misc)**
-- **"Still clocked in" sticky notification** — pinned while clocked in, re-pinned on app open, cleared on clock-out; active call stays on Today even after date rollover (authoritative `/clock/status`).
+- Active call stays on Today even after date rollover (authoritative `/clock/status`). (The old "Still clocked in" sticky push notification was removed on request.)
 - **Service-user detail enrichments:** `preferredName`, a highlighted **Property Access** card (key safe, meds safe code), expanded emergency contact (+mobile), Next of Kin, GP & Pharmacy — with tap-to-dial `tel:` links.
 - **Meds stay reviewable after the call** (`/clock/shift-meds/:shiftId`).
 - Hours/shifts window widened (8 weeks back … 2 ahead); history sorted by day then start-time (fixes same-day jumbling).

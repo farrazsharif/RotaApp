@@ -13,7 +13,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
-import { ensureNotificationPermission, showClockedInNotification, clearClockedInNotification } from '../lib/clockNotification';
 import { settingsApi } from '../api/settings';
 import { resolveCallLogTasks, buildNoteFromTicks, parseCallLogTicks } from '../lib/callLogTasks';
 import { SUPPORT_DOMAINS, domainLabel, parseDomains } from '../lib/supportDomains';
@@ -487,16 +486,10 @@ export default function CallDetail() {
   const clockInMut = useMutation({
     mutationFn: () => clockApi.clockIn(id),
     onError: (err: any) => setClockInError(err?.response?.data?.error || 'Could not clock in. Please try again.'),
-    onSuccess: async () => {
+    onSuccess: () => {
       setClockInError(null);
       qc.invalidateQueries({ queryKey: ['clock-status'] });
       qc.invalidateQueries({ queryKey: ['shift-meds', id] });
-      // Pin a "still clocked in" notification so the carer doesn't forget to
-      // clock out. Ask for permission the first time (this runs right after
-      // their Clock In tap).
-      await ensureNotificationPermission();
-      const clientName = shift?.serviceUser ? `${shift.serviceUser.firstName} ${shift.serviceUser.lastName}` : '';
-      showClockedInNotification(clientName, `/call/${id}`);
     },
   });
 
@@ -505,7 +498,6 @@ export default function CallDetail() {
     onSuccess: () => {
       setClockOutError(null);
       setShortFix(false);
-      clearClockedInNotification();
       qc.invalidateQueries({ queryKey: ['clock-status'] });
       qc.invalidateQueries({ queryKey: ['my-calls'] });
       qc.invalidateQueries({ queryKey: ['shift', id] });
