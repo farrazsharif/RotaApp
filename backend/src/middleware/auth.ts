@@ -54,10 +54,15 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         return res.status(402).json({ error: 'Your subscription is inactive', code: 'SUBSCRIPTION_INACTIVE' });
       }
     }
-    // Per-person override wins outright; otherwise a custom role's list; else the
+    // A full admin (base ADMIN account, no custom role) always uses the base-role
+    // matrix — full access — so a stale per-person override (e.g. one set before
+    // they were promoted, which can't be cleared) never reduces them. Otherwise
+    // a per-person override wins outright; else a custom role's list; else the
     // base-role matrix (customPermissions stays null).
     let customPermissions: string[] | null = null;
-    if (user.permissionsOverride != null) {
+    if (user.role === 'ADMIN' && !user.customRole) {
+      customPermissions = null;
+    } else if (user.permissionsOverride != null) {
       try { customPermissions = JSON.parse(user.permissionsOverride); } catch { customPermissions = []; }
     } else if (user.customRole) {
       try { customPermissions = JSON.parse(user.customRole.permissions); } catch { customPermissions = []; }
