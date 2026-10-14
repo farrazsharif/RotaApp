@@ -712,6 +712,10 @@ export default function CallDetail() {
   // record for it). A co-carer on a double-up who clocks in / records the visit
   // AFTER the log was saved can still sign — they just need their own record.
   const canSignLog = clockedIn || !!myAnyRecord;
+  // Doses can be recorded live (clocked in) OR on a completed visit within the
+  // 7-day window — so a carer who recorded the visit late can still enter the
+  // meds they gave, instead of them being stuck read-only as "Not recorded".
+  const medsEditable = clockedIn || (done && withinLogEditWindow);
   const assignedToMe = shift.userId === user?.id || (shift.coverCarers ?? []).some((c) => c.id === user?.id);
   const startOfTodayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
   const isPastDay = new Date(shift.date).getTime() < startOfTodayMs;
@@ -966,18 +970,18 @@ export default function CallDetail() {
         {(clockedIn || (done && dueMeds.length > 0)) && (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
             <h2 className="font-semibold text-gray-800 mb-1">{done ? 'Medication record' : 'Medication Due'}</h2>
-            {done && dueMeds.length > 0 && <p className="text-xs text-gray-400 mb-2">What was given on this visit.</p>}
+            {done && dueMeds.length > 0 && <p className="text-xs text-gray-400 mb-2">{medsEditable ? 'Record what you gave on this visit.' : 'What was given on this visit.'}</p>}
             {dueMeds.length === 0 ? (
               <p className="text-sm text-gray-400">No medication due for this visit.</p>
             ) : (
               <>
                 <div className="space-y-3">
-                  {dueMeds.filter((d) => !d.prn).map((d) => renderDose(d, clockedIn && !done))}
+                  {dueMeds.filter((d) => !d.prn).map((d) => renderDose(d, medsEditable))}
                   {dueMeds.some((d) => d.prn) && (
                     <div className="pt-1">
-                      <p className="text-xs font-semibold text-gray-500 mb-2">As required (PRN){clockedIn && !done ? ' — record only if given' : ''}</p>
+                      <p className="text-xs font-semibold text-gray-500 mb-2">As required (PRN){medsEditable ? ' — record only if given' : ''}</p>
                       <div className="space-y-3">
-                        {dueMeds.filter((d) => d.prn).map((d) => renderDose(d, clockedIn && !done))}
+                        {dueMeds.filter((d) => d.prn).map((d) => renderDose(d, medsEditable))}
                       </div>
                     </div>
                   )}
