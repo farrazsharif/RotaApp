@@ -34,8 +34,11 @@ workflows:
           cd carer-app
           # Fresh iOS project each build (keeps the repo clean); appId from
           # capacitor.config.ts sets the bundle identifier automatically.
-          npx cap add ios 2>/dev/null || true
+          # `cap add ios` is a no-op/err if the platform already exists — keep going.
+          npx cap add ios || true
           npx cap sync ios
+          echo "--- carer-app/ios/App contents ---"
+          ls -la ios/App || true
       - name: Add camera / photo-library permission strings
         script: |
           PLIST="carer-app/ios/App/App/Info.plist"
@@ -48,10 +51,16 @@ workflows:
           cd carer-app/ios/App
           agvtool new-marketing-version "$MARKETING_VERSION"
           agvtool new-version -all "$BUILD_NUMBER"
-      - name: Install CocoaPods
+      - name: Install CocoaPods (if the project uses them)
         script: |
           cd carer-app/ios/App
-          pod install
+          # Capacitor 8 generates a Swift Package Manager project (no Podfile);
+          # only run pod install when a CocoaPods Podfile is actually present.
+          if [ -f Podfile ]; then
+            pod install
+          else
+            echo "No Podfile — Capacitor iOS project uses Swift Package Manager; skipping pod install."
+          fi
       - name: Set up code signing (automatic, via API key)
         script: |
           keychain initialize
@@ -61,7 +70,13 @@ workflows:
       - name: Build the IPA
         script: |
           cd carer-app
-          xcode-project build-ipa --workspace "ios/App/App.xcworkspace" --scheme "App"
+          # Use the workspace when CocoaPods generated one; otherwise build the
+          # plain Xcode project (Swift Package Manager setup).
+          if [ -d ios/App/App.xcworkspace ]; then
+            xcode-project build-ipa --workspace "ios/App/App.xcworkspace" --scheme "App"
+          else
+            xcode-project build-ipa --project "ios/App/App.xcodeproj" --scheme "App"
+          fi
     artifacts:
       - carer-app/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
