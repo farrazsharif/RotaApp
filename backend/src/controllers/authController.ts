@@ -63,7 +63,13 @@ export async function getMe(req: AuthRequest, res: Response) {
   // Permissions tab never reached their own session.
   const override = user.permissionsOverride != null ? safeParse(user.permissionsOverride) : null;
   const roleCaps = user.customRole ? safeParse(user.customRole.permissions) : null;
-  const capabilities = await capabilitiesFor(user.role as Role, override ?? roleCaps);
+  // A full admin (base ADMIN account, no custom role) always keeps full access —
+  // ignore any stale per-person override (e.g. one set before they were promoted
+  // to admin, which can't be cleared because admin overrides are blocked). This
+  // matches the documented "Admins keep full access" rule. Custom roles still
+  // define their own capabilities.
+  const effective = user.role === 'ADMIN' && !user.customRole ? null : (override ?? roleCaps);
+  const capabilities = await capabilitiesFor(user.role as Role, effective);
   const { password: _, customRole, ...safeUser } = user;
   res.json({
     ...safeUser,

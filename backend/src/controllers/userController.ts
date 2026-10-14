@@ -99,7 +99,10 @@ export async function getUser(req: AuthRequest, res: Response) {
   // the raw override, so the staff page can show and edit per-person permissions.
   const override = parseOverride(user.permissionsOverride);
   const roleCaps = (() => { try { return user.customRole ? JSON.parse(user.customRole.permissions) as string[] : null; } catch { return null; } })();
-  const capabilities = await capabilitiesFor(user.role as Role, override ?? roleCaps);
+  // Full admins (base ADMIN, no custom role) always resolve to full access —
+  // a stale per-person override never reduces them (see authController.getMe).
+  const effective = user.role === 'ADMIN' && !user.customRole ? null : (override ?? roleCaps);
+  const capabilities = await capabilitiesFor(user.role as Role, effective);
   const { permissionsOverride, customRole, ...rest } = user;
   const body = (await userHasPermission(req, 'manage_dbs')) ? rest : stripDbs(rest);
   res.json({ ...body, customRole: customRole ? { id: customRole.id, name: customRole.name, baseType: customRole.baseType } : null, permissionsOverride: override, capabilities, pendingSetup: !user.active && !!token });
