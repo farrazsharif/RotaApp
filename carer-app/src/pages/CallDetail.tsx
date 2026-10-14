@@ -272,6 +272,10 @@ export default function CallDetail() {
   const [handoverTo, setHandoverTo] = useState('');
   const [handoverReason, setHandoverReason] = useState('');
   const [editingLog, setEditingLog] = useState(false);
+  // Writing a note for a COMPLETED visit that has no log yet (e.g. after the
+  // visit was recorded late, which completes it without a log). Opens the same
+  // write form that a live visit uses.
+  const [addingNote, setAddingNote] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   // Financial record composer (only shown for clients whose money the carer handles).
@@ -626,6 +630,7 @@ export default function CallDetail() {
       setLogSent(true);
       setClockOutError(null);
       setEditingLog(false);
+      setAddingNote(false);
       setLogError(null);
       qc.invalidateQueries({ queryKey: ['call-logs', shift?.serviceUserId] });
       setTimeout(() => setLogSent(false), 2000);
@@ -1273,7 +1278,7 @@ export default function CallDetail() {
             <p className="text-xs text-gray-400 mb-2">This call has {carerCount} carers — one note is shared, and everyone signs it.</p>
           )}
 
-          {(!sharedLog && !done) || editingLog ? (
+          {(!sharedLog && !done) || editingLog || addingNote ? (
             /* Write / edit the note */
             <>
               {/* Supported-living session log — which support areas you helped with */}
@@ -1404,9 +1409,9 @@ export default function CallDetail() {
                 >
                   {logMut.isPending ? 'Saving…' : logSent ? 'Saved ✓' : isSharedCall ? 'Save & Sign' : 'Save Note'}
                 </button>
-                {editingLog && (
+                {(editingLog || addingNote) && (
                   <button
-                    onClick={() => { setEditingLog(false); setNote(''); setTicks({}); setLogError(null); }}
+                    onClick={() => { setEditingLog(false); setAddingNote(false); setNote(''); setTicks({}); setLogError(null); }}
                     className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm"
                   >
                     Cancel
@@ -1473,7 +1478,17 @@ export default function CallDetail() {
               )}
             </>
           ) : (
-            <p className="text-sm text-gray-400">No call log was recorded for this visit.</p>
+            <>
+              <p className="text-sm text-gray-400">No call log was recorded for this visit.</p>
+              {assignedToMe && withinLogEditWindow && canSaveLog && (
+                <button
+                  onClick={() => { setNote(''); setTicks({}); setLogError(null); setAddingNote(true); }}
+                  className="mt-2 text-sm font-semibold text-blue-600"
+                >
+                  + Add visit note
+                </button>
+              )}
+            </>
           )}
         </div>
         )}
