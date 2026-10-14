@@ -66,7 +66,10 @@ workflows:
           keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
           keychain add-certificates
-          xcode-project use-profiles
+          echo "--- bundle identifiers in the Xcode project ---"
+          grep -R "PRODUCT_BUNDLE_IDENTIFIER" carer-app/ios/App/App.xcodeproj/project.pbxproj | sort -u || true
+          # Apply the fetched profiles to this specific project (Capacitor 8 SPM).
+          xcode-project use-profiles --project "carer-app/ios/App/App.xcodeproj"
       - name: Build the IPA
         script: |
           cd carer-app
