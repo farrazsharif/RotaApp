@@ -1392,7 +1392,9 @@ export default function CallDetail() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
               {!canSaveLog && (
-                <p className="text-xs text-orange-600 font-medium mt-2">Clock in to this visit before saving a note.</p>
+                <p className="text-xs text-orange-600 font-medium mt-2">
+                  {canRecordMissed ? 'Record this visit above before saving a note.' : 'Clock in to this visit before saving a note.'}
+                </p>
               )}
               <div className="mt-2 flex gap-2">
                 <button
@@ -1463,7 +1465,9 @@ export default function CallDetail() {
                     </button>
                   </div>
                   {!iSigned && assignedToMe && !canSignLog && (
-                    <p className="text-xs text-gray-400 mt-2">Clock in to this visit to sign the log.</p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      {canRecordMissed ? 'Record this visit above to sign the log.' : 'Clock in to this visit to sign the log.'}
+                    </p>
                   )}
                 </>
               )}
