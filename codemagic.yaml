@@ -67,10 +67,12 @@ workflows:
           # First iOS build for this Apple account: ensure there's a distribution
           # certificate whose PRIVATE KEY is on this machine. A certificate that
           # already exists in the portal can't be reused (Apple never lets you
-          # re-download its private key), so create a fresh one here. Harmless if a
-          # usable one already exists; `|| true` so hitting the cert limit doesn't
-          # abort before fetch-signing-files can still find a usable identity.
-          app-store-connect create-certificate --type IOS_DISTRIBUTION --save || true
+          # re-download its private key), so create a fresh one here. The modern
+          # `certificates create` auto-generates an RSA private key and saves it
+          # to disk (the deprecated `create-certificate` shim does NOT, which is
+          # why earlier builds failed with "Cannot create resource without
+          # certificate private key").
+          app-store-connect certificates create --type IOS_DISTRIBUTION --save
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
           keychain add-certificates
           # Apply the fetched profiles to this specific project (Capacitor 8 SPM).
