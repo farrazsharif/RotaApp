@@ -64,10 +64,15 @@ workflows:
       - name: Set up code signing (automatic, via API key)
         script: |
           keychain initialize
+          # First iOS build for this Apple account: ensure there's a distribution
+          # certificate whose PRIVATE KEY is on this machine. A certificate that
+          # already exists in the portal can't be reused (Apple never lets you
+          # re-download its private key), so create a fresh one here. Harmless if a
+          # usable one already exists; `|| true` so hitting the cert limit doesn't
+          # abort before fetch-signing-files can still find a usable identity.
+          app-store-connect create-certificate --type IOS_DISTRIBUTION --save || true
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
           keychain add-certificates
-          echo "--- bundle identifiers in the Xcode project ---"
-          grep -R "PRODUCT_BUNDLE_IDENTIFIER" carer-app/ios/App/App.xcodeproj/project.pbxproj | sort -u || true
           # Apply the fetched profiles to this specific project (Capacitor 8 SPM).
           xcode-project use-profiles --project "carer-app/ios/App/App.xcodeproj"
       - name: Build the IPA
