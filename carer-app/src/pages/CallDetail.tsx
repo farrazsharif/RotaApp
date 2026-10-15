@@ -407,7 +407,9 @@ export default function CallDetail() {
 
   // The company's configurable visit checklist (falls back to a sensible default).
   const { data: orgSettings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get, staleTime: 5 * 60 * 1000 });
-  const taskDefs = resolveCallLogTasks(orgSettings?.callLogTasks);
+  // The company can switch the visit checklist off entirely — then carers just
+  // free-write the note (no tick list).
+  const taskDefs = orgSettings?.callLogTasksEnabled === false ? [] : resolveCallLogTasks(orgSettings?.callLogTasks);
   // Office can freeze swaps while finalising month-end hours; hide the request UI.
   const swapsPaused = orgSettings?.handoversEnabled === false;
 

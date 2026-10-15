@@ -34,6 +34,7 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "CallLog" ADD COLUMN IF NOT EXISTS "supportDomains" TEXT NOT NULL DEFAULT '[]'`);
   // Company's configurable carer-app visit checklist (JSON array of task defs).
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "callLogTasks" TEXT NOT NULL DEFAULT '[]'`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "callLogTasksEnabled" BOOLEAN NOT NULL DEFAULT true`);
   // Manual CQC self-assessment for the quality statements the app can't auto-check.
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "cqcSelfAssessment" TEXT NOT NULL DEFAULT '{}'`);
   // Editable staff-file compliance checklist ('[]' = use built-in defaults).

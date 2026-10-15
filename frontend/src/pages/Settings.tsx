@@ -661,6 +661,13 @@ function CallLogTasksTab() {
     onSuccess: (updated) => { qc.setQueryData(['settings'], updated); setList(null); },
   });
 
+  // Master on/off for the whole checklist — when off, carers free-write notes.
+  const enabled = data?.callLogTasksEnabled !== false;
+  const enableMut = useMutation({
+    mutationFn: (on: boolean) => settingsApi.update({ callLogTasksEnabled: on }),
+    onSuccess: (updated) => qc.setQueryData(['settings'], updated),
+  });
+
   if (isLoading || !rows) return <div className="card text-gray-400">Loading…</div>;
 
   const update = (next: CallLogTaskDef[]) => setList(next);
@@ -700,7 +707,27 @@ function CallLogTasksTab() {
         </p>
       </div>
 
-      <div className="rounded-lg bg-blue-50 border border-blue-100 p-3">
+      <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3">
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-blue-600"
+          checked={enabled}
+          disabled={enableMut.isPending}
+          onChange={(e) => enableMut.mutate(e.target.checked)}
+        />
+        <span className="text-sm">
+          <span className="font-medium text-gray-900">Use the visit checklist</span>
+          <span className="block text-gray-500">When off, carers just write the visit note themselves — no tick list. Your tasks below are kept for when you turn it back on.</span>
+        </span>
+      </label>
+
+      {!enabled && (
+        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          The checklist is off — carers are writing their own visit notes. The list below is saved but hidden from them.
+        </p>
+      )}
+
+      <div className={enabled ? 'rounded-lg bg-blue-50 border border-blue-100 p-3' : 'rounded-lg bg-blue-50 border border-blue-100 p-3 opacity-50'}>
         <p className="text-xs font-semibold text-blue-700 mb-1">Example auto-written note</p>
         <p className="text-sm text-gray-700 italic">{preview}</p>
       </div>

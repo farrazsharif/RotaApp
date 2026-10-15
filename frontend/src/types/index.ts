@@ -69,6 +69,7 @@ export interface OrgSettings {
   handoversEnabled?: boolean; // false = carers can't swap/cover shifts (payroll freeze)
   defaultRole: Role;
   callLogTasks?: string | null; // JSON array of carer-app visit checklist task defs
+  callLogTasksEnabled?: boolean; // false = visit checklist off; carers free-write notes
   staffFileRequirements?: string | null; // JSON array of editable staff-file compliance requirements
   trainingCourses?: string | null; // JSON array of editable training-course names
   updatedAt: string;

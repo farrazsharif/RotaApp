@@ -78,7 +78,7 @@ export async function ensureTrainingCourses(courses: string[]): Promise<void> {
 
 const STRING_FIELDS = ['companyName', 'logo', 'address', 'phone', 'email', 'cqcProviderId', 'icoNumber', 'timezone', 'defaultRole'] as const;
 const NUMBER_FIELDS = ['defaultHourlyRate', 'overtimeThreshold', 'inviteExpiryDays'] as const;
-const BOOLEAN_FIELDS = ['handoversEnabled'] as const;
+const BOOLEAN_FIELDS = ['handoversEnabled', 'callLogTasksEnabled'] as const;
 
 // Clean the carer-app visit checklist into a stored JSON string: array of
 // { id, label, phrase?, detail? }. Anything malformed is dropped. Accepts either
