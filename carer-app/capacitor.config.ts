@@ -10,9 +10,12 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   // Served from capacitor://localhost (iOS) / https://localhost (Android).
   ios: {
-    contentInset: 'always',
-    // Don't let the keyboard resize/scroll the whole web view oddly.
-    scrollEnabled: true,
+    // The app-shell layout (fixed 100dvh, inner scroll area) handles its own
+    // scrolling and reads safe-area insets via CSS env(), so turn OFF the web
+    // view's own scrolling — this stops the whole page rubber-banding up/down —
+    // and use 'never' content inset so insets aren't applied twice.
+    contentInset: 'never',
+    scrollEnabled: false,
   },
   plugins: {
     SplashScreen: {

@@ -9,7 +9,7 @@ const items = [
 
 export default function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex pb-[env(safe-area-inset-bottom)] z-20">
+    <nav className="shrink-0 bg-white border-t border-gray-200 flex pb-[env(safe-area-inset-bottom)]">
       {items.map((item) => (
         <NavLink
           key={item.to}
