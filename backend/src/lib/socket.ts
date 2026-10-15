@@ -11,6 +11,8 @@ const CAREMID_HOST = /^https:\/\/([a-z0-9-]+\.)*caremid\.co\.uk$/;
 const devOrigins = [
   process.env.CLIENT_URL, process.env.CARER_APP_URL, process.env.FAMILY_PORTAL_URL,
   'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175',
+  // Capacitor native carer app (iOS capacitor://localhost, Android https://localhost).
+  'capacitor://localhost', 'https://localhost',
 ].filter(Boolean) as string[];
 
 export function initSocket(server: HttpServer) {

@@ -92,6 +92,11 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
+  // Capacitor native carer app: iOS serves the web layer from
+  // capacitor://localhost, Android from https://localhost. Without these the
+  // app's API calls are blocked by CORS and show as a generic login failure.
+  'capacitor://localhost',
+  'https://localhost',
 ].filter(Boolean) as string[];
 
 // Allow the manager app, carer app and family portal — all served from
