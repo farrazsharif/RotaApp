@@ -76,10 +76,16 @@ workflows:
           # first so there's always room for this build's fresh one. Only this CI
           # uses these certs, and builds already uploaded to TestFlight stay valid
           # after a revoke.
-          for cid in $(app-store-connect certificates list --type IOS_DISTRIBUTION --json 2>/dev/null | jq -r '.[].id' 2>/dev/null); do
-            echo "Revoking old distribution certificate $cid"
-            yes | app-store-connect certificates delete "$cid" || true
-          done
+          app-store-connect certificates list --json > /tmp/certs.json 2>/dev/null || echo "[]" > /tmp/certs.json
+          python3 -c "import json,subprocess
+          data=json.load(open('/tmp/certs.json'))
+          certs=data.get('data',data) if isinstance(data,dict) else data
+          dist=[c for c in certs if 'DISTRIBUTION' in c.get('attributes',{}).get('certificateType','') and c.get('id')]
+          print('Found %d distribution certificate(s) to revoke' % len(dist))
+          for c in dist:
+              print('Revoking', c['attributes']['certificateType'], c['id'])
+              subprocess.run(['app-store-connect','certificates','delete',c['id']], input=b'y\n')
+          " || true
           # The Codemagic CLI will NOT generate a signing private key on its own
           # (otherwise it fails with "Cannot create resource without certificate
           # private key"), so generate an RSA key here and hand it to
