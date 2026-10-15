@@ -127,8 +127,9 @@ export interface Shift {
   run?: { id: string; name: string; color?: string | null } | null;
   serviceUser?: ServiceUserBrief | null;
   clockRecords?: { id: string; userId: string; clockIn: string; clockOut: string | null }[];
-  // Count of call logs recorded for this visit (>0 means the visit is recorded).
-  _count?: { callLogs: number };
+  // True when the visit has any record — a call log or a support-log entry.
+  // Set by the shift list endpoint; drives the "recorded vs to record" markers.
+  logged?: boolean;
 }
 
 export interface ClockRecord {

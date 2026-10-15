@@ -15,9 +15,6 @@ const shiftInclude = {
   serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true, careType: true, handlesMoney: true, careTasks: true, status: true, statusUpdatedAt: true, statusChanges: { select: { status: true, effectiveAt: true }, orderBy: { effectiveAt: 'asc' as const } }, site: { select: { id: true, name: true, color: true, order: true } } } },
   run: { select: { id: true, name: true, color: true } },
   clockRecords: { select: { id: true, userId: true, clockIn: true, clockOut: true } },
-  // Whether a call log has been recorded for this visit — powers the carer
-  // app's "recorded vs still to record" markers without shipping the logs.
-  _count: { select: { callLogs: true } },
 };
 
 // Apply a cover-carers change (connect or set) to many shifts without building
@@ -79,7 +76,21 @@ export async function listShifts(req: AuthRequest, res: Response) {
     include: shiftInclude,
     orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
   });
-  res.json(shifts);
+
+  // Attach a `logged` flag per visit — true if ANY record of the visit exists:
+  // a call log OR a Supported Living support-log entry (a separate model with no
+  // Prisma relation, so it can't be an include/_count). Powers the carer app's
+  // "recorded vs still to record" markers.
+  const ids = shifts.map((s) => s.id);
+  let loggedIds = new Set<string>();
+  if (ids.length) {
+    const [cl, sl] = await Promise.all([
+      prisma.callLog.findMany({ where: { shiftId: { in: ids } }, select: { shiftId: true } }),
+      prisma.supportLogEntry.findMany({ where: { shiftId: { in: ids } }, select: { shiftId: true } }),
+    ]);
+    loggedIds = new Set([...cl, ...sl].map((r) => r.shiftId).filter((x): x is string => !!x));
+  }
+  res.json(shifts.map((s) => ({ ...s, logged: loggedIds.has(s.id) })));
 }
 
 // Total number of (non-cancelled) shifts in an arbitrary date range — powers

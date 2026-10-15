@@ -12,9 +12,10 @@ export function visitEndMs(shift: Shift): number {
   return base.getTime() + endMin * 60_000;
 }
 
-// A visit is "recorded" once a call log exists for it (shared across co-carers).
+// A visit is "recorded" once any log exists for it — a call log, or a Supported
+// Living support-log entry. The shift list endpoint computes this `logged` flag.
 export function isLogged(shift: Shift): boolean {
-  return (shift._count?.callLogs ?? 0) > 0;
+  return shift.logged === true;
 }
 
 // Past = the visit has finished.
