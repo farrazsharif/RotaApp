@@ -64,16 +64,17 @@ workflows:
       - name: Set up code signing (automatic, via API key)
         script: |
           keychain initialize
-          # First iOS build for this Apple account: ensure there's a distribution
-          # certificate whose PRIVATE KEY is on this machine. A certificate that
-          # already exists in the portal can't be reused (Apple never lets you
-          # re-download its private key), so create a fresh one here. The modern
-          # `certificates create` auto-generates an RSA private key and saves it
-          # to disk (the deprecated `create-certificate` shim does NOT, which is
-          # why earlier builds failed with "Cannot create resource without
-          # certificate private key").
-          app-store-connect certificates create --type IOS_DISTRIBUTION --save
-          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          # The Codemagic CLI will NOT generate a signing private key on its own
+          # (every earlier build failed with "Cannot create resource without
+          # certificate private key"), so generate an RSA key here and hand it to
+          # fetch-signing-files. With --create and that key, it mints a fresh
+          # distribution certificate AND the App Store provisioning profile for
+          # this bundle id, and saves a .p12 the keychain can import.
+          openssl genrsa -out /tmp/cert_key.pem 2048
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key=@file:/tmp/cert_key.pem \
+            --create
           keychain add-certificates
           # Apply the fetched profiles to this specific project (Capacitor 8 SPM).
           xcode-project use-profiles --project "carer-app/ios/App/App.xcodeproj"
