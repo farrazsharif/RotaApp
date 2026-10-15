@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { isToday, format } from 'date-fns';
@@ -276,6 +276,9 @@ export default function CallDetail() {
   // visit was recorded late, which completes it without a log). Opens the same
   // write form that a live visit uses.
   const [addingNote, setAddingNote] = useState(false);
+  // The log section (Support Log for SL clients, Call Log otherwise). Used to
+  // jump a carer straight to it from the "needs recording" prompt up top.
+  const logSectionRef = useRef<HTMLDivElement>(null);
   const [logError, setLogError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   // Financial record composer (only shown for clients whose money the carer handles).
@@ -728,6 +731,16 @@ export default function CallDetail() {
     ? formatElapsed(new Date(myCompletedRecord.clockOut!).getTime() - new Date(myCompletedRecord.clockIn).getTime())
     : null;
 
+  // The visit still needs recording: past/done, assigned to me, and no log yet
+  // (a support log entry for SL clients, a call log otherwise). Drives the amber
+  // prompt at the top so a completed-but-unlogged visit doesn't look finished.
+  const missingLog = assignedToMe && !isFutureDay && (done || isPastDay)
+    && (isSLClient ? supportLog.length === 0 : !sharedLog);
+  const goToLog = () => {
+    if (!isSLClient) setAddingNote(true);
+    setTimeout(() => logSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  };
+
   return (
     <Layout title={name}>
       <div className="space-y-4">
@@ -777,6 +790,18 @@ export default function CallDetail() {
             </button>
           )}
         </div>
+
+        {missingLog && (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4">
+            <p className="text-sm font-semibold text-amber-800">⚠ This visit still needs recording</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              {isSLClient ? 'The visit time is logged, but add a support log entry for what you did.' : 'The visit time is logged, but add a visit note for what you did.'}
+            </p>
+            <button onClick={goToLog} className="mt-2.5 w-full bg-amber-500 text-white rounded-xl py-2.5 font-bold text-sm">
+              {isSLClient ? '+ Add support log entry' : '+ Add visit note'}
+            </button>
+          </div>
+        )}
 
         {/* Clock in/out */}
         {done ? (
@@ -1223,7 +1248,7 @@ export default function CallDetail() {
 
         {/* Supported-living running support log — add entries through the shift */}
         {isSLClient && !isFutureDay && (
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+          <div ref={logSectionRef} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
             <h2 className="font-semibold text-gray-800 mb-1">Support Log</h2>
             <p className="text-xs text-gray-400 mb-3">Log tasks as you complete them through the shift — each entry is time-stamped.</p>
 
@@ -1274,7 +1299,7 @@ export default function CallDetail() {
         {/* Call log — hidden for supported living, which uses the Support Log
             above, and hidden for future visits (nothing to log until it's due) */}
         {!isSLClient && !isFutureDay && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
+        <div ref={logSectionRef} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
           <h2 className="font-semibold text-gray-800 mb-1 flex flex-wrap items-center gap-x-2">
             {isSharedCall ? 'Shared Call Log' : 'Call Log'}
             {clockedIn && !hasLoggedThisVisit && (
