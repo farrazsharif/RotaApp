@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, startOfWeek, addDays, addWeeks, isSameDay } from 'date-fns';
 import Layout from '../components/Layout';
 import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { formatTime12h } from '../lib/time';
+import { unrecordedVisits, needsRecording, recordState } from '../lib/visitRecording';
 import type { Shift } from '../types';
 
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
@@ -19,6 +21,7 @@ const weekKey = (d: Date) => format(d, 'yyyy-MM-dd');
 // totals the selected weeks. Default selection is the current week.
 export default function History() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -44,6 +47,9 @@ export default function History() {
     ...myShiftsQuery(user?.id ?? ''),
     enabled: !!user,
   });
+
+  // Every past visit with no call log yet — shown pinned at the top until done.
+  const toRecord = unrecordedVisits(shifts);
 
   const weeks = Array.from({ length: WEEK_COUNT }, (_, i) => {
     const ws = addWeeks(firstWeekStart, i);
@@ -72,6 +78,36 @@ export default function History() {
 
   return (
     <Layout title="My Hours" onRefresh={refresh} refreshing={refreshing}>
+      {/* Visits still to record — pinned until the carer records them */}
+      {toRecord.length > 0 && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-300 p-3 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">⚠️</span>
+            <div>
+              <p className="text-sm font-semibold text-amber-800">{toRecord.length} visit{toRecord.length === 1 ? '' : 's'} to record</p>
+              <p className="text-xs text-amber-700">They stay here until you record them</p>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {toRecord.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => navigate(`/call/${s.id}`)}
+                className="w-full flex items-center justify-between gap-2 bg-white rounded-lg px-3 py-2 text-left"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-700 truncate">
+                    {s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Visit'}{s.visitName ? ` · ${s.visitName}` : ''}
+                  </p>
+                  <p className="text-xs text-gray-400">{format(new Date(s.date), 'EEE d MMM')} · {formatTime12h(s.startTime)}</p>
+                </div>
+                <span className="shrink-0 text-xs font-bold bg-amber-500 text-white px-3 py-1 rounded-full">Record</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Selected total */}
       <div className="rounded-2xl bg-blue-600 text-white shadow-sm px-4 py-4 mb-4 text-center">
         <p className="text-xs uppercase tracking-wide text-blue-100">
@@ -87,6 +123,7 @@ export default function History() {
           {weeks.map((w) => {
             const isSel = selected.has(w.key);
             const isExp = expanded.has(w.key);
+            const weekUnrecorded = w.list.filter((s) => needsRecording(s)).length;
             return (
               <div key={w.key} className={`rounded-2xl border shadow-sm overflow-hidden ${isSel ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200'}`}>
                 <div className="flex items-center gap-3 px-4 py-3">
@@ -109,6 +146,7 @@ export default function History() {
                             ? <span className="text-gray-400">Upcoming</span>
                             : <span className="text-gray-400">Past</span>}
                         <span className="text-gray-400"> · {w.list.length} shift{w.list.length === 1 ? '' : 's'}</span>
+                        {weekUnrecorded > 0 && <span className="text-amber-600 font-medium"> · {weekUnrecorded} to record</span>}
                       </p>
                     </div>
                     <p className="text-lg font-bold text-gray-700">{fmtHours(w.mins)}h</p>
@@ -121,18 +159,32 @@ export default function History() {
                     {w.list.length === 0 ? (
                       <p className="text-sm text-gray-400 py-1">No scheduled shifts this week.</p>
                     ) : (
-                      w.list.map((s) => (
-                        <div key={s.id} className="flex items-start justify-between gap-2 text-sm">
-                          <div className="min-w-0">
-                            <p className="text-gray-800 truncate">
-                              {s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Visit'}
-                              {s.visitName ? ` · ${s.visitName}` : ''}
-                            </p>
-                            <p className="text-xs text-gray-400">{format(new Date(s.date), 'EEE d MMM')}</p>
-                          </div>
-                          <p className="text-gray-600 shrink-0">{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}</p>
-                        </div>
-                      ))
+                      w.list.map((s) => {
+                        const st = recordState(s);
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => navigate(`/call/${s.id}`)}
+                            className="w-full flex items-start justify-between gap-2 text-sm text-left"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-gray-800 truncate">
+                                {s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Visit'}
+                                {s.visitName ? ` · ${s.visitName}` : ''}
+                              </p>
+                              <p className="text-xs text-gray-400">{format(new Date(s.date), 'EEE d MMM')}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-gray-600">{formatTime12h(s.startTime)}–{formatTime12h(s.endTime)}</p>
+                              {st === 'recorded' ? (
+                                <span className="inline-block text-[11px] font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full mt-0.5">✓ Recorded</span>
+                              ) : st === 'record' ? (
+                                <span className="inline-block text-[11px] font-bold text-white bg-amber-500 px-2.5 py-0.5 rounded-full mt-0.5">Record</span>
+                              ) : null}
+                            </div>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 )}

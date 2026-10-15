@@ -529,9 +529,9 @@ export async function createClockRecord(req: AuthRequest, res: Response) {
 
 // A carer records a PAST visit they attended but forgot to clock in/out for —
 // creating the completed record themselves so it isn't left blank. Restricted
-// to their own assigned visits, past days only, within a 7-day window, and
-// audited as "recorded late" so managers can tell it wasn't a live clock-in.
-const SELF_RECORD_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+// to their own assigned visits, past days only, and audited as "recorded late"
+// so managers can tell it wasn't a live clock-in. Any still-unrecorded visit
+// can be caught up on (no time limit) — the carer app surfaces these until done.
 export async function createOwnClockRecord(req: AuthRequest, res: Response) {
   const { shiftId, clockIn, clockOut } = req.body as { shiftId?: string; clockIn?: string; clockOut?: string };
   if (!shiftId || !clockIn || !clockOut) {
@@ -554,10 +554,6 @@ export async function createOwnClockRecord(req: AuthRequest, res: Response) {
   startOfToday.setHours(0, 0, 0, 0);
   if (shift.date.getTime() >= startOfToday.getTime()) {
     return res.status(400).json({ error: 'Use Clock In for today\'s calls' });
-  }
-  // Time-boxed: recent misses only; older visits are added by a manager.
-  if (Date.now() - shift.date.getTime() > SELF_RECORD_WINDOW_MS) {
-    return res.status(400).json({ error: 'This visit is too old to record here — ask your manager to add it.' });
   }
 
   // No duplicate — if a record already exists, they should fix its times instead.

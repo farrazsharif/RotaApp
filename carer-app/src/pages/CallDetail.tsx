@@ -712,15 +712,18 @@ export default function CallDetail() {
   // record for it). A co-carer on a double-up who clocks in / records the visit
   // AFTER the log was saved can still sign — they just need their own record.
   const canSignLog = clockedIn || !!myAnyRecord;
-  // Doses can be recorded live (clocked in) OR on a completed visit within the
-  // 7-day window — so a carer who recorded the visit late can still enter the
-  // meds they gave, instead of them being stuck read-only as "Not recorded".
-  const medsEditable = clockedIn || (done && withinLogEditWindow);
+  // Doses can be recorded live (clocked in), on a completed visit within the
+  // 7-day window, OR on any still-unrecorded past visit (no call log yet) being
+  // caught up on — so a carer recording a late visit can enter the meds they
+  // gave, instead of them being stuck read-only as "Not recorded".
+  const medsEditable = clockedIn || (done && (withinLogEditWindow || !sharedLog));
   const assignedToMe = shift.userId === user?.id || (shift.coverCarers ?? []).some((c) => c.id === user?.id);
   const startOfTodayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
   const isPastDay = new Date(shift.date).getTime() < startOfTodayMs;
   const isFutureDay = !shiftIsToday && !isPastDay;
-  const canRecordMissed = assignedToMe && isPastDay && withinLogEditWindow && !myAnyRecord;
+  // A still-unrecorded past visit can be caught up on at any time (no window) —
+  // the carer records the clock times they attended, then saves the log + meds.
+  const canRecordMissed = assignedToMe && isPastDay && !myAnyRecord;
   const totalTimeSpent = myCompletedRecord
     ? formatElapsed(new Date(myCompletedRecord.clockOut!).getTime() - new Date(myCompletedRecord.clockIn).getTime())
     : null;
@@ -839,7 +842,7 @@ export default function CallDetail() {
             ) : !shiftIsToday ? (
               <p className="text-sm text-gray-500 font-medium text-center py-1">
                 {isPastDay
-                  ? 'This visit is too old to record here — ask your manager.'
+                  ? 'This visit can no longer be clocked in.'
                   : "You can only clock in to today's calls."}
               </p>
             ) : (
@@ -1484,7 +1487,7 @@ export default function CallDetail() {
           ) : (
             <>
               <p className="text-sm text-gray-400">No call log was recorded for this visit.</p>
-              {assignedToMe && withinLogEditWindow && canSaveLog && (
+              {assignedToMe && canSaveLog && (
                 <button
                   onClick={() => { setNote(''); setTicks({}); setLogError(null); setAddingNote(true); }}
                   className="mt-2 text-sm font-semibold text-blue-600"

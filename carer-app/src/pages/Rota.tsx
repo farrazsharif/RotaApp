@@ -7,6 +7,7 @@ import { myShiftsQuery } from '../lib/shiftsQuery';
 import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
+import { recordState } from '../lib/visitRecording';
 import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
 
@@ -167,11 +168,13 @@ export default function Rota() {
 function RotaRow({ shift, done, spent, coverRequested, onClick }: { shift: Shift; done: boolean; spent: number | null; coverRequested: boolean; onClick: () => void }) {
   const su = shift.serviceUser;
   const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
+  // recorded = a call log exists; record = finished but not recorded yet.
+  const state = recordState(shift);
   return (
     <button
       onClick={onClick}
       className={`w-full text-left rounded-xl px-3.5 py-3 border flex items-center justify-between ${
-        done ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'
+        state === 'recorded' ? 'bg-green-50 border-green-300' : state === 'record' ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'
       }`}
     >
       <div>
@@ -191,10 +194,12 @@ function RotaRow({ shift, done, spent, coverRequested, onClick }: { shift: Shift
           )}
         </div>
       </div>
-      <div className="text-right">
+      <div className="text-right shrink-0 ml-2">
         <p className="text-sm font-bold text-gray-700">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</p>
-        {done ? (
-          <p className="text-xs text-green-600 font-semibold">✓ Done{spent != null ? ` · ${fmtSpent(spent)}` : ''}</p>
+        {state === 'recorded' ? (
+          <p className="text-xs text-green-600 font-semibold">✓ Recorded{spent != null ? ` · ${fmtSpent(spent)}` : ''}</p>
+        ) : state === 'record' ? (
+          <span className="inline-block mt-0.5 text-xs font-bold bg-amber-500 text-white px-2.5 py-0.5 rounded-full">Record</span>
         ) : spent != null ? (
           <p className="text-xs text-gray-500">{fmtSpent(spent)} spent</p>
         ) : null}

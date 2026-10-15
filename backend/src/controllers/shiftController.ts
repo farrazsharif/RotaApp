@@ -15,6 +15,9 @@ const shiftInclude = {
   serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true, careType: true, handlesMoney: true, careTasks: true, status: true, statusUpdatedAt: true, statusChanges: { select: { status: true, effectiveAt: true }, orderBy: { effectiveAt: 'asc' as const } }, site: { select: { id: true, name: true, color: true, order: true } } } },
   run: { select: { id: true, name: true, color: true } },
   clockRecords: { select: { id: true, userId: true, clockIn: true, clockOut: true } },
+  // Whether a call log has been recorded for this visit — powers the carer
+  // app's "recorded vs still to record" markers without shipping the logs.
+  _count: { select: { callLogs: true } },
 };
 
 // Apply a cover-carers change (connect or set) to many shifts without building

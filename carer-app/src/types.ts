@@ -127,6 +127,8 @@ export interface Shift {
   run?: { id: string; name: string; color?: string | null } | null;
   serviceUser?: ServiceUserBrief | null;
   clockRecords?: { id: string; userId: string; clockIn: string; clockOut: string | null }[];
+  // Count of call logs recorded for this visit (>0 means the visit is recorded).
+  _count?: { callLogs: number };
 }
 
 export interface ClockRecord {

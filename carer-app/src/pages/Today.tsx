@@ -11,6 +11,7 @@ import { handoversApi } from '../api/handovers';
 import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
+import { unrecordedVisits } from '../lib/visitRecording';
 import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
 
@@ -87,6 +88,10 @@ export default function Today() {
   const weekMins = inWeek.reduce((sum, s) => sum + durationMins(s), 0);
   const todayMins = inWeek.filter((s) => isSameDay(new Date(s.date), new Date())).reduce((sum, s) => sum + durationMins(s), 0);
 
+  // Past visits with no call log yet — nagged until recorded (tap goes to My
+  // Hours, where the full "to record" list and record buttons live).
+  const toRecord = unrecordedVisits(weekShifts);
+
   async function refresh() {
     setRefreshing(true);
     try { await qc.invalidateQueries(); } finally { setRefreshing(false); }
@@ -112,6 +117,20 @@ export default function Today() {
   return (
     <Layout title={`Today · ${format(new Date(), 'EEE d MMM')}`} onRefresh={refresh} refreshing={refreshing}>
       <AnnouncementBanner />
+
+      {toRecord.length > 0 && (
+        <button
+          onClick={() => navigate('/history')}
+          className="w-full flex items-center gap-2.5 rounded-2xl bg-amber-50 border border-amber-300 px-4 py-3 mb-4 text-left"
+        >
+          <span className="text-lg">⚠️</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">{toRecord.length} visit{toRecord.length === 1 ? '' : 's'} to record</p>
+            <p className="text-xs text-amber-700">Tap to record — they stay here until done</p>
+          </div>
+          <span className="text-amber-400 text-lg">›</span>
+        </button>
+      )}
 
       <LiveInPlacementCard />
 
