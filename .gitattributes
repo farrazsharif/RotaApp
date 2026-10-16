@@ -1,0 +1,4 @@
+# gradlew is a shell script: it MUST stay LF or Linux CI fails with
+# "bad interpreter". A Windows checkout would otherwise convert it to CRLF.
+gradlew text eol=lf
+*.sh text eol=lf
