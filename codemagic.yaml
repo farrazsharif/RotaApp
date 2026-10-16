@@ -96,6 +96,13 @@ workflows:
             --type IOS_APP_STORE \
             --certificate-key=@file:/tmp/cert_key.pem \
             --create
+          # The Live Activity widget is a separate target with its own bundle id,
+          # so it needs its own App Store profile (created on first run). Reuses
+          # the certificate above, since the same private key is supplied.
+          app-store-connect fetch-signing-files "$BUNDLE_ID.LiveActivity" \
+            --type IOS_APP_STORE \
+            --certificate-key=@file:/tmp/cert_key.pem \
+            --create
           keychain add-certificates
           # Apply the fetched profiles to this specific project (Capacitor 8 SPM).
           xcode-project use-profiles --project "carer-app/ios/App/App.xcodeproj"

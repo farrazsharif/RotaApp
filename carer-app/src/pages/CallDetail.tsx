@@ -12,6 +12,8 @@ import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { usePendingClock, usePendingVisitWork } from '../lib/pendingClock';
+import { startVisitActivity, endVisitActivity } from '../lib/liveActivity';
+import { visitEndMs } from '../lib/visitRecording';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
 import { settingsApi } from '../api/settings';
@@ -529,6 +531,16 @@ export default function CallDetail() {
     onError: (err: any) => setClockInError(err?.response?.data?.error || 'Could not clock in. Please try again.'),
     onSuccess: () => {
       setClockInError(null);
+      // Live timer on the Lock Screen / Dynamic Island while on this visit.
+      if (shift) {
+        const su = shift.serviceUser;
+        void startVisitActivity({
+          clientName: su ? `${su.firstName} ${su.lastName}` : 'Visit',
+          visitName: shift.visitName,
+          startedAt: Date.now(),
+          endsAt: visitEndMs(shift),
+        });
+      }
       qc.invalidateQueries({ queryKey: ['clock-status'] });
       qc.invalidateQueries({ queryKey: ['shift-meds', id] });
     },
@@ -538,6 +550,7 @@ export default function CallDetail() {
     mutationFn: clockApi.clockOut,
     onSuccess: () => {
       setClockOutError(null);
+      void endVisitActivity();
       setShortFix(false);
       qc.invalidateQueries({ queryKey: ['clock-status'] });
       qc.invalidateQueries({ queryKey: ['my-calls'] });

@@ -16,6 +16,11 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
+		5C4D32E701004E1DAF4CB874 /* CaremidLiveActivity.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = 0D52B6A9924546E290A8E5A2 /* CaremidLiveActivity.appex */; };
+		42476809D049453E815202D7 /* CaremidLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E15EFF8261D345C7A1BE6A1C /* CaremidLiveActivity.swift */; };
+		89764FE90CF44EEC9B22CD67 /* VisitActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A8DB8C12BA24E0F9D20D7B3 /* VisitActivityAttributes.swift */; };
+		3B1A85E87D4348A68CE76174 /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD554D161F624315ACBB5B41 /* LiveActivityPlugin.swift */; };
+		9D3FB422B1AF4A79A12A229B /* VisitActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A8DB8C12BA24E0F9D20D7B3 /* VisitActivityAttributes.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +35,10 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		0D52B6A9924546E290A8E5A2 /* CaremidLiveActivity.appex */ = {isa = PBXFileReference; name = "CaremidLiveActivity.appex"; path = "CaremidLiveActivity.appex"; sourceTree = BUILT_PRODUCTS_DIR; fileEncoding = undefined; lastKnownFileType = undefined; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; };
+		E15EFF8261D345C7A1BE6A1C /* CaremidLiveActivity.swift */ = {isa = PBXFileReference; name = "CaremidLiveActivity.swift"; path = "CaremidLiveActivity/CaremidLiveActivity.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		0A8DB8C12BA24E0F9D20D7B3 /* VisitActivityAttributes.swift */ = {isa = PBXFileReference; name = "VisitActivityAttributes.swift"; path = "CaremidLiveActivity/VisitActivityAttributes.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		AD554D161F624315ACBB5B41 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; name = "LiveActivityPlugin.swift"; path = "App/LiveActivityPlugin.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -38,6 +47,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D6DDB95816A84AE3BCE72D4C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -50,6 +66,7 @@
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
+				DFF7467C367C4445A3652DC7 /* CaremidLiveActivity */,
 			);
 			sourceTree = "<group>";
 		};
@@ -57,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				0D52B6A9924546E290A8E5A2 /* CaremidLiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -73,8 +91,19 @@
 				504EC3131FED79650016851F /* Info.plist */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
+				AD554D161F624315ACBB5B41 /* LiveActivityPlugin.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		DFF7467C367C4445A3652DC7 /* CaremidLiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				E15EFF8261D345C7A1BE6A1C /* CaremidLiveActivity.swift */,
+				0A8DB8C12BA24E0F9D20D7B3 /* VisitActivityAttributes.swift */,
+			);
+			name = CaremidLiveActivity;
+			path = CaremidLiveActivity;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -87,6 +116,8 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				65CC17C9B41C48FEA90588CA /* Copy Files */,
+				00982A6C8FEC494DB90530E1 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
@@ -100,14 +131,31 @@
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
 		};
+		9D7CCE8A090E4B7F8AE01D89 /* "CaremidLiveActivity" */ = {
+			isa = PBXNativeTarget;
+			name = "CaremidLiveActivity";
+			productName = "CaremidLiveActivity";
+			productReference = 0D52B6A9924546E290A8E5A2;
+			productType = "com.apple.product-type.app-extension";
+			buildConfigurationList = 5883FAD05BA942C0A8B1CF03;
+			buildPhases = (
+				F6AE382446E74637A172EA2B /* Sources */,
+				B3B6F72972774B6B86C69AB8 /* Resources */,
+				D6DDB95816A84AE3BCE72D4C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		504EC2FC1FED79650016851F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 0920;
-				LastUpgradeCheck = 0920;
+				LastSwiftUpdateCheck = 920;
+				LastUpgradeCheck = 920;
 				TargetAttributes = {
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
@@ -133,6 +181,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				9D7CCE8A090E4B7F8AE01D89 /* "CaremidLiveActivity" */,
 			);
 		};
 /* End PBXProject section */
@@ -151,6 +200,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B3B6F72972774B6B86C69AB8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -160,6 +216,17 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+				3B1A85E87D4348A68CE76174 /* LiveActivityPlugin.swift in Sources */,
+				9D3FB422B1AF4A79A12A229B /* VisitActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F6AE382446E74637A172EA2B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				42476809D049453E815202D7 /* CaremidLiveActivity.swift in Sources */,
+				89764FE90CF44EEC9B22CD67 /* VisitActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -338,6 +405,50 @@
 			};
 			name = Release;
 		};
+		63ABB69D469F47F692454D87 /* Debug */ = {
+			name = Debug;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				INFOPLIST_FILE = "CaremidLiveActivity/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = "CaremidLiveActivity";
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "uk.co.caremid.carer.LiveActivity";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Caremid Visit";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0.0;
+				CURRENT_PROJECT_VERSION = 1;
+			};
+		};
+		7012B52E6ED8479484F454CC /* Release */ = {
+			name = Release;
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "CaremidLiveActivity/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				PRODUCT_NAME = "CaremidLiveActivity";
+				SKIP_INSTALL = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "uk.co.caremid.carer.LiveActivity";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Caremid Visit";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0.0;
+				CURRENT_PROJECT_VERSION = 1;
+			};
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -359,6 +470,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		5883FAD05BA942C0A8B1CF03 /* Build configuration list for PBXNativeTarget "CaremidLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				63ABB69D469F47F692454D87 /* Debug */,
+				7012B52E6ED8479484F454CC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -375,6 +495,31 @@
 			productName = "CapApp-SPM";
 		};
 /* End XCSwiftPackageProductDependency section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		65CC17C9B41C48FEA90588CA /* Copy Files */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5C4D32E701004E1DAF4CB874 /* CaremidLiveActivity.appex in Copy Files */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			name = "Copy Files";
+			dstPath = "";
+			dstSubfolderSpec = 13;
+		};
+		00982A6C8FEC494DB90530E1 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5C4D32E701004E1DAF4CB874 /* "CaremidLiveActivity.appex" in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			name = "Embed App Extensions";
+			dstPath = "";
+			dstSubfolderSpec = 13;
+		};
+/* End PBXCopyFilesBuildPhase section */
 	};
 	rootObject = 504EC2FC1FED79650016851F /* Project object */;
 }
