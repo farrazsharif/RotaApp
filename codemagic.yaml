@@ -32,10 +32,9 @@ workflows:
       - name: Generate & sync the iOS project
         script: |
           cd carer-app
-          # Fresh iOS project each build (keeps the repo clean); appId from
-          # capacitor.config.ts sets the bundle identifier automatically.
-          # `cap add ios` is a no-op/err if the platform already exists — keep going.
-          npx cap add ios || true
+          # The iOS project is COMMITTED (it carries the Live Activity widget
+          # extension target, which a regenerated project would wipe), so only
+          # sync — never `cap add ios`, which would overwrite it.
           npx cap sync ios
           echo "--- carer-app/ios/App contents ---"
           ls -la ios/App || true
