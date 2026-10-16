@@ -41,7 +41,21 @@ export async function login(req: Request, res: Response) {
     where: { email: String(email).toLowerCase().trim() },
   });
 
-  if (!user || !user.active) return res.status(401).json({ error: 'Invalid credentials' });
+  // Unknown email stays deliberately vague - no point confirming to a stranger
+  // whether an address is on the system.
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+  // A deactivated account - or one still sitting on an unaccepted invite - used
+  // to return the same 'Invalid credentials' as a wrong password, so neither the
+  // carer nor their manager could tell why login failed. These are staff
+  // accounts created by a manager, so say plainly what is wrong.
+  // 403 (not 401) on purpose: the apps' axios interceptor wipes the session and
+  // redirects on a 401, which would throw this message away before it is read.
+  if (!user.active) {
+    return res.status(403).json({
+      error: 'This account is not active. Ask your manager to activate it or resend your invite.',
+    });
+  }
 
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
