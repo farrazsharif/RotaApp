@@ -55,9 +55,14 @@ const ETHNIC_ORIGIN_GROUPS: { group: string; options: string[] }[] = [
 ];
 const ETHNIC_ORIGIN_VALUES = ETHNIC_ORIGIN_GROUPS.flatMap((g) => g.options).concat('Prefer not to say');
 
+// Long options matter for supported living / night support, where a single
+// visit can run a full waking night or a 10-12 hour day.
 const DURATIONS = [
   { value: 15, label: '15 mins' }, { value: 30, label: '30 mins' }, { value: 45, label: '45 mins' },
   { value: 60, label: '1 hour' }, { value: 90, label: '1.5 hours' }, { value: 120, label: '2 hours' },
+  { value: 180, label: '3 hours' }, { value: 240, label: '4 hours' }, { value: 300, label: '5 hours' },
+  { value: 360, label: '6 hours' }, { value: 480, label: '8 hours' }, { value: 600, label: '10 hours' },
+  { value: 720, label: '12 hours' }, { value: 1440, label: '24 hours' },
 ];
 
 function parseVisits(json?: string): VisitRow[] {
