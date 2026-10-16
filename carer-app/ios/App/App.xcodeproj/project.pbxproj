@@ -21,6 +21,7 @@
 		89764FE90CF44EEC9B22CD67 /* VisitActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A8DB8C12BA24E0F9D20D7B3 /* VisitActivityAttributes.swift */; };
 		3B1A85E87D4348A68CE76174 /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD554D161F624315ACBB5B41 /* LiveActivityPlugin.swift */; };
 		9D3FB422B1AF4A79A12A229B /* VisitActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A8DB8C12BA24E0F9D20D7B3 /* VisitActivityAttributes.swift */; };
+		CF74EF0B6EDB49F9B7FCF19D /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1836B755D29745EA86E51D2B /* MainViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -39,6 +40,7 @@
 		E15EFF8261D345C7A1BE6A1C /* CaremidLiveActivity.swift */ = {isa = PBXFileReference; name = "CaremidLiveActivity.swift"; path = "CaremidLiveActivity.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
 		0A8DB8C12BA24E0F9D20D7B3 /* VisitActivityAttributes.swift */ = {isa = PBXFileReference; name = "VisitActivityAttributes.swift"; path = "VisitActivityAttributes.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
 		AD554D161F624315ACBB5B41 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; name = "LiveActivityPlugin.swift"; path = "LiveActivityPlugin.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		1836B755D29745EA86E51D2B /* MainViewController.swift */ = {isa = PBXFileReference; name = "MainViewController.swift"; path = "MainViewController.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +94,7 @@
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 				AD554D161F624315ACBB5B41 /* LiveActivityPlugin.swift */,
+				1836B755D29745EA86E51D2B /* MainViewController.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -218,6 +221,7 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				3B1A85E87D4348A68CE76174 /* LiveActivityPlugin.swift in Sources */,
 				9D3FB422B1AF4A79A12A229B /* VisitActivityAttributes.swift in Sources */,
+				CF74EF0B6EDB49F9B7FCF19D /* MainViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
