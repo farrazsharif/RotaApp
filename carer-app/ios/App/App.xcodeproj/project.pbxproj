@@ -36,9 +36,9 @@
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		0D52B6A9924546E290A8E5A2 /* CaremidLiveActivity.appex */ = {isa = PBXFileReference; name = "CaremidLiveActivity.appex"; path = "CaremidLiveActivity.appex"; sourceTree = BUILT_PRODUCTS_DIR; fileEncoding = undefined; lastKnownFileType = undefined; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; };
-		E15EFF8261D345C7A1BE6A1C /* CaremidLiveActivity.swift */ = {isa = PBXFileReference; name = "CaremidLiveActivity.swift"; path = "CaremidLiveActivity/CaremidLiveActivity.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		0A8DB8C12BA24E0F9D20D7B3 /* VisitActivityAttributes.swift */ = {isa = PBXFileReference; name = "VisitActivityAttributes.swift"; path = "CaremidLiveActivity/VisitActivityAttributes.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		AD554D161F624315ACBB5B41 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; name = "LiveActivityPlugin.swift"; path = "App/LiveActivityPlugin.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		E15EFF8261D345C7A1BE6A1C /* CaremidLiveActivity.swift */ = {isa = PBXFileReference; name = "CaremidLiveActivity.swift"; path = "CaremidLiveActivity.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		0A8DB8C12BA24E0F9D20D7B3 /* VisitActivityAttributes.swift */ = {isa = PBXFileReference; name = "VisitActivityAttributes.swift"; path = "VisitActivityAttributes.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		AD554D161F624315ACBB5B41 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; name = "LiveActivityPlugin.swift"; path = "LiveActivityPlugin.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
