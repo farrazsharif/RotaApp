@@ -34,8 +34,11 @@ export async function login(req: Request, res: Response) {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
+  // Trim as well as lowercase: a stray space (easy to paste in, or to type on a
+  // phone keyboard) otherwise means no match at all, and the carer just gets
+  // 'Invalid credentials' with no way to tell why.
   const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
+    where: { email: String(email).toLowerCase().trim() },
   });
 
   if (!user || !user.active) return res.status(401).json({ error: 'Invalid credentials' });

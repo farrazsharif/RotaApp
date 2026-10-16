@@ -221,7 +221,7 @@ export async function createUser(req: AuthRequest, res: Response) {
   if (!sendInvite && !password) {
     return res.status(400).json({ error: 'password required unless sending an invite email' });
   }
-  const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  const existing = await prisma.user.findUnique({ where: { email: String(email).toLowerCase().trim() } });
   if (existing) return res.status(409).json({ error: 'Email already in use' });
 
   // A custom role fixes the base account type; otherwise use the provided role.
@@ -235,7 +235,9 @@ export async function createUser(req: AuthRequest, res: Response) {
   const hashed = await bcrypt.hash(sendInvite ? randomBytes(32).toString('hex') : password, 10);
   const user = await prisma.user.create({
     data: {
-      email: email.toLowerCase(),
+      // Must match the login lookup exactly - trim too, or an email saved
+      // with a stray space can never be logged in with.
+      email: String(email).toLowerCase().trim(),
       password: hashed,
       firstName,
       lastName,
