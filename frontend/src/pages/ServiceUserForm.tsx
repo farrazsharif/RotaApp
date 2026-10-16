@@ -205,7 +205,25 @@ export default function ServiceUserForm() {
 
   const addVisit = () => setVisits((v) => [...v, { type: VISIT_PRESETS[0], duration: 30 }]);
   const updateVisit = (i: number, patch: Partial<VisitRow>) => setVisits((v) => v.map((row, idx) => idx === i ? { ...row, ...patch } : row));
-  const removeVisit = (i: number) => setVisits((v) => v.filter((_, idx) => idx !== i));
+  // Which rows are in manual-duration mode. This must be explicit state: it was
+  // derived from 'is the value one of the presets?', so typing 600 collapsed the
+  // box the moment it passed through 60 (a preset) and snapped to '1 hour' -
+  // making any duration that passes through a preset impossible to type.
+  const [customDurationRows, setCustomDurationRows] = useState<Set<number>>(new Set());
+  const setDurationCustom = (i: number, on: boolean) => setCustomDurationRows((prev) => {
+    const next = new Set(prev);
+    if (on) next.add(i); else next.delete(i);
+    return next;
+  });
+  const removeVisit = (i: number) => {
+    setVisits((v) => v.filter((_, idx) => idx !== i));
+    // Rows after the removed one shift down, so shift their custom flags too.
+    setCustomDurationRows((prev) => {
+      const next = new Set<number>();
+      prev.forEach((idx) => { if (idx < i) next.add(idx); else if (idx > i) next.add(idx - 1); });
+      return next;
+    });
+  };
   const toggleVisitDay = (i: number, day: number) => setVisits((v) => v.map((row, idx) => {
     if (idx !== i) return row;
     const cur = effectiveDays(row);
@@ -538,7 +556,7 @@ export default function ServiceUserForm() {
               const custom = !VISIT_PRESETS.includes(row.type);
               // Likewise a duration that isn't one of the presets is entered
               // manually — reveal a minutes input for it.
-              const durationCustom = !DURATIONS.some((d) => d.value === row.duration);
+              const durationCustom = customDurationRows.has(i) || !DURATIONS.some((d) => d.value === row.duration);
               return (
                 <div key={i} className="border border-gray-100 rounded-lg p-2 bg-gray-50/50">
                 <div className="flex items-center gap-2">
@@ -561,7 +579,11 @@ export default function ServiceUserForm() {
                   )}
                   <select
                     value={durationCustom ? '__custom__' : String(row.duration)}
-                    onChange={(e) => updateVisit(i, { duration: e.target.value === '__custom__' ? 0 : Number(e.target.value) })}
+                    onChange={(e) => {
+                      const isCustom = e.target.value === '__custom__';
+                      setDurationCustom(i, isCustom);
+                      updateVisit(i, { duration: isCustom ? 0 : Number(e.target.value) });
+                    }}
                     className="input w-32"
                   >
                     {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
