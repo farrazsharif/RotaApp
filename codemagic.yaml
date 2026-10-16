@@ -165,3 +165,52 @@ workflows:
           ./gradlew assembleDebug --no-daemon
     artifacts:
       - carer-app/android/app/build/outputs/**/*.apk
+
+  # Signed Android App Bundle for Google Play. Needs an Android keystore
+  # uploaded in Codemagic under Code signing identities with the reference
+  # name "caremid_upload" - that injects CM_KEYSTORE_PATH / _PASSWORD /
+  # CM_KEY_ALIAS / CM_KEY_PASSWORD, which app/build.gradle reads. The keystore
+  # itself is never committed.
+  carer-android-release:
+    name: Caremid Carer — Android (Play release)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      vars:
+        PACKAGE_NAME: "uk.co.caremid.carer"
+      android_signing:
+        - caremid_upload
+      node: 22
+      java: 21
+    scripts:
+      - name: Install web dependencies & build
+        script: |
+          cd carer-app
+          npm ci
+          npm run build
+      - name: Sync the Android project
+        script: |
+          cd carer-app
+          # The android/ project is COMMITTED, so only sync - never `cap add`.
+          npx cap sync android
+      - name: Build the signed App Bundle
+        script: |
+          cd carer-app/android
+          # The repo is authored on Windows, which does not carry the exec bit.
+          chmod +x ./gradlew
+          ./gradlew bundleRelease --no-daemon
+      - name: Verify the bundle is signed
+        script: |
+          AAB=$(find carer-app/android -name "*.aab" | head -1)
+          echo "Bundle: $AAB"
+          # An unsigned bundle has no META-INF signature block, and Play would
+          # reject it - fail here instead of finding out after the upload.
+          if unzip -l "$AAB" | grep -qi "META-INF/.*\.RSA\|META-INF/.*\.EC"; then
+            echo "Bundle is signed."
+          else
+            echo "ERROR: bundle is not signed - check the caremid_upload keystore in Codemagic."
+            exit 1
+          fi
+    artifacts:
+      - carer-app/android/app/build/outputs/bundle/**/*.aab
+      - carer-app/android/app/build/outputs/**/mapping.txt
