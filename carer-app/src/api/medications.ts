@@ -1,4 +1,5 @@
 import api from '../lib/axios';
+import { sendOrQueue } from '../lib/outbox';
 import type { MedAdminStatus, Medication, MedAdministration } from '../types';
 
 export const medicationsApi = {
@@ -8,7 +9,9 @@ export const medicationsApi = {
     scheduledFor: string;
     status: MedAdminStatus;
     note?: string;
-  }) => api.post('/medications/administrations', data).then((r) => r.data),
+  }) =>
+    sendOrQueue('med.record', data as unknown as Record<string, unknown>, () =>
+      api.post('/medications/administrations', data).then((r) => r.data)),
   list: (serviceUserId: string) =>
     api.get<Medication[]>('/medications', { params: { serviceUserId } }).then((r) => r.data),
   // Carer-added short-course medication (scoped + audited server-side).

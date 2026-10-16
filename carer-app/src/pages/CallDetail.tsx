@@ -11,6 +11,7 @@ import { medicationsApi } from '../api/medications';
 import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
+import { usePendingClock, usePendingVisitWork } from '../lib/pendingClock';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
 import { settingsApi } from '../api/settings';
@@ -299,11 +300,15 @@ export default function CallDetail() {
     enabled: !!id,
   });
 
-  const { data: clockStatus } = useQuery({
+  const { data: serverClockStatus } = useQuery({
     queryKey: ['clock-status'],
     queryFn: clockApi.status,
     refetchInterval: 15000,
   });
+  // Lay any clock action still queued offline on top of the server answer.
+  const { status: clockStatus, doneShiftIds } = usePendingClock(serverClockStatus, user?.id);
+  // Logs / meds recorded offline and not yet synced, so the UI reflects them.
+  const pendingWork = usePendingVisitWork(id);
 
   // The visit's doses (with recorded status), by shift — stays available after
   // the call is completed so the carer can review what was given.
@@ -370,9 +375,8 @@ export default function CallDetail() {
       } else {
         body.clientSignature = JSON.stringify({ kind: 'esign', name: finSignName.trim(), at: new Date().toISOString() });
       }
-      const res = await financeApi.create(body);
-      if (finReceipt) await financeApi.uploadReceipt(res.id, finReceipt);
-      return res;
+      // Queues create + receipt together when offline.
+      return financeApi.createWithReceipt(body, finReceipt);
     },
     onSuccess: () => {
       resetFinanceForm();
@@ -517,7 +521,8 @@ export default function CallDetail() {
   const iSigned = !!sharedLog && (sharedLog.userId === user?.id || signatures.some((s) => s.userId === user?.id));
   // A carer can clock out once they've logged the visit — for supported living
   // that's at least one running support-log entry; otherwise the signed call log.
-  const hasLoggedThisVisit = clockedIn && (isSLClient ? supportLog.length > 0 : iSigned);
+  // A log written offline counts too, otherwise the carer could never clock out.
+  const hasLoggedThisVisit = clockedIn && (isSLClient ? supportLog.length > 0 || pendingWork.hasLog : iSigned || pendingWork.hasLog);
 
   const clockInMut = useMutation({
     mutationFn: () => clockApi.clockIn(id),
@@ -585,10 +590,12 @@ export default function CallDetail() {
           <span className="font-medium text-gray-500">In this pack:</span>{'\n'}{dose.packContents}
         </div>
       )}
-      {dose.status ? (
+      {dose.status || pendingWork.medKeys.has(`${dose.medicationId}|${dose.scheduledFor}`) ? (
         <p className="text-sm font-semibold text-green-600 mt-2">
-          ✓ {STATUS_LABEL[dose.status] || dose.status}
-          {dose.recordedAt && <span className="text-gray-400 font-normal"> at {format(new Date(dose.recordedAt), 'h:mm a')}</span>}
+          ✓ {dose.status ? STATUS_LABEL[dose.status] || dose.status : 'Recorded'}
+          {dose.recordedAt
+            ? <span className="text-gray-400 font-normal"> at {format(new Date(dose.recordedAt), 'h:mm a')}</span>
+            : !dose.status && <span className="text-gray-400 font-normal"> · waiting to sync</span>}
         </p>
       ) : !interactive ? (
         <p className="text-sm font-medium text-gray-400 mt-2">Not recorded</p>
@@ -698,7 +705,7 @@ export default function CallDetail() {
     ...(shift.coverCarers ?? []).filter((c) => c.id !== user?.id),
   ].filter(Boolean) as { id: string; firstName: string; lastName: string }[];
   const clockedInElsewhere = !!clockStatus?.clockedIn && clockStatus.record?.shiftId !== shift.id;
-  const done = isCallDone(shift, user?.id);
+  const done = isCallDone(shift, user?.id) || doneShiftIds.includes(shift.id);
   const shiftIsToday = isToday(new Date(shift.date));
   // A carer can still amend this visit's log for a week after the visit — e.g.
   // to add a task they forgot — even once the call is done. Older records are
@@ -963,7 +970,21 @@ export default function CallDetail() {
                   ))}
                 </select>
                 <label className="block text-sm text-gray-600 mb-1">Reason (optional)</label>
-                <textarea
+                {pendingWork.supportEntries.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {pendingWork.supportEntries.map((p) => (
+                  <div key={p.id} className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                    <div className="flex items-center justify-between text-xs mb-0.5">
+                      <span className="font-medium text-amber-800">Waiting to sync</span>
+                      <span className="text-amber-700">{formatTime12h(new Date(p.at).toTimeString().slice(0, 5))}</span>
+                    </div>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{p.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <textarea
                   value={handoverReason}
                   onChange={(e) => setHandoverReason(e.target.value)}
                   placeholder="e.g. off sick"

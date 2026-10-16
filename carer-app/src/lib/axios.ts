@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearOfflineCache } from './offlineCache';
 
 const api = axios.create({
   // Call the Render API directly in production instead of routing every request
@@ -22,6 +23,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('carer_token');
       localStorage.removeItem('carer_user');
+      clearOfflineCache();
       window.location.href = '/login';
     }
     return Promise.reject(err);

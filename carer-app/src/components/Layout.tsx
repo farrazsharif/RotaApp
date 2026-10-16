@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import BottomNav from './BottomNav';
+import OfflineBanner from './OfflineBanner';
 
 export default function Layout({ title, children, onRefresh, refreshing }: {
   title: string;
@@ -24,6 +25,7 @@ export default function Layout({ title, children, onRefresh, refreshing }: {
           )}
         </div>
       </header>
+      <OfflineBanner />
       <main className="flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-6 max-w-md w-full mx-auto">{children}</main>
       <BottomNav />
     </div>

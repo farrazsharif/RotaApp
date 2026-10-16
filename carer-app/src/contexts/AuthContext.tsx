@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from 'react';
+import { clearOfflineCache } from '../lib/offlineCache';
 import type { ReactNode } from 'react';
 import { authApi } from '../api/auth';
 import type { User } from '../types';
@@ -27,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function logout() {
     localStorage.removeItem('carer_token');
     localStorage.removeItem('carer_user');
+    clearOfflineCache();
     setUser(null);
   }
 

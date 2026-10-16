@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { clientTime } from '../lib/clientTime';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { MedStatus } from '../constants';
@@ -243,7 +244,7 @@ export async function cancelledDoses(req: AuthRequest, res: Response) {
 }
 
 export async function recordAdministration(req: AuthRequest, res: Response) {
-  const { medicationId, serviceUserId, scheduledFor, status, note } = req.body;
+  const { medicationId, serviceUserId, scheduledFor, status, note, recordedAt } = req.body;
   if (!medicationId || !serviceUserId || !scheduledFor || !status) {
     return res.status(400).json({ error: 'medicationId, serviceUserId, scheduledFor, status required' });
   }
@@ -253,8 +254,8 @@ export async function recordAdministration(req: AuthRequest, res: Response) {
   const when = new Date(scheduledFor);
   const record = await prisma.medAdministration.upsert({
     where: { medicationId_scheduledFor: { medicationId, scheduledFor: when } },
-    update: { status, note: note || null, userId: req.user!.id, recordedAt: new Date() },
-    create: { medicationId, serviceUserId, scheduledFor: when, status, note: note || null, userId: req.user!.id },
+    update: { status, note: note || null, userId: req.user!.id, recordedAt: clientTime(recordedAt) },
+    create: { medicationId, serviceUserId, scheduledFor: when, status, note: note || null, userId: req.user!.id, recordedAt: clientTime(recordedAt) },
     include: adminInclude,
   });
   res.status(201).json(record);

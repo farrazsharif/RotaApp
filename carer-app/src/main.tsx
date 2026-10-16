@@ -1,9 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.tsx'
+import { startOutbox } from './lib/outbox'
+import { CARER_CACHE_KEY } from './lib/offlineCache'
 
 // True when running inside the native app. Detected via the global Capacitor
 // injects into the WebView (checked without importing @capacitor/core, so the
@@ -32,6 +36,11 @@ if (!isNativeApp) {
   })
 }
 
+// Keep a week of cached data on the device so the app opens and works with no
+// signal (rota, visit details, due meds) instead of showing empty screens.
+const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000
+const persister = createSyncStoragePersister({ storage: window.localStorage, key: CARER_CACHE_KEY })
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -41,16 +50,21 @@ const queryClient = new QueryClient({
       // the socket (LiveSync invalidates), and each screen has a manual refresh.
       staleTime: 60_000,
       // Keep cached data for 30 min so returning to a screen is instant.
-      gcTime: 30 * 60_000,
+      // Must be >= the persisted maxAge below, or restored entries are
+      // garbage-collected before the app can use them offline.
+      gcTime: CACHE_MAX_AGE,
     },
   },
 })
 
+// Replay anything recorded offline as soon as we have a connection.
+startOutbox()
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: CACHE_MAX_AGE, buster: 'v1' }}>
       <App />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </StrictMode>,
 )
 

@@ -12,6 +12,7 @@ import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { isCallDone } from '../lib/shiftStatus';
 import { unrecordedVisits } from '../lib/visitRecording';
+import { usePendingClock } from '../lib/pendingClock';
 import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
 
@@ -50,11 +51,12 @@ export default function Today() {
   // The call the carer is still clocked into (open record, no clock-out), from
   // the authoritative clock status. Kept so it stays pinned until clocked out —
   // even after the date rolls over and it drops off today's call list.
-  const { data: clockStatus } = useQuery({
+  const { data: serverClockStatus } = useQuery({
     queryKey: ['clock-status'],
     queryFn: clockApi.status,
     refetchInterval: 60000,
   });
+  const { status: clockStatus } = usePendingClock(serverClockStatus, user?.id);
   const activeRecord = clockStatus?.clockedIn ? clockStatus.record : null;
   const activeCall: Shift | null = activeRecord?.shift
     ? { ...activeRecord.shift, clockRecords: [{ id: activeRecord.id, userId: activeRecord.userId, clockIn: activeRecord.clockIn, clockOut: null }] }

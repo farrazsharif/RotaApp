@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { clientTime } from '../lib/clientTime';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 
@@ -53,6 +54,7 @@ export async function createSupportLogEntry(req: AuthRequest, res: Response) {
       userName: `${u?.firstName || ''} ${u?.lastName || ''}`.trim() || 'Support worker',
       body: String(body).trim().slice(0, 4000),
       domains: normalizeDomains(domains),
+      createdAt: clientTime(req.body?.createdAt),
     },
   });
   res.status(201).json(entry);

@@ -5,6 +5,7 @@ import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { relatedStaffScopeWhere } from '../lib/scope';
 import { logAudit } from '../lib/audit';
+import { clientTime } from '../lib/clientTime';
 import { ownerShiftIdForDose } from '../lib/doseOwnership';
 import { isMedDueOn } from '../lib/medSchedule';
 import { capabilitiesFor } from '../middleware/permissions';
@@ -185,7 +186,7 @@ export async function shiftMeds(req: AuthRequest, res: Response) {
 const CLOCK_IN_INCLUDE = { shift: { include: { serviceUser: { select: { id: true, firstName: true, lastName: true } } } } } as const;
 
 export async function clockIn(req: AuthRequest, res: Response) {
-  const { shiftId } = req.body;
+  const { shiftId, at } = req.body;
   const userId = req.user!.id;
 
   // Don't let a stale open record permanently block clocking in. A record is
@@ -251,7 +252,7 @@ export async function clockIn(req: AuthRequest, res: Response) {
   // so if it isn't present the create simply behaves as before.
   try {
     const record = await prisma.clockRecord.create({
-      data: { userId, shiftId: shiftId || null, clockIn: new Date() },
+      data: { userId, shiftId: shiftId || null, clockIn: clientTime(at) },
       include: CLOCK_IN_INCLUDE,
     });
     return res.status(201).json(record);
@@ -326,7 +327,7 @@ export async function clockOut(req: AuthRequest, res: Response) {
   // visits are surfaced for review in the ECM report.
   const updated = await prisma.clockRecord.update({
     where: { id: record.id },
-    data: { clockOut: new Date() },
+    data: { clockOut: clientTime(req.body?.at) },
     include: { shift: { include: { serviceUser: { select: { id: true, firstName: true, lastName: true } } } } },
   });
   res.json(updated);

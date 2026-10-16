@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { clientTime } from '../lib/clientTime';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
@@ -147,6 +148,7 @@ export async function createCallLog(req: AuthRequest, res: Response) {
       note: String(note).trim(),
       ...(tasksJson !== undefined ? { tasks: tasksJson } : {}),
       ...(domainsJson !== undefined ? { supportDomains: domainsJson } : {}),
+      createdAt: clientTime(req.body?.createdAt),
       // Author signs on create.
       signedBy: JSON.stringify([await selfSignature(req)]),
     },
