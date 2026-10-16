@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import LiveSync from './components/LiveSync';
+import AndroidBackButton from './components/AndroidBackButton';
 import { usePushSubscription } from './lib/usePushSubscription';
 import Login from './pages/Login';
 import SetPassword from './pages/SetPassword';
@@ -27,6 +28,7 @@ export default function App() {
       <BrowserRouter>
         <PushRegistration />
         <LiveSync />
+        <AndroidBackButton />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/set-password" element={<SetPassword />} />
