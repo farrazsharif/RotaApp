@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
+import { liveActivityStatus } from '../lib/liveActivity';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Profile() {
@@ -44,6 +45,9 @@ export default function Profile() {
       >
         Log Out
       </button>
+      {/* Diagnostic: there is no debugger on a TestFlight build, so show what
+          the Lock Screen timer last did. */}
+      <p className="mt-6 text-[11px] text-gray-400 text-center">Lock screen timer: {liveActivityStatus()}</p>
     </Layout>
   );
 }

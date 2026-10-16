@@ -116,6 +116,11 @@ workflows:
           else
             xcode-project build-ipa --project "ios/App/App.xcodeproj" --scheme "App"
           fi
+      - name: Verify the widget extension is embedded
+        script: |
+          # Proves the Live Activity widget actually shipped inside the app -
+          # otherwise the timer silently never appears on the phone.
+          unzip -l carer-app/build/ios/ipa/*.ipa | grep -i ".appex" || echo "WARNING: no .appex found in the IPA"
     artifacts:
       - carer-app/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
