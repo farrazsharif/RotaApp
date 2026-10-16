@@ -132,3 +132,35 @@ workflows:
         # the App Store listing is filled in.
         submit_to_testflight: true
         # submit_to_app_store: true
+
+  # Android build. Runs on Linux (no Mac needed) and produces a debug APK that
+  # can be installed straight onto a phone - so the app can be tested before any
+  # Play Console or signing setup exists. Release signing + Play upload come later.
+  carer-android:
+    name: Caremid Carer — Android
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      vars:
+        PACKAGE_NAME: "uk.co.caremid.carer"
+      node: 22
+      java: 21
+    scripts:
+      - name: Install web dependencies & build
+        script: |
+          cd carer-app
+          npm ci
+          npm run build
+      - name: Sync the Android project
+        script: |
+          cd carer-app
+          # The android/ project is COMMITTED, so only sync - never `cap add`.
+          npx cap sync android
+      - name: Build the debug APK
+        script: |
+          cd carer-app/android
+          # The repo is authored on Windows, which does not carry the exec bit.
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+    artifacts:
+      - carer-app/android/app/build/outputs/**/*.apk

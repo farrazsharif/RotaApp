@@ -35,7 +35,9 @@ export async function startVisitActivity(args: {
   startedAt?: number;
   endsAt?: number;
 }): Promise<void> {
-  if (!Capacitor.isNativePlatform()) { setStatus('skipped (not the native app)'); return; }
+  // iOS only - Android has no Live Activities (its equivalent is a foreground
+  // service notification), so don't call a plugin that isn't there.
+  if (Capacitor.getPlatform() !== 'ios') { setStatus(`skipped (${Capacitor.getPlatform()})`); return; }
   try {
     const res = await LiveActivity.start({
       clientName: args.clientName,
@@ -50,7 +52,7 @@ export async function startVisitActivity(args: {
 }
 
 export async function endVisitActivity(): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return;
+  if (Capacitor.getPlatform() !== 'ios') return;
   try {
     await LiveActivity.end();
     setStatus('ended');
