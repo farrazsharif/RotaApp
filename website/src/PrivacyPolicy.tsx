@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 // portal. Linked from the footer, and required by Apple and Google before the
 // apps can be listed.
 const CONTACT_EMAIL = 'hello@caremid.co.uk';
-const UPDATED = '16 October 2026';
+const UPDATED = '17 October 2026';
 
 // Details only the business can confirm. Search the page for this marker before
 // relying on the policy publicly.
@@ -133,8 +133,8 @@ export default function PrivacyPolicy() {
               not receive care records.
             </li>
             <li>
-              <strong>{TO_CONFIRM} email provider</strong> &mdash; sending service emails such as
-              invitations and password resets
+              <strong>Brevo</strong> &mdash; sending service emails such as invitations and
+              password resets
             </li>
           </ul>
           <p>
