@@ -201,7 +201,9 @@ workflows:
           ./gradlew bundleRelease --no-daemon
       - name: Verify the bundle is signed
         script: |
-          AAB=$(find carer-app/android -name "*.aab" | head -1)
+          # Must target the final release bundle: the build tree also holds an
+          # unsigned "intermediary-bundle.aab" that a loose find would match first.
+          AAB=$(ls carer-app/android/app/build/outputs/bundle/release/*.aab | head -1)
           echo "Bundle: $AAB"
           # An unsigned bundle has no META-INF signature block, and Play would
           # reject it - fail here instead of finding out after the upload.
