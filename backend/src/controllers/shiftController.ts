@@ -77,18 +77,57 @@ export async function listShifts(req: AuthRequest, res: Response) {
     orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
   });
 
-  // Attach a `logged` flag per visit — true if ANY record of the visit exists:
-  // a call log OR a Supported Living support-log entry (a separate model with no
-  // Prisma relation, so it can't be an include/_count). Powers the carer app's
-  // "recorded vs still to record" markers.
+  // Attach a `logged` flag per visit, from the point of view of ONE carer.
+  //
+  // A double/triple-up call has a single SHARED call log: one carer writes the
+  // note and every assigned carer signs it (CallLog.signedBy). So "a log row
+  // exists for this shift" is NOT the same as "this carer has recorded their
+  // visit" — treating them as the same marked the visit green for the second
+  // carer the moment the first one wrote the note, and they were never told
+  // they still had to record and sign it.
+  //
+  // So a call log counts for a carer only when they authored it or signed it,
+  // which is the same rule the visit screen uses to decide whether they can
+  // clock out.
+  //
+  // Support-log entries (Supported Living) stay shift-wide on purpose: the
+  // visit screen lets any carer on the visit clock out once ANY entry exists,
+  // and there is no "sign" action for them, so scoping these per author would
+  // nag a carer with no way to clear it.
   const ids = shifts.map((s) => s.id);
+  // Whose visits these are: the carer themselves, or the one carer a manager
+  // asked for. A manager listing everyone has no single subject, and then the
+  // old shift-wide meaning is the only sensible one.
+  const subjectId =
+    req.user!.role === Role.EMPLOYEE || viewingOwn ? req.user!.id : userId ? String(userId) : null;
+
   let loggedIds = new Set<string>();
   if (ids.length) {
     const [cl, sl] = await Promise.all([
-      prisma.callLog.findMany({ where: { shiftId: { in: ids } }, select: { shiftId: true } }),
+      prisma.callLog.findMany({
+        where: { shiftId: { in: ids } },
+        select: { shiftId: true, userId: true, signedBy: true },
+      }),
       prisma.supportLogEntry.findMany({ where: { shiftId: { in: ids } }, select: { shiftId: true } }),
     ]);
-    loggedIds = new Set([...cl, ...sl].map((r) => r.shiftId).filter((x): x is string => !!x));
+
+    const signedByMe = (signedBy: string | null) => {
+      if (!signedBy || !subjectId) return false;
+      try {
+        const sigs = JSON.parse(signedBy);
+        return Array.isArray(sigs) && sigs.some((s: { userId?: string }) => s?.userId === subjectId);
+      } catch {
+        return false;
+      }
+    };
+
+    const callLogIds = cl
+      .filter((r) => (subjectId ? r.userId === subjectId || signedByMe(r.signedBy) : true))
+      .map((r) => r.shiftId);
+
+    loggedIds = new Set(
+      [...callLogIds, ...sl.map((r) => r.shiftId)].filter((x): x is string => !!x),
+    );
   }
   res.json(shifts.map((s) => ({ ...s, logged: loggedIds.has(s.id) })));
 }

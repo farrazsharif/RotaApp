@@ -12,8 +12,11 @@ export function visitEndMs(shift: Shift): number {
   return base.getTime() + endMin * 60_000;
 }
 
-// A visit is "recorded" once any log exists for it — a call log, or a Supported
-// Living support-log entry. The shift list endpoint computes this `logged` flag.
+// A visit is "recorded" once THIS carer has recorded it — they wrote or signed
+// the call log, or a Supported Living support-log entry exists for the visit.
+// The shift list endpoint computes this `logged` flag per carer, which matters
+// on double/triple-up calls: the note is shared, so one carer writing it must
+// not mark the visit done for the others, who still have to sign.
 export function isLogged(shift: Shift): boolean {
   return shift.logged === true;
 }
