@@ -133,6 +133,85 @@ export async function getReceipt(req: AuthRequest, res: Response) {
 }
 
 // DELETE /financial-transactions/:id — office correction (manage_service_users).
+// Office correction. A carer records a transaction at the point of spending and
+// cannot change it afterwards, so a typo (a figure in the wrong column, a wrong
+// amount) could previously only be deleted and re-entered, which loses the
+// receipt and the client's signature. Managers can instead correct the entry in
+// place, and the correction is stamped so the ledger shows the figure was
+// changed after the carer recorded it.
+//
+// Deliberately NOT editable: which client or visit it belongs to, who recorded
+// it, the receipt, and the client's signature. Those are evidence of what
+// happened; re-pointing them at different figures would misrepresent what the
+// client actually signed for.
+export async function updateTransaction(req: AuthRequest, res: Response) {
+  const txn = await prisma.financialTransaction.findUnique({ where: { id: req.params.id } });
+  if (!txn) return res.status(404).json({ error: 'Transaction not found' });
+  if (!(await serviceUserInScope(req.user, txn.serviceUserId))) {
+    return res.status(404).json({ error: 'Transaction not found' });
+  }
+
+  const { description, amountIn, amountOut, date } = req.body ?? {};
+
+  const nextDescription = description === undefined ? txn.description : String(description).trim();
+  if (!nextDescription) return res.status(400).json({ error: 'Enter a description.' });
+
+  const nextIn = amountIn === undefined ? txn.amountIn : Math.max(0, Number(amountIn) || 0);
+  const nextOut = amountOut === undefined ? txn.amountOut : Math.max(0, Number(amountOut) || 0);
+  if (nextIn === 0 && nextOut === 0) {
+    return res.status(400).json({ error: 'Enter an amount spent or received.' });
+  }
+  // The mistake this feature exists to fix: the same figure typed into both
+  // columns, which nets to nothing and leaves the balance looking untouched.
+  if (nextIn > 0 && nextOut > 0) {
+    return res.status(400).json({ error: 'Enter either money in or money out, not both.' });
+  }
+
+  let nextDate = txn.date;
+  if (date !== undefined) {
+    const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return res.status(400).json({ error: 'Enter a valid date.' });
+    nextDate = d;
+  }
+
+  const unchanged =
+    nextDescription === txn.description &&
+    nextIn === txn.amountIn &&
+    nextOut === txn.amountOut &&
+    nextDate.getTime() === txn.date.getTime();
+
+  // The editor's name is denormalised onto the row so the ledger can show who
+  // amended it without joining; AuthRequest only carries the id.
+  let editorName: string | null = null;
+  if (!unchanged) {
+    const u = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { firstName: true, lastName: true },
+    });
+    editorName = `${u?.firstName ?? ""} ${u?.lastName ?? ""}`.trim() || null;
+  }
+
+  const updated = await prisma.financialTransaction.update({
+    where: { id: txn.id },
+    data: {
+      description: nextDescription,
+      amountIn: nextIn,
+      amountOut: nextOut,
+      date: nextDate,
+      // Only stamp a correction when something actually changed, so opening and
+      // closing the form without editing doesn't mark the entry as amended.
+      ...(unchanged
+        ? {}
+        : {
+            editedAt: new Date(),
+            editedById: req.user!.id,
+            editedByName: editorName,
+          }),
+    },
+  });
+  res.json(updated);
+}
+
 export async function deleteTransaction(req: AuthRequest, res: Response) {
   const txn = await prisma.financialTransaction.findUnique({ where: { id: req.params.id } });
   if (!txn) return res.status(404).json({ error: 'Transaction not found' });

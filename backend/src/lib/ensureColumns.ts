@@ -79,6 +79,10 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
       "createdAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Office corrections to a ledger entry (added after the table shipped).
+  await prisma.$executeRawUnsafe(`ALTER TABLE "FinancialTransaction" ADD COLUMN IF NOT EXISTS "editedAt" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "FinancialTransaction" ADD COLUMN IF NOT EXISTS "editedById" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "FinancialTransaction" ADD COLUMN IF NOT EXISTS "editedByName" TEXT`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialTransaction_companyId_idx" ON "FinancialTransaction"("companyId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialTransaction_serviceUserId_date_idx" ON "FinancialTransaction"("serviceUserId","date")`);
   // Per-person permission override (JSON array of capability keys; null = follow role).

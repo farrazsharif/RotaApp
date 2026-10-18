@@ -3,7 +3,7 @@ import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { runWithCompany } from '../lib/tenantContext';
 import { requirePermission } from '../middleware/permissions';
-import { listTransactions, createTransaction, uploadReceipt, getReceipt, deleteTransaction } from '../controllers/financeController';
+import { listTransactions, createTransaction, updateTransaction, uploadReceipt, getReceipt, deleteTransaction } from '../controllers/financeController';
 
 // Re-establish tenant scope for the multipart route: multer parses the body on a
 // stream event that runs outside the async-local tenant context set at auth,
@@ -36,7 +36,9 @@ router.get('/', listTransactions);
 router.post('/', createTransaction);
 router.post('/:id/receipt', uploadSingle, scoped(uploadReceipt));
 router.get('/:id/receipt', getReceipt);
-// Office correction only.
+// Office corrections only — a carer records at the point of spending and
+// cannot amend it afterwards.
+router.patch('/:id', requirePermission('manage_service_users'), updateTransaction);
 router.delete('/:id', requirePermission('manage_service_users'), deleteTransaction);
 
 export default router;

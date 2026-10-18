@@ -303,6 +303,11 @@ model FinancialTransaction {
   clientSignature String? // patient e-signature JSON ({"kind":"esign",...}) or drawn data URL
   unableToSign    Boolean  @default(false)
   unableReason    String?
+  // Office corrections: who last edited this entry and when. A money ledger
+  // has to show that a figure was changed after the carer recorded it.
+  editedAt        DateTime?
+  editedById      String?
+  editedByName    String? // denormalised so the ledger renders without a join
   createdAt       DateTime @default(now())
 
   @@index([companyId])

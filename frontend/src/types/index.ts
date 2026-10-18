@@ -538,6 +538,9 @@ export interface FinancialTransaction {
   clientSignature?: string | null;
   unableToSign?: boolean;
   unableReason?: string | null;
+  // Set when the office corrected the entry after the carer recorded it.
+  editedAt?: string | null;
+  editedByName?: string | null;
   createdAt: string;
   carerName?: string | null;
   balance: number;

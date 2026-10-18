@@ -18,6 +18,9 @@ export const financeApi = {
     api.get<FinanceLedger>('/financial-transactions', { params: { serviceUserId } }).then((r) => r.data),
   create: (body: FinancialTransactionData) =>
     api.post<{ id: string }>('/financial-transactions', body).then((r) => r.data),
+  // Office correction of an existing entry (managers only, server-enforced).
+  update: (id: string, body: Partial<Pick<FinancialTransactionData, 'description' | 'amountIn' | 'amountOut' | 'date'>>) =>
+    api.patch(`/financial-transactions/${id}`, body).then((r) => r.data),
   remove: (id: string) => api.delete<{ ok: true }>(`/financial-transactions/${id}`).then((r) => r.data),
   receiptUrl: (id: string) =>
     api.get<{ url: string }>(`/financial-transactions/${id}/receipt`, { params: { inline: '1' } }).then((r) => r.data.url),

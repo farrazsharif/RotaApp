@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { serviceUsersApi } from '../api/serviceUsers';
-import { ServiceUserStatus, ServiceUser, Medication } from '../types';
+import { ServiceUserStatus, ServiceUser, Medication, FinancialTransaction } from '../types';
 import { carePlansApi } from '../api/carePlans';
 import { servicePlansApi } from '../api/servicePlans';
 import { medicationsApi } from '../api/medications';
@@ -1295,6 +1295,10 @@ function FinancialRecord({ serviceUserId, canManage }: { serviceUserId: string; 
   const [amountIn, setAmountIn] = useState('');
   const [amountOut, setAmountOut] = useState('');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  // Which row the office is correcting, and its working copy.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ date: '', description: '', amountIn: '', amountOut: '' });
 
   const { data: ledger, isLoading } = useQuery({
     queryKey: ['finance', serviceUserId],
@@ -1316,6 +1320,38 @@ function FinancialRecord({ serviceUserId, canManage }: { serviceUserId: string; 
       qc.invalidateQueries({ queryKey: ['finance', serviceUserId] });
       resetForm();
       setAdding(false);
+    },
+  });
+
+  // Inline correction of one row. Only the figures, the description and the
+  // date are editable - the carer, receipt and client signature are evidence
+  // of what actually happened and stay as recorded.
+  const startEdit = (t: FinancialTransaction) => {
+    setEditingId(t.id);
+    setEditError(null);
+    setDraft({
+      date: t.date ? format(new Date(t.date), 'yyyy-MM-dd') : '',
+      description: t.description ?? '',
+      amountIn: t.amountIn ? String(t.amountIn) : '',
+      amountOut: t.amountOut ? String(t.amountOut) : '',
+    });
+  };
+
+  const updateMut = useMutation({
+    mutationFn: (txnId: string) => financeApi.update(txnId, {
+      description: draft.description.trim(),
+      amountIn: draft.amountIn.trim() ? Number(draft.amountIn) : 0,
+      amountOut: draft.amountOut.trim() ? Number(draft.amountOut) : 0,
+      date: draft.date ? new Date(draft.date).toISOString() : undefined,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['finance', serviceUserId] });
+      setEditingId(null);
+      setEditError(null);
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setEditError(msg || 'Could not save the correction.');
     },
   });
 
@@ -1405,6 +1441,10 @@ function FinancialRecord({ serviceUserId, canManage }: { serviceUserId: string; 
         ) : txns.length === 0 ? (
           <p className="text-sm text-gray-400">No transactions recorded yet.</p>
         ) : (
+          <>
+          {editError && (
+            <p className="mb-2 text-sm text-red-600 no-print">{editError}</p>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
@@ -1421,13 +1461,40 @@ function FinancialRecord({ serviceUserId, canManage }: { serviceUserId: string; 
                 </tr>
               </thead>
               <tbody>
-                {txns.map((t) => (
-                  <tr key={t.id}>
-                    <td className="p-2 border text-gray-700 whitespace-nowrap">{t.date ? format(new Date(t.date), 'dd MMM yyyy') : '—'}</td>
-                    <td className="p-2 border text-gray-800">{t.description}</td>
+                {txns.map((t) => {
+                  const editing = editingId === t.id;
+                  return (
+                  <tr key={t.id} className={editing ? 'bg-blue-50' : undefined}>
+                    <td className="p-2 border text-gray-700 whitespace-nowrap">
+                      {editing
+                        ? <input type="date" className="input input-sm w-36" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
+                        : (t.date ? format(new Date(t.date), 'dd MMM yyyy') : '—')}
+                    </td>
+                    <td className="p-2 border text-gray-800">
+                      {editing ? (
+                        <input className="input input-sm w-full" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+                      ) : (
+                        <>
+                          {t.description}
+                          {t.editedAt && (
+                            <span className="block text-xs text-amber-700 no-print">
+                              Corrected{t.editedByName ? ` by ${t.editedByName}` : ''} on {format(new Date(t.editedAt), 'dd MMM yyyy')}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </td>
                     <td className="p-2 border text-gray-600 whitespace-nowrap">{t.carerName || '—'}</td>
-                    <td className="p-2 border text-right tabular-nums text-green-700">{t.amountIn ? gbp(t.amountIn) : ''}</td>
-                    <td className="p-2 border text-right tabular-nums text-red-700">{t.amountOut ? gbp(t.amountOut) : ''}</td>
+                    <td className="p-2 border text-right tabular-nums text-green-700">
+                      {editing
+                        ? <input type="number" step="0.01" min="0" className="input input-sm w-24 text-right" value={draft.amountIn} onChange={(e) => setDraft({ ...draft, amountIn: e.target.value, amountOut: e.target.value ? '' : draft.amountOut })} />
+                        : (t.amountIn ? gbp(t.amountIn) : '')}
+                    </td>
+                    <td className="p-2 border text-right tabular-nums text-red-700">
+                      {editing
+                        ? <input type="number" step="0.01" min="0" className="input input-sm w-24 text-right" value={draft.amountOut} onChange={(e) => setDraft({ ...draft, amountOut: e.target.value, amountIn: e.target.value ? '' : draft.amountIn })} />
+                        : (t.amountOut ? gbp(t.amountOut) : '')}
+                    </td>
                     <td className="p-2 border text-right tabular-nums font-medium text-gray-900">{gbp(t.balance)}</td>
                     <td className="p-2 border">
                       {t.hasReceipt
@@ -1438,25 +1505,52 @@ function FinancialRecord({ serviceUserId, canManage }: { serviceUserId: string; 
                       <TxnSignature signature={t.clientSignature} unableToSign={t.unableToSign} unableReason={t.unableReason} />
                     </td>
                     {canManage && (
-                      <td className="p-2 border text-center no-print">
-                        <button
-                          className="text-red-600 hover:text-red-700 text-lg leading-none"
-                          title="Delete transaction"
-                          aria-label="Delete transaction"
-                          disabled={removeMut.isPending}
-                          onClick={() => {
-                            if (window.confirm('Delete this transaction? This cannot be undone.')) removeMut.mutate(t.id);
-                          }}
-                        >
-                          🗑
-                        </button>
+                      <td className="p-2 border text-center no-print whitespace-nowrap">
+                        {editing ? (
+                          <span className="inline-flex gap-1">
+                            <button
+                              className="btn btn-sm btn-primary"
+                              disabled={updateMut.isPending}
+                              onClick={() => updateMut.mutate(t.id)}
+                            >
+                              {updateMut.isPending ? 'Saving…' : 'Save'}
+                            </button>
+                            <button className="btn btn-sm btn-secondary" onClick={() => { setEditingId(null); setEditError(null); }}>
+                              Cancel
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="inline-flex gap-2">
+                            <button
+                              className="text-blue-600 hover:text-blue-700"
+                              title="Correct this transaction"
+                              aria-label="Correct this transaction"
+                              onClick={() => startEdit(t)}
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              className="text-red-600 hover:text-red-700 text-lg leading-none"
+                              title="Delete transaction"
+                              aria-label="Delete transaction"
+                              disabled={removeMut.isPending}
+                              onClick={() => {
+                                if (window.confirm('Delete this transaction? This cannot be undone.')) removeMut.mutate(t.id);
+                              }}
+                            >
+                              🗑
+                            </button>
+                          </span>
+                        )}
                       </td>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </Section>
