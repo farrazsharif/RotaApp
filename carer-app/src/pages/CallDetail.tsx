@@ -1514,36 +1514,43 @@ export default function CallDetail() {
               {/* Sign / edit. An assigned carer who hasn't signed yet can sign —
                   including the second carer on a double-up who clocked in or
                   recorded the visit AFTER the log was saved (so their call is
-                  already "done"). Signing needs their own clock record; editing
-                  the note (and adding a missed task) stays open for a week. */}
-              {withinLogEditWindow && (
-                <>
-                  <div className="mt-3 flex gap-2">
-                    {!iSigned && assignedToMe ? (
-                      <button
-                        onClick={() => signMut.mutate(sharedLog.id)}
-                        disabled={signMut.isPending || !canSignLog}
-                        className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold text-sm disabled:opacity-40"
-                      >
-                        {signMut.isPending ? 'Signing…' : 'Confirm & Sign'}
-                      </button>
-                    ) : iSigned ? (
-                      <span className="flex-1 text-sm font-semibold text-green-700 py-2.5">✓ You've signed this log</span>
-                    ) : null}
+                  already "done"). Signing needs their own clock record.
+
+                  Signing deliberately has NO time limit. The "still to record"
+                  list nags until the visit is signed, so closing the sign button
+                  after a week left older double-up visits flagged forever with
+                  nothing the carer could do about it. Editing the NOTE still
+                  closes after a week: rewriting what was recorded about someone's
+                  care long after the visit is the risky part, adding your own
+                  signature to a note that already stands is not. */}
+              <>
+                <div className="mt-3 flex gap-2">
+                  {!iSigned && assignedToMe ? (
+                    <button
+                      onClick={() => signMut.mutate(sharedLog.id)}
+                      disabled={signMut.isPending || !canSignLog}
+                      className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold text-sm disabled:opacity-40"
+                    >
+                      {signMut.isPending ? 'Signing…' : 'Confirm & Sign'}
+                    </button>
+                  ) : iSigned ? (
+                    <span className="flex-1 text-sm font-semibold text-green-700 py-2.5">✓ You've signed this log</span>
+                  ) : null}
+                  {withinLogEditWindow && (
                     <button
                       onClick={() => loadForEdit(sharedLog)}
                       className="rounded-xl border border-gray-300 px-4 py-2.5 font-semibold text-gray-700 text-sm"
                     >
                       Edit note
                     </button>
-                  </div>
-                  {!iSigned && assignedToMe && !canSignLog && (
-                    <p className="text-xs text-gray-400 mt-2">
-                      {canRecordMissed ? 'Record this visit above to sign the log.' : 'Clock in to this visit to sign the log.'}
-                    </p>
                   )}
-                </>
-              )}
+                </div>
+                {!iSigned && assignedToMe && !canSignLog && (
+                  <p className="text-xs text-gray-400 mt-2">
+                    {canRecordMissed ? 'Record this visit above to sign the log.' : 'Clock in to this visit to sign the log.'}
+                  </p>
+                )}
+              </>
             </>
           ) : (
             <>
