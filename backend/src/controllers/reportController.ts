@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { loadOrgSettings } from './settingsController';
 import { isScoped, relatedServiceUserScopeWhere, relatedStaffScopeWhere } from '../lib/scope';
+import { londonDayStart, londonDayEnd } from '../lib/londonTime';
 
 function hoursWorked(clockIn: Date, clockOut: Date | null) {
   if (!clockOut) return 0;
@@ -21,10 +22,12 @@ function shiftHours(startTime: string, endTime: string) {
 // stored at local noon and clock records carry a real time-of-day, so the end
 // bound must span the WHOLE final day — using the bare date (midnight) drops
 // everything after 00:00 on the last day, silently losing that day's data.
+// A date range covering whole UK days. Reports bucket real timestamps (a
+// clock-in carries a time of day), so the bounds have to be London midnights,
+// not UTC ones - otherwise an early-hours visit falls into the previous day,
+// and at a week boundary into the previous pay week.
 function dayRange(startDate: unknown, endDate: unknown) {
-  const s = String(startDate).slice(0, 10);
-  const e = String(endDate).slice(0, 10);
-  return { start: new Date(`${s}T00:00:00.000`), end: new Date(`${e}T23:59:59.999`) };
+  return { start: londonDayStart(startDate), end: londonDayEnd(endDate) };
 }
 
 // A site filter that accepts one id or a comma-separated list, for reports that
