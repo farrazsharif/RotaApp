@@ -366,12 +366,36 @@ export async function listClockRecords(req: AuthRequest, res: Response) {
   }
 
   if (startDate || endDate) {
-    where.clockIn = {};
-    // Clock-ins carry a real time-of-day, so the end bound must span the WHOLE
-    // final day — a bare date (midnight) would drop every record after 00:00 on
-    // the last day, hiding today's clock-ins whenever the range ends "today".
-    if (startDate) (where.clockIn as Record<string, unknown>).gte = new Date(`${String(startDate).slice(0, 10)}T00:00:00.000`);
-    if (endDate) (where.clockIn as Record<string, unknown>).lte = new Date(`${String(endDate).slice(0, 10)}T23:59:59.999`);
+    // A clock record belongs to the day of the VISIT, not the day its clock-in
+    // timestamp happens to land in. Shift.date is stored as midnight UTC, but a
+    // clock-in carries a real time of day, so for an early-hours visit in BST
+    // the two fall on different dates: clocking in at 00:55 for a 01:00 visit
+    // on the 19th is 23:55 UTC on the 18th.
+    //
+    // Filtering on clockIn alone dropped that record from the 19th, and the
+    // attendance page - which calls a visit missed when it finds no record for
+    // that carer in the window - then reported a visit the carer had actually
+    // attended as "Missed".
+    const shiftRange: Record<string, unknown> = {};
+    const clockRange: Record<string, unknown> = {};
+    if (startDate) {
+      const from = new Date(`${String(startDate).slice(0, 10)}T00:00:00.000Z`);
+      shiftRange.gte = from;
+      clockRange.gte = from;
+    }
+    if (endDate) {
+      // The end bound spans the WHOLE final day - a bare date (midnight) would
+      // drop every record after 00:00 on the last day, hiding today's clock-ins
+      // whenever the range ends "today".
+      const to = new Date(`${String(endDate).slice(0, 10)}T23:59:59.999Z`);
+      shiftRange.lte = to;
+      clockRange.lte = to;
+    }
+    where.OR = [
+      { shift: { date: shiftRange } },
+      // A record with no visit attached can only be dated by its clock-in.
+      { shiftId: null, clockIn: clockRange },
+    ];
   }
   Object.assign(where, relatedStaffScopeWhere(req.user));
 
