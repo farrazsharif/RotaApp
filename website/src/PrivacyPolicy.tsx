@@ -6,9 +6,6 @@ import type { ReactNode } from 'react';
 const CONTACT_EMAIL = 'hello@caremid.co.uk';
 const UPDATED = '19 October 2026';
 
-// Details only the business can confirm. Search the page for this marker before
-// relying on the policy publicly.
-const TO_CONFIRM = '[TO CONFIRM]';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -217,9 +214,6 @@ export default function PrivacyPolicy() {
             Caremid is a product of <strong>800 Vision Limited</strong>, a company registered in
             England and Wales (company number 17343907). Registered office: 11a Lane End Road,
             Manchester, M19 1WA, United Kingdom.
-          </p>
-          <p className="text-sm text-slate-500">
-            ICO registration number: {TO_CONFIRM}
           </p>
         </Section>
       </main>
