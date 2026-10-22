@@ -29,7 +29,7 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-const TABS = ['Details', 'Compliance', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Emergency Contact', 'Right to Work', 'Fit for Work', 'DBS', 'Supervision', 'Documents'] as const;
+const TABS = ['Details', 'Compliance', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Right to Work', 'Fit for Work', 'DBS', 'Supervision', 'Documents'] as const;
 type Tab = typeof TABS[number];
 
 // The health-declaration checklist from the paper "Fit for Work Declaration".
@@ -259,7 +259,6 @@ export default function StaffDetail() {
       {tab === 'Rota' && <CarerRota userId={user.id} staffName={`${user.firstName} ${user.lastName}`} />}
       {tab === 'Training' && <TrainingTab userId={user.id} isManager={isManager} />}
       {tab === 'Important Dates' && <ImportantDatesTab userId={user.id} isManager={isManager} />}
-      {tab === 'Emergency Contact' && <EmergencyContactTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'Right to Work' && <RightToWorkTab userId={user.id} isManager={isManager} initial={user} checkerName={me ? `${me.firstName} ${me.lastName}`.trim() : ''} />}
       {tab === 'Fit for Work' && <FitForWorkTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'DBS' && can('manage_dbs') && <DbsTab userId={user.id} initial={user} />}
@@ -873,56 +872,6 @@ function DbsTab({ userId, initial }: { userId: string; initial: User }) {
   );
 }
 
-function EmergencyContactTab({ userId, isManager, initial }: { userId: string; isManager: boolean; initial: { emergencyContactName?: string; emergencyContactPhone?: string; emergencyContactRelation?: string; emergencyContactAddress?: string } }) {
-  const qc = useQueryClient();
-  const ro = !isManager;
-  const [name, setName] = useState(initial.emergencyContactName || '');
-  const [phone, setPhone] = useState(initial.emergencyContactPhone || '');
-  const [relation, setRelation] = useState(initial.emergencyContactRelation || '');
-  const [address, setAddress] = useState(initial.emergencyContactAddress || '');
-
-  const saveMut = useMutation({
-    mutationFn: () => usersApi.update(userId, {
-      emergencyContactName: name || undefined,
-      emergencyContactPhone: phone || undefined,
-      emergencyContactRelation: relation || undefined,
-      emergencyContactAddress: address || undefined,
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); qc.invalidateQueries({ queryKey: ['user', userId] }); qc.invalidateQueries({ queryKey: ['user-compliance', userId] }); },
-  });
-
-  return (
-    <div className="card space-y-4 max-w-md">
-      <div>
-        <label className="label">Name</label>
-        {ro ? <p className="text-sm text-gray-800">{name || '—'}</p> : <input value={name} onChange={(e) => setName(e.target.value)} className="input" />}
-      </div>
-      <div>
-        <label className="label">Phone</label>
-        {ro ? <p className="text-sm text-gray-800">{phone || '—'}</p> : <input value={phone} onChange={(e) => setPhone(e.target.value)} className="input" />}
-      </div>
-      <div>
-        <label className="label">Relationship</label>
-        {ro ? <p className="text-sm text-gray-800">{relation || '—'}</p> : <input value={relation} onChange={(e) => setRelation(e.target.value)} className="input" />}
-      </div>
-      <div>
-        <label className="label">Address</label>
-        {ro ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{address || '—'}</p> : <AutoGrowTextarea value={address} minRows={2} onChange={(e) => setAddress(e.target.value)} className="input" />}
-      </div>
-      {isManager && (
-        <div className="flex gap-3 pt-2">
-          <div className="flex-1" />
-          {saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
-          <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
-            {saveMut.isPending ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// A YES / NO radio pair for a single health condition; renders plain text when read-only.
 function YesNoRow({ label, value, ro, onChange }: { label: string; value: YesNo; ro: boolean; onChange: (v: YesNo) => void }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-gray-100 py-1.5">

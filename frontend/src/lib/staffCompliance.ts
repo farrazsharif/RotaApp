@@ -71,7 +71,7 @@ export const TYPE_USES_COUNT: Record<RequirementType, boolean> = {
 export const USER_DOC_CATEGORIES = [
   'DBS Certificate', 'Contract', 'Reference', 'Right to Work',
   'Training Certificate', 'ID', 'Driving Licence', 'Fit for Work',
-  'Proof of Address', 'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form',
+  'Proof of Address', 'Emergency Contact', 'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form',
   'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check',
   'Other',
 ];
@@ -106,8 +106,8 @@ export const DEFAULT_REQUIREMENTS: Requirement[] = [
     hint: 'Add a training record, or upload a training certificate in Documents.' },
   { id: 'fitForWork', label: 'Fit for work declaration', type: 'fitForWork', required: true, appliesTo: 'ALL', tab: 'Fit for Work',
     hint: 'Complete and sign the Fit for Work declaration, or upload the signed form.' },
-  { id: 'emergencyContact', label: 'Emergency contact', type: 'emergencyContact', required: true, appliesTo: 'ALL', tab: 'Emergency Contact',
-    hint: 'Record a next-of-kin / emergency contact name on the Emergency Contact tab.' },
+  { id: 'emergencyContact', label: 'Emergency contact', type: 'emergencyContact', required: true, appliesTo: 'ALL', tab: 'Documents',
+    hint: 'Upload the signed next-of-kin / emergency contact form in Documents.' },
   // Standard onboarding documents (apply to every staff member).
   ...ONBOARDING_DOCS.map((d): Requirement => ({
     id: d.id, label: d.label, type: 'document', category: d.category, required: true, appliesTo: 'ALL', tab: 'Documents',
