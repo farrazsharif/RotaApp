@@ -60,6 +60,19 @@ export interface ComplianceInput {
   staffType: StaffType; // LOCAL | OVERSEAS — decides which requirements apply
   staffRole: StaffRole; // CARE | OFFICE — care-only checks are skipped for office staff
   rightToWorkCheckedAt?: Date | string | null; // when the right-to-work check was carried out
+  waivers?: ComplianceWaiver[]; // checks marked not required for this person
+}
+
+// A check marked "not required" for ONE person, with the reason it does not
+// apply to them. Scoping in Settings is the policy (office staff skip
+// care-only checks); this is the exception for an individual - and it records
+// who decided and why, so the file shows a documented decision rather than an
+// item that quietly vanished.
+export interface ComplianceWaiver {
+  requirementId: string;
+  reason: string;
+  by?: string;
+  at?: string;
 }
 
 export interface ComplianceItem {
@@ -68,6 +81,29 @@ export interface ComplianceItem {
   ok: boolean;
   hint: string;
   tab?: string;
+  waived?: boolean;
+  waivedReason?: string;
+  waivedBy?: string;
+  waivedAt?: string;
+}
+
+// Parses the stored JSON. Anything malformed is dropped rather than throwing:
+// a corrupt waiver should make a check apply again, never break the page.
+export function parseWaivers(raw: string | null | undefined): ComplianceWaiver[] {
+  if (!raw) return [];
+  let arr: unknown;
+  try { arr = JSON.parse(raw); } catch { return []; }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((w): w is Record<string, unknown> => !!w && typeof w === 'object')
+    .map((w) => ({
+      requirementId: String(w.requirementId || '').slice(0, 60),
+      reason: String(w.reason || '').trim().slice(0, 300),
+      by: w.by ? String(w.by).slice(0, 120) : undefined,
+      at: w.at ? String(w.at).slice(0, 40) : undefined,
+    }))
+    .filter((w) => w.requirementId && w.reason)
+    .slice(0, 40);
 }
 
 export interface ComplianceResult {
@@ -242,14 +278,24 @@ function appliesToStaff(req: Requirement, staffType: StaffType, staffRole: Staff
 
 export function evaluateCompliance(input: ComplianceInput, requirements: Requirement[] = DEFAULT_REQUIREMENTS): ComplianceResult {
   const active = requirements.filter((r) => appliesToStaff(r, input.staffType, input.staffRole));
-  const items: ComplianceItem[] = active.map((r) => ({
-    id: r.id,
-    label: r.label,
-    hint: r.hint,
-    tab: r.tab,
-    ok: satisfied(r, input),
-  }));
-  const missing = items.filter((i) => !i.ok).map((i) => i.label);
-  const present = items.length - missing.length;
-  return { items, missing, total: items.length, present, complete: missing.length === 0 };
+  const waivers = new Map((input.waivers || []).map((w) => [w.requirementId, w]));
+  const items: ComplianceItem[] = active.map((r) => {
+    const w = waivers.get(r.id);
+    return {
+      id: r.id,
+      label: r.label,
+      hint: r.hint,
+      tab: r.tab,
+      // A waived check still reports whether it is actually satisfied, so the
+      // office can see at a glance if it later became true anyway.
+      ok: satisfied(r, input),
+      ...(w ? { waived: true, waivedReason: w.reason, waivedBy: w.by, waivedAt: w.at } : {}),
+    };
+  });
+  // Waived checks are not counted either way - not missing, and not inflating
+  // the "in place" figure with something nobody actually provided.
+  const counted = items.filter((i) => !i.waived);
+  const missing = counted.filter((i) => !i.ok).map((i) => i.label);
+  const present = counted.length - missing.length;
+  return { items, missing, total: counted.length, present, complete: missing.length === 0 };
 }

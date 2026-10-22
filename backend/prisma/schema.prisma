@@ -71,6 +71,10 @@ model User {
   rightToWorkMethod      String? // MANUAL | IDVT | SHARE_CODE
   rightToWorkDocument    String? // what was seen, e.g. "UK passport"
   rightToWorkNote        String?
+  // Staff-file checks marked not required for THIS person, with the reason.
+  // JSON array of { requirementId, reason, by, at }. Kept as a waiver with a
+  // stated reason rather than hiding the item, so the decision is auditable.
+  complianceWaivers      String?
   emergencyContactName     String?
   emergencyContactPhone    String?
   emergencyContactRelation String?

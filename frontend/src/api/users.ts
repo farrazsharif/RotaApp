@@ -1,7 +1,7 @@
 import api from '../lib/axios';
 import { User, PermissionKey } from '../types';
 
-export interface ComplianceItem { id: string; label: string; ok: boolean; hint: string; tab?: string; }
+export interface ComplianceItem { id: string; label: string; ok: boolean; hint: string; tab?: string; waived?: boolean; waivedReason?: string; waivedBy?: string; waivedAt?: string; }
 export interface ComplianceResult { items: ComplianceItem[]; missing: string[]; total: number; present: number; complete: boolean; }
 export interface ComplianceSummaryRow { userId: string; complete: boolean; present: number; total: number; missing: string[]; }
 
@@ -48,6 +48,10 @@ export const usersApi = {
   compliance: () => api.get<ComplianceSummaryRow[]>('/users/compliance').then((r) => r.data),
   // Full checklist breakdown for one staff member.
   complianceFor: (id: string) => api.get<ComplianceResult>(`/users/${id}/compliance`).then((r) => r.data),
+  // Mark one staff-file check as not required for this person. An empty
+  // reason clears the waiver so the check applies again.
+  complianceWaiver: (id: string, requirementId: string, reason: string) =>
+    api.post(`/users/${id}/compliance-waiver`, { requirementId, reason }).then((r) => r.data),
   // Set (array) or clear (null) a person's per-person permission override.
   setPermissions: (id: string, permissions: PermissionKey[] | null) =>
     api.put<{ permissionsOverride: PermissionKey[] | null; capabilities: PermissionKey[] }>(`/users/${id}/permissions`, { permissions }).then((r) => r.data),

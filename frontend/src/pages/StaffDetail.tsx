@@ -338,7 +338,25 @@ function PasswordCard({ userId, email }: { userId: string; email: string }) {
 const KNOWN_TABS = new Set<string>(TABS);
 
 function ComplianceTab({ userId, onGoToTab }: { userId: string; onGoToTab: (t: Tab) => void }) {
+  const qc = useQueryClient();
+  const { can } = usePermissions();
+  const canManage = can('manage_staff');
   const { data, isLoading } = useQuery({ queryKey: ['user-compliance', userId], queryFn: () => usersApi.complianceFor(userId) });
+  // Which check is being marked not required, and why. The reason is
+  // mandatory - an unexplained waiver is just a hidden gap.
+  const [waiveFor, setWaiveFor] = useState<string | null>(null);
+  const [waiveReason, setWaiveReason] = useState('');
+
+  const waiveMut = useMutation({
+    mutationFn: ({ requirementId, reason }: { requirementId: string; reason: string }) =>
+      usersApi.complianceWaiver(userId, requirementId, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['user-compliance', userId] });
+      qc.invalidateQueries({ queryKey: ['users'] });
+      setWaiveFor(null);
+      setWaiveReason('');
+    },
+  });
 
   if (isLoading || !data) {
     return <div className="flex justify-center p-8"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>;
@@ -370,22 +388,79 @@ function ComplianceTab({ userId, onGoToTab }: { userId: string; onGoToTab: (t: T
 
       <div className="divide-y border rounded-lg">
         {data.items.map((it) => (
-          <div key={it.id} className="flex items-start justify-between gap-3 p-3">
+          <div key={it.id} className={`flex items-start justify-between gap-3 p-3 ${it.waived ? 'bg-gray-50' : ''}`}>
             <div className="flex items-start gap-3">
-              <StatusIcon ok={it.ok} />
+              {it.waived
+                ? <span className="text-gray-400 text-lg leading-none mt-0.5" title="Not required for this person">—</span>
+                : <StatusIcon ok={it.ok} />}
               <div>
-                <p className={`text-sm font-medium ${it.ok ? 'text-gray-900' : 'text-red-700'}`}>{it.label}</p>
-                {!it.ok && <p className="text-xs text-gray-500 mt-0.5">{it.hint}</p>}
+                <p className={`text-sm font-medium ${it.waived ? 'text-gray-500' : it.ok ? 'text-gray-900' : 'text-red-700'}`}>
+                  {it.label}
+                  {it.waived && <span className="ml-2 badge badge-gray">Not required</span>}
+                </p>
+                {it.waived ? (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {it.waivedReason}
+                    {it.waivedBy ? ` — ${it.waivedBy}` : ''}
+                    {it.waivedAt ? `, ${format(new Date(it.waivedAt), 'd MMM yyyy')}` : ''}
+                  </p>
+                ) : (!it.ok && <p className="text-xs text-gray-500 mt-0.5">{it.hint}</p>)}
               </div>
             </div>
-            {!it.ok && it.tab && KNOWN_TABS.has(it.tab) && (
-              <button className="text-blue-600 text-xs hover:underline shrink-0" onClick={() => onGoToTab(it.tab as Tab)}>
-                Fix in {it.tab} →
-              </button>
-            )}
+            <div className="flex items-center gap-3 shrink-0">
+              {!it.waived && !it.ok && it.tab && KNOWN_TABS.has(it.tab) && (
+                <button className="text-blue-600 text-xs hover:underline" onClick={() => onGoToTab(it.tab as Tab)}>
+                  Fix in {it.tab} →
+                </button>
+              )}
+              {canManage && (it.waived ? (
+                <button
+                  className="text-gray-500 text-xs hover:underline"
+                  disabled={waiveMut.isPending}
+                  onClick={() => waiveMut.mutate({ requirementId: it.id, reason: '' })}
+                >
+                  Make required again
+                </button>
+              ) : (
+                <button
+                  className="text-gray-400 text-xs hover:underline hover:text-gray-600"
+                  onClick={() => { setWaiveFor(it.id); setWaiveReason(''); }}
+                >
+                  Not required
+                </button>
+              ))}
+            </div>
           </div>
         ))}
       </div>
+
+      {waiveFor && (
+        <div className="rounded-lg border border-gray-300 bg-gray-50 p-3 space-y-2">
+          <p className="text-sm font-medium text-gray-800">
+            Why is “{data.items.find((i) => i.id === waiveFor)?.label}” not required for this person?
+          </p>
+          <input
+            autoFocus
+            value={waiveReason}
+            onChange={(e) => setWaiveReason(e.target.value)}
+            placeholder="e.g. office based, does not deliver care"
+            className="input"
+          />
+          <p className="text-xs text-gray-500">
+            Recorded on the file with your name and the date, so the decision is visible to an inspector.
+          </p>
+          <div className="flex gap-2 justify-end">
+            <button className="btn-secondary btn btn-sm" onClick={() => setWaiveFor(null)}>Cancel</button>
+            <button
+              className="btn-primary btn btn-sm"
+              disabled={!waiveReason.trim() || waiveMut.isPending}
+              onClick={() => waiveMut.mutate({ requirementId: waiveFor, reason: waiveReason.trim() })}
+            >
+              {waiveMut.isPending ? 'Saving…' : 'Mark not required'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

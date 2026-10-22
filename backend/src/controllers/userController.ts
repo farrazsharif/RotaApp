@@ -9,7 +9,7 @@ import { sendEmail, setPasswordEmail } from '../lib/email';
 import { isScoped, staffInScope } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { capabilitiesFor, sanitiseCapabilityList, userHasPermission } from '../middleware/permissions';
-import { evaluateCompliance, parseRequirements, ComplianceInput } from '../lib/staffCompliance';
+import { evaluateCompliance, parseRequirements, parseWaivers, ComplianceInput, ComplianceWaiver } from '../lib/staffCompliance';
 import { loadOrgSettings } from './settingsController';
 
 const userSelect = {
@@ -167,7 +167,7 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
   }
   const users = await prisma.user.findMany({
     where,
-    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true, staffRole: true, rightToWorkCheckedAt: true },
+    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true, staffRole: true, rightToWorkCheckedAt: true, complianceWaivers: true },
   });
   const ids = users.map((u) => u.id);
   const [counts, training, settings] = await Promise.all([
@@ -187,6 +187,7 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
       staffType: (u.staffType as 'LOCAL' | 'OVERSEAS') || 'LOCAL',
       staffRole: (u.staffRole as 'CARE' | 'OFFICE') || 'CARE',
       rightToWorkCheckedAt: u.rightToWorkCheckedAt,
+      waivers: parseWaivers(u.complianceWaivers),
     };
     const r = evaluateCompliance(input, requirements);
     return { userId: u.id, complete: r.complete, present: r.present, total: r.total, missing: r.missing };
@@ -196,13 +197,55 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
 
 // GET /api/users/:id/compliance — the full checklist breakdown for one staff
 // member (used by the Compliance tab on their file).
+// Mark one staff-file check as not required for this person, or clear that.
+// A reason is mandatory: an unexplained waiver is just a hidden gap, and the
+// point of recording it is that an inspector can see the decision and who made
+// it. Posting with no reason removes the waiver.
+export async function setComplianceWaiver(req: AuthRequest, res: Response) {
+  const { requirementId, reason } = req.body ?? {};
+  const id = String(requirementId || '').trim();
+  if (!id) return res.status(400).json({ error: 'requirementId is required' });
+
+  if (!(await staffInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'Staff member not found' });
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, complianceWaivers: true },
+  });
+  if (!user) return res.status(404).json({ error: 'Staff member not found' });
+
+  const waivers = parseWaivers(user.complianceWaivers).filter((w) => w.requirementId !== id);
+
+  const text = String(reason || '').trim();
+  if (text) {
+    const me = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { firstName: true, lastName: true },
+    });
+    const next: ComplianceWaiver = {
+      requirementId: id.slice(0, 60),
+      reason: text.slice(0, 300),
+      by: `${me?.firstName ?? ''} ${me?.lastName ?? ''}`.trim() || undefined,
+      at: new Date().toISOString(),
+    };
+    waivers.push(next);
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { complianceWaivers: waivers.length ? JSON.stringify(waivers) : null },
+  });
+  res.json({ ok: true, waivers });
+}
+
 export async function staffCompliance(req: AuthRequest, res: Response) {
   if (!(await staffInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'User not found' });
   }
   const user = await prisma.user.findUnique({
     where: { id: req.params.id },
-    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true, staffRole: true, rightToWorkCheckedAt: true },
+    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true, staffRole: true, rightToWorkCheckedAt: true, complianceWaivers: true },
   });
   if (!user) return res.status(404).json({ error: 'User not found' });
   const [counts, trainingCount, settings] = await Promise.all([
@@ -219,6 +262,7 @@ export async function staffCompliance(req: AuthRequest, res: Response) {
     staffType: (user.staffType as 'LOCAL' | 'OVERSEAS') || 'LOCAL',
     staffRole: (user.staffRole as 'CARE' | 'OFFICE') || 'CARE',
     rightToWorkCheckedAt: user.rightToWorkCheckedAt,
+    waivers: parseWaivers(user.complianceWaivers),
   }, parseRequirements(settings.staffFileRequirements));
   res.json(result);
 }

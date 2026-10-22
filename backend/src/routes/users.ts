@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listUsers, getUser, createUser, updateUser, deleteUser, reactivateUser, permanentDeleteUser, resendInvite, setUserPermissions, staffComplianceSummary, staffCompliance, updateUserDbs, importDbs } from '../controllers/userController';
+import { listUsers, getUser, createUser, updateUser, deleteUser, reactivateUser, permanentDeleteUser, resendInvite, setUserPermissions, staffComplianceSummary, staffCompliance, setComplianceWaiver, updateUserDbs, importDbs } from '../controllers/userController';
 import { adminResetPassword, impersonateUser } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
@@ -16,6 +16,8 @@ router.get('/compliance', staffComplianceSummary);
 router.post('/dbs/import', requirePermission('manage_dbs'), importDbs);
 router.get('/:id', getUser);
 router.get('/:id/compliance', staffCompliance);
+// Marking a check not required for one person is an office decision.
+router.post('/:id/compliance-waiver', requirePermission('manage_staff'), setComplianceWaiver);
 router.post('/', requirePermission('manage_staff'), createUser);
 router.put('/:id', requirePermission('manage_staff'), updateUser);
 router.put('/:id/dbs', requirePermission('manage_dbs'), updateUserDbs);
