@@ -17,6 +17,17 @@ export const APPLIES_TO_LABEL: Record<AppliesTo, string> = {
   ALL: 'All staff', LOCAL: 'Local only', OVERSEAS: 'Overseas only',
 };
 
+// What the staff member does. Office/admin staff are not carrying out the
+// regulated activity, so care-specific checks can be scoped away from them.
+export type StaffRole = 'CARE' | 'OFFICE';
+export const STAFF_ROLE_LABEL: Record<StaffRole, string> = { CARE: 'Care staff', OFFICE: 'Office / admin' };
+
+// Second, independent scope: a requirement can be overseas-only AND care-only.
+export type AppliesToRole = 'ALL' | 'CARE' | 'OFFICE';
+export const APPLIES_TO_ROLE_LABEL: Record<AppliesToRole, string> = {
+  ALL: 'Care and office', CARE: 'Care staff only', OFFICE: 'Office staff only',
+};
+
 export interface Requirement {
   id: string;
   label: string;
@@ -24,6 +35,7 @@ export interface Requirement {
   type: RequirementType;
   required: boolean;
   appliesTo?: AppliesTo;
+  appliesToRole?: AppliesToRole;
   category?: string;
   minCount?: number;
   tab?: string;

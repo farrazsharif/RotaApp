@@ -14,7 +14,7 @@ import PhotoUpload from '../components/PhotoUpload';
 import AutoGrowTextarea from '../components/AutoGrowTextarea';
 import { fileToLogoDataUrl } from '../lib/image';
 import { CallLogTaskDef, DEFAULT_CALL_LOG_TASKS, resolveCallLogTasks, buildNoteFromTicks } from '../lib/callLogTasks';
-import { Requirement, RequirementType, AppliesTo, APPLIES_TO_LABEL, REQUIREMENT_TYPE_LABELS, TYPE_USES_CATEGORY, TYPE_USES_COUNT, USER_DOC_CATEGORIES, DEFAULT_REQUIREMENTS, resolveRequirements } from '../lib/staffCompliance';
+import { Requirement, RequirementType, AppliesTo, APPLIES_TO_LABEL, AppliesToRole, APPLIES_TO_ROLE_LABEL, REQUIREMENT_TYPE_LABELS, TYPE_USES_CATEGORY, TYPE_USES_COUNT, USER_DOC_CATEGORIES, DEFAULT_REQUIREMENTS, resolveRequirements } from '../lib/staffCompliance';
 import { DEFAULT_TRAINING_COURSES, resolveTrainingCourses } from '../lib/trainingCourses';
 
 const TIMEZONES = ['Europe/London', 'UTC', 'Europe/Dublin', 'Europe/Paris'];
@@ -864,6 +864,15 @@ function StaffFileChecklistTab() {
                       ))}
                     </select>
                     <p className="text-xs text-gray-400 mt-0.5">Overseas-only items are checked only for overseas staff.</p>
+                  </div>
+                  <div>
+                    <label className="label">Which staff do this</label>
+                    <select value={r.appliesToRole || 'ALL'} onChange={(e) => setRow(i, { appliesToRole: e.target.value as AppliesToRole })} className="input">
+                      {(Object.keys(APPLIES_TO_ROLE_LABEL) as AppliesToRole[]).map((a) => (
+                        <option key={a} value={a}>{APPLIES_TO_ROLE_LABEL[a]}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-0.5">Use this to skip care-specific checks for office staff.</p>
                   </div>
                   {TYPE_USES_CATEGORY[r.type] && (
                     <div>

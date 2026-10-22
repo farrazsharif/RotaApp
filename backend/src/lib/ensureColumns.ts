@@ -91,6 +91,8 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emergencyContactAddress" TEXT`);
   // Recruitment category (LOCAL | OVERSEAS) — drives overseas-only staff-file docs.
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "staffType" TEXT NOT NULL DEFAULT 'LOCAL'`);
+  // Care vs office staff - scopes which staff-file checks apply.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "staffRole" TEXT NOT NULL DEFAULT 'CARE'`);
   // DBS record fields (one current certificate per staff member) — mirrors the
   // office DBS Database & Risk Assessment register.
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsCertificateNo" TEXT`);

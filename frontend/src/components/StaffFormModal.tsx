@@ -26,17 +26,18 @@ interface FormState {
   phone: string;
   photo: string;
   staffType: 'LOCAL' | 'OVERSEAS';
+  staffRole: 'CARE' | 'OFFICE';
   sendInvite: boolean;
 }
 
 const emptyForm: FormState = {
   email: '', password: '', firstName: '', lastName: '',
-  role: 'EMPLOYEE', customRoleId: '', siteIds: [], hourlyRate: '', phone: '', photo: '', staffType: 'LOCAL', sendInvite: true,
+  role: 'EMPLOYEE', customRoleId: '', siteIds: [], hourlyRate: '', phone: '', photo: '', staffType: 'LOCAL', staffRole: 'CARE', sendInvite: true,
 };
 
 function initialForm(u: User | null): FormState {
   if (!u) return emptyForm;
-  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', siteIds: (u.sites || []).map((s) => s.id), hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', staffType: u.staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL', sendInvite: false };
+  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', siteIds: (u.sites || []).map((s) => s.id), hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', staffType: u.staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL', staffRole: u.staffRole === 'OFFICE' ? 'OFFICE' : 'CARE', sendInvite: false };
 }
 
 export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
@@ -215,6 +216,22 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
               ))}
             </div>
             <p className="text-xs text-gray-400 mt-1">Overseas staff have extra required documents (visa/BRP, sponsorship, etc.) checked in their file.</p>
+          </div>
+          <div>
+            <label className="label">Role in the service</label>
+            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
+              {(['CARE', 'OFFICE'] as const).map((t) => (
+                <button
+                  type="button"
+                  key={t}
+                  onClick={() => setForm({ ...form, staffRole: t })}
+                  className={`px-4 py-1.5 border-l first:border-l-0 border-gray-300 ${form.staffRole === t ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                >
+                  {t === 'CARE' ? 'Care staff' : 'Office / admin'}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Office staff skip any staff-file check you have marked as care-only in Settings.</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

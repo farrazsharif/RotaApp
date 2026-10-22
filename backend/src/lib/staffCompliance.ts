@@ -27,6 +27,17 @@ export const StaffTypes: StaffType[] = ['LOCAL', 'OVERSEAS'];
 export type AppliesTo = 'ALL' | 'LOCAL' | 'OVERSEAS';
 export const AppliesToValues: AppliesTo[] = ['ALL', 'LOCAL', 'OVERSEAS'];
 
+// What the staff member actually does. Office/admin staff are not carrying out
+// the regulated activity, so a company can scope care-specific checks away from
+// them without turning those checks off for everyone.
+export type StaffRole = 'CARE' | 'OFFICE';
+export const StaffRoles: StaffRole[] = ['CARE', 'OFFICE'];
+
+// Which roles a requirement applies to. A second, independent axis from
+// appliesTo: a requirement can be overseas-only AND care-only.
+export type AppliesToRole = 'ALL' | 'CARE' | 'OFFICE';
+export const AppliesToRoleValues: AppliesToRole[] = ['ALL', 'CARE', 'OFFICE'];
+
 export interface Requirement {
   id: string;
   label: string;
@@ -34,6 +45,7 @@ export interface Requirement {
   type: RequirementType;
   required: boolean; // false = not counted (kept for easy re-enable)
   appliesTo?: AppliesTo; // ALL (default) | LOCAL | OVERSEAS
+  appliesToRole?: AppliesToRole; // ALL (default) | CARE | OFFICE
   category?: string; // document category (for type 'document', and reference/training overrides)
   minCount?: number; // how many of that document are needed (references / document)
   tab?: string; // staff-file tab to fix it in (frontend deep-link)
@@ -46,6 +58,7 @@ export interface ComplianceInput {
   docCounts: Record<string, number>; // document category -> number held
   trainingCount: number; // number of training records held
   staffType: StaffType; // LOCAL | OVERSEAS — decides which requirements apply
+  staffRole: StaffRole; // CARE | OFFICE — care-only checks are skipped for office staff
 }
 
 export interface ComplianceItem {
@@ -192,6 +205,7 @@ export function normaliseRequirements(arr: unknown[]): Requirement[] {
       const minRaw = Number(r.minCount);
       const minCount = Number.isFinite(minRaw) && minRaw > 0 ? Math.min(20, Math.round(minRaw)) : undefined;
       const appliesTo = AppliesToValues.includes(r.appliesTo as AppliesTo) ? (r.appliesTo as AppliesTo) : 'ALL';
+      const appliesToRole = AppliesToRoleValues.includes(r.appliesToRole as AppliesToRole) ? (r.appliesToRole as AppliesToRole) : 'ALL';
       return {
         id: String(r.id || `req-${idx}`).slice(0, 60),
         label: label.slice(0, 80),
@@ -199,6 +213,7 @@ export function normaliseRequirements(arr: unknown[]): Requirement[] {
         type,
         required: r.required !== false,
         appliesTo,
+        appliesToRole,
         ...(category ? { category } : {}),
         ...(minCount ? { minCount } : {}),
         tab: r.tab ? String(r.tab).slice(0, 40) : (type === 'document' ? 'Documents' : undefined),
@@ -208,16 +223,20 @@ export function normaliseRequirements(arr: unknown[]): Requirement[] {
     .slice(0, 40);
 }
 
-// A requirement applies to this staff member when it's required AND its
-// appliesTo matches their staff type (ALL matches everyone).
-function appliesToStaff(req: Requirement, staffType: StaffType): boolean {
+// A requirement applies to this staff member when it's required AND BOTH
+// scopes match: their recruitment type (local/overseas) and what they do
+// (care/office). The two are independent, so a check can be overseas-only,
+// care-only, or both. 'ALL' matches everyone on either axis.
+function appliesToStaff(req: Requirement, staffType: StaffType, staffRole: StaffRole): boolean {
   if (!req.required) return false;
-  const scope = req.appliesTo || 'ALL';
-  return scope === 'ALL' || scope === staffType;
+  const typeScope = req.appliesTo || 'ALL';
+  if (typeScope !== 'ALL' && typeScope !== staffType) return false;
+  const roleScope = req.appliesToRole || 'ALL';
+  return roleScope === 'ALL' || roleScope === staffRole;
 }
 
 export function evaluateCompliance(input: ComplianceInput, requirements: Requirement[] = DEFAULT_REQUIREMENTS): ComplianceResult {
-  const active = requirements.filter((r) => appliesToStaff(r, input.staffType));
+  const active = requirements.filter((r) => appliesToStaff(r, input.staffType, input.staffRole));
   const items: ComplianceItem[] = active.map((r) => ({
     id: r.id,
     label: r.label,

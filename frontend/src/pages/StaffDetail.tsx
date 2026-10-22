@@ -143,6 +143,7 @@ export default function StaffDetail() {
                 {user.staffType === 'OVERSEAS'
                   ? <span className="badge-purple badge">🌍 Overseas</span>
                   : <span className="badge-gray badge">Local</span>}
+                {user.staffRole === 'OFFICE' && <span className="badge-gray badge">🏢 Office / admin</span>}
                 <span className={statusInfo(user).cls}>{statusInfo(user).label}</span>
                 <span className="badge-blue badge">£{user.hourlyRate.toFixed(2)}/hr</span>
                 {user.sites && user.sites.length > 0

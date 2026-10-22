@@ -59,6 +59,9 @@ model User {
   platformAdmin            Boolean  @default(false)
   // Recruitment category — decides which staff-file documents are required.
   staffType                String   @default("LOCAL") // LOCAL | OVERSEAS
+  // CARE = delivers the regulated activity; OFFICE = admin only. Scopes which
+  // staff-file checks are required (see lib/staffCompliance).
+  staffRole     String   @default("CARE")
   emergencyContactName     String?
   emergencyContactPhone    String?
   emergencyContactRelation String?

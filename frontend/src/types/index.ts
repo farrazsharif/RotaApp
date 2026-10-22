@@ -93,6 +93,7 @@ export interface User {
   permissionsOverride?: PermissionKey[] | null; // per-person override (null = follow role)
   sites?: { id: string; name: string; color: string }[]; // scoped sites (empty = org-wide)
   staffType?: 'LOCAL' | 'OVERSEAS'; // recruitment category
+  staffRole?: 'CARE' | 'OFFICE'; // delivers care, or office/admin only
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;
