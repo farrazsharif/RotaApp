@@ -70,7 +70,7 @@ export const TYPE_USES_COUNT: Record<RequirementType, boolean> = {
 // The second row is the extra paperwork typically held for overseas recruits.
 export const USER_DOC_CATEGORIES = [
   'DBS Certificate', 'Contract', 'Reference', 'Right to Work',
-  'Training Certificate', 'ID / Passport', 'Fit for Work',
+  'Training Certificate', 'ID', 'Driving Licence', 'Fit for Work',
   'Proof of Address', 'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form',
   'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check',
   'Other',
@@ -93,7 +93,7 @@ const ONBOARDING_DOCS: { id: string; label: string; category: string }[] = [
 
 export const DEFAULT_REQUIREMENTS: Requirement[] = [
   { id: 'identity', label: 'Proof of identity', type: 'identity', required: true, appliesTo: 'ALL', minCount: 2, tab: 'Documents',
-    hint: 'Upload the required number of ID / Passport documents in Documents.' },
+    hint: 'Upload the required number of ID documents (passport, driving licence, etc.) in Documents.' },
   { id: 'dbs', label: 'DBS certificate', type: 'dbs', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Upload the DBS certificate in Documents.' },
   { id: 'references', label: 'Reference(s)', type: 'references', required: true, appliesTo: 'ALL', minCount: 1, tab: 'Documents',

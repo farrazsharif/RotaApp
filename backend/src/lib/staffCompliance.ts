@@ -119,12 +119,17 @@ export const RequirementTypes: RequirementType[] = [
   'training', 'fitForWork', 'emergencyContact', 'document',
 ];
 
+// Document categories that count as a form of identity. 'ID / Passport' is
+// the category used before it was renamed to 'ID' - documents keep the
+// category they were filed under, so it has to keep counting.
+const ID_CATEGORIES = ['ID', 'ID / Passport', 'Driving Licence', 'Passport'];
+
 // The document categories the Documents tab offers for staff (USER owner).
 // Row 2 is standard onboarding paperwork; row 3 is the extra documents held
 // for overseas recruits.
 export const USER_DOC_CATEGORIES = [
   'DBS Certificate', 'Contract', 'Reference', 'Right to Work',
-  'Training Certificate', 'ID / Passport', 'Fit for Work',
+  'Training Certificate', 'ID', 'Driving Licence', 'Fit for Work',
   'Proof of Address', 'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form',
   'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check',
   'Other',
@@ -148,7 +153,7 @@ const ONBOARDING_DOCS: { id: string; label: string; category: string }[] = [
 
 export const DEFAULT_REQUIREMENTS: Requirement[] = [
   { id: 'identity', label: 'Proof of identity', type: 'identity', required: true, appliesTo: 'ALL', minCount: 2, tab: 'Documents',
-    hint: 'Upload the required number of ID / Passport documents in Documents.' },
+    hint: 'Upload the required number of ID documents (passport, driving licence, etc.) in Documents.' },
   { id: 'dbs', label: 'DBS certificate', type: 'dbs', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Upload the DBS certificate in Documents.' },
   { id: 'references', label: 'Reference(s)', type: 'references', required: true, appliesTo: 'ALL', minCount: 1, tab: 'Documents',
@@ -202,7 +207,10 @@ function satisfied(req: Requirement, i: ComplianceInput): boolean {
     // Proof of identity requires actual ID document(s) — the profile photo /
     // avatar does not count. Honours minCount so a company can require two
     // forms of ID.
-    case 'identity': return docCount(i, 'ID / Passport') >= min;
+    // Counts any form of ID. 'ID / Passport' is the pre-rename category and
+    // stays here so documents filed under it still count; 'Passport' is the
+    // overseas category, and is a form of ID like any other.
+    case 'identity': return ID_CATEGORIES.reduce((n, c) => n + docCount(i, c), 0) >= min;
     case 'dbs': return docCount(i, 'DBS Certificate') > 0;
     case 'references': return docCount(i, req.category || 'Reference') >= min;
     // The statutory excuse comes from having CHECKED the documents, so a
