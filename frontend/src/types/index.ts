@@ -94,6 +94,12 @@ export interface User {
   sites?: { id: string; name: string; color: string }[]; // scoped sites (empty = org-wide)
   staffType?: 'LOCAL' | 'OVERSEAS'; // recruitment category
   staffRole?: 'CARE' | 'OFFICE'; // delivers care, or office/admin only
+  // Right to work check - the recorded check, not the stored copy.
+  rightToWorkCheckedAt?: string | null;
+  rightToWorkCheckedBy?: string | null;
+  rightToWorkMethod?: string | null;
+  rightToWorkDocument?: string | null;
+  rightToWorkNote?: string | null;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   emergencyContactRelation?: string;

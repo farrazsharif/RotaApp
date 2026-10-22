@@ -93,6 +93,13 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "staffType" TEXT NOT NULL DEFAULT 'LOCAL'`);
   // Care vs office staff - scopes which staff-file checks apply.
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "staffRole" TEXT NOT NULL DEFAULT 'CARE'`);
+  // Right to work check record (date/method/who) - the statutory excuse needs
+  // the check, not just a stored copy of the document.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "rightToWorkCheckedAt" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "rightToWorkCheckedBy" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "rightToWorkMethod" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "rightToWorkDocument" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "rightToWorkNote" TEXT`);
   // DBS record fields (one current certificate per staff member) — mirrors the
   // office DBS Database & Risk Assessment register.
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsCertificateNo" TEXT`);

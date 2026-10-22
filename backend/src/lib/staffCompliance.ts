@@ -59,6 +59,7 @@ export interface ComplianceInput {
   trainingCount: number; // number of training records held
   staffType: StaffType; // LOCAL | OVERSEAS — decides which requirements apply
   staffRole: StaffRole; // CARE | OFFICE — care-only checks are skipped for office staff
+  rightToWorkCheckedAt?: Date | string | null; // when the right-to-work check was carried out
 }
 
 export interface ComplianceItem {
@@ -116,8 +117,8 @@ export const DEFAULT_REQUIREMENTS: Requirement[] = [
     hint: 'Upload the DBS certificate in Documents.' },
   { id: 'references', label: 'Reference(s)', type: 'references', required: true, appliesTo: 'ALL', minCount: 1, tab: 'Documents',
     hint: 'Upload the required number of references in Documents.' },
-  { id: 'rightToWork', label: 'Right to work', type: 'rightToWork', required: true, appliesTo: 'ALL', tab: 'Documents',
-    hint: 'Upload right-to-work evidence (passport / visa / share code) in Documents.' },
+  { id: 'rightToWork', label: 'Right to work', type: 'rightToWork', required: true, appliesTo: 'ALL', tab: 'Right to Work',
+    hint: 'Record the right-to-work check (date, method, document seen) on the Right to Work tab.' },
   { id: 'contract', label: 'Employment contract', type: 'contract', required: true, appliesTo: 'ALL', tab: 'Documents',
     hint: 'Upload the signed contract of employment in Documents.' },
   { id: 'training', label: 'Qualifications / training', type: 'training', required: true, appliesTo: 'ALL', tab: 'Training',
@@ -168,7 +169,11 @@ function satisfied(req: Requirement, i: ComplianceInput): boolean {
     case 'identity': return docCount(i, 'ID / Passport') >= min;
     case 'dbs': return docCount(i, 'DBS Certificate') > 0;
     case 'references': return docCount(i, req.category || 'Reference') >= min;
-    case 'rightToWork': return docCount(i, 'Right to Work') > 0;
+    // The statutory excuse comes from having CHECKED the documents, so a
+    // recorded check satisfies this. A stored Right to Work document still
+    // counts, because files predating the check record would otherwise all
+    // turn red overnight.
+    case 'rightToWork': return !!i.rightToWorkCheckedAt || docCount(i, 'Right to Work') > 0;
     case 'contract': return docCount(i, 'Contract') > 0;
     case 'training': return i.trainingCount > 0 || docCount(i, 'Training Certificate') > 0;
     case 'fitForWork': return fitForWorkSigned(i.fitForWork) || docCount(i, 'Fit for Work') > 0;

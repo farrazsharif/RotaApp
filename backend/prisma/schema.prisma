@@ -62,6 +62,15 @@ model User {
   // CARE = delivers the regulated activity; OFFICE = admin only. Scopes which
   // staff-file checks are required (see lib/staffCompliance).
   staffRole     String   @default("CARE")
+  // Right to work check. The statutory excuse against an illegal-working civil
+  // penalty comes from having CHECKED the documents before employment started,
+  // not from holding a copy - so the date, method and who did it are recorded
+  // here rather than inferred from an uploaded file.
+  rightToWorkCheckedAt   DateTime?
+  rightToWorkCheckedBy   String? // who carried out the check
+  rightToWorkMethod      String? // MANUAL | IDVT | SHARE_CODE
+  rightToWorkDocument    String? // what was seen, e.g. "UK passport"
+  rightToWorkNote        String?
   emergencyContactName     String?
   emergencyContactPhone    String?
   emergencyContactRelation String?

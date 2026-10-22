@@ -21,6 +21,11 @@ const userSelect = {
   emergencyContactName: true, emergencyContactPhone: true, emergencyContactRelation: true, emergencyContactAddress: true,
   staffType: true,
   staffRole: true,
+  rightToWorkCheckedAt: true,
+  rightToWorkCheckedBy: true,
+  rightToWorkMethod: true,
+  rightToWorkDocument: true,
+  rightToWorkNote: true,
   fitForWork: true,
   dbsCertificateNo: true, dbsPositionApplied: true, dbsDateOfIssue: true, dbsRiskLevel: true, dbsIssuedBy: true,
   dbsAppointingManager: true, dbsOffenceDisclosed: true, dbsOffenceDate: true, dbsNotes: true,
@@ -162,7 +167,7 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
   }
   const users = await prisma.user.findMany({
     where,
-    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true, staffRole: true },
+    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true, staffRole: true, rightToWorkCheckedAt: true },
   });
   const ids = users.map((u) => u.id);
   const [counts, training, settings] = await Promise.all([
@@ -181,6 +186,7 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
       trainingCount: trainCount.get(u.id) || 0,
       staffType: (u.staffType as 'LOCAL' | 'OVERSEAS') || 'LOCAL',
       staffRole: (u.staffRole as 'CARE' | 'OFFICE') || 'CARE',
+      rightToWorkCheckedAt: u.rightToWorkCheckedAt,
     };
     const r = evaluateCompliance(input, requirements);
     return { userId: u.id, complete: r.complete, present: r.present, total: r.total, missing: r.missing };
@@ -196,7 +202,7 @@ export async function staffCompliance(req: AuthRequest, res: Response) {
   }
   const user = await prisma.user.findUnique({
     where: { id: req.params.id },
-    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true, staffRole: true },
+    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true, staffRole: true, rightToWorkCheckedAt: true },
   });
   if (!user) return res.status(404).json({ error: 'User not found' });
   const [counts, trainingCount, settings] = await Promise.all([
@@ -212,6 +218,7 @@ export async function staffCompliance(req: AuthRequest, res: Response) {
     trainingCount,
     staffType: (user.staffType as 'LOCAL' | 'OVERSEAS') || 'LOCAL',
     staffRole: (user.staffRole as 'CARE' | 'OFFICE') || 'CARE',
+    rightToWorkCheckedAt: user.rightToWorkCheckedAt,
   }, parseRequirements(settings.staffFileRequirements));
   res.json(result);
 }
@@ -273,7 +280,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (!(await staffInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, emergencyContactAddress, fitForWork, staffType, staffRole } = req.body;
+  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, emergencyContactAddress, fitForWork, staffType, staffRole, rightToWorkCheckedAt, rightToWorkCheckedBy, rightToWorkMethod, rightToWorkDocument, rightToWorkNote } = req.body;
   const data: Record<string, unknown> = {};
   // Changing the login email — must stay unique. Only admins may change the
   // email of another admin account.
@@ -296,6 +303,16 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (photo !== undefined) data.photo = photo || null;
   if (staffType !== undefined) data.staffType = staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL';
   if (staffRole !== undefined) data.staffRole = staffRole === 'OFFICE' ? 'OFFICE' : 'CARE';
+  // Right to work check. Clearing the date clears the record, so a check
+  // entered by mistake can be undone rather than silently standing.
+  if (rightToWorkCheckedAt !== undefined) {
+    const d = rightToWorkCheckedAt ? new Date(rightToWorkCheckedAt) : null;
+    data.rightToWorkCheckedAt = d && !Number.isNaN(d.getTime()) ? d : null;
+  }
+  if (rightToWorkCheckedBy !== undefined) data.rightToWorkCheckedBy = String(rightToWorkCheckedBy || '').trim().slice(0, 120) || null;
+  if (rightToWorkMethod !== undefined) data.rightToWorkMethod = String(rightToWorkMethod || '').trim().slice(0, 40) || null;
+  if (rightToWorkDocument !== undefined) data.rightToWorkDocument = String(rightToWorkDocument || '').trim().slice(0, 120) || null;
+  if (rightToWorkNote !== undefined) data.rightToWorkNote = String(rightToWorkNote || '').trim().slice(0, 500) || null;
   if (active !== undefined && req.user!.role === Role.ADMIN) data.active = active;
   // Assigning a custom role also fixes the base account type. Only admins may
   // assign an admin-level role (prevents privilege escalation by managers).

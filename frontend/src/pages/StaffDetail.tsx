@@ -29,7 +29,7 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-const TABS = ['Details', 'Compliance', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Emergency Contact', 'Fit for Work', 'DBS', 'Supervision', 'Documents'] as const;
+const TABS = ['Details', 'Compliance', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Emergency Contact', 'Right to Work', 'Fit for Work', 'DBS', 'Supervision', 'Documents'] as const;
 type Tab = typeof TABS[number];
 
 // The health-declaration checklist from the paper "Fit for Work Declaration".
@@ -69,7 +69,7 @@ export default function StaffDetail() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { isManager, isAdmin } = useAuth();
+  const { isManager, isAdmin, user: me } = useAuth();
   const { can } = usePermissions();
   const [tab, setTab] = useState<Tab>('Details');
   const [editOpen, setEditOpen] = useState(false);
@@ -260,6 +260,7 @@ export default function StaffDetail() {
       {tab === 'Training' && <TrainingTab userId={user.id} isManager={isManager} />}
       {tab === 'Important Dates' && <ImportantDatesTab userId={user.id} isManager={isManager} />}
       {tab === 'Emergency Contact' && <EmergencyContactTab userId={user.id} isManager={isManager} initial={user} />}
+      {tab === 'Right to Work' && <RightToWorkTab userId={user.id} isManager={isManager} initial={user} checkerName={me ? `${me.firstName} ${me.lastName}`.trim() : ''} />}
       {tab === 'Fit for Work' && <FitForWorkTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'DBS' && can('manage_dbs') && <DbsTab userId={user.id} initial={user} />}
       {tab === 'Supervision' && <SupervisionTab userId={user.id} staffName={`${user.firstName} ${user.lastName}`} isManager={isManager} />}
@@ -926,6 +927,145 @@ function SupervisionTab({ userId, staffName, isManager }: { userId: string; staf
   );
 }
 
+// Right to work check. Holding a copy of someone's passport is not the same as
+// having checked it: the statutory excuse against an illegal-working civil
+// penalty comes from carrying out and RECORDING the check before employment
+// starts. This records what was seen, when, how and by whom.
+//
+// It applies to everyone, including British citizens — checking only the staff
+// you think might need it is both discriminatory and leaves you with no excuse
+// for the ones you skipped.
+const RTW_METHODS: { value: string; label: string }[] = [
+  { value: 'MANUAL', label: 'Manual — original documents seen in person' },
+  { value: 'IDVT', label: 'Digital — certified IDVT / identity service provider' },
+  { value: 'SHARE_CODE', label: 'Home Office online check (share code)' },
+];
+
+const RTW_DOCUMENTS = [
+  'UK passport (current or expired)',
+  'UK birth/adoption certificate + document showing NI number',
+  'Certificate of naturalisation + document showing NI number',
+  'Irish passport or passport card',
+  'Passport with visa / BRP',
+  'Home Office share code result',
+  'Other',
+];
+
+function RightToWorkTab({ userId, isManager, initial, checkerName }: {
+  userId: string;
+  isManager: boolean;
+  initial: User;
+  checkerName: string;
+}) {
+  const qc = useQueryClient();
+  const ro = !isManager;
+  const [checkedAt, setCheckedAt] = useState(initial.rightToWorkCheckedAt ? String(initial.rightToWorkCheckedAt).slice(0, 10) : '');
+  const [checkedBy, setCheckedBy] = useState(initial.rightToWorkCheckedBy || '');
+  const [method, setMethod] = useState(initial.rightToWorkMethod || 'MANUAL');
+  const [document, setDocument] = useState(initial.rightToWorkDocument || '');
+  const [note, setNote] = useState(initial.rightToWorkNote || '');
+
+  const saveMut = useMutation({
+    mutationFn: () => usersApi.update(userId, {
+      rightToWorkCheckedAt: checkedAt || null,
+      rightToWorkCheckedBy: checkedBy,
+      rightToWorkMethod: method,
+      rightToWorkDocument: document,
+      rightToWorkNote: note,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['user', userId] });
+      qc.invalidateQueries({ queryKey: ['user-compliance', userId] });
+    },
+  });
+
+  const recorded = !!initial.rightToWorkCheckedAt;
+
+  return (
+    <div className="card space-y-4 max-w-xl">
+      <div>
+        <h2 className="font-semibold text-gray-900">Right to work check</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Every employee needs this, including British citizens. The check must be carried out
+          and recorded <strong>before the first day of paid work</strong> — that is what gives
+          you a statutory excuse against a civil penalty.
+        </p>
+      </div>
+
+      {recorded && (
+        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+          ✓ Checked on {format(new Date(initial.rightToWorkCheckedAt as string), 'd MMM yyyy')}
+          {initial.rightToWorkCheckedBy ? ` by ${initial.rightToWorkCheckedBy}` : ''}
+        </p>
+      )}
+
+      <div>
+        <label className="label">Date of check</label>
+        {ro
+          ? <p className="text-sm text-gray-800">{checkedAt ? format(new Date(checkedAt), 'd MMM yyyy') : '—'}</p>
+          : <input type="date" value={checkedAt} onChange={(e) => setCheckedAt(e.target.value)} className="input w-52" />}
+        {!ro && <p className="text-xs text-gray-400 mt-0.5">Clear the date to remove the record.</p>}
+      </div>
+
+      <div>
+        <label className="label">Checked by</label>
+        {ro ? <p className="text-sm text-gray-800">{checkedBy || '—'}</p> : (
+          <div className="flex gap-2">
+            <input value={checkedBy} onChange={(e) => setCheckedBy(e.target.value)} placeholder="Who carried out the check" className="input" />
+            {checkerName && checkedBy !== checkerName && (
+              <button type="button" className="btn-secondary btn whitespace-nowrap" onClick={() => setCheckedBy(checkerName)}>Me</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="label">How it was checked</label>
+        {ro
+          ? <p className="text-sm text-gray-800">{RTW_METHODS.find((m) => m.value === method)?.label || '—'}</p>
+          : (
+            <select value={method} onChange={(e) => setMethod(e.target.value)} className="input">
+              {RTW_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          )}
+      </div>
+
+      <div>
+        <label className="label">Document seen</label>
+        {ro ? <p className="text-sm text-gray-800">{document || '—'}</p> : (
+          <select value={document} onChange={(e) => setDocument(e.target.value)} className="input">
+            <option value="">Select the document…</option>
+            {RTW_DOCUMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+        )}
+      </div>
+
+      <div>
+        <label className="label">Notes</label>
+        {ro
+          ? <p className="text-sm text-gray-800 whitespace-pre-wrap">{note || '—'}</p>
+          : <AutoGrowTextarea value={note} minRows={2} onChange={(e) => setNote(e.target.value)} placeholder="e.g. share code reference, expiry date to follow up" className="input" />}
+      </div>
+
+      <p className="text-xs text-gray-400">
+        Keep the copy you took in Documents under “Right to Work”. Copies must be retained for
+        the duration of employment plus two years.
+      </p>
+
+      {isManager && (
+        <div className="flex gap-3 pt-2">
+          <div className="flex-1" />
+          {saveMut.isSuccess && !saveMut.isPending && <span className="text-sm text-green-600 self-center">Saved ✓</span>}
+          <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
+            {saveMut.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FitForWorkTab({ userId, isManager, initial }: { userId: string; isManager: boolean; initial: User }) {
   const qc = useQueryClient();
   const ro = !isManager;
