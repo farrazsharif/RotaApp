@@ -218,7 +218,7 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
             <p className="text-xs text-gray-400 mt-1">Overseas staff have extra required documents (visa/BRP, sponsorship, etc.) checked in their file.</p>
           </div>
           <div>
-            <label className="label">Role in the service</label>
+            <label className="label">Does this person deliver care?</label>
             <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">
               {(['CARE', 'OFFICE'] as const).map((t) => (
                 <button
@@ -227,11 +227,11 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
                   onClick={() => setForm({ ...form, staffRole: t })}
                   className={`px-4 py-1.5 border-l first:border-l-0 border-gray-300 ${form.staffRole === t ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
                 >
-                  {t === 'CARE' ? 'Care staff' : 'Office / admin'}
+                  {t === 'CARE' ? 'Yes - delivers care' : 'No - office only'}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-400 mt-1">Office staff skip any staff-file check you have marked as care-only in Settings.</p>
+            <p className="text-xs text-gray-400 mt-1">Answer by what they actually do, not their job title. Anyone who covers visits - a coordinator, supervisor or admin who also carers - delivers care and keeps the full checklist. Choose office only for people who never deliver care; they skip any check marked care-only in Settings.</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

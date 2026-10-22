@@ -872,7 +872,7 @@ function StaffFileChecklistTab() {
                         <option key={a} value={a}>{APPLIES_TO_ROLE_LABEL[a]}</option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-400 mt-0.5">Use this to skip care-specific checks for office staff.</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Care-only checks are skipped for staff marked as never delivering care. Anyone who covers visits still gets them.</p>
                   </div>
                   {TYPE_USES_CATEGORY[r.type] && (
                     <div>
