@@ -128,7 +128,7 @@ const ID_CATEGORIES = ['ID', 'ID / Passport', 'Driving Licence', 'Passport'];
 // Row 2 is standard onboarding paperwork; row 3 is the extra documents held
 // for overseas recruits.
 export const USER_DOC_CATEGORIES = [
-  'DBS Certificate', 'Contract', 'Reference', 'Right to Work',
+  'DBS Certificate', 'Offer Letter', 'Contract', 'Reference', 'Right to Work',
   'Training Certificate', 'ID', 'Driving Licence', 'Fit for Work',
   'Proof of Address', 'Emergency Contact', 'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form',
   'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check',
@@ -138,6 +138,7 @@ export const USER_DOC_CATEGORIES = [
 // Standard onboarding documents — added to the default checklist as their own
 // document requirements (all applying to every staff member).
 const ONBOARDING_DOCS: { id: string; label: string; category: string }[] = [
+  { id: 'sf-offer-letter', label: 'Offer letter', category: 'Offer Letter' },
   { id: 'sf-proof-address', label: 'Proof of address', category: 'Proof of Address' },
   { id: 'sf-interview', label: 'Interview Questionnaire', category: 'Interview Questionnaire' },
   { id: 'sf-payroll', label: 'Payroll Form', category: 'Payroll Form' },
