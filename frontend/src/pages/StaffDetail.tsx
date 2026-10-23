@@ -423,9 +423,10 @@ function ComplianceTab({ userId, onGoToTab }: { userId: string; onGoToTab: (t: T
               ) : (
                 <button
                   className="text-gray-400 text-xs hover:underline hover:text-gray-600"
+                  title="Record that this check does not apply to this member of staff"
                   onClick={() => { setWaiveFor(it.id); setWaiveReason(''); }}
                 >
-                  Not required
+                  Mark not required
                 </button>
               ))}
             </div>
