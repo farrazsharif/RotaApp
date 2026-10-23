@@ -1,1 +1,5 @@
 dev-dist
+
+# Stray PWA manifest: vite-plugin-pwa generates this into dist from
+# vite.config.ts. A copy in public/ would be copied over the generated one.
+manifest.webmanifest
