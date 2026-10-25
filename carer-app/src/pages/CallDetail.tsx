@@ -746,6 +746,13 @@ export default function CallDetail() {
   const startOfTodayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
   const isPastDay = new Date(shift.date).getTime() < startOfTodayMs;
   const isFutureDay = !shiftIsToday && !isPastDay;
+  // Whether the visit has actually begun. A co-carer with no clock record is
+  // only worth flagging once it has - before the start time, nobody is late.
+  const visitStarted = isPastDay || (shiftIsToday && (() => {
+    const d = new Date();
+    const [h, m] = shift.startTime.split(':').map(Number);
+    return d.getHours() * 60 + d.getMinutes() >= h * 60 + m;
+  })());
   // A still-unrecorded past visit can be caught up on at any time (no window) —
   // the carer records the clock times they attended, then saves the log + meds.
   const canRecordMissed = assignedToMe && isPastDay && !myAnyRecord;
@@ -781,13 +788,29 @@ export default function CallDetail() {
           </div>
           {shift.visitName && <p className="font-semibold text-gray-800">{shift.visitName}</p>}
           {coCarers.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2">
               <span className="text-xs font-medium text-gray-500">👥 Working with</span>
-              {coCarers.map((c) => (
-                <span key={c.id} className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-                  {c.firstName} {c.lastName}
-                </span>
-              ))}
+              <div className="mt-1 space-y-1">
+                {coCarers.map((c) => {
+                  // Their own clock record for THIS visit. Shown so a carer can see
+                  // at a glance that the person they worked alongside forgot to
+                  // clock in - while they are still together and can fix it.
+                  const rec = shift.clockRecords?.find((r) => r.userId === c.id);
+                  const status = rec?.clockOut
+                    ? { label: `${format(new Date(rec.clockIn), 'h:mm a')} – ${format(new Date(rec.clockOut), 'h:mm a')}`, cls: 'bg-green-100 text-green-700' }
+                    : rec
+                    ? { label: `In since ${format(new Date(rec.clockIn), 'h:mm a')}`, cls: 'bg-blue-100 text-blue-700' }
+                    : visitStarted
+                    ? { label: 'Not clocked in', cls: 'bg-amber-100 text-amber-800' }
+                    : { label: 'Not started', cls: 'bg-gray-100 text-gray-500' };
+                  return (
+                    <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-medium text-gray-700 truncate">{c.firstName} {c.lastName}</span>
+                      <span className={`font-semibold px-2 py-0.5 rounded-full shrink-0 ${status.cls}`}>{status.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
           {su?.address && (
