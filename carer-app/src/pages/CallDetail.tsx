@@ -788,25 +788,30 @@ export default function CallDetail() {
           </div>
           {shift.visitName && <p className="font-semibold text-gray-800">{shift.visitName}</p>}
           {coCarers.length > 0 && (
-            <div className="mt-2">
-              <span className="text-xs font-medium text-gray-500">👥 Working with</span>
-              <div className="mt-1 space-y-1">
+            <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Working with</p>
+              <div className="space-y-2.5">
                 {coCarers.map((c) => {
-                  // Their own clock record for THIS visit. Shown so a carer can see
-                  // at a glance that the person they worked alongside forgot to
-                  // clock in - while they are still together and can fix it.
+                  // Their own clock record for THIS visit, so a carer can see at a
+                  // glance that the person they worked alongside forgot to clock in
+                  // - while the two are still together and can put it right.
                   const rec = shift.clockRecords?.find((r) => r.userId === c.id);
-                  const status = rec?.clockOut
-                    ? { label: `${format(new Date(rec.clockIn), 'h:mm a')} – ${format(new Date(rec.clockOut), 'h:mm a')}`, cls: 'bg-green-100 text-green-700' }
+                  const st = rec?.clockOut
+                    ? { label: `${format(new Date(rec.clockIn), 'h:mm a')} – ${format(new Date(rec.clockOut), 'h:mm a')}`, text: 'text-green-700', avatar: 'bg-green-100 text-green-700' }
                     : rec
-                    ? { label: `In since ${format(new Date(rec.clockIn), 'h:mm a')}`, cls: 'bg-blue-100 text-blue-700' }
+                    ? { label: `Clocked in ${format(new Date(rec.clockIn), 'h:mm a')}`, text: 'text-blue-700', avatar: 'bg-blue-100 text-blue-700' }
                     : visitStarted
-                    ? { label: 'Not clocked in', cls: 'bg-amber-100 text-amber-800' }
-                    : { label: 'Not started', cls: 'bg-gray-100 text-gray-500' };
+                    ? { label: 'Not clocked in', text: 'text-amber-700', avatar: 'bg-amber-100 text-amber-800' }
+                    : { label: 'Yet to clock in', text: 'text-gray-400', avatar: 'bg-gray-200 text-gray-500' };
                   return (
-                    <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="font-medium text-gray-700 truncate">{c.firstName} {c.lastName}</span>
-                      <span className={`font-semibold px-2 py-0.5 rounded-full shrink-0 ${status.cls}`}>{status.label}</span>
+                    <div key={c.id} className="flex items-center gap-2.5">
+                      <span className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${st.avatar}`}>
+                        {c.firstName.charAt(0)}{c.lastName.charAt(0)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-gray-800 truncate">{c.firstName} {c.lastName}</span>
+                        <span className={`block text-xs font-medium ${st.text}`}>{st.label}</span>
+                      </span>
                     </div>
                   );
                 })}
