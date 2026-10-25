@@ -171,6 +171,35 @@ function AdjustTimes({ record, shiftDate, scheduledStart, scheduledEnd, onSaved,
   );
 }
 
+// Move an HH:mm time by some minutes, wrapping within the day. Used by the
+// steppers on the record-a-missed-visit form.
+function nudgeTime(hhmm: string, deltaMins: number): string {
+  if (!hhmm) return hhmm;
+  const [h, m] = hhmm.split(':').map(Number);
+  let total = ((h || 0) * 60 + (m || 0) + deltaMins) % (24 * 60);
+  if (total < 0) total += 24 * 60;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+// A time field with minute steppers either side of it. Typing an exact time
+// on a phone keypad is fiddly, and the common case here is nudging a
+// colleague's time by a few minutes rather than entering one from scratch.
+// With the field still empty the steppers start from `fallback` instead of
+// doing nothing.
+function TimeField({ label, value, onChange, fallback }: { label: string; value: string; onChange: (v: string) => void; fallback: string }) {
+  const step = (d: number) => onChange(nudgeTime(value || fallback, d));
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 mb-1.5">{label}</p>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => step(-5)} aria-label={`${label} five minutes earlier`} className="h-10 w-12 shrink-0 rounded-lg border border-gray-300 font-bold text-gray-700 active:bg-gray-100">−5</button>
+        <input type="time" value={value} onChange={(e) => onChange(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+        <button type="button" onClick={() => step(5)} aria-label={`${label} five minutes later`} className="h-10 w-12 shrink-0 rounded-lg border border-gray-300 font-bold text-gray-700 active:bg-gray-100">+5</button>
+      </div>
+    </div>
+  );
+}
+
 // Lets a carer record a PAST visit they forgot to clock in/out for entirely —
 // there's no existing record to adjust, so this creates a completed one. Times
 // are entered by the carer; on a double-up where the other carer DID clock in,
@@ -228,14 +257,8 @@ function RecordMissedVisit({ shiftId, shiftDate, scheduledStart, scheduledEnd, f
           </p>
         )}
       </div>
-      <div>
-        <p className="text-xs font-semibold text-gray-500 mb-1.5">Clock in</p>
-        <input type="time" value={startVal} onChange={(e) => setStartVal(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-      </div>
-      <div>
-        <p className="text-xs font-semibold text-gray-500 mb-1.5">Clock out</p>
-        <input type="time" value={endVal} onChange={(e) => setEndVal(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-      </div>
+      <TimeField label="Clock in" value={startVal} onChange={setStartVal} fallback={fromCarer?.start || scheduledStart} />
+      <TimeField label="Clock out" value={endVal} onChange={setEndVal} fallback={fromCarer?.end || scheduledEnd} />
       <div className="flex flex-col items-start gap-1">
         {fromCarer && (
           <button onClick={() => { setStartVal(fromCarer.start); setEndVal(fromCarer.end || ''); }} className="text-sm font-medium text-blue-600 text-left">
