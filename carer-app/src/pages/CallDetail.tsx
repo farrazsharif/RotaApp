@@ -798,34 +798,25 @@ export default function CallDetail() {
           </div>
           {shift.visitName && <p className="font-semibold text-gray-800">{shift.visitName}</p>}
           {coCarers.length > 0 && (
-            <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-2.5">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-2">Working with</p>
-              <div className="space-y-2.5">
-                {coCarers.map((c) => {
-                  // Their own clock record for THIS visit, so a carer can see at a
-                  // glance that the person they worked alongside forgot to clock in
-                  // - while the two are still together and can put it right.
-                  const rec = shift.clockRecords?.find((r) => r.userId === c.id);
-                  const st = rec?.clockOut
-                    ? { label: `${format(new Date(rec.clockIn), 'h:mm a')} – ${format(new Date(rec.clockOut), 'h:mm a')}`, text: 'text-green-700', avatar: 'bg-green-100 text-green-700' }
-                    : rec
-                    ? { label: `Clocked in ${format(new Date(rec.clockIn), 'h:mm a')}`, text: 'text-blue-700', avatar: 'bg-blue-100 text-blue-700' }
-                    : visitStarted
-                    ? { label: 'Not clocked in', text: 'text-amber-700', avatar: 'bg-amber-100 text-amber-800' }
-                    : { label: 'Yet to clock in', text: 'text-gray-400', avatar: 'bg-gray-200 text-gray-500' };
-                  return (
-                    <div key={c.id} className="flex items-center gap-2.5">
-                      <span className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${st.avatar}`}>
-                        {c.firstName.charAt(0)}{c.lastName.charAt(0)}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-gray-800 truncate">{c.firstName} {c.lastName}</span>
-                        <span className={`block text-xs font-medium ${st.text}`}>{st.label}</span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+            <div className="mt-1.5">
+              {coCarers.map((c) => {
+                // Their own clock record for THIS visit, so a carer can see that
+                // the person they worked alongside forgot to clock in - while the
+                // two are still together and can put it right.
+                const rec = shift.clockRecords?.find((r) => r.userId === c.id);
+                const st = rec?.clockOut
+                  ? { label: `${format(new Date(rec.clockIn), 'h:mm a')} – ${format(new Date(rec.clockOut), 'h:mm a')}`, text: 'text-green-700' }
+                  : rec
+                  ? { label: `clocked in ${format(new Date(rec.clockIn), 'h:mm a')}`, text: 'text-blue-700' }
+                  : visitStarted
+                  ? { label: 'not clocked in', text: 'text-amber-700' }
+                  : { label: 'yet to clock in', text: 'text-gray-400' };
+                return (
+                  <p key={c.id} className="text-sm text-gray-600">
+                    👥 {c.firstName} {c.lastName} <span className={`font-medium ${st.text}`}>· {st.label}</span>
+                  </p>
+                );
+              })}
             </div>
           )}
           {su?.address && (
