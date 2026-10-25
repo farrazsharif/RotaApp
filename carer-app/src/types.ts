@@ -160,7 +160,9 @@ export interface CallLog {
   createdAt: string;
   // Returned by the list endpoint — used for the recent-visit history panel.
   user?: { id: string; firstName: string; lastName: string } | null;
-  shift?: { id: string; date: string; startTime: string; endTime: string; visitName?: string | null } | null;
+  // clockRecords is what the visit ACTUALLY ran to, as opposed to startTime
+  // and endTime, which are only what was scheduled.
+  shift?: { id: string; date: string; startTime: string; endTime: string; visitName?: string | null; clockRecords?: { userId: string; clockIn: string; clockOut: string | null }[] } | null;
 }
 
 export interface FinancialTransaction {

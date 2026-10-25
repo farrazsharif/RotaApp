@@ -263,6 +263,19 @@ const CLIENT_TABS = [
   { key: 'emar', label: 'eMAR' },
 ] as const;
 
+// What a past visit actually ran to, from its clock records. On a double-up
+// there is one record per carer, so this is the span the visit was covered
+// for: earliest in to latest out. No record at all is worth saying out loud -
+// it is the thing the office ends up chasing days later.
+function attendanceLabel(records?: { clockIn: string; clockOut: string | null }[]) {
+  if (!records || records.length === 0) return { label: 'No clock record', cls: 'text-amber-700' };
+  const ins = records.map((r) => new Date(r.clockIn).getTime());
+  const outs = records.filter((r) => r.clockOut).map((r) => new Date(r.clockOut as string).getTime());
+  const firstIn = format(new Date(Math.min(...ins)), 'h:mm a');
+  if (outs.length < records.length) return { label: `${firstIn} – still clocked in`, cls: 'text-blue-700' };
+  return { label: `${firstIn} – ${format(new Date(Math.max(...outs)), 'h:mm a')}`, cls: 'text-gray-500' };
+}
+
 export default function CallDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -1123,6 +1136,7 @@ export default function CallDetail() {
                   const authors = logAuthors(l);
                   const when = l.shift?.date ? new Date(l.shift.date) : new Date(l.createdAt);
                   const timeLabel = l.shift ? `${formatTime12h(l.shift.startTime)}` : format(new Date(l.createdAt), 'h:mm a');
+                  const attended = attendanceLabel(l.shift?.clockRecords);
                   return (
                     <div key={l.id} className="rounded-lg bg-gray-50 border border-gray-100 p-3">
                       <div className="flex items-center justify-between gap-2 mb-1">
@@ -1132,6 +1146,7 @@ export default function CallDetail() {
                         </span>
                         {authors && <span className="text-xs text-gray-400 shrink-0">{authors}</span>}
                       </div>
+                      <p className={`text-xs font-medium mb-1 ${attended.cls}`}>⏱ {attended.label}</p>
                       <p className="text-sm text-gray-800 whitespace-pre-wrap">{l.note}</p>
                       <TaskBadges tasks={l.tasks} />
                       <DomainBadges supportDomains={l.supportDomains} />
