@@ -162,7 +162,7 @@ export interface CallLog {
   user?: { id: string; firstName: string; lastName: string } | null;
   // clockRecords is what the visit ACTUALLY ran to, as opposed to startTime
   // and endTime, which are only what was scheduled.
-  shift?: { id: string; date: string; startTime: string; endTime: string; visitName?: string | null; clockRecords?: { userId: string; clockIn: string; clockOut: string | null }[] } | null;
+  shift?: { id: string; date: string; startTime: string; endTime: string; visitName?: string | null; clockRecords?: { userId: string; clockIn: string; clockOut: string | null; user?: { firstName: string; lastName: string } | null }[] } | null;
 }
 
 export interface FinancialTransaction {

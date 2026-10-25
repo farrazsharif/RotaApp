@@ -18,7 +18,9 @@ const include = {
       id: true, date: true, startTime: true, endTime: true, visitName: true,
       // Needed so the UI can show the carer's actual clock in/out times
       // for the visit rather than the scheduled visit window.
-      clockRecords: { select: { userId: true, clockIn: true, clockOut: true } },
+      // The carer on each record, so a double-up can be shown as one line per
+      // person rather than a single merged span.
+      clockRecords: { select: { userId: true, clockIn: true, clockOut: true, user: { select: { firstName: true, lastName: true } } } },
     },
   },
 };
