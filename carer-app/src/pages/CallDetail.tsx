@@ -253,6 +253,16 @@ const STATUS_OPTIONS: { value: MedAdminStatus; label: string; color: string }[] 
 
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
 
+// The client-file sections reachable straight from a visit. Mirrors the tabs
+// on the client page, which reads the key back out of ?tab=.
+const CLIENT_TABS = [
+  { key: 'info', label: 'Client Info' },
+  { key: 'care', label: 'Care Plan' },
+  { key: 'service', label: 'Service Plan' },
+  { key: 'risk', label: 'Risk' },
+  { key: 'emar', label: 'eMAR' },
+] as const;
+
 export default function CallDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -819,12 +829,12 @@ export default function CallDetail() {
             </div>
           )}
           {su?.address && (
-            <p className="text-sm mt-1">
+            <p className="text-base mt-2 leading-snug">
               <a
                 href={mapsUrl(su.address, su.postcode) || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 underline underline-offset-2 active:text-blue-800"
+                className="text-blue-600 font-medium active:text-blue-800"
               >
                 📍 {su.address}{su.postcode ? `, ${su.postcode}` : ''}
               </a>
@@ -832,12 +842,17 @@ export default function CallDetail() {
           )}
           {su?.phone && <p className="text-sm text-gray-500">📞 {su.phone}</p>}
           {su && (
-            <button
-              onClick={() => navigate(`/client/${su.id}`)}
-              className="mt-2 text-sm font-medium text-blue-600"
-            >
-              📋 View Client Details
-            </button>
+            <div className="mt-3 -mb-0.5 flex gap-1.5 overflow-x-auto pb-0.5">
+              {CLIENT_TABS.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => navigate(`/client/${su.id}?tab=${t.key}`)}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-semibold text-gray-700 whitespace-nowrap shadow-sm active:bg-gray-100"
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 

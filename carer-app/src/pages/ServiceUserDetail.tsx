@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import Layout from '../components/Layout';
@@ -61,7 +61,13 @@ const telHref = (phone?: string | null) => (phone ? `tel:${phone.replace(/\s+/g,
 export default function ServiceUserDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>('info');
+  // ?tab= lets the visit screen open this page straight on the section the
+  // carer asked for, instead of landing on Info and making them hunt.
+  const [params] = useSearchParams();
+  const requested = params.get('tab') as Tab | null;
+  const [tab, setTab] = useState<Tab>(
+    requested && ['info', 'care', 'service', 'emar', 'risk'].includes(requested) ? requested : 'info',
+  );
   const [pspSection, setPspSection] = useState(PSP_SECTIONS[0].id);
   const [raFormType, setRaFormType] = useState(RA_TYPES[0].type);
   const [raSectionId, setRaSectionId] = useState('');
