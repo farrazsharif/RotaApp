@@ -36,6 +36,15 @@ function durationMins(s: Shift) {
 
 const fmtHours = (mins: number) => (mins / 60).toFixed(mins % 60 === 0 ? 0 : 1);
 
+// Visit lengths read better in the units people say out loud: "30 min",
+// "1 h 15 min". Hours-with-a-decimal is for totals, not for a single visit.
+function fmtDuration(mins: number) {
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
 export default function Today() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -116,6 +125,32 @@ export default function Today() {
   const pending = sorted.filter((s) => s.status !== 'CANCELLED' && !isCallDone(s, user?.id));
   const nextCall = pending.find((s) => toMinutes(s.endTime) >= now) || pending[0];
 
+  // The day grouped the way a carer thinks about it: what is running now,
+  // what is still to do, what is finished. Cancelled visits sit on their own
+  // at the bottom so they can never be read as work outstanding.
+  const groupOf = (s: Shift) => {
+    if (s.status === 'CANCELLED') return 'cancelled';
+    if (isClockedIn(s) && !isCallDone(s, user?.id)) return 'active';
+    if (isCallDone(s, user?.id)) return 'done';
+    return 'todo';
+  };
+  const GROUPS = [
+    { key: 'active', label: 'In progress', pill: 'bg-amber-100 text-amber-800' },
+    { key: 'todo', label: 'To do', pill: 'bg-blue-100 text-blue-800' },
+    { key: 'done', label: 'Done', pill: 'bg-green-100 text-green-800' },
+    { key: 'cancelled', label: 'Cancelled', pill: 'bg-gray-200 text-gray-600' },
+  ] as const;
+  const grouped = GROUPS
+    .map((g) => ({ ...g, calls: sorted.filter((s) => groupOf(s) === g.key) }))
+    .filter((g) => g.calls.length > 0);
+
+  // Progress through TODAY specifically - the list can still be carrying an
+  // overnight visit from yesterday, which must not count against today.
+  const todayCalls = allCalls.filter((s) => isToday(s) && s.status !== 'CANCELLED');
+  const recordedCount = todayCalls.filter((s) => isCallDone(s, user?.id)).length;
+  const todoCalls = todayCalls.filter((s) => !isCallDone(s, user?.id));
+  const todoMins = todoCalls.reduce((sum, s) => sum + durationMins(s), 0);
+
   return (
     <Layout title={`Today · ${format(new Date(), 'EEE d MMM')}`} onRefresh={refresh} refreshing={refreshing}>
       <AnnouncementBanner />
@@ -148,6 +183,21 @@ export default function Today() {
         </div>
       </div>
 
+      {todayCalls.length > 0 && (
+        <div className="rounded-2xl bg-white border border-gray-200 shadow-sm px-4 py-2.5 mb-4 flex items-center justify-between gap-3 text-sm">
+          <span className="text-gray-500">
+            Recorded <span className="font-semibold text-gray-800">{recordedCount} of {todayCalls.length}</span>
+          </span>
+          {todoCalls.length > 0 ? (
+            <span className="text-gray-500">
+              To do <span className="font-semibold text-gray-800">{todoCalls.length} visit{todoCalls.length === 1 ? '' : 's'} · {fmtDuration(todoMins)}</span>
+            </span>
+          ) : (
+            <span className="font-semibold text-green-700">All done ✓</span>
+          )}
+        </div>
+      )}
+
       <CoverRequests />
 
       {isLoading && <p className="text-center text-gray-400 py-8">Loading your calls…</p>}
@@ -159,25 +209,28 @@ export default function Today() {
         </div>
       )}
 
-      {!isLoading && sorted.length > 0 && (
-        <div className="space-y-3">
-          {sorted.map((s) => {
-            const isNext = s.id === nextCall?.id;
-            return (
+      {!isLoading && grouped.map((g) => (
+        <div key={g.key} className="mb-5 last:mb-0">
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`text-xs font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${g.pill}`}>{g.label}</span>
+            <span className="text-xs text-gray-400">{g.calls.length}</span>
+          </div>
+          <div className="space-y-3">
+            {g.calls.map((s) => (
               <CallCard
                 key={s.id}
                 shift={s}
-                highlighted={isNext}
+                highlighted={s.id === nextCall?.id}
                 done={isCallDone(s, user?.id)}
                 clockedIn={isClockedIn(s)}
                 coverRequested={coverRequestedIds.has(s.id)}
                 showDate={!isToday(s)}
                 onClick={() => navigate(`/call/${s.id}`)}
               />
-            );
-          })}
+            ))}
+          </div>
         </div>
-      )}
+      ))}
     </Layout>
   );
 }
@@ -206,8 +259,15 @@ function CallCard({ shift, highlighted, done, clockedIn, coverRequested, showDat
           : 'bg-white border-gray-200 text-gray-800'
       }`}
     >
-      <div className="flex items-center justify-between">
-        <span className="font-bold text-base">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="font-bold text-base">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</span>
+          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0 ${
+            active || (highlighted && !done) ? 'bg-white/20' : 'bg-gray-100 text-gray-600'
+          }`}>
+            {fmtDuration(durationMins(shift))}
+          </span>
+        </span>
         {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Done</span>}
         {active && <span className="text-xs font-bold bg-white/25 px-2 py-0.5 rounded-full">● CLOCKED IN — TAP TO CLOCK OUT</span>}
         {!done && !active && highlighted && <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">NEXT</span>}
@@ -222,6 +282,13 @@ function CallCard({ shift, highlighted, done, clockedIn, coverRequested, showDat
       <div className="flex items-center gap-1.5 flex-wrap">
         {shift.visitName && (
           <p className={`text-sm ${highlighted && !done ? 'text-blue-100' : 'text-gray-500'}`}>{shift.visitName}</p>
+        )}
+        {(shift.cover || 1) > 1 && (
+          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+            active || (highlighted && !done) ? 'bg-white/25 text-white' : 'bg-purple-100 text-purple-700'
+          }`}>
+            👥 {shift.cover} carers
+          </span>
         )}
         {coverRequested && !done && (
           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
