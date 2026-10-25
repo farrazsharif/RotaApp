@@ -173,9 +173,12 @@ function AdjustTimes({ record, shiftDate, scheduledStart, scheduledEnd, onSaved,
 
 // Lets a carer record a PAST visit they forgot to clock in/out for entirely —
 // there's no existing record to adjust, so this creates a completed one. Times
-// are entered by the carer (a one-tap "use scheduled times" helper fills them).
+// are entered by the carer; on a double-up where the other carer DID clock in,
+// their times are offered as the starting point, since the two were on the
+// visit together. It stays a suggestion the carer can change - this is their
+// own attendance record, not a copy of someone else's.
 // Saved as recorded-late and visible to the office.
-function RecordMissedVisit({ shiftId, shiftDate, scheduledStart, scheduledEnd, onSaved }: { shiftId: string; shiftDate: string; scheduledStart: string; scheduledEnd: string; onSaved: () => void }) {
+function RecordMissedVisit({ shiftId, shiftDate, scheduledStart, scheduledEnd, fromCarer, onSaved }: { shiftId: string; shiftDate: string; scheduledStart: string; scheduledEnd: string; fromCarer?: { name: string; start: string; end: string | null } | null; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [startVal, setStartVal] = useState('');
   const [endVal, setEndVal] = useState('');
@@ -207,7 +210,7 @@ function RecordMissedVisit({ shiftId, shiftDate, scheduledStart, scheduledEnd, o
     return (
       <div className="text-center">
         <p className="text-sm text-gray-500 font-medium mb-2">You didn't clock in for this visit.</p>
-        <button onClick={() => { setStartVal(''); setEndVal(''); setErr(null); setOpen(true); }} className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold text-base">
+        <button onClick={() => { setStartVal(fromCarer?.start || ''); setEndVal(fromCarer?.end || ''); setErr(null); setOpen(true); }} className="w-full bg-blue-600 text-white rounded-xl py-3 font-bold text-base">
           🕑 Record this visit
         </button>
       </div>
@@ -219,6 +222,11 @@ function RecordMissedVisit({ shiftId, shiftDate, scheduledStart, scheduledEnd, o
       <div>
         <p className="text-sm font-semibold text-gray-700">Record the visit you did</p>
         <p className="text-xs text-gray-400">Scheduled {formatTime12h(scheduledStart)}–{formatTime12h(scheduledEnd)}. Enter the times you actually attended.</p>
+        {fromCarer && (
+          <p className="text-xs text-blue-700 mt-1">
+            Filled in from {fromCarer.name}'s clock in{fromCarer.end ? ' and out' : ''} on this visit. Change them if your times were different.
+          </p>
+        )}
       </div>
       <div>
         <p className="text-xs font-semibold text-gray-500 mb-1.5">Clock in</p>
@@ -228,9 +236,16 @@ function RecordMissedVisit({ shiftId, shiftDate, scheduledStart, scheduledEnd, o
         <p className="text-xs font-semibold text-gray-500 mb-1.5">Clock out</p>
         <input type="time" value={endVal} onChange={(e) => setEndVal(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
       </div>
-      <button onClick={() => { setStartVal(scheduledStart); setEndVal(scheduledEnd); }} className="text-sm font-medium text-blue-600">
-        Use scheduled times ({formatTime12h(scheduledStart)}–{formatTime12h(scheduledEnd)})
-      </button>
+      <div className="flex flex-col items-start gap-1">
+        {fromCarer && (
+          <button onClick={() => { setStartVal(fromCarer.start); setEndVal(fromCarer.end || ''); }} className="text-sm font-medium text-blue-600 text-left">
+            Use {fromCarer.name}'s times ({formatTime12h(fromCarer.start)}{fromCarer.end ? `–${formatTime12h(fromCarer.end)}` : ''})
+          </button>
+        )}
+        <button onClick={() => { setStartVal(scheduledStart); setEndVal(scheduledEnd); }} className="text-sm font-medium text-blue-600 text-left">
+          Use scheduled times ({formatTime12h(scheduledStart)}–{formatTime12h(scheduledEnd)})
+        </button>
+      </div>
       {err && <p className="text-xs text-red-600">{err}</p>}
       <div className="flex gap-2">
         <button onClick={save} disabled={mut.isPending} className="flex-1 bg-blue-600 text-white rounded-xl py-2.5 font-bold text-sm disabled:opacity-40">
@@ -788,6 +803,20 @@ export default function CallDetail() {
   // A still-unrecorded past visit can be caught up on at any time (no window) —
   // the carer records the clock times they attended, then saves the log + meds.
   const canRecordMissed = assignedToMe && isPastDay && !myAnyRecord;
+  // On a double-up the other carer may already have clocked this visit. Their
+  // times are a far better starting point than a blank form - the two were
+  // there together. A completed record is preferred over one still open.
+  const coCarerTimes = (() => {
+    const theirs = (shift.clockRecords ?? []).filter((r) => r.userId !== user?.id);
+    const rec = theirs.find((r) => r.clockOut) || theirs[0];
+    if (!rec) return null;
+    const c = coCarers.find((x) => x.id === rec.userId);
+    return {
+      name: c ? `${c.firstName} ${c.lastName}` : 'the other carer',
+      start: format(new Date(rec.clockIn), 'HH:mm'),
+      end: rec.clockOut ? format(new Date(rec.clockOut), 'HH:mm') : null,
+    };
+  })();
   const totalTimeSpent = myCompletedRecord
     ? formatElapsed(new Date(myCompletedRecord.clockOut!).getTime() - new Date(myCompletedRecord.clockIn).getTime())
     : null;
@@ -937,6 +966,7 @@ export default function CallDetail() {
                 shiftDate={shift.date}
                 scheduledStart={shift.startTime}
                 scheduledEnd={shift.endTime}
+                fromCarer={coCarerTimes}
                 onSaved={() => {
                   qc.invalidateQueries({ queryKey: ['shift', id] });
                   qc.invalidateQueries({ queryKey: ['clock-status'] });
