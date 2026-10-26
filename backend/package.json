@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Caremid backend API",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=24.22.1 <25"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
