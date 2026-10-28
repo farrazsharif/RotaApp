@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
@@ -14,6 +14,7 @@ import { isCallDone } from '../lib/shiftStatus';
 import { unrecordedVisits } from '../lib/visitRecording';
 import { usePendingClock } from '../lib/pendingClock';
 import { formatTime12h } from '../lib/time';
+import { showClockedInNotification, clearClockedInNotification } from '../lib/clockNotification';
 import type { Shift } from '../types';
 
 function nowMinutes() {
@@ -67,6 +68,19 @@ export default function Today() {
   });
   const { status: clockStatus } = usePendingClock(serverClockStatus, user?.id);
   const activeRecord = clockStatus?.clockedIn ? clockStatus.record : null;
+
+  // Keep the pinned "still clocked in" notification in sync with reality: re-pin
+  // it whenever the app opens and the carer is still clocked in (in case it was
+  // swiped away or the phone rebooted), and clear it once they're clocked out.
+  // Only shows if notification permission was already granted — never prompts here.
+  useEffect(() => {
+    if (activeRecord?.shift) {
+      const su = activeRecord.shift.serviceUser;
+      showClockedInNotification(su ? `${su.firstName} ${su.lastName}` : '', `/call/${activeRecord.shift.id}`);
+    } else if (clockStatus && !clockStatus.clockedIn) {
+      clearClockedInNotification();
+    }
+  }, [activeRecord?.id, activeRecord?.shift?.id, clockStatus?.clockedIn]);
   const activeCall: Shift | null = activeRecord?.shift
     ? { ...activeRecord.shift, clockRecords: [{ id: activeRecord.id, userId: activeRecord.userId, clockIn: activeRecord.clockIn, clockOut: null }] }
     : null;

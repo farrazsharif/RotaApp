@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -32,4 +33,15 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- POST_NOTIFICATIONS is merged in by the LocalNotifications plugin and is
+         needed: on Android 13+ it gates the "still clocked in" reminder, and the
+         app asks for it at clock-in.
+
+         SCHEDULE_EXACT_ALARM is merged in by that same plugin, but this app only
+         ever shows a notification immediately - it never schedules one for later.
+         Leaving an unused alarm permission declared invites a Play policy
+         declaration we would have to justify, so remove it from the merged
+         manifest. If timed notifications are ever added, delete this line. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
 </manifest>

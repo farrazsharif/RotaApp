@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import LiveSync from './components/LiveSync';
+import ClockNotificationTaps from './components/ClockNotificationTaps';
 import AndroidBackButton from './components/AndroidBackButton';
 import { usePushSubscription } from './lib/usePushSubscription';
 import Login from './pages/Login';
@@ -28,6 +29,7 @@ export default function App() {
       <BrowserRouter>
         <PushRegistration />
         <LiveSync />
+        <ClockNotificationTaps />
         <AndroidBackButton />
         <Routes>
           <Route path="/login" element={<Login />} />
