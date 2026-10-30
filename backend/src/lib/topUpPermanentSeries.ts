@@ -1,14 +1,17 @@
+import { growSeries, loadRespiteLookup, SeriesShape } from './seriesGeneration';
+
 // Keeps open-ended ("Permanent") recurring visits topped up so there are always
 // ~12 months of future shifts. Runs at startup and once a day. Idempotent: a
 // series that already reaches the window is skipped, so most runs do nothing.
 //
-// There is no separate "series" table — the recurrence is inferred from the
-// series' existing shifts: the set of weekdays they fall on, and the latest one
-// (used as the template for times / patient / carer / visit name). New shifts
-// copy the template's companyId explicitly so the tenant Prisma extension
-// allows the background write.
+// The generation itself lives in seriesGeneration.ts, shared with the
+// extend-series endpoint so a topped-up series and an extended one are built
+// the same way. What stays here is this job's own policy: which series to
+// consider, how far ahead to reach, and what to do about a client who has been
+// discharged or has died.
 const WINDOW_MONTHS = 12;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function topUpPermanentSeries(prisma: any): Promise<void> {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
@@ -20,26 +23,12 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
   });
   if (rows.length === 0) return;
 
-  // Respite windows still in effect — don't regenerate visits into a period
-  // where the client is away. Grouped by service user for quick lookup below.
-  const respiteRows = await prisma.respitePeriod.findMany({
-    where: { endAt: { gte: today } },
-    select: { serviceUserId: true, startAt: true, endAt: true },
-  });
-  const respiteBySU = new Map<string, { startAt: Date; endAt: Date }[]>();
-  for (const r of respiteRows) {
-    const list = respiteBySU.get(r.serviceUserId) ?? [];
-    list.push({ startAt: new Date(r.startAt), endAt: new Date(r.endAt) });
-    respiteBySU.set(r.serviceUserId, list);
-  }
-  const inRespite = (serviceUserId: string | null, at: Date): boolean => {
-    if (!serviceUserId) return false;
-    const list = respiteBySU.get(serviceUserId);
-    return !!list && list.some((w) => at >= w.startAt && at < w.endAt);
-  };
+  const inRespite = await loadRespiteLookup(prisma, today);
 
   // Group by series → the weekdays it recurs on and the furthest date so far.
-  const bySeries = new Map<string, { weekdays: Set<number>; latest: Date }>();
+  // Read in one query here rather than per series, then handed to growSeries so
+  // it doesn't go back to the database for something already in memory.
+  const bySeries = new Map<string, SeriesShape>();
   for (const r of rows) {
     const g = bySeries.get(r.seriesId) ?? { weekdays: new Set<number>(), latest: new Date(0) };
     const d = new Date(r.date);
@@ -49,15 +38,9 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
   }
 
   let created = 0;
-  for (const [seriesId, info] of bySeries) {
-    if (info.latest >= target) continue; // already far enough ahead
+  for (const [seriesId, shape] of bySeries) {
+    if (shape.latest >= target) continue; // already far enough ahead
 
-    const template = await prisma.shift.findFirst({
-      where: { seriesId, status: { not: 'CANCELLED' } },
-      orderBy: { date: 'desc' },
-      include: { coverCarers: { select: { id: true } }, serviceUser: { select: { status: true } } },
-    });
-    if (!template || !template.companyId) continue; // need a tenant to create under
     // Don't keep generating future calls for someone who has been discharged or
     // has passed away — and clear any future calls still on the schedule for
     // them (also covers people marked before auto-cancel shipped). Only touch
@@ -65,6 +48,15 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
     // at discharge time (kept if before the End-of-Care moment, cancelled if
     // after), so this sweep must not wipe a call earlier today that was rightly
     // kept. `today` is noon-anchored, matching how shift dates are stored.
+    const template = await prisma.shift.findFirst({
+      where: { seriesId, status: { not: 'CANCELLED' } },
+      orderBy: { date: 'desc' },
+      select: { companyId: true, serviceUser: { select: { status: true } } },
+    });
+    // Without a tenant there is nothing to write under, so leave the series
+    // alone entirely - as the original job did, rather than cancelling visits
+    // through a write that has no company context.
+    if (!template || !template.companyId) continue;
     if (template.serviceUser?.status === 'DECEASED' || template.serviceUser?.status === 'DISCHARGED') {
       await prisma.shift.updateMany({
         where: { seriesId, status: { not: 'CANCELLED' }, date: { gt: today } },
@@ -73,52 +65,8 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
       continue;
     }
 
-    // Every matching weekday strictly after the latest shift, up to the window.
-    // Skip any that land inside a respite window (client away), matched at the
-    // template's start time so a boundary day is handled correctly.
-    const [th, tm] = String(template.startTime || '00:00').split(':').map(Number);
-    const dates: Date[] = [];
-    const cur = new Date(info.latest);
-    cur.setDate(cur.getDate() + 1);
-    while (cur <= target) {
-      if (info.weekdays.has(cur.getDay())) {
-        const at = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), th || 0, tm || 0, 0);
-        if (!inRespite(template.serviceUserId, at)) {
-          dates.push(new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 12, 0, 0));
-        }
-      }
-      cur.setDate(cur.getDate() + 1);
-    }
-    if (dates.length === 0) continue;
-
-    const base = {
-      companyId: template.companyId,
-      userId: template.userId,
-      serviceUserId: template.serviceUserId,
-      seriesId,
-      seriesPermanent: true,
-      startTime: template.startTime,
-      endTime: template.endTime,
-      visitName: template.visitName,
-      cover: template.cover,
-      role: template.role,
-      notes: template.notes,
-      runId: template.runId, // keep future occurrences in the same run
-      status: 'SCHEDULED',
-      published: template.published,
-    };
-
-    const coverIds: string[] = (template.coverCarers ?? []).map((c: { id: string }) => c.id);
-    if (coverIds.length === 0) {
-      const r = await prisma.shift.createMany({ data: dates.map((d) => ({ ...base, date: d })) });
-      created += r.count;
-    } else {
-      // Cover carers are a many-to-many relation — create individually to connect.
-      for (const d of dates) {
-        await prisma.shift.create({ data: { ...base, date: d, coverCarers: { connect: coverIds.map((id) => ({ id })) } } });
-        created++;
-      }
-    }
+    const res = await growSeries(prisma, { seriesId, target, permanent: true, inRespite, shape });
+    created += res.created;
   }
 
   if (created > 0) console.log(`Permanent top-up: generated ${created} future shift(s).`);

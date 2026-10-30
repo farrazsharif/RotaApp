@@ -8,6 +8,7 @@ import { sendPushToUser } from '../lib/push';
 import { isScoped, serviceUserInScope, relatedServiceUserScopeWhere } from '../lib/scope';
 import { runWithCompany } from '../lib/tenantContext';
 import { logAudit } from '../lib/audit';
+import { growSeries, loadRespiteLookup } from '../lib/seriesGeneration';
 
 const shiftInclude = {
   user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
@@ -958,4 +959,91 @@ export async function bulkCreateShifts(req: AuthRequest, res: Response) {
   );
 
   res.status(201).json(created);
+}
+
+// POST /api/shifts/:id/extend-series — lengthen a recurring visit.
+//
+// A care package gets extended all the time: a week of visits becomes three
+// because a discharge was put back. Until now the office had to add every one
+// of those visits by hand, which is slow and, worse, easy to get subtly wrong
+// - a missed day, a different time, a carer who was on the first week but not
+// the rest.
+//
+// The recurrence is inferred from the visits that already exist, so this
+// continues the pattern the series is actually running rather than asking
+// anyone to restate it. Shared with the permanent top-up job, so an extended
+// series is built exactly like a topped-up one.
+export async function extendSeries(req: AuthRequest, res: Response) {
+  const shift = await prisma.shift.findUnique({
+    where: { id: req.params.id },
+    select: {
+      id: true, seriesId: true, serviceUserId: true, visitName: true,
+      serviceUser: { select: { firstName: true, lastName: true, status: true } },
+    },
+  });
+  if (!shift) return res.status(404).json({ error: 'Shift not found' });
+  if (!(await serviceUserInScope(req.user, shift.serviceUserId))) {
+    return res.status(404).json({ error: 'Shift not found' });
+  }
+  if (!shift.seriesId) {
+    return res.status(400).json({ error: 'This visit is not part of a recurring series.' });
+  }
+  if (shift.serviceUser?.status === 'DECEASED' || shift.serviceUser?.status === 'DISCHARGED') {
+    return res.status(400).json({ error: 'This client is no longer receiving care, so their visits cannot be extended.' });
+  }
+
+  const raw = String((req.body as { until?: unknown })?.until ?? '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return res.status(400).json({ error: 'A date to extend to is required.' });
+  }
+  const [y, m, d] = raw.split('-').map(Number);
+  // Noon-anchored, matching how shift dates are stored, so a timezone offset
+  // can never shunt the last day onto the wrong date.
+  const target = new Date(y, m - 1, d, 12, 0, 0);
+  if (isNaN(target.getTime())) return res.status(400).json({ error: 'That date is not valid.' });
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+  if (target <= today) {
+    return res.status(400).json({ error: 'Pick a date in the future to extend to.' });
+  }
+  // A cap, so a mistyped year cannot fill the rota with thousands of visits
+  // that then have to be found and removed one by one.
+  const maxTarget = new Date(today.getFullYear() + 2, today.getMonth(), today.getDate(), 12, 0, 0);
+  if (target > maxTarget) {
+    return res.status(400).json({ error: 'Visits can only be extended up to two years ahead.' });
+  }
+
+  const inRespite = await loadRespiteLookup(prisma, today);
+  const result = await growSeries(prisma, {
+    seriesId: shift.seriesId,
+    target,
+    // A fixed extension, not an open-ended one: it must not make the daily
+    // top-up adopt this series and keep generating past the date asked for.
+    permanent: false,
+    inRespite,
+  });
+
+  if (result.created === 0) {
+    const why =
+      result.reason === 'already-covered'
+        ? 'These visits already run to that date.'
+        : result.reason === 'all-respite'
+        ? 'Every new visit would fall inside a respite period, so none were added.'
+        : 'No visits could be added.';
+    return res.json({ created: 0, message: why });
+  }
+
+  const patient = shift.serviceUser
+    ? `${shift.serviceUser.firstName} ${shift.serviceUser.lastName}`
+    : 'Visit';
+  await logAudit(
+    req,
+    'SHIFT_SERIES_EXTENDED',
+    `${patient} · ${shift.visitName || 'Call'}`,
+    `Recurring visit extended to ${raw} — ${result.created} visit${result.created === 1 ? '' : 's'} added`,
+  );
+
+  if (req.user!.companyId) emitToCompany(req.user!.companyId, 'data:changed', { resource: '/api/shifts' });
+  res.json({ created: result.created, until: raw });
 }

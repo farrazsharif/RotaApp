@@ -35,6 +35,13 @@ export default function UpdateSeriesModal({ shift, onClose, onDone }: { shift: S
   const [notes, setNotes] = useState(shift.notes ?? '');
   const [err, setErr] = useState<string | null>(null);
 
+  // Extending is a separate action from changing fields: it ADDS visits rather
+  // than editing the ones already there, so it gets its own button and its own
+  // result line instead of being folded into "what to change".
+  const [until, setUntil] = useState('');
+  const [extendMsg, setExtendMsg] = useState<string | null>(null);
+  const [extendErr, setExtendErr] = useState<string | null>(null);
+
   const toggleDay = (d: number) => setDays((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
 
   const nothingChecked = !chTime && !chCover && !chName && !chRole && !chNotes;
@@ -58,6 +65,31 @@ export default function UpdateSeriesModal({ shift, onClose, onDone }: { shift: S
     },
     onError: (e: unknown) => setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Could not update the visits. Please try again.'),
   });
+
+  const extendMut = useMutation({
+    mutationFn: () => shiftsApi.extendSeries(shift.id, until),
+    onSuccess: (res) => {
+      setExtendErr(null);
+      setExtendMsg(
+        res.created > 0
+          ? `Added ${res.created} visit${res.created === 1 ? '' : 's'}.`
+          : res.message || 'No visits were added.',
+      );
+      qc.invalidateQueries({ queryKey: ['shifts'] });
+    },
+    onError: (e: unknown) => {
+      setExtendMsg(null);
+      setExtendErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Could not add the visits. Please try again.');
+    },
+  });
+
+  // The date box can't offer anything before tomorrow — extending to a date
+  // already past would be meaningless, and the server refuses it anyway.
+  const tomorrow = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
 
   const patient = shift.serviceUser ? `${shift.serviceUser.firstName} ${shift.serviceUser.lastName}` : 'Visit';
 
@@ -136,6 +168,37 @@ export default function UpdateSeriesModal({ shift, onClose, onDone }: { shift: S
           </div>
 
           <p className="text-xs text-gray-500">Only the ticked fields change — everything else stays as it is on each visit. The carer isn’t changed here; use the schedule to (re)assign carers.</p>
+        </div>
+
+        {/* Extend the series — adds visits, rather than changing existing ones */}
+        <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+          <p className="label mb-0">Add more visits</p>
+          <p className="text-xs text-gray-500">
+            For when a package is extended — a week of care becomes three. Carries this visit on to a new end date on the same
+            weekdays, at the same times, with the same carer. Visits already on the schedule aren’t changed.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-1.5 text-sm text-gray-700">
+              Carry on until
+              <input
+                type="date"
+                min={tomorrow}
+                value={until}
+                onChange={(e) => { setUntil(e.target.value); setExtendMsg(null); setExtendErr(null); }}
+                className="input py-1 text-xs"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => extendMut.mutate()}
+              disabled={!until || extendMut.isPending}
+              className="btn-secondary btn btn-sm"
+            >
+              {extendMut.isPending ? 'Adding…' : 'Add visits'}
+            </button>
+          </div>
+          {extendMsg && <p className="text-xs font-medium text-green-700">{extendMsg}</p>}
+          {extendErr && <p className="text-xs font-medium text-red-600">{extendErr}</p>}
         </div>
 
         {err && <p className="text-sm text-red-600">{err}</p>}
