@@ -30,6 +30,7 @@ import Reviews from './pages/Reviews';
 import Supervision from './pages/Supervision';
 import ServicePlans from './pages/ServicePlans';
 import Handovers from './pages/Handovers';
+import Incidents from './pages/Incidents';
 import Announcements from './pages/Announcements';
 import Runs from './pages/Runs';
 import SupportedLiving from './pages/SupportedLiving';
@@ -118,6 +119,7 @@ function AppRoutes() {
         <Route path="time-off" element={<ManagerRoute><TimeOff /></ManagerRoute>} />
         <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />
         <Route path="handovers" element={<ManagerRoute><Handovers /></ManagerRoute>} />
+        <Route path="incidents" element={<Incidents />} />
         <Route path="announcements" element={<ManagerRoute><Announcements /></ManagerRoute>} />
         <Route path="runs" element={<ManagerRoute><Runs /></ManagerRoute>} />
         <Route path="supported-living" element={<SupportedLiving />} />

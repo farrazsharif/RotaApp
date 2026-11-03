@@ -1042,6 +1042,17 @@ export default function CallDetail() {
           </div>
         )}
 
+        {/* Report an accident, incident or near miss on this visit. Always
+            available: something can go wrong before clocking in, after
+            clocking out, or on a visit already marked done. */}
+        <button
+          onClick={() => navigate(`/report-incident?shiftId=${shift.id}${su ? `&clientId=${su.id}&client=${encodeURIComponent(name)}` : ''}`)}
+          className="w-full text-left bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
+        >
+          <p className="font-semibold text-gray-800">⚠️ Report an incident</p>
+          <p className="text-sm text-gray-500 mt-0.5">A fall, an injury, a near miss — anything the office needs to know about.</p>
+        </button>
+
         {/* Hand over this call to another carer */}
         {!done && !clockedIn && (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">

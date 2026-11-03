@@ -39,42 +39,42 @@ model Company {
 
 model User {
   companyId                String? // tenant scope (app-enforced via Prisma extension)
-  id                       String   @id @default(cuid())
-  email                    String   @unique
+  id                       String    @id @default(cuid())
+  email                    String    @unique
   password                 String
   firstName                String
   lastName                 String
-  role                     String   @default("EMPLOYEE")
+  role                     String    @default("EMPLOYEE")
   customRoleId             String?
   // Per-person permission override (JSON array of capability keys). When set, it
   // fully replaces the role's permissions for this individual. Null = follow the
   // role (base matrix or custom role).
   permissionsOverride      String?
-  hourlyRate               Float    @default(0)
+  hourlyRate               Float     @default(0)
   phone                    String?
   photo                    String? // profile picture as a base64 data URL
-  active                   Boolean  @default(true)
+  active                   Boolean   @default(true)
   // Platform owner: can see the cross-company admin dashboard. Kept separate
   // from the per-company ADMIN role.
-  platformAdmin            Boolean  @default(false)
+  platformAdmin            Boolean   @default(false)
   // Recruitment category — decides which staff-file documents are required.
-  staffType                String   @default("LOCAL") // LOCAL | OVERSEAS
+  staffType                String    @default("LOCAL") // LOCAL | OVERSEAS
   // CARE = delivers the regulated activity; OFFICE = admin only. Scopes which
   // staff-file checks are required (see lib/staffCompliance).
-  staffRole     String   @default("CARE")
+  staffRole                String    @default("CARE")
   // Right to work check. The statutory excuse against an illegal-working civil
   // penalty comes from having CHECKED the documents before employment started,
   // not from holding a copy - so the date, method and who did it are recorded
   // here rather than inferred from an uploaded file.
-  rightToWorkCheckedAt   DateTime?
-  rightToWorkCheckedBy   String? // who carried out the check
-  rightToWorkMethod      String? // MANUAL | IDVT | SHARE_CODE
-  rightToWorkDocument    String? // what was seen, e.g. "UK passport"
-  rightToWorkNote        String?
+  rightToWorkCheckedAt     DateTime?
+  rightToWorkCheckedBy     String? // who carried out the check
+  rightToWorkMethod        String? // MANUAL | IDVT | SHARE_CODE
+  rightToWorkDocument      String? // what was seen, e.g. "UK passport"
+  rightToWorkNote          String?
   // Staff-file checks marked not required for THIS person, with the reason.
   // JSON array of { requirementId, reason, by, at }. Kept as a waiver with a
   // stated reason rather than hiding the item, so the decision is auditable.
-  complianceWaivers      String?
+  complianceWaivers        String?
   emergencyContactName     String?
   emergencyContactPhone    String?
   emergencyContactRelation String?
@@ -93,8 +93,8 @@ model User {
   dbsOffenceDisclosed      String? // free text, e.g. "N/A", "No", "Yes, Verbally"
   dbsOffenceDate           DateTime?
   dbsNotes                 String?
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   shifts             Shift[]
   coverShifts        Shift[]             @relation("ShiftCoverCarers")
@@ -110,6 +110,8 @@ model User {
   trainings          Training[]
   importantDates     ImportantDate[]
   spotChecks         SpotCheck[]         @relation("SpotCheckCarer")
+  incidentsReported  Incident[]          @relation("IncidentReporter")
+  incidentsClosed    Incident[]          @relation("IncidentCloser")
   supervisions       Supervision[]       @relation("StaffSupervision")
   handoversSent      ShiftHandover[]     @relation("HandoverFrom")
   handoversReceived  ShiftHandover[]     @relation("HandoverTo")
@@ -140,19 +142,19 @@ model CustomRole {
 }
 
 model Site {
-  companyId String? // tenant scope (app-enforced via Prisma extension)
-  id        String   @id @default(cuid())
-  name      String   @unique
-  color     String   @default("#3b82f6")
-  order     Int      @default(0) // display order on the schedule (lower = first)
+  companyId           String? // tenant scope (app-enforced via Prisma extension)
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  color               String   @default("#3b82f6")
+  order               Int      @default(0) // display order on the schedule (lower = first)
   // A supported-living scheme/house: clients on this site are supported-living,
   // and the scheme's housing provider (a separate company) is recorded here.
-  supportedLiving     Boolean @default(false)
+  supportedLiving     Boolean  @default(false)
   housingProvider     String?
   housingOfficerName  String?
   housingOfficerPhone String?
   housingOfficerEmail String?
-  createdAt DateTime @default(now())
+  createdAt           DateTime @default(now())
 
   serviceUsers ServiceUser[]
   scopedUsers  User[]        @relation("UserSites")
@@ -162,7 +164,7 @@ model Site {
 
 model ServiceUser {
   companyId                String? // tenant scope (app-enforced via Prisma extension)
-  id                       String   @id @default(cuid())
+  id                       String    @id @default(cuid())
   firstName                String
   lastName                 String
   dateOfBirth              DateTime
@@ -201,24 +203,24 @@ model ServiceUser {
   pharmacyName             String?
   pharmacyPhone            String?
   pharmacyAddress          String?
-  needsMedication          Boolean  @default(false)
-  needsMobility            Boolean  @default(false)
-  needsPersonalCare        Boolean  @default(false)
+  needsMedication          Boolean   @default(false)
+  needsMobility            Boolean   @default(false)
+  needsPersonalCare        Boolean   @default(false)
   // Money handling: when true, carers can record financial transactions
   // (money spent on this client's behalf) during visits, and the office sees a
   // ledger. Off for most clients. financeOpeningBalance seeds the running balance.
-  handlesMoney             Boolean  @default(false)
-  financeOpeningBalance    Float    @default(0)
+  handlesMoney             Boolean   @default(false)
+  financeOpeningBalance    Float     @default(0)
   careNotes                String?
   contractedWeeklyHours    Float? // council-agreed hours of care per week (care package); null = not set
-  visitDuration            Int      @default(30)
-  visits                   String   @default("[]") // JSON array of { type, duration }
+  visitDuration            Int       @default(30)
+  visits                   String    @default("[]") // JSON array of { type, duration }
   // Per-visit care tasks the carer must do: JSON array of { name, description?, visit? }.
   // visit = the call name it belongs to (e.g. "Morning Call"); empty = every visit.
-  careTasks                String   @default("[]")
-  supportCategories        String   @default("[]") // JSON array of Capacity Tracker category labels
-  active                   Boolean  @default(true)
-  careType                 String   @default("DOMICILIARY") // DOMICILIARY (visit-based) | SUPPORTED_LIVING
+  careTasks                String    @default("[]")
+  supportCategories        String    @default("[]") // JSON array of Capacity Tracker category labels
+  active                   Boolean   @default(true)
+  careType                 String    @default("DOMICILIARY") // DOMICILIARY (visit-based) | SUPPORTED_LIVING
   // Supported living — the housing provider is a separate company to the care
   // provider, so record the landlord/scheme details here.
   housingProvider          String? // landlord / housing association name
@@ -228,13 +230,13 @@ model ServiceUser {
   housingOfficerEmail      String?
   tenancyStartDate         DateTime?
   tenancyRef               String?
-  status                   String   @default("ACTIVE") // ACTIVE, ON_HOLD, HOSPITALISED, DISCHARGED, DECEASED
-  statusUpdatedAt          DateTime @default(now()) // when the current status took effect (mirrors the latest statusChanges entry)
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  status                   String    @default("ACTIVE") // ACTIVE, ON_HOLD, HOSPITALISED, DISCHARGED, DECEASED
+  statusUpdatedAt          DateTime  @default(now()) // when the current status took effect (mirrors the latest statusChanges entry)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  site                Site?                @relation(fields: [siteId], references: [id])
-  preferredCaregivers User[]               @relation("PreferredCaregivers")
+  site                Site?                     @relation(fields: [siteId], references: [id])
+  preferredCaregivers User[]                    @relation("PreferredCaregivers")
   shifts              Shift[]
   callLogs            CallLog[]
   medications         Medication[]
@@ -249,6 +251,7 @@ model ServiceUser {
   invoiceLines        InvoiceLine[]
   statusChanges       ServiceUserStatusChange[]
   spotChecks          SpotCheck[]
+  incidents           Incident[]
   respitePeriods      RespitePeriod[]
 
   @@index([companyId])
@@ -259,18 +262,18 @@ model ServiceUser {
 // Creating one cancels the client's scheduled visits inside the window as
 // non-chargeable; the period stays on record until a manager removes it.
 model RespitePeriod {
-  companyId     String? // tenant scope (app-enforced via Prisma extension)
-  id            String   @id @default(cuid())
-  serviceUserId String
-  startAt       DateTime // care pauses (the "away from" date & time)
-  endAt         DateTime // care resumes (the "restart" date & time)
-  note          String?
-  type          String   @default("RESPITE") // RESPITE (planned away) | HOSPITAL (admission)
-  cancelledShiftIds String @default("[]") // JSON array of shift ids this period cancelled (for extend/reduce restore)
-  cancelledCount Int     @default(0) // visits cancelled when this period was created
-  createdById   String?
-  createdByName String
-  createdAt     DateTime @default(now())
+  companyId         String? // tenant scope (app-enforced via Prisma extension)
+  id                String   @id @default(cuid())
+  serviceUserId     String
+  startAt           DateTime // care pauses (the "away from" date & time)
+  endAt             DateTime // care resumes (the "restart" date & time)
+  note              String?
+  type              String   @default("RESPITE") // RESPITE (planned away) | HOSPITAL (admission)
+  cancelledShiftIds String   @default("[]") // JSON array of shift ids this period cancelled (for extend/reduce restore)
+  cancelledCount    Int      @default(0) // visits cancelled when this period was created
+  createdById       String?
+  createdByName     String
+  createdAt         DateTime @default(now())
 
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
 
@@ -306,25 +309,25 @@ model ServiceUserStatusChange {
 // free table bootstrap in ensureColumns.
 model FinancialTransaction {
   companyId       String? // tenant scope (app-enforced via Prisma extension)
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   serviceUserId   String
   shiftId         String? // the visit it was recorded on, if any
   userId          String? // the carer who recorded it
-  date            DateTime @default(now())
+  date            DateTime  @default(now())
   description     String
-  amountIn        Float    @default(0) // money received / cash topped up (£)
-  amountOut       Float    @default(0) // money spent on the client's behalf (£)
+  amountIn        Float     @default(0) // money received / cash topped up (£)
+  amountOut       Float     @default(0) // money spent on the client's behalf (£)
   receiptKey      String? // R2 object key for the receipt photo
   receiptName     String?
   clientSignature String? // patient e-signature JSON ({"kind":"esign",...}) or drawn data URL
-  unableToSign    Boolean  @default(false)
+  unableToSign    Boolean   @default(false)
   unableReason    String?
   // Office corrections: who last edited this entry and when. A money ledger
   // has to show that a figure was changed after the carer recorded it.
   editedAt        DateTime?
   editedById      String?
   editedByName    String? // denormalised so the ledger renders without a join
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   @@index([companyId])
   @@index([serviceUserId, date])
@@ -422,10 +425,10 @@ model ServicePlanVersion {
   companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String   @id @default(cuid())
   serviceUserId String
-  sections      String   // JSON snapshot of the template (questions) at sign-off
-  data          String   // JSON snapshot of the answers at sign-off
-  label         String?  // review label, e.g. "6-week review", "Annual review"
-  signedByName  String?  // typed signatory (assessor / client / representative)
+  sections      String // JSON snapshot of the template (questions) at sign-off
+  data          String // JSON snapshot of the answers at sign-off
+  label         String? // review label, e.g. "6-week review", "Annual review"
+  signedByName  String? // typed signatory (assessor / client / representative)
   createdById   String?
   createdByName String
   createdAt     DateTime @default(now())
@@ -435,11 +438,11 @@ model ServicePlanVersion {
 }
 
 model CarePlanVersion {
-  companyId     String?  // tenant scope (app-enforced via Prisma extension)
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String    @id @default(cuid())
   serviceUserId String
-  data          String    // JSON snapshot of the whole care plan at review time
-  label         String?   // review label, e.g. "Annual review"
+  data          String // JSON snapshot of the whole care plan at review time
+  label         String? // review label, e.g. "Annual review"
   reviewDate    DateTime? // the next-review date recorded at the time of the review
   createdById   String?
   createdByName String
@@ -453,11 +456,11 @@ model CarePlanVersion {
 // whole stored Likes & Dislikes record at review time so past versions survive
 // future edits. Never edited or deleted — only ever created.
 model LikesDislikesVersion {
-  companyId     String?  // tenant scope (app-enforced via Prisma extension)
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String    @id @default(cuid())
   serviceUserId String
-  data          String    // JSON snapshot of the whole Likes & Dislikes record at review time
-  label         String?   // review label, e.g. "Annual review"
+  data          String // JSON snapshot of the whole Likes & Dislikes record at review time
+  label         String? // review label, e.g. "Annual review"
   reviewDate    DateTime? // the next-review date recorded at the time of the review
   createdById   String?
   createdByName String
@@ -474,12 +477,12 @@ model LikesDislikesVersion {
 // assessment's `data` at review time so past versions survive future edits.
 // Never edited or deleted — only ever created.
 model RiskAssessmentVersion {
-  companyId     String?  // tenant scope (app-enforced via Prisma extension)
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String    @id @default(cuid())
   serviceUserId String
-  type          String    // which family member, e.g. 'ENVIRONMENT', 'CONTRACT_OF_CARE'
-  data          String    // JSON snapshot of the whole assessment at review time
-  label         String?   // review label, e.g. "Annual review"
+  type          String // which family member, e.g. 'ENVIRONMENT', 'CONTRACT_OF_CARE'
+  data          String // JSON snapshot of the whole assessment at review time
+  label         String? // review label, e.g. "Annual review"
   reviewDate    DateTime? // the next-review date recorded at the time of the review
   createdById   String?
   createdByName String
@@ -665,6 +668,59 @@ model Review {
 // A field-supervisor spot check: observing a carer on a visit against a
 // checklist, with general comments and the observer's signature. Answers are
 // JSON keyed by item id: { itemId: { answer: "YES"|"NO"|"NA", comment } }.
+// An accident, incident or near miss. One record, filled in two passes:
+//
+//   The carer reports it from their phone, at the time, in their own words:
+//   what happened, who was hurt, what they did about it, who they told. That
+//   is all a carer standing in a hallway can reasonably be asked for.
+//
+//   The office then investigates over the following days and completes the
+//   checklist in `investigation` - Care 24's Accident & Incident Form, which
+//   follows the HSE investigation checklist: securing the scene, witnesses,
+//   root causes, RIDDOR, whether the actions taken actually worked.
+//
+// Keeping both halves on one row matters: a report with no investigation is
+// visibly an open incident, which is exactly what an inspector looks for.
+model Incident {
+  companyId         String? // tenant scope (app-enforced via Prisma extension)
+  id                String    @id @default(cuid())
+  // Nullable: not every incident involves a client (a carer hurt on a
+  // doorstep still has to be recorded), and not every one happens on a visit.
+  serviceUserId     String?
+  shiftId           String?
+  reportedById      String
+  occurredAt        DateTime
+  // ACCIDENT | INCIDENT | NEAR_MISS
+  kind              String    @default("ACCIDENT")
+  category          String?
+  whatHappened      String
+  injuries          String?
+  immediateAction   String?
+  whoInformed       String?
+  witnesses         String?
+  emergencyServices Boolean   @default(false)
+  // Photos and the like, as R2 keys. JSON array.
+  attachments       String    @default("[]")
+  // The office investigation checklist answers, keyed like the risk
+  // assessment forms. JSON.
+  investigation     String    @default("{}")
+  // REPORTED | INVESTIGATING | CLOSED
+  status            String    @default("REPORTED")
+  closedAt          DateTime?
+  closedById        String?
+  closedSignature   String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  reportedBy  User         @relation("IncidentReporter", fields: [reportedById], references: [id], onDelete: Cascade)
+  closedBy    User?        @relation("IncidentCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  serviceUser ServiceUser? @relation(fields: [serviceUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([serviceUserId, occurredAt])
+  @@index([reportedById])
+}
+
 model SpotCheck {
   companyId         String? // tenant scope (app-enforced via Prisma extension)
   id                String   @id @default(cuid())
@@ -791,25 +847,25 @@ model MedAdministration {
 }
 
 model Shift {
-  companyId     String? // tenant scope (app-enforced via Prisma extension)
-  id            String   @id @default(cuid())
-  userId        String?
-  serviceUserId String?
-  runId         String? // optional: the run (named round) this call belongs to
-  seriesId      String?
+  companyId           String? // tenant scope (app-enforced via Prisma extension)
+  id                  String    @id @default(cuid())
+  userId              String?
+  serviceUserId       String?
+  runId               String? // optional: the run (named round) this call belongs to
+  seriesId            String?
   // True for an open-ended ("Permanent") recurring series so the top-up job
   // keeps generating future occurrences. Cleared when the series is stopped.
-  seriesPermanent Boolean @default(false)
-  date          DateTime
-  startTime     String
-  endTime       String
-  visitName     String?
-  cover         Int      @default(1)
-  role          String?
-  notes         String?
-  givesMedication Boolean @default(true) // does the carer administer meds on this visit? off for personal-care-only visits
-  ecmNote       String?  // ECM: reason/explanation for a short or missed visit
-  status        String   @default("SCHEDULED")
+  seriesPermanent     Boolean   @default(false)
+  date                DateTime
+  startTime           String
+  endTime             String
+  visitName           String?
+  cover               Int       @default(1)
+  role                String?
+  notes               String?
+  givesMedication     Boolean   @default(true) // does the carer administer meds on this visit? off for personal-care-only visits
+  ecmNote             String? // ECM: reason/explanation for a short or missed visit
+  status              String    @default("SCHEDULED")
   // Cancellation billing: when a visit is cancelled it can still be chargeable
   // (e.g. short-notice cancellation). cancelChargeType is FULL | PERCENT | CUSTOM.
   cancelBillable      Boolean   @default(false)
@@ -821,14 +877,14 @@ model Shift {
   // Defaults true at the DB level so pre-existing shifts stay visible to
   // carers; newly created shifts are explicitly set to false by the
   // controller until a manager publishes them.
-  published     Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  published           Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  coverCarers  User[]        @relation("ShiftCoverCarers")
-  serviceUser  ServiceUser?  @relation(fields: [serviceUserId], references: [id])
-  run          Run?          @relation(fields: [runId], references: [id])
+  user         User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coverCarers  User[]          @relation("ShiftCoverCarers")
+  serviceUser  ServiceUser?    @relation(fields: [serviceUserId], references: [id])
+  run          Run?            @relation(fields: [runId], references: [id])
   clockRecords ClockRecord[]
   callLogs     CallLog[]
   invoiceLines InvoiceLine[]
@@ -890,24 +946,24 @@ model ShiftHandover {
 // A staff supervision form (structured 1:1 review of a carer).
 model Supervision {
   companyId         String? // tenant scope (app-enforced via Prisma extension)
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   userId            String // the staff member being supervised
   date              DateTime
   // Auto-set to date + 3 months; drives the "supervision due" reminder.
   nextReviewDate    DateTime?
   position          String?
-  answers           String   @default("{}") // service-detail yes/no questions
+  answers           String    @default("{}") // service-detail yes/no questions
   serviceUsers      String? // free text: client names + days worked
-  observations      String   @default("{}") // observation prompt -> comment
+  observations      String    @default("{}") // observation prompt -> comment
   assessorName      String?
   assessorSignature String? // drawn signature as a data URL
   staffSignature    String? // drawn signature as a data URL
   // "form" = a full digital supervision; "paper" = a historic date-only entry
   // seeding the schedule from a supervision that was held on paper.
-  source            String   @default("form")
+  source            String    @default("form")
   note              String? // free-text note, used for paper/historic entries
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user User @relation("StaffSupervision", fields: [userId], references: [id], onDelete: Cascade)
 
@@ -916,24 +972,24 @@ model Supervision {
 }
 
 model CallLog {
-  companyId     String? // tenant scope (app-enforced via Prisma extension)
-  id            String   @id @default(cuid())
-  shiftId       String?
-  serviceUserId String
-  userId        String? // the carer who wrote (authored) the note
-  note          String
+  companyId      String? // tenant scope (app-enforced via Prisma extension)
+  id             String   @id @default(cuid())
+  shiftId        String?
+  serviceUserId  String
+  userId         String? // the carer who wrote (authored) the note
+  note           String
   // JSON array of the checklist tasks the carer ticked on this visit —
   // [{ id, label, phrase?, detail?, refused? }]. The visit note is auto-written
   // from these; kept structured here for reporting/CQC evidence.
-  tasks         String?  @default("[]")
+  tasks          String?  @default("[]")
   // Supported-living session log: JSON array of support-domain keys the worker
   // helped with on this visit (e.g. ["budgeting","medication"]).
-  supportDomains String? @default("[]")
+  supportDomains String?  @default("[]")
   // For double/triple-up calls: JSON array of carers who have signed this
   // shared log — [{ userId, firstName, lastName, signedAt }]. The author is
   // added on create; co-carers append when they confirm & sign.
-  signedBy      String?
-  createdAt     DateTime @default(now())
+  signedBy       String?
+  createdAt      DateTime @default(now())
 
   shift       Shift?      @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
@@ -1021,18 +1077,18 @@ model Notification {
 // A message posted by a manager to the carer app. targetUserId null = shown to
 // all carers; set = addressed to that one carer only.
 model Announcement {
-  companyId    String? // tenant scope (app-enforced via Prisma extension)
-  id           String   @id @default(cuid())
-  title        String?
-  body         String
-  authorId     String?
-  authorName   String
-  targetUserId String? // legacy single target; null = all carers, set = one carer
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  title         String?
+  body          String
+  authorId      String?
+  authorName    String
+  targetUserId  String? // legacy single target; null = all carers, set = one carer
   // Multi-recipient targeting: JSON array of user ids. "[]" = broadcast to all
   // carers. When non-empty the message goes only to those carers (used when the
   // office selects several carers, e.g. everyone covering one client).
-  targetUserIds String  @default("[]")
-  createdAt    DateTime @default(now())
+  targetUserIds String   @default("[]")
+  createdAt     DateTime @default(now())
 
   @@index([companyId])
   @@index([targetUserId])
@@ -1075,32 +1131,32 @@ model AuditLog {
 
 // Per-company organisation settings — exactly one row per Company.
 model OrgSettings {
-  companyId         String?  @unique // one settings row per company
-  id                String   @id @default(cuid())
-  companyName       String   @default("Caremid")
-  logo              String? // base64 data URL, used on reports/letterheads
-  address           String?
-  phone             String?
-  email             String?
-  cqcProviderId     String?
-  icoNumber         String?
-  timezone          String   @default("Europe/London")
-  defaultHourlyRate Float    @default(0)
-  overtimeThreshold Float    @default(40)
-  inviteExpiryDays  Int      @default(7)
+  companyId             String?  @unique // one settings row per company
+  id                    String   @id @default(cuid())
+  companyName           String   @default("Caremid")
+  logo                  String? // base64 data URL, used on reports/letterheads
+  address               String?
+  phone                 String?
+  email                 String?
+  cqcProviderId         String?
+  icoNumber             String?
+  timezone              String   @default("Europe/London")
+  defaultHourlyRate     Float    @default(0)
+  overtimeThreshold     Float    @default(40)
+  inviteExpiryDays      Int      @default(7)
   // When false, carers can't request or accept shift swaps/cover — used to
   // freeze the rota while month-end hours are finalised for payroll.
-  handoversEnabled  Boolean  @default(true)
-  defaultRole       String   @default("EMPLOYEE")
-  permissions       String   @default("{}") // JSON: { permissionKey: Role[] } overrides
-  callLogTasks      String   @default("[]") // JSON: [{ id, label, phrase?, detail? }] carer-app visit checklist
+  handoversEnabled      Boolean  @default(true)
+  defaultRole           String   @default("EMPLOYEE")
+  permissions           String   @default("{}") // JSON: { permissionKey: Role[] } overrides
+  callLogTasks          String   @default("[]") // JSON: [{ id, label, phrase?, detail? }] carer-app visit checklist
   // When false, carers don't see the visit checklist and just free-write the note.
-  callLogTasksEnabled Boolean @default(true)
-  cqcSelfAssessment String   @default("{}") // JSON: { statementKey: { rating, note } } manual CQC self-assessment
-  staffFileRequirements String @default("[]") // JSON: [{ id, label, hint, type, required, category?, minCount? }] editable staff-file compliance checklist
-  trainingCourses   String   @default("[]") // JSON: string[] editable training-course list ('[]' = built-in defaults)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  callLogTasksEnabled   Boolean  @default(true)
+  cqcSelfAssessment     String   @default("{}") // JSON: { statementKey: { rating, note } } manual CQC self-assessment
+  staffFileRequirements String   @default("[]") // JSON: [{ id, label, hint, type, required, category?, minCount? }] editable staff-file compliance checklist
+  trainingCourses       String   @default("[]") // JSON: string[] editable training-course list ('[]' = built-in defaults)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 // Who pays for a service user's care: a local authority/council, a private
