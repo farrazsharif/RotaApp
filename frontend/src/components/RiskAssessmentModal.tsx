@@ -4,7 +4,7 @@ import { riskAssessmentsApi } from '../api/riskAssessments';
 import { riskAssessmentVersionsApi } from '../api/riskAssessmentVersions';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
-import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem } from '../lib/riskAssessmentSchema';
+import { RaForm, RaItem, RaSection, RiskVal, HazardVal, YesNoVal, keyForRaItem, scoreBand } from '../lib/riskAssessmentSchema';
 import { printRiskAssessment, buildRiskAssessmentHtml } from '../lib/riskAssessmentPrint';
 import RiskAssessmentHistory from './RiskAssessmentHistory';
 import SignatureField from './SignatureField';
@@ -134,6 +134,9 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose, startE
         const t = item.type || 'risk';
         if (t === 'risk' || t === 'hazard') return !!v && (v as { level?: string }).level !== '' && (v as { level?: string }).level !== undefined;
         if (t === 'yesno') return !!v && (v as YesNoVal).v !== '';
+        if (t === 'check') return v === true;
+        if (t === 'scale') return typeof v === 'number';
+        if (t === 'score') return false; // computed, never answered on its own
         return typeof v === 'string' ? v.trim() !== '' : false;
       }),
     ).length;
@@ -257,6 +260,86 @@ export default function RiskAssessmentModal({ serviceUser, form, onClose, startE
           <div className="mt-1.5">
             <CommentField label="Comment" value={v.comment} ro={ro} onChange={(c) => set(key, { ...v, comment: c })} />
           </div>
+        </div>
+      );
+    }
+
+    // A tick on a list. An unticked box means "does not apply", so there is
+    // no third, empty state to represent.
+    if (type === 'check') {
+      const on = values[key] === true;
+      return (
+        <label key={key} className={`flex items-start gap-2.5 py-1.5 ${ro ? '' : 'cursor-pointer'}`}>
+          <input
+            type="checkbox"
+            checked={on}
+            disabled={ro}
+            onChange={() => set(key, !on)}
+            className="h-4 w-4 mt-0.5 accent-blue-600 shrink-0"
+          />
+          <span className={`text-sm ${on ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+            {item.label}
+            {item.hint && <span className="block text-xs text-gray-400">{item.hint}</span>}
+          </span>
+        </label>
+      );
+    }
+
+    if (type === 'scale') {
+      const v = typeof values[key] === 'number' ? (values[key] as number) : null;
+      return (
+        <div key={key} className="py-2.5 border-b last:border-0">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="text-sm text-gray-800 flex-1 min-w-[160px]">
+              {item.label}
+              {item.hint && <span className="block text-xs text-gray-400">{item.hint}</span>}
+            </span>
+            {ro ? (
+              <span className="text-sm font-bold text-gray-800">{v ?? '—'}</span>
+            ) : (
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => set(key, v === n ? '' : n)}
+                    className={`w-9 h-9 rounded-md text-sm font-semibold border ${
+                      v === n ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Computed from the two scales it names — never typed, because this is
+    // what decides whether a manager has to counter-sign.
+    if (type === 'score') {
+      const [ai, bi] = item.scoreFrom ?? [0, 1];
+      const a = values[keyForRaItem(section.id, ai)];
+      const b = values[keyForRaItem(section.id, bi)];
+      const total = typeof a === 'number' && typeof b === 'number' ? a * b : null;
+      const band = total === null ? null : scoreBand(total);
+      const tone = band?.tone === 'high' ? 'bg-red-100 text-red-800' : band?.tone === 'med' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800';
+      return (
+        <div key={key} className="py-2.5 border-b last:border-0">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="text-sm text-gray-800 flex-1 min-w-[160px]">{item.label}</span>
+            {total === null ? (
+              <span className="text-sm text-gray-400">Set both scores above</span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <span className="text-lg font-bold text-gray-900 tabular-nums">{total}</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${tone}`}>{band!.label}</span>
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mt-0.5">Low 1–6 · Medium 7–12 · High 13–25</p>
         </div>
       );
     }

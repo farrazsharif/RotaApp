@@ -3,12 +3,16 @@
 // Comment and an Action, mirroring the paper form. Shared shape used by the
 // portal (fill/print) and the carer app (read-only).
 
-export type RaItemType = 'risk' | 'hazard' | 'yesno' | 'text' | 'longtext' | 'date' | 'signature';
+export type RaItemType = 'risk' | 'hazard' | 'yesno' | 'check' | 'scale' | 'score' | 'text' | 'longtext' | 'date' | 'signature';
 
 export interface RaItem {
   label: string;
   type?: RaItemType; // default 'risk'
   hint?: string;     // optional example / guidance shown under the label
+  // 'score' only: the indices, WITHIN THIS SECTION, of the two 'scale' items
+  // to multiply together. Positional like every other key here, so never
+  // reorder a section that contains one.
+  scoreFrom?: [number, number];
 }
 
 export interface RaSection {
@@ -31,6 +35,19 @@ export interface RiskVal { level: '' | 'LOW' | 'MED' | 'HIGH'; comment: string; 
 // Value stored for a 'hazard' item (fire-safety style: who's harmed, how it's
 // controlled, a H/M/L risk factor, and actions required).
 export interface HazardVal { level: '' | 'H' | 'M' | 'L'; whoHarmed: string; controlled: string; actions: string; }
+
+// A 'check' item stores a plain boolean — a ticked box on a list where an
+// unticked one means "does not apply", not "unanswered".
+// A 'scale' item stores 1-5, or '' before it is set.
+// A 'score' item stores nothing: it is computed from the two scales it names.
+export type ScaleVal = 1 | 2 | 3 | 4 | 5 | '';
+
+// Bands a likelihood x severity product, matching the paper form's key.
+export function scoreBand(total: number): { label: string; tone: 'low' | 'med' | 'high' } {
+  if (total >= 13) return { label: 'High', tone: 'high' };
+  if (total >= 7) return { label: 'Medium', tone: 'med' };
+  return { label: 'Low', tone: 'low' };
+}
 
 // Value stored for a 'yesno' item (a Yes/No safety check with a comment).
 export interface YesNoVal { v: '' | 'YES' | 'NO'; comment: string; }
@@ -376,26 +393,15 @@ export const RA_BATHING: RaForm = {
 
 // Registry — add future risk assessments (Manual Handling, Smoking…) here.
 
-// Smoking Risk Assessment.
+// Care 24 Smoking Risk Assessment — the company’s own controlled document
+// (owned by the Registered Manager, approved by the Managing Director),
+// reproduced rather than reinvented so the on-screen version and the paper
+// one are the same assessment.
 //
-// Adapted for DOMICILIARY care from the safe-smoking assessment published by
-// Lewisham Safeguarding Adults Board (itself adapted from BUPA) after a fatal
-// care-home fire. The care-home version assumes a designated smoking area and
-// staff on hand to supervise every cigarette; neither exists here. This is
-// someone’s own home, they are entitled to smoke in it, and a carer is present
-// for half an hour. So the question is not whether to permit smoking but how
-// to make it as safe as it can be, and what carers do and do not do.
-//
-// Two things the generic fire assessment does not reach, both of which have
-// killed people: oxygen in the same room as a lit cigarette, and paraffin-based
-// emollients soaking into clothing and bedding, which then burn fiercely. The
-// MHRA and National Fire Chiefs Council warn the emollient risk applies at ANY
-// paraffin content and cannot be ruled out for paraffin-free emollients either.
-//
-// The last section is the one care-home forms have no need of: carers in a
-// private home have no statutory protection from second-hand smoke, but the
-// employer’s duty under the Health and Safety at Work Act does not stop at the
-// front door.
+// Section 3 scores likelihood x severity and bands the result Low 1-6,
+// Medium 7-12, High 13-25. The product is computed rather than typed: it
+// decides whether a manager signature is required in section 6, and that is
+// not a sum anyone should be doing in their head at a kitchen table.
 export const RA_SMOKING: RaForm = {
   type: 'SMOKING',
   title: 'Smoking Risk Assessment',
@@ -403,134 +409,85 @@ export const RA_SMOKING: RaForm = {
     {
       id: 'details',
       title: 'Assessment Details',
-      intro: 'For any service user who smokes or vapes. Smoking in their own home is their choice — this records how that is made as safe as possible, for them and for the carers who visit.',
       items: [
-        { label: 'Name and address of service user', type: 'text' },
-        { label: 'Assessment carried out by', type: 'text' },
+        { label: 'Service user name', type: 'text' },
         { label: 'Date', type: 'date' },
+        { label: 'Assessor name', type: 'text' },
         { label: 'Review date', type: 'date' },
       ],
     },
     {
-      id: 'habit',
-      title: 'What Is Smoked, and Where',
+      id: 'status',
+      title: '1. Smoking Status',
+      intro: 'If the service user does not smoke, the form is complete.',
       items: [
-        { label: 'What is smoked', type: 'text', hint: 'Cigarettes, roll-ups, pipe, cigars, e-cigarette / vape' },
-        { label: 'Roughly how many a day, and at what times', type: 'text' },
-        { label: 'The person smokes indoors.', type: 'yesno' },
-        { label: 'The person smokes in bed.', type: 'yesno' },
-        { label: 'The person smokes in a chair they are likely to fall asleep in.', type: 'yesno' },
-        { label: 'The person smokes while in a wheelchair, riser-recliner or using mobility equipment.', type: 'yesno' },
-        { label: 'The person is alone in the property when they smoke.', type: 'yesno' },
+        { label: 'Does the service user smoke?', type: 'yesno' },
+        { label: 'Cigarettes', type: 'check' },
+        { label: 'Roll-ups', type: 'check' },
+        { label: 'E-cigarette / vape', type: 'check' },
       ],
     },
     {
-      id: 'capacity',
-      title: 'Understanding and Capacity',
-      intro: 'Capacity is decision-specific. Where the person cannot weigh this particular risk, record a best-interests decision rather than simply removing their cigarettes.',
+      id: 'risks',
+      title: '2. Key Risks',
+      intro: 'Tick any that apply.',
       items: [
-        { label: 'The person understands the fire risk their smoking carries.', type: 'yesno' },
-        { label: 'The person can make and communicate an informed decision about how they smoke.', type: 'yesno' },
-        { label: 'The person has a cognitive impairment affecting memory, awareness of hazards or decision-making.', type: 'yesno', hint: 'Dementia, learning disability, brain injury, confusion' },
-        { label: 'Where capacity is lacking, a best-interests decision has been made and recorded.', type: 'yesno' },
-        { label: 'The person can raise the alarm or call for help if something catches fire.', type: 'yesno' },
+        { label: 'Smokes in bed or on a sofa', type: 'check' },
+        { label: 'Falls asleep while smoking', type: 'check' },
+        { label: 'Memory problems / forgets they lit a cigarette', type: 'check' },
+        { label: 'No working smoke alarm', type: 'check' },
+        { label: 'No safe ashtray available', type: 'check' },
+        { label: 'Uses oxygen therapy', type: 'check' },
+        { label: 'Tremors or poor grip (risk of dropping)', type: 'check' },
+        { label: 'Reduced mobility (cannot reach ashtray)', type: 'check' },
+        { label: 'Smokes near soft furnishings (curtains, bedding)', type: 'check' },
+        { label: 'Requires help to light or hold cigarette', type: 'check' },
+        { label: 'Other', type: 'text' },
       ],
     },
     {
-      id: 'ability',
-      title: 'Physical Ability and Technique',
-      intro: 'Where possible, observe rather than ask.',
+      id: 'rating',
+      title: '3. Risk Rating',
       items: [
-        { label: 'The person can hold a cigarette securely.', type: 'yesno' },
-        { label: 'The person has a tremor, weak grip or involuntary movements while smoking.', type: 'yesno' },
-        { label: 'The person can use a lighter or matches safely, away from their face and clothing.', type: 'yesno' },
-        { label: 'The person can put a cigarette out properly in an ashtray.', type: 'yesno' },
-        { label: 'The person stays alert while smoking and does not doze off.', type: 'yesno' },
-        { label: 'There are burn marks on clothing, bedding, furniture or flooring.', type: 'yesno' },
-        { label: 'There has been a fire, a near miss or a scorch incident before.', type: 'yesno' },
-      ],
-    },
-    {
-      id: 'clinical',
-      title: 'Clinical Risks',
-      intro: 'Oxygen and emollient residue are the two factors that most often turn a dropped cigarette into a fatal fire. Both must be checked on every review, not just at the first assessment.',
-      items: [
-        { label: 'The person is prescribed oxygen — cylinder or concentrator.', type: 'yesno', hint: 'Smoking must never happen in a room where oxygen is or has recently been in use. Carers must never assist with smoking while oxygen is running.' },
-        { label: 'Paraffin-based or other emollient creams, ointments, sprays or lip balms are used.', type: 'yesno', hint: 'MHRA / National Fire Chiefs Council: residue builds up in clothing and bedding and burns fiercely. The risk applies at any paraffin content and cannot be excluded for paraffin-free emollients.' },
-        { label: 'Bedding, nightwear and clothing are washed often enough to limit emollient build-up.', type: 'yesno', hint: 'Washing reduces but does not remove residue.' },
-        { label: 'A lower-paraffin or non-paraffin emollient has been considered with the prescriber.', type: 'yesno' },
-        { label: 'The person is prescribed sedatives, hypnotics, strong painkillers or psychiatric medication.', type: 'yesno', hint: 'Drowsiness while holding a lit cigarette' },
-        { label: 'The person drinks alcohol or uses other substances at times when they smoke.', type: 'yesno' },
-        { label: 'An airflow mattress, pressure-relieving cushion or similar equipment is in use.', type: 'yesno' },
-      ],
-    },
-    {
-      id: 'home',
-      title: 'The Home',
-      items: [
-        { label: 'There is a working smoke alarm, tested within the last month.', type: 'yesno' },
-        { label: 'There is a working alarm on every floor the person uses.', type: 'yesno' },
-        { label: 'A deep, stable ashtray that cannot easily tip is used.', type: 'yesno' },
-        { label: 'Smoking materials are put out properly and emptied into a metal bin, not a plastic one.', type: 'yesno' },
-        { label: 'Furniture and bedding are in good condition, with fire-retardant labels intact where known.', type: 'yesno' },
-        { label: 'Clutter or hoarding adds to the fire load or blocks the way out.', type: 'yesno' },
-        { label: 'A fire-retardant blanket, apron or throw is in use, and the person consents to it.', type: 'yesno' },
-        { label: 'The escape route from the property is clear.', type: 'yesno' },
-        { label: 'A free Home Fire Safety / Safe and Well visit has been requested from the fire service.', type: 'yesno', hint: 'Fire services prioritise people who smoke, live alone or have reduced mobility, and will fit alarms and fire-retardant bedding.' },
-      ],
-    },
-    {
-      id: 'vaping',
-      title: 'E-cigarettes and Vapes',
-      intro: 'Fire services advise that vaping is safer than smoking tobacco, but chargers and lithium batteries carry a risk of their own.',
-      items: [
-        { label: 'The person uses an e-cigarette or vape.', type: 'yesno' },
-        { label: 'It is charged with the charger supplied with it, and not left charging overnight or unattended.', type: 'yesno' },
-        { label: 'The device and its battery are undamaged, and not swollen, split or scorched.', type: 'yesno' },
-      ],
-    },
-    {
-      id: 'carers',
-      title: 'Carer Safety and Second-hand Smoke',
-      intro: 'A private home is not covered by smoke-free law, but the employer’s duty under the Health and Safety at Work Act still applies. Agree this with the person rather than imposing it.',
-      items: [
-        { label: 'The person has agreed not to smoke during a care visit.', type: 'yesno' },
-        { label: 'The person has agreed not to smoke shortly before a visit, and to air the room.', type: 'yesno' },
-        { label: 'Windows can be opened to ventilate the rooms a carer works in.', type: 'yesno' },
-        { label: 'Carers with asthma, a respiratory condition or who are pregnant have been considered when assigning this visit.', type: 'yesno' },
-        { label: 'Carers know they must never assist with smoking while oxygen is in use.', type: 'yesno' },
-        { label: 'Carers know they must not buy, light or hold cigarettes for the person unless that is agreed here in writing.', type: 'yesno' },
+        { label: 'Likelihood', type: 'scale', hint: '1 = low, 5 = high' },
+        { label: 'Severity', type: 'scale', hint: '1 = low, 5 = high' },
+        { label: 'Overall risk (likelihood × severity)', type: 'score', scoreFrom: [0, 1] },
       ],
     },
     {
       id: 'controls',
-      title: 'Controls Agreed',
+      title: '4. Control Measures Needed',
+      intro: 'Tick as appropriate.',
       items: [
-        { label: 'Overall risk of fire from smoking' },
-        { label: 'What has been agreed with the person', type: 'longtext' },
-        { label: 'What carers must do on each visit', type: 'longtext', hint: 'e.g. check the ashtray is emptied, check the alarm, report burn marks' },
-        { label: 'What carers must not do', type: 'longtext' },
+        { label: 'Supervise while smoking', type: 'check' },
+        { label: 'Smoke only outdoors', type: 'check' },
+        { label: 'No smoking in bedroom', type: 'check' },
+        { label: 'One cigarette at a time only', type: 'check' },
+        { label: 'Provide heavy non-tip ashtray', type: 'check' },
+        { label: 'Keep lighter / cigarettes out of reach', type: 'check' },
+        { label: 'Test smoke alarm weekly', type: 'check' },
+        { label: 'Oxygen off and 2 metres away', type: 'check' },
+        { label: 'Other', type: 'text' },
       ],
     },
     {
-      id: 'decision',
-      title: 'Discussion and Outcome',
+      id: 'capacity',
+      title: '5. Capacity & Agreement',
       items: [
-        { label: 'The person has been offered support to stop smoking.', type: 'yesno' },
-        { label: 'The risks have been discussed with the person.', type: 'yesno' },
-        { label: 'The risks have been discussed with family, next of kin or an advocate, with consent.', type: 'yesno' },
-        { label: 'A referral has been made to the fire service or another agency.', type: 'yesno' },
-        { label: 'Outcome and any outstanding actions', type: 'longtext' },
+        { label: 'Does the service user understand the risks?', type: 'yesno' },
+        { label: 'Agrees to the controls above — Yes', type: 'check' },
+        { label: 'Agrees to the controls above — Partially', type: 'check' },
+        { label: 'Agrees to the controls above — No (refer to manager / best interests)', type: 'check' },
       ],
     },
     {
       id: 'signoff',
-      title: 'Sign-off',
+      title: '6. Sign-off',
       items: [
-        { label: 'Assessed by', type: 'text' },
-        { label: 'Signature', type: 'signature' },
+        { label: 'Assessor signature', type: 'signature' },
         { label: 'Date', type: 'date' },
-        { label: 'Shared with the person or their representative on', type: 'date' },
+        { label: 'Manager signature (required if high risk)', type: 'signature' },
+        { label: 'Date', type: 'date' },
       ],
     },
   ],

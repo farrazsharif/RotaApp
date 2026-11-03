@@ -10,7 +10,7 @@ import { medicationsApi } from '../api/medications';
 import { PSP_SECTIONS, itemKey } from '../lib/servicePlanSchema';
 import type { PspItem, PspSection } from '../lib/servicePlanSchema';
 import { riskAssessmentsApi } from '../api/riskAssessments';
-import { RA_FORMS, RA_TYPES, keyForRaItem } from '../lib/riskAssessmentSchema';
+import { RA_FORMS, RA_TYPES, keyForRaItem, scoreBand } from '../lib/riskAssessmentSchema';
 import type { RiskVal, HazardVal, YesNoVal } from '../lib/riskAssessmentSchema';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
@@ -373,6 +373,45 @@ export default function ServiceUserDetail() {
                                 <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${cls}`}>{v.v || '—'}</span>
                               </div>
                               {v.comment && <p className="text-xs text-gray-500 mt-0.5"><span className="font-medium">Comment:</span> {v.comment}</p>}
+                            </div>
+                          );
+                        }
+                        if (type === 'check') {
+                          const on = raValues[key] === true;
+                          return (
+                            <div key={key} className="py-1.5 flex items-start gap-2">
+                              <span className={`text-sm shrink-0 ${on ? 'text-blue-600' : 'text-gray-300'}`}>{on ? '☑' : '☐'}</span>
+                              <p className={`text-sm ${on ? 'font-medium text-gray-900' : 'text-gray-500'}`}>{item.label}</p>
+                            </div>
+                          );
+                        }
+                        if (type === 'scale') {
+                          const v = typeof raValues[key] === 'number' ? (raValues[key] as number) : null;
+                          return (
+                            <div key={key} className="py-2 flex items-start justify-between gap-2">
+                              <p className="text-sm text-gray-800 flex-1">{item.label}</p>
+                              <span className="text-sm font-bold text-gray-800">{v ?? '—'}</span>
+                            </div>
+                          );
+                        }
+                        if (type === 'score') {
+                          const [ai, bi] = item.scoreFrom ?? [0, 1];
+                          const a = raValues[keyForRaItem(section.id, ai)];
+                          const b = raValues[keyForRaItem(section.id, bi)];
+                          const total = typeof a === 'number' && typeof b === 'number' ? a * b : null;
+                          const band = total === null ? null : scoreBand(total);
+                          const tone = band?.tone === 'high' ? 'text-red-700 bg-red-100' : band?.tone === 'med' ? 'text-amber-700 bg-amber-100' : 'text-green-700 bg-green-100';
+                          return (
+                            <div key={key} className="py-2 flex items-start justify-between gap-2">
+                              <p className="text-sm text-gray-800 flex-1">{item.label}</p>
+                              {total === null ? (
+                                <span className="text-sm text-gray-400">—</span>
+                              ) : (
+                                <span className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-sm font-bold text-gray-900">{total}</span>
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${tone}`}>{band!.label}</span>
+                                </span>
+                              )}
                             </div>
                           );
                         }

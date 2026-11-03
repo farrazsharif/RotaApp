@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { ServiceUser } from '../types';
-import { RaForm, RaSection, RaItem, RiskVal, HazardVal, YesNoVal, keyForRaItem } from './riskAssessmentSchema';
+import { RaForm, RaSection, RaItem, RiskVal, HazardVal, YesNoVal, keyForRaItem, scoreBand } from './riskAssessmentSchema';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
 import { parseSignature } from '../components/SignatureField';
 
@@ -116,12 +116,36 @@ export function buildRiskAssessmentHtml(serviceUser: ServiceUser, form: RaForm, 
     </table>`;
   }
 
-  // Non-hazard sections (details / sign-off): simple label→value fields.
+  // Mixed sections (details, sign-off, and every section of a tick-list form
+  // like the smoking assessment): one block per item, rendered by its type.
   function fieldsBlock(section: RaSection): string {
     return section.items.map((item: RaItem, i) => {
       const key = keyForRaItem(section.id, i);
       if (item.type === 'signature') {
         return `<div class="field"><div class="field-label">${esc(item.label)}</div>${sigHtml(str(key))}</div>`;
+      }
+      // A tick prints as the box itself, ticked or not, so an unticked line
+      // still reads as "considered and does not apply" rather than omitted.
+      if (item.type === 'check') {
+        const on = values[key] === true;
+        return `<div class="tick"><span class="box">${on ? '☒' : '☐'}</span>${esc(item.label)}</div>`;
+      }
+      if (item.type === 'scale') {
+        const n = typeof values[key] === 'number' ? String(values[key]) : '—';
+        return `<div class="field"><div class="field-label">${esc(item.label)}</div><div class="field-value">${n}</div></div>`;
+      }
+      if (item.type === 'score') {
+        const [ai, bi] = item.scoreFrom ?? [0, 1];
+        const a = values[keyForRaItem(section.id, ai)];
+        const b = values[keyForRaItem(section.id, bi)];
+        const total = typeof a === 'number' && typeof b === 'number' ? a * b : null;
+        const shown = total === null ? '—' : `${total} — ${scoreBand(total).label}`;
+        return `<div class="field"><div class="field-label">${esc(item.label)}</div><div class="field-value"><strong>${shown}</strong></div></div>`;
+      }
+      if (item.type === 'yesno') {
+        const yn = yesno(key);
+        const shown = `${yn.v || '—'}${yn.comment ? ` — ${yn.comment}` : ''}`;
+        return `<div class="field"><div class="field-label">${esc(item.label)}</div><div class="field-value">${esc(shown)}</div></div>`;
       }
       const v = str(key);
       const shown = item.type === 'date' && v ? esc(format(new Date(v), 'dd MMM yyyy')) : esc(v);
@@ -133,7 +157,10 @@ export function buildRiskAssessmentHtml(serviceUser: ServiceUser, form: RaForm, 
     const allRisk = s.items.every((it) => (it.type || 'risk') === 'risk');
     const allHazard = s.items.every((it) => it.type === 'hazard');
     const allYesNo = s.items.every((it) => it.type === 'yesno');
-    const body = allRisk ? riskTable(s) : allHazard ? hazardTable(s) : allYesNo ? yesnoTable(s) : `<div class="fields-grid">${fieldsBlock(s)}</div>`;
+    // A section that is mostly ticks reads as a list, not a two-column grid
+    // of label/value pairs.
+    const tickHeavy = s.items.filter((it) => it.type === 'check').length > s.items.length / 2;
+    const body = allRisk ? riskTable(s) : allHazard ? hazardTable(s) : allYesNo ? yesnoTable(s) : `<div class="${tickHeavy ? 'tick-grid' : 'fields-grid'}">${fieldsBlock(s)}</div>`;
     return `<div class="section">
       <h2>${esc(s.title)}</h2>
       ${s.intro ? `<p class="intro">${esc(s.intro)}</p>` : ''}
@@ -162,6 +189,9 @@ export function buildRiskAssessmentHtml(serviceUser: ServiceUser, form: RaForm, 
       table.ra .lvl { width: 34px; text-align: center; font-weight: bold; }
       table.ra .lvlw { width: 64px; text-align: center; font-weight: bold; }
       .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .tick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
+      .tick { font-size: 11px; padding: 1px 0; }
+      .tick .box { font-size: 13px; margin-right: 6px; }
       .field { margin-bottom: 6px; }
       .field-label { font-size: 10px; font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: 0.02em; }
       .field-value { font-size: 12px; white-space: pre-wrap; margin-top: 2px; }
