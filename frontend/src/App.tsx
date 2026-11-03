@@ -55,11 +55,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function ManagerRoute({ children }: { children: React.ReactNode }) {
-  const { isManager } = useAuth();
-  if (!isManager) return <Navigate to="/" replace />;
-  return <>{children}</>;
-}
 
 function PlatformRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -67,6 +62,11 @@ function PlatformRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Every guarded page gates on a capability, never on the base account type.
+// A custom role can be built on Employee — the New Role form defaults to it —
+// and such a user is not "a manager" however many permissions they are given.
+// Guarding on the account type meant their ticked permissions did nothing and
+// they were bounced to the dashboard with no explanation.
 function CapabilityRoute({ cap, children }: { cap: PermissionKey; children: React.ReactNode }) {
   const { can } = usePermissions();
   if (!can(cap)) return <Navigate to="/" replace />;
@@ -104,32 +104,32 @@ function AppRoutes() {
       >
         <Route index element={<Home />} />
         <Route path="schedule" element={<Schedule />} />
-        <Route path="roster" element={<ManagerRoute><Roster /></ManagerRoute>} />
+        <Route path="roster" element={<CapabilityRoute cap="manage_schedule"><Roster /></CapabilityRoute>} />
         <Route path="service-users" element={<ServiceUsers />} />
-        <Route path="documents" element={<ManagerRoute><ClientDocuments /></ManagerRoute>} />
-        <Route path="service-users/new" element={<ManagerRoute><ServiceUserForm /></ManagerRoute>} />
+        <Route path="documents" element={<CapabilityRoute cap="manage_service_users"><ClientDocuments /></CapabilityRoute>} />
+        <Route path="service-users/new" element={<CapabilityRoute cap="manage_service_users"><ServiceUserForm /></CapabilityRoute>} />
         <Route path="service-users/:id" element={<ServiceUserDetail />} />
-        <Route path="service-users/:id/edit" element={<ManagerRoute><ServiceUserForm /></ManagerRoute>} />
+        <Route path="service-users/:id/edit" element={<CapabilityRoute cap="manage_service_users"><ServiceUserForm /></CapabilityRoute>} />
         <Route path="call-logs" element={<CallLogs />} />
         <Route path="emar" element={<Emar />} />
         <Route path="care-plans" element={<CarePlans />} />
         <Route path="reviews" element={<Reviews />} />
         <Route path="supervision" element={<Supervision />} />
         <Route path="service-plans" element={<ServicePlans />} />
-        <Route path="time-off" element={<ManagerRoute><TimeOff /></ManagerRoute>} />
-        <Route path="attendance" element={<ManagerRoute><Attendance /></ManagerRoute>} />
-        <Route path="handovers" element={<ManagerRoute><Handovers /></ManagerRoute>} />
+        <Route path="time-off" element={<CapabilityRoute cap="manage_time_off"><TimeOff /></CapabilityRoute>} />
+        <Route path="attendance" element={<CapabilityRoute cap="manage_schedule"><Attendance /></CapabilityRoute>} />
+        <Route path="handovers" element={<CapabilityRoute cap="manage_schedule"><Handovers /></CapabilityRoute>} />
         <Route path="incidents" element={<Incidents />} />
-        <Route path="announcements" element={<ManagerRoute><Announcements /></ManagerRoute>} />
-        <Route path="runs" element={<ManagerRoute><Runs /></ManagerRoute>} />
+        <Route path="announcements" element={<CapabilityRoute cap="manage_schedule"><Announcements /></CapabilityRoute>} />
+        <Route path="runs" element={<CapabilityRoute cap="manage_schedule"><Runs /></CapabilityRoute>} />
         <Route path="supported-living" element={<SupportedLiving />} />
-        <Route path="reports" element={<ManagerRoute><Reports /></ManagerRoute>} />
-        <Route path="cqc" element={<ManagerRoute><Cqc /></ManagerRoute>} />
-        <Route path="late-checkins" element={<ManagerRoute><LateCheckins /></ManagerRoute>} />
-        <Route path="missed-meds" element={<ManagerRoute><MissedMeds /></ManagerRoute>} />
+        <Route path="reports" element={<CapabilityRoute cap="view_reports"><Reports /></CapabilityRoute>} />
+        <Route path="cqc" element={<CapabilityRoute cap="manage_cqc"><Cqc /></CapabilityRoute>} />
+        <Route path="late-checkins" element={<CapabilityRoute cap="manage_schedule"><LateCheckins /></CapabilityRoute>} />
+        <Route path="missed-meds" element={<CapabilityRoute cap="manage_medications"><MissedMeds /></CapabilityRoute>} />
         <Route path="finances" element={<Finances />} />
-        <Route path="users" element={<ManagerRoute><Users /></ManagerRoute>} />
-        <Route path="users/:id" element={<ManagerRoute><StaffDetail /></ManagerRoute>} />
+        <Route path="users" element={<CapabilityRoute cap="manage_staff"><Users /></CapabilityRoute>} />
+        <Route path="users/:id" element={<CapabilityRoute cap="manage_staff"><StaffDetail /></CapabilityRoute>} />
         <Route path="dbs" element={<CapabilityRoute cap="manage_dbs"><DbsRegister /></CapabilityRoute>} />
         <Route path="training" element={<CapabilityRoute cap="manage_staff"><TrainingMatrix /></CapabilityRoute>} />
         <Route path="settings" element={<Settings />} />

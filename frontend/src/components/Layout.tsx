@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { settingsApi } from '../api/settings';
 import { primePrintBranding } from '../lib/printBranding';
 
-const navItems: { to: string; label: string; icon: string; exact?: boolean; managerOnly?: boolean; capability?: PermissionKey; platformOnly?: boolean }[] = [
+const navItems: { to: string; label: string; icon: string; exact?: boolean; capability?: PermissionKey; platformOnly?: boolean }[] = [
   { to: '/platform', label: 'Platform Admin', icon: '🏢', platformOnly: true },
   { to: '/', label: 'Dashboard', icon: '🏠', exact: true },
   { to: '/schedule', label: 'Schedule', icon: '📅', capability: 'manage_schedule' },
@@ -17,7 +17,7 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; mana
   { to: '/runs', label: 'Runs', icon: '🚐', capability: 'manage_schedule' },
   { to: '/supported-living', label: 'Supported Living', icon: '🏘️', capability: 'manage_service_users' },
   { to: '/service-users', label: 'Service Users', icon: '🧑‍🦽', capability: 'manage_service_users' },
-  { to: '/documents', label: 'Documents', icon: '📄', managerOnly: true },
+  { to: '/documents', label: 'Documents', icon: '📄', capability: 'manage_service_users' },
   { to: '/call-logs', label: 'Call Logs', icon: '📝', capability: 'manage_service_users' },
   { to: '/incidents', label: 'Incidents', icon: '⚠️', capability: 'manage_service_users' },
   { to: '/emar', label: 'eMAR', icon: '💊', capability: 'manage_medications' },
@@ -81,7 +81,6 @@ export default function Layout() {
     // Platform owners get a platform-only experience: just Platform Admin +
     // Settings, none of the per-company care screens.
     if (user?.platformAdmin && !item.platformOnly && item.to !== '/settings') return false;
-    if (item.managerOnly && !isManager) return false;
     if (item.capability && !can(item.capability)) return false;
     return true;
   });
