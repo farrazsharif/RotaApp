@@ -375,6 +375,167 @@ export const RA_BATHING: RaForm = {
 };
 
 // Registry — add future risk assessments (Manual Handling, Smoking…) here.
-export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, BATHING: RA_BATHING };
+
+// Smoking Risk Assessment.
+//
+// Adapted for DOMICILIARY care from the safe-smoking assessment published by
+// Lewisham Safeguarding Adults Board (itself adapted from BUPA) after a fatal
+// care-home fire. The care-home version assumes a designated smoking area and
+// staff on hand to supervise every cigarette; neither exists here. This is
+// someone’s own home, they are entitled to smoke in it, and a carer is present
+// for half an hour. So the question is not whether to permit smoking but how
+// to make it as safe as it can be, and what carers do and do not do.
+//
+// Two things the generic fire assessment does not reach, both of which have
+// killed people: oxygen in the same room as a lit cigarette, and paraffin-based
+// emollients soaking into clothing and bedding, which then burn fiercely. The
+// MHRA and National Fire Chiefs Council warn the emollient risk applies at ANY
+// paraffin content and cannot be ruled out for paraffin-free emollients either.
+//
+// The last section is the one care-home forms have no need of: carers in a
+// private home have no statutory protection from second-hand smoke, but the
+// employer’s duty under the Health and Safety at Work Act does not stop at the
+// front door.
+export const RA_SMOKING: RaForm = {
+  type: 'SMOKING',
+  title: 'Smoking Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      intro: 'For any service user who smokes or vapes. Smoking in their own home is their choice — this records how that is made as safe as possible, for them and for the carers who visit.',
+      items: [
+        { label: 'Name and address of service user', type: 'text' },
+        { label: 'Assessment carried out by', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'habit',
+      title: 'What Is Smoked, and Where',
+      items: [
+        { label: 'What is smoked', type: 'text', hint: 'Cigarettes, roll-ups, pipe, cigars, e-cigarette / vape' },
+        { label: 'Roughly how many a day, and at what times', type: 'text' },
+        { label: 'The person smokes indoors.', type: 'yesno' },
+        { label: 'The person smokes in bed.', type: 'yesno' },
+        { label: 'The person smokes in a chair they are likely to fall asleep in.', type: 'yesno' },
+        { label: 'The person smokes while in a wheelchair, riser-recliner or using mobility equipment.', type: 'yesno' },
+        { label: 'The person is alone in the property when they smoke.', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'capacity',
+      title: 'Understanding and Capacity',
+      intro: 'Capacity is decision-specific. Where the person cannot weigh this particular risk, record a best-interests decision rather than simply removing their cigarettes.',
+      items: [
+        { label: 'The person understands the fire risk their smoking carries.', type: 'yesno' },
+        { label: 'The person can make and communicate an informed decision about how they smoke.', type: 'yesno' },
+        { label: 'The person has a cognitive impairment affecting memory, awareness of hazards or decision-making.', type: 'yesno', hint: 'Dementia, learning disability, brain injury, confusion' },
+        { label: 'Where capacity is lacking, a best-interests decision has been made and recorded.', type: 'yesno' },
+        { label: 'The person can raise the alarm or call for help if something catches fire.', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'ability',
+      title: 'Physical Ability and Technique',
+      intro: 'Where possible, observe rather than ask.',
+      items: [
+        { label: 'The person can hold a cigarette securely.', type: 'yesno' },
+        { label: 'The person has a tremor, weak grip or involuntary movements while smoking.', type: 'yesno' },
+        { label: 'The person can use a lighter or matches safely, away from their face and clothing.', type: 'yesno' },
+        { label: 'The person can put a cigarette out properly in an ashtray.', type: 'yesno' },
+        { label: 'The person stays alert while smoking and does not doze off.', type: 'yesno' },
+        { label: 'There are burn marks on clothing, bedding, furniture or flooring.', type: 'yesno' },
+        { label: 'There has been a fire, a near miss or a scorch incident before.', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'clinical',
+      title: 'Clinical Risks',
+      intro: 'Oxygen and emollient residue are the two factors that most often turn a dropped cigarette into a fatal fire. Both must be checked on every review, not just at the first assessment.',
+      items: [
+        { label: 'The person is prescribed oxygen — cylinder or concentrator.', type: 'yesno', hint: 'Smoking must never happen in a room where oxygen is or has recently been in use. Carers must never assist with smoking while oxygen is running.' },
+        { label: 'Paraffin-based or other emollient creams, ointments, sprays or lip balms are used.', type: 'yesno', hint: 'MHRA / National Fire Chiefs Council: residue builds up in clothing and bedding and burns fiercely. The risk applies at any paraffin content and cannot be excluded for paraffin-free emollients.' },
+        { label: 'Bedding, nightwear and clothing are washed often enough to limit emollient build-up.', type: 'yesno', hint: 'Washing reduces but does not remove residue.' },
+        { label: 'A lower-paraffin or non-paraffin emollient has been considered with the prescriber.', type: 'yesno' },
+        { label: 'The person is prescribed sedatives, hypnotics, strong painkillers or psychiatric medication.', type: 'yesno', hint: 'Drowsiness while holding a lit cigarette' },
+        { label: 'The person drinks alcohol or uses other substances at times when they smoke.', type: 'yesno' },
+        { label: 'An airflow mattress, pressure-relieving cushion or similar equipment is in use.', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'home',
+      title: 'The Home',
+      items: [
+        { label: 'There is a working smoke alarm, tested within the last month.', type: 'yesno' },
+        { label: 'There is a working alarm on every floor the person uses.', type: 'yesno' },
+        { label: 'A deep, stable ashtray that cannot easily tip is used.', type: 'yesno' },
+        { label: 'Smoking materials are put out properly and emptied into a metal bin, not a plastic one.', type: 'yesno' },
+        { label: 'Furniture and bedding are in good condition, with fire-retardant labels intact where known.', type: 'yesno' },
+        { label: 'Clutter or hoarding adds to the fire load or blocks the way out.', type: 'yesno' },
+        { label: 'A fire-retardant blanket, apron or throw is in use, and the person consents to it.', type: 'yesno' },
+        { label: 'The escape route from the property is clear.', type: 'yesno' },
+        { label: 'A free Home Fire Safety / Safe and Well visit has been requested from the fire service.', type: 'yesno', hint: 'Fire services prioritise people who smoke, live alone or have reduced mobility, and will fit alarms and fire-retardant bedding.' },
+      ],
+    },
+    {
+      id: 'vaping',
+      title: 'E-cigarettes and Vapes',
+      intro: 'Fire services advise that vaping is safer than smoking tobacco, but chargers and lithium batteries carry a risk of their own.',
+      items: [
+        { label: 'The person uses an e-cigarette or vape.', type: 'yesno' },
+        { label: 'It is charged with the charger supplied with it, and not left charging overnight or unattended.', type: 'yesno' },
+        { label: 'The device and its battery are undamaged, and not swollen, split or scorched.', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'carers',
+      title: 'Carer Safety and Second-hand Smoke',
+      intro: 'A private home is not covered by smoke-free law, but the employer’s duty under the Health and Safety at Work Act still applies. Agree this with the person rather than imposing it.',
+      items: [
+        { label: 'The person has agreed not to smoke during a care visit.', type: 'yesno' },
+        { label: 'The person has agreed not to smoke shortly before a visit, and to air the room.', type: 'yesno' },
+        { label: 'Windows can be opened to ventilate the rooms a carer works in.', type: 'yesno' },
+        { label: 'Carers with asthma, a respiratory condition or who are pregnant have been considered when assigning this visit.', type: 'yesno' },
+        { label: 'Carers know they must never assist with smoking while oxygen is in use.', type: 'yesno' },
+        { label: 'Carers know they must not buy, light or hold cigarettes for the person unless that is agreed here in writing.', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'controls',
+      title: 'Controls Agreed',
+      items: [
+        { label: 'Overall risk of fire from smoking' },
+        { label: 'What has been agreed with the person', type: 'longtext' },
+        { label: 'What carers must do on each visit', type: 'longtext', hint: 'e.g. check the ashtray is emptied, check the alarm, report burn marks' },
+        { label: 'What carers must not do', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'decision',
+      title: 'Discussion and Outcome',
+      items: [
+        { label: 'The person has been offered support to stop smoking.', type: 'yesno' },
+        { label: 'The risks have been discussed with the person.', type: 'yesno' },
+        { label: 'The risks have been discussed with family, next of kin or an advocate, with consent.', type: 'yesno' },
+        { label: 'A referral has been made to the fire service or another agency.', type: 'yesno' },
+        { label: 'Outcome and any outstanding actions', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Assessed by', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+        { label: 'Shared with the person or their representative on', type: 'date' },
+      ],
+    },
+  ],
+};
+
+export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, SMOKING: RA_SMOKING, BATHING: RA_BATHING };
 
 export const RA_TYPES: { type: string; title: string }[] = Object.values(RA_FORMS).map((f) => ({ type: f.type, title: f.title }));
