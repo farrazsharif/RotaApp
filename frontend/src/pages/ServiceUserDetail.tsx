@@ -42,6 +42,7 @@ import { VISIT_PRESETS } from '../lib/visits';
 import CareTasksEditor from '../components/CareTasksEditor';
 import { siteTintStyle } from '../lib/siteColor';
 import Icon from '../components/Icon';
+import { printPage } from '../lib/printHtml';
 
 type DocMode = 'view' | 'edit' | 'new';
 
@@ -1379,7 +1380,7 @@ function FinancialRecord({ serviceUserId, canManage }: { serviceUserId: string; 
               {adding ? 'Close' : 'Add transaction'}
             </button>
           )}
-          <button className="btn-secondary btn btn-sm" onClick={() => window.print()}>Print</button>
+          <button className="btn-secondary btn btn-sm" onClick={printPage}>Print</button>
         </div>
       }
     >

@@ -7,6 +7,7 @@ import { usersApi } from '../api/users';
 import { settingsApi } from '../api/settings';
 import { resolveTrainingCourses } from '../lib/trainingCourses';
 import { Training } from '../types';
+import { printPage } from '../lib/printHtml';
 
 type Status = 'valid' | 'due' | 'expired' | 'missing';
 
@@ -146,7 +147,7 @@ export default function TrainingMatrix() {
         <div className="flex flex-wrap items-center gap-2">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search staff…" className="input w-48" />
           <button className="btn-secondary btn" onClick={exportExcel} disabled={busyExport}>{busyExport ? 'Exporting…' : '⬇ Excel'}</button>
-          <button className="btn-secondary btn" onClick={() => window.print()}>🖨 Print</button>
+          <button className="btn-secondary btn" onClick={printPage}>🖨 Print</button>
           <button className="btn-primary btn" onClick={() => setImporting(true)}>📄 Import</button>
         </div>
       </div>

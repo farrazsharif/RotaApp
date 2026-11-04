@@ -18,7 +18,7 @@ import CarerRota from '../components/CarerRota';
 import SearchableSelect from '../components/SearchableSelect';
 import PrintBrandingHeader from '../components/PrintBrandingHeader';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
-import { viewHtml } from '../lib/printHtml';
+import { viewHtml, printPage } from '../lib/printHtml';
 
 type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm' | 'rota' | 'clientdb';
 
@@ -765,7 +765,7 @@ export default function Reports() {
               <button onClick={() => setSchedGroupBy('client')} className={`px-3 py-1.5 border-l border-gray-200 ${schedGroupBy === 'client' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>By patient</button>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => window.print()} className="btn-secondary btn">Print</button>
+              <button onClick={printPage} className="btn-secondary btn">Print</button>
               <button onClick={exportScheduledCsv} className="btn-secondary btn">Export</button>
             </div>
           </div>

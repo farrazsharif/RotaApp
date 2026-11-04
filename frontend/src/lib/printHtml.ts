@@ -27,6 +27,9 @@ const OFFSCREEN = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;
 // Print a generated document. Nothing is shown on screen beyond the browser's
 // own print dialog, which is what a Print button should do.
 export function printHtml(html: string): void {
+  // An iframe print is just as dead as a page print on a home-screen iOS
+  // app, so say so rather than appearing to do nothing.
+  if (isIosStandalone()) { explainNoPrint(); return; }
   document.getElementById(PRINT_FRAME_ID)?.remove();
   const frame = document.createElement('iframe');
   frame.id = PRINT_FRAME_ID;
@@ -98,6 +101,7 @@ export function viewHtml(html: string, title = 'Document'): void {
   frame.srcdoc = html;
 
   printBtn.onclick = () => {
+    if (isIosStandalone()) { explainNoPrint(); return; }
     const win = frame.contentWindow;
     if (!win) return;
     try {
@@ -127,4 +131,77 @@ export function viewHtml(html: string, title = 'Document'): void {
 export function openPrintable(html: string, autoPrint: boolean, title?: string): void {
   if (autoPrint) printHtml(html);
   else viewHtml(html, title);
+}
+
+// ---------------------------------------------------------------------------
+// iOS, installed to the home screen
+//
+// A site launched from the iOS home screen runs "standalone", and WebKit
+// exposes no printing there at all: window.print() returns without doing
+// anything, with no error and no dialog. That is why Export worked and Print
+// appeared dead — the button was firing, iOS was ignoring it.
+//
+// Nothing in the page can work around that. What a page CAN do is stop failing
+// silently and offer the one route that does work: the same page opened in
+// Safari proper, where printing behaves normally. From a standalone web app a
+// target="_blank" link to an https URL opens in Safari, so the way out is one
+// tap.
+
+export function isIosStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  // `standalone` is iOS-only; the display-mode query covers an iPad reporting
+  // itself as a Mac, which recent iPadOS does.
+  const standalone = nav.standalone === true || window.matchMedia?.('(display-mode: standalone)')?.matches === true;
+  if (!standalone) return false;
+  const ua = navigator.userAgent;
+  return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
+}
+
+// Shown instead of a print dialog that would never appear.
+function explainNoPrint(): void {
+  const overlay = document.createElement('div');
+  overlay.setAttribute(
+    'style',
+    'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px;',
+  );
+
+  const card = document.createElement('div');
+  card.setAttribute(
+    'style',
+    'background:#fff;border-radius:16px;padding:20px;max-width:380px;width:100%;font:400 15px/1.5 system-ui,sans-serif;color:#374151;',
+  );
+  card.innerHTML =
+    '<p style="font:700 17px system-ui,sans-serif;color:#111827;margin:0 0 8px">Printing needs Safari</p>' +
+    '<p style="margin:0 0 16px">iPhones and iPads can’t print from an app added to the home screen. Open this page in Safari and the Print button will work as normal.</p>';
+
+  const open = document.createElement('a');
+  open.href = window.location.href;
+  open.target = '_blank';
+  open.rel = 'noopener';
+  open.textContent = 'Open in Safari';
+  open.setAttribute(
+    'style',
+    'display:block;text-align:center;font:600 15px system-ui,sans-serif;padding:12px;border-radius:10px;background:#2563eb;color:#fff;text-decoration:none;margin-bottom:8px;',
+  );
+
+  const close = document.createElement('button');
+  close.textContent = 'Not now';
+  close.setAttribute(
+    'style',
+    'display:block;width:100%;font:600 15px system-ui,sans-serif;padding:12px;border-radius:10px;border:1px solid #d1d5db;background:#fff;color:#374151;cursor:pointer;',
+  );
+  close.onclick = () => overlay.remove();
+
+  card.append(open, close);
+  overlay.append(card);
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
+}
+
+// Print the live page. Use this rather than window.print() directly, so the
+// home-screen case says something instead of appearing broken.
+export function printPage(): void {
+  if (isIosStandalone()) { explainNoPrint(); return; }
+  window.print();
 }

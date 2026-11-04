@@ -7,6 +7,7 @@ import { format, addMonths } from 'date-fns';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import SignatureField from './SignatureField';
 import PrintBrandingHeader from './PrintBrandingHeader';
+import { printPage } from '../lib/printHtml';
 
 interface Props {
   serviceUserId: string;
@@ -398,7 +399,7 @@ export default function ReviewFormModal({ serviceUserId, serviceUserName, review
         <div className="flex gap-3 p-6 border-t sticky bottom-0 bg-white">
           <div className="flex-1" />
           <button onClick={onClose} className="btn-secondary btn">Close</button>
-          <button onClick={() => window.print()} className="btn-secondary btn no-print">🖨 Print</button>
+          <button onClick={printPage} className="btn-secondary btn no-print">🖨 Print</button>
           {!ro && (
             <button className="btn-primary btn" disabled={saveMut.isPending || !reviewDate} onClick={() => saveMut.mutate()}>
               {saveMut.isPending ? 'Saving…' : editReview ? 'Save Changes' : 'Save Review'}

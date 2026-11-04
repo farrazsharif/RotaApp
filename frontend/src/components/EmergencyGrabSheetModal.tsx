@@ -8,6 +8,7 @@ import { formatTime12h } from '../lib/time';
 import { settingsApi } from '../api/settings';
 import PrintBrandingHeader from './PrintBrandingHeader';
 import AutoGrowTextarea from './AutoGrowTextarea';
+import { printPage } from '../lib/printHtml';
 
 // Minutes between two HH:mm times (handles overnight).
 function durationMins(start: string, end: string): number {
@@ -98,7 +99,7 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
         <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10 no-print">
           <h2 className="text-lg font-semibold">Emergency Grab Sheet — {su.firstName} {su.lastName}</h2>
           <div className="flex gap-2">
-            <button onClick={() => window.print()} className="btn-secondary btn btn-sm">🖨 Print</button>
+            <button onClick={printPage} className="btn-secondary btn btn-sm">🖨 Print</button>
             {canManage && <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} className="btn-primary btn btn-sm">{saveMut.isPending ? 'Saving…' : 'Save'}</button>}
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none px-1">×</button>
           </div>

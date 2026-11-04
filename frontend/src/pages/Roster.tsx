@@ -6,6 +6,7 @@ import { usersApi } from '../api/users';
 import { Shift, User } from '../types';
 import { format, startOfWeek, addDays, addWeeks } from 'date-fns';
 import { formatTime12h } from '../lib/time';
+import { printPage } from '../lib/printHtml';
 
 // Minutes a shift covers (handles overnight shifts that wrap past midnight).
 function shiftMins(s: Shift): number {
@@ -163,7 +164,7 @@ export default function Roster() {
           <h1 className="text-xl font-bold text-gray-900">Roster</h1>
           {(moveMut.isPending || timeMut.isPending || spaceMut.isPending) && <span className="text-xs text-blue-600">Saving…</span>}
         </div>
-        <button className="btn btn-secondary btn-sm" onClick={() => window.print()}>🖨 Print</button>
+        <button className="btn btn-secondary btn-sm" onClick={printPage}>🖨 Print</button>
       </div>
       <p className="text-xs text-gray-400 print:hidden">
         {view === 'hours'
