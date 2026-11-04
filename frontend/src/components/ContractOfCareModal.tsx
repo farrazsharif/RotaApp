@@ -13,6 +13,8 @@ import { parseVisits, visitStats, visitCover, visitIsEveryDay } from '../lib/vis
 import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import RiskAssessmentHistory from './RiskAssessmentHistory';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
+// Aliased: this file already has a local `viewHtml` for its inline preview.
+import { viewHtml as openHtmlView } from '../lib/printHtml';
 
 // Stored under the generic assessment store, type 'CONTRACT_OF_CARE'. The weekly
 // visits (and the hours total) are read live from the client's Care Plan Weekly
@@ -394,11 +396,7 @@ export default function ContractOfCareModal({ serviceUser, onClose, startEdit, s
   // window with the on-page toolbar (no auto-print, so View and Print match).
   function printContract(data: ContractData = d) {
     const html = buildContractHtml(data, false);
-    const w = window.open('', '_blank');
-    if (!w) { alert('Please allow pop-ups to print.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
+    openHtmlView(html, 'Contract of Care');
   }
 
   // Read-only VIEW renders the contract document (identical to the printout) in

@@ -11,6 +11,8 @@ import HeldOnPaperPanel, { PaperMeta } from './HeldOnPaperPanel';
 import Icon from './Icon';
 import RiskAssessmentHistory from './RiskAssessmentHistory';
 import AutoGrowTextarea from './AutoGrowTextarea';
+// Aliased: this file already has a local `viewHtml` for its inline preview.
+import { viewHtml as openHtmlView } from '../lib/printHtml';
 
 // Stored in the generic assessment store, type 'SL_SUPPORT_PLAN' — no backend
 // change needed (same as the Contract of Care).
@@ -176,9 +178,7 @@ export default function SupportedLivingPlanModal({ serviceUser, onClose, startEd
   // with the on-page toolbar (no auto-print, so View and Print match).
   function printPlan(source: PlanData = plan) {
     const html = buildPlanHtml(source, false);
-    const w = window.open('', '_blank');
-    if (!w) { alert('Please allow pop-ups to print.'); return; }
-    w.document.write(html); w.document.close(); w.focus();
+    openHtmlView(html, 'Support Plan');
   }
 
   // Read-only VIEW renders the support-plan document (identical to the printout)

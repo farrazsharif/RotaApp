@@ -8,6 +8,7 @@ import { isMedDueOn } from '../lib/medSchedule';
 import { usePermissions } from '../hooks/usePermissions';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import RecordMedModal from './RecordMedModal';
+import { printHtml } from '../lib/printHtml';
 
 interface Props {
   serviceUser: Pick<ServiceUser, 'id' | 'firstName' | 'lastName'>;
@@ -207,12 +208,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
       </div>
       </body></html>`;
 
-    const w = window.open('', '_blank');
-    if (!w) { alert('Please allow pop-ups to export the PDF.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
+    printHtml(html);
   }
 
   return (

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cqcApi, CqcCheck, KeyQuestionBlock } from '../api/cqc';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import { format } from 'date-fns';
+import { viewHtml } from '../lib/printHtml';
 
 // The quality statements the system can't auto-check — set manually so the
 // readiness picture is complete. Grouped by key question.
@@ -112,9 +113,7 @@ export default function Cqc() {
       <table><thead><tr><th style="width:110px">Key question</th><th>Statement</th></tr></thead><tbody>${saRows || '<tr><td colspan="2" class="ok">Nothing flagged.</td></tr>'}</tbody></table>
       </body></html>`;
 
-    const w = window.open('', '_blank');
-    if (!w) { alert('Please allow pop-ups to print.'); return; }
-    w.document.write(html); w.document.close(); w.focus();
+    viewHtml(html, 'CQC');
   }
 
   if (isLoading || !data) {

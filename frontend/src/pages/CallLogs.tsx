@@ -11,6 +11,7 @@ import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import { parseCallLogTicks } from '../lib/callLogTasks';
 import AutoGrowTextarea from '../components/AutoGrowTextarea';
 import SearchableSelect from '../components/SearchableSelect';
+import { printHtml } from '../lib/printHtml';
 
 // Green/amber chips summarising the tasks a carer ticked on the visit.
 function TaskBadges({ tasks }: { tasks?: string | null }) {
@@ -273,12 +274,7 @@ export default function CallLogs() {
       ${body || '<p>No call logs match the current filters.</p>'}
       </body></html>`;
 
-    const w = window.open('', '_blank');
-    if (!w) { alert('Please allow pop-ups to export the PDF.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
+    printHtml(html);
   }
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;

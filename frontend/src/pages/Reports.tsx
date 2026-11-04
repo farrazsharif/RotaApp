@@ -18,6 +18,7 @@ import CarerRota from '../components/CarerRota';
 import SearchableSelect from '../components/SearchableSelect';
 import PrintBrandingHeader from '../components/PrintBrandingHeader';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
+import { viewHtml } from '../lib/printHtml';
 
 type Tab = 'hours' | 'scheduled' | 'crib' | 'overtime' | 'coverage' | 'capacity' | 'ecm' | 'rota' | 'clientdb';
 
@@ -365,11 +366,7 @@ export default function Reports() {
         <tfoot><tr><td colspan="8">Total</td><td class="r">${total}h</td></tr></tfoot>
       </table>
       </body></html>`;
-    const w = window.open('', '_blank');
-    if (!w) { alert('Please allow pop-ups to print.'); return; }
-    w.document.write(html);
-    w.document.close();
-    w.focus();
+    viewHtml(html, 'Report');
   }
 
   // Unassigned hours are shown separately and excluded from the carer total.

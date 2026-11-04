@@ -3,6 +3,7 @@ import { ServiceUser } from '../types';
 import { RaForm, RaSection, RaItem, RiskVal, HazardVal, YesNoVal, keyForRaItem, scoreBand } from './riskAssessmentSchema';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
 import { parseSignature } from '../components/SignatureField';
+import { openPrintable } from './printHtml';
 
 interface PrintOpts {
   autoPrint?: boolean;   // false = readable view only. Default true.
@@ -245,10 +246,5 @@ export function printRiskAssessment(serviceUser: ServiceUser, form: RaForm, valu
     embed: false,
   });
 
-  const w = window.open('', '_blank');
-  if (!w) { alert('Please allow pop-ups to print.'); return; }
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  if (autoPrint) setTimeout(() => w.print(), 300);
+  openPrintable(html, autoPrint, 'Risk Assessment');
 }

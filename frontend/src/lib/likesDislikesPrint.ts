@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { ServiceUser } from '../types';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
+import { openPrintable } from './printHtml';
 
 export interface LikesDislikesPrintData {
   likes: string;
@@ -104,10 +105,5 @@ export function printLikesDislikes(serviceUser: ServiceUser, data: LikesDislikes
     embed: false,
   });
 
-  const w = window.open('', '_blank');
-  if (!w) { alert('Please allow pop-ups to print.'); return; }
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  if (autoPrint) setTimeout(() => w.print(), 300);
+  openPrintable(html, autoPrint, 'Likes & Dislikes');
 }

@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { ServiceUser } from '../types';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
+import { openPrintable } from './printHtml';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 const SLOTS = [
@@ -176,10 +177,5 @@ export function printCarePlan(serviceUser: ServiceUser, data: CarePlanPrintData,
     embed: false,
   });
 
-  const w = window.open('', '_blank');
-  if (!w) { alert('Please allow pop-ups to print.'); return; }
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  if (autoPrint) setTimeout(() => w.print(), 300);
+  openPrintable(html, autoPrint, 'Care Plan');
 }

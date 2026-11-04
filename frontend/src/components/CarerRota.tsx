@@ -4,6 +4,7 @@ import { format, startOfWeek, addDays } from 'date-fns';
 import { shiftsApi } from '../api/shifts';
 import { Shift } from '../types';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
+import { viewHtml } from '../lib/printHtml';
 
 // A carer's upcoming rota (primary + cover calls) over a date range — defaults
 // to the next 4 weeks — with Download CSV and Print / Save-as-PDF so a manager
@@ -93,8 +94,7 @@ export default function CarerRota({ userId, staffName }: { userId: string; staff
       <tbody>${rows || '<tr><td colspan="4">No visits in this period.</td></tr>'}</tbody></table>
       <script>window.onload=function(){window.print()}</script>
       </body></html>`;
-    const w = window.open('', '_blank');
-    if (w) { w.document.write(html); w.document.close(); }
+    viewHtml(html, 'Carer Rota');
   }
 
   return (

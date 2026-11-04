@@ -3,6 +3,7 @@ import { ServiceUser } from '../types';
 import { defaultTemplateSections, keyForItem, PspItem, PspSection } from './servicePlanSchema';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from './printBranding';
 import { parseSignature } from '../components/SignatureField';
+import { openPrintable } from './printHtml';
 
 type YnVal = { v: '' | 'YES' | 'NO'; comment: string; action?: string };
 type CheckVal = { checked: boolean; comment: string };
@@ -219,10 +220,5 @@ export function printServicePlan(serviceUser: ServiceUser, values: Record<string
     embed: false,
   });
 
-  const w = window.open('', '_blank');
-  if (!w) { alert('Please allow pop-ups to print.'); return; }
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  if (autoPrint) setTimeout(() => w.print(), 300);
+  openPrintable(html, autoPrint, 'Service Plan');
 }
