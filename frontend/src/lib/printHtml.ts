@@ -173,27 +173,59 @@ function explainNoPrint(): void {
   );
   card.innerHTML =
     '<p style="font:700 17px system-ui,sans-serif;color:#111827;margin:0 0 8px">Printing needs Safari</p>' +
-    '<p style="margin:0 0 16px">iPhones and iPads can’t print from an app added to the home screen. Open this page in Safari and the Print button will work as normal.</p>';
+    '<p style="margin:0 0 14px">iPhones and iPads cannot print from an app added to the home screen. Send this page to Safari and print it there.</p>';
 
-  const open = document.createElement('a');
-  open.href = window.location.href;
-  open.target = '_blank';
-  open.rel = 'noopener';
-  open.textContent = 'Open in Safari';
-  open.setAttribute(
-    'style',
-    'display:block;text-align:center;font:600 15px system-ui,sans-serif;padding:12px;border-radius:10px;background:#2563eb;color:#fff;text-decoration:none;margin-bottom:8px;',
-  );
+  const note = document.createElement('p');
+  note.setAttribute('style', 'margin:12px 0 0;font-size:13px;color:#6b7280;');
+
+  const btnStyle = (primary: boolean) =>
+    `display:block;width:100%;text-align:center;font:600 15px system-ui,sans-serif;padding:12px;border-radius:10px;margin-bottom:8px;cursor:pointer;${
+      primary ? 'background:#2563eb;color:#fff;border:1px solid #2563eb;' : 'background:#fff;color:#374151;border:1px solid #d1d5db;'
+    }`;
+
+  // The share sheet is the only reliable way out of a standalone web app:
+  // a target="_blank" link to the same origin is kept INSIDE the app by iOS,
+  // which is why an "Open in Safari" link did nothing. Sharing the URL puts
+  // Safari in the sheet as somewhere to send it.
+  const url = window.location.href;
+  const nav = navigator as Navigator & { share?: (d: { url?: string; title?: string }) => Promise<void> };
+
+  if (typeof nav.share === 'function') {
+    const share = document.createElement('button');
+    share.textContent = 'Send to Safari…';
+    share.setAttribute('style', btnStyle(true));
+    share.onclick = async () => {
+      try {
+        await nav.share!({ url, title: document.title });
+        note.textContent = 'Choose Safari in the share sheet, then print from there.';
+      } catch {
+        /* the sheet was dismissed — nothing to report */
+      }
+    };
+    card.append(share);
+  }
+
+  // Always offered: if the sheet is unavailable or confusing, the address
+  // pasted into Safari gets to the same place.
+  const copy = document.createElement('button');
+  copy.textContent = 'Copy page link';
+  copy.setAttribute('style', btnStyle(false));
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      copy.textContent = 'Link copied ✓';
+      note.textContent = 'Open Safari and paste it into the address bar.';
+    } catch {
+      note.textContent = url;
+    }
+  };
 
   const close = document.createElement('button');
   close.textContent = 'Not now';
-  close.setAttribute(
-    'style',
-    'display:block;width:100%;font:600 15px system-ui,sans-serif;padding:12px;border-radius:10px;border:1px solid #d1d5db;background:#fff;color:#374151;cursor:pointer;',
-  );
+  close.setAttribute('style', btnStyle(false));
   close.onclick = () => overlay.remove();
 
-  card.append(open, close);
+  card.append(copy, close, note);
   overlay.append(card);
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
   document.body.appendChild(overlay);
