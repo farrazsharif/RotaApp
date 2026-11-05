@@ -112,17 +112,23 @@ workflows:
             echo "Store it base64-encoded, on one line, with no quotes."
             exit 1
           fi
+          echo "Signing key: $(wc -c < /tmp/cert_key.pem | tr -d ' ') bytes, $(head -1 /tmp/cert_key.pem)"
+          # Hand the key over through the CLI's own environment variable rather
+          # than --certificate-key=@file:, which build 26 rejected outright with
+          # "invalid string value: '@file:/tmp/cert_key.pem'". This is the form
+          # Codemagic documents, and it keeps the key off the command line.
+          CERTIFICATE_PRIVATE_KEY=$(cat /tmp/cert_key.pem)
+          export CERTIFICATE_PRIVATE_KEY
+          rm -f /tmp/cert_key.pem
           # With a key that already has a certificate, this fetches it rather
           # than creating another.
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --certificate-key=@file:/tmp/cert_key.pem \
             --create
           # The Live Activity widget is a separate target with its own bundle
           # id, so it needs its own App Store profile. Same certificate.
           app-store-connect fetch-signing-files "$BUNDLE_ID.LiveActivity" \
             --type IOS_APP_STORE \
-            --certificate-key=@file:/tmp/cert_key.pem \
             --create
           keychain add-certificates
           # Apply the fetched profiles to this specific project (Capacitor 8 SPM).
