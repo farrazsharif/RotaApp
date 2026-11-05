@@ -95,21 +95,26 @@ workflows:
             echo "Add it as a secure variable in the ios_signing group in Codemagic."
             exit 1
           fi
-          # The value is expected base64-encoded: a PEM is multi-line, and a
-          # multi-line secret does not survive the round trip through a CI
-          # variable intact (build 25 failed with "Provided value in file
-          # /tmp/cert_key.pem is not valid" for exactly this reason). A plain
-          # PEM is still accepted, so an existing variable keeps working.
+          # The key can arrive in any of three shapes and all of them are
+          # accepted, because a multi-line PEM does not survive a CI variable
+          # reliably: a PEM, base64 of a PEM, or base64 of the DER (which is
+          # what build 27 got -- 1217 bytes of binary, because base64 skipped
+          # the BEGIN/END lines and decoded only the body).
+          echo "Variable: ${#CERT_PRIVATE_KEY} chars, starts $(printf %.20s "$CERT_PRIVATE_KEY")"
           case "$CERT_PRIVATE_KEY" in
-            *BEGIN*) printf '%s\n' "$CERT_PRIVATE_KEY" > /tmp/cert_key.pem ;;
-            *)       printf '%s' "$CERT_PRIVATE_KEY" | base64 --decode > /tmp/cert_key.pem ;;
+            *BEGIN*) printf '%s\n' "$CERT_PRIVATE_KEY" > /tmp/cert_in ;;
+            *)       printf '%s' "$CERT_PRIVATE_KEY" | base64 --decode > /tmp/cert_in ;;
           esac
-          chmod 600 /tmp/cert_key.pem
-          # Check the key here rather than letting fetch-signing-files reject it
-          # and the build carry on to fail 50 lines later at the archive.
-          if ! openssl rsa -in /tmp/cert_key.pem -check -noout >/dev/null 2>&1; then
-            echo "ERROR: CERT_PRIVATE_KEY did not decode to a valid RSA private key."
-            echo "Store it base64-encoded, on one line, with no quotes."
+          # openssl pkey rewrites whatever that is as clean PEM, which is the
+          # only form the App Store Connect CLI accepts.
+          if ! openssl pkey -in /tmp/cert_in -out /tmp/cert_key.pem 2>/dev/null; then
+            openssl pkey -inform DER -in /tmp/cert_in -out /tmp/cert_key.pem 2>/dev/null || true
+          fi
+          rm -f /tmp/cert_in
+          chmod 600 /tmp/cert_key.pem 2>/dev/null || true
+          if ! head -1 /tmp/cert_key.pem 2>/dev/null | grep -q "BEGIN"; then
+            echo "ERROR: CERT_PRIVATE_KEY did not yield a usable private key."
+            echo "Store it as the base64 of the .pem file, on one line, no quotes."
             exit 1
           fi
           echo "Signing key: $(wc -c < /tmp/cert_key.pem | tr -d ' ') bytes, $(head -1 /tmp/cert_key.pem)"
