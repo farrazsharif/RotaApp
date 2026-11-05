@@ -89,13 +89,29 @@ workflows:
           #
           # Reusing one key means no new certificate is ever minted, nothing
           # needs revoking, and the two apps stop invalidating each other.
+          set -e
           if [ -z "$CERT_PRIVATE_KEY" ]; then
             echo "ERROR: CERT_PRIVATE_KEY is not set."
             echo "Add it as a secure variable in the ios_signing group in Codemagic."
             exit 1
           fi
-          printf '%s' "$CERT_PRIVATE_KEY" > /tmp/cert_key.pem
+          # The value is expected base64-encoded: a PEM is multi-line, and a
+          # multi-line secret does not survive the round trip through a CI
+          # variable intact (build 25 failed with "Provided value in file
+          # /tmp/cert_key.pem is not valid" for exactly this reason). A plain
+          # PEM is still accepted, so an existing variable keeps working.
+          case "$CERT_PRIVATE_KEY" in
+            *BEGIN*) printf '%s\n' "$CERT_PRIVATE_KEY" > /tmp/cert_key.pem ;;
+            *)       printf '%s' "$CERT_PRIVATE_KEY" | base64 --decode > /tmp/cert_key.pem ;;
+          esac
           chmod 600 /tmp/cert_key.pem
+          # Check the key here rather than letting fetch-signing-files reject it
+          # and the build carry on to fail 50 lines later at the archive.
+          if ! openssl rsa -in /tmp/cert_key.pem -check -noout >/dev/null 2>&1; then
+            echo "ERROR: CERT_PRIVATE_KEY did not decode to a valid RSA private key."
+            echo "Store it base64-encoded, on one line, with no quotes."
+            exit 1
+          fi
           # With a key that already has a certificate, this fetches it rather
           # than creating another.
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
