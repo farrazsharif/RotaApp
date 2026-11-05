@@ -15,6 +15,10 @@ workflows:
     integrations:
       app_store_connect: CaremidASC
     environment:
+      groups:
+        # Holds CERT_PRIVATE_KEY: the one persistent signing key, shared with
+        # the Solutions app, which uses the same Apple account.
+        - ios_signing
       vars:
         BUNDLE_ID: "uk.co.caremid.carer"
         XCODE_WORKSPACE: "carer-app/ios/App/App.xcworkspace"
@@ -68,37 +72,38 @@ workflows:
       - name: Set up code signing (automatic, via API key)
         script: |
           keychain initialize
-          # Apple caps distribution certificates at 2, and every CI run mints a
-          # fresh one (the private key can't persist between ephemeral build
-          # machines) — so once the cap was hit, builds failed to create a cert
-          # and signing produced nothing. Revoke existing distribution certs
-          # first so there's always room for this build's fresh one. Only this CI
-          # uses these certs, and builds already uploaded to TestFlight stay valid
-          # after a revoke.
-          app-store-connect certificates list --json > /tmp/certs.json 2>/dev/null || echo "[]" > /tmp/certs.json
-          python3 -c "import json,subprocess
-          data=json.load(open('/tmp/certs.json'))
-          certs=data.get('data',data) if isinstance(data,dict) else data
-          dist=[c for c in certs if 'DISTRIBUTION' in c.get('attributes',{}).get('certificateType','') and c.get('id')]
-          print('Found %d distribution certificate(s) to revoke' % len(dist))
-          for c in dist:
-              print('Revoking', c['attributes']['certificateType'], c['id'])
-              subprocess.run(['app-store-connect','certificates','delete',c['id']], input=b'y\n')
-          " || true
-          # The Codemagic CLI will NOT generate a signing private key on its own
-          # (otherwise it fails with "Cannot create resource without certificate
-          # private key"), so generate an RSA key here and hand it to
-          # fetch-signing-files. With --create and that key, it mints a fresh
-          # distribution certificate AND the App Store provisioning profile for
-          # this bundle id, and saves a .p12 the keychain can import.
-          openssl genrsa -out /tmp/cert_key.pem 2048
+          # ONE PERSISTENT SIGNING KEY, supplied as a secure environment
+          # variable and shared with the Caremid Solutions app, which lives on
+          # the same Apple account.
+          #
+          # This used to generate a throwaway key per run, which meant a fresh
+          # distribution certificate every build; Apple caps those at two, so
+          # each run also revoked every existing one to make room. That looked
+          # harmless and was not. Apple re-validates a build's signature when
+          # it is SUBMITTED, not only when it is uploaded — so revoking a
+          # certificate invalidates any build signed with it that has not yet
+          # been through review. Caremid build 24 was signed in October, sat in
+          # TestFlight happily, and was rejected with ITMS-90035 on 5 Nov
+          # because the Solutions build the day before had revoked its
+          # certificate.
+          #
+          # Reusing one key means no new certificate is ever minted, nothing
+          # needs revoking, and the two apps stop invalidating each other.
+          if [ -z "$CERT_PRIVATE_KEY" ]; then
+            echo "ERROR: CERT_PRIVATE_KEY is not set."
+            echo "Add it as a secure variable in the ios_signing group in Codemagic."
+            exit 1
+          fi
+          printf '%s' "$CERT_PRIVATE_KEY" > /tmp/cert_key.pem
+          chmod 600 /tmp/cert_key.pem
+          # With a key that already has a certificate, this fetches it rather
+          # than creating another.
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --certificate-key=@file:/tmp/cert_key.pem \
             --create
-          # The Live Activity widget is a separate target with its own bundle id,
-          # so it needs its own App Store profile (created on first run). Reuses
-          # the certificate above, since the same private key is supplied.
+          # The Live Activity widget is a separate target with its own bundle
+          # id, so it needs its own App Store profile. Same certificate.
           app-store-connect fetch-signing-files "$BUNDLE_ID.LiveActivity" \
             --type IOS_APP_STORE \
             --certificate-key=@file:/tmp/cert_key.pem \
