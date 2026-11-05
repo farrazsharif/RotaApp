@@ -116,6 +116,29 @@ workflows:
           else
             xcode-project build-ipa --project "ios/App/App.xcodeproj" --scheme "App"
           fi
+      - name: Verify the IPA signature
+        script: |
+          # ITMS-90035 (invalid signature) is only reported by Apple AFTER the
+          # upload, by which point a review slot has been spent. Check it here
+          # instead, and print what the binary was actually signed with.
+          #
+          # Non-fatal on purpose: codesign objects to things that upload
+          # perfectly well, and a false failure here would block the only
+          # route there is to an iOS build.
+          set +e
+          IPA=$(ls carer-app/build/ios/ipa/*.ipa | head -1)
+          WORK=$(mktemp -d)
+          unzip -q "$IPA" -d "$WORK"
+          APP=$(ls -d "$WORK"/Payload/*.app | head -1)
+          echo "== Signed with =="
+          codesign -dvvv "$APP" 2>&1 | grep -iE "Authority|TeamIdentifier|^Identifier"
+          echo "== Verification =="
+          codesign --verify --strict --verbose=2 "$APP" 2>&1 \
+            || echo "WARNING: codesign verification failed - expect ITMS-90035 on upload"
+          echo "== Embedded bundles =="
+          find "$APP" \( -name "*.appex" -o -name "*.framework" -o -name "*.bundle" \) -maxdepth 3
+          rm -rf "$WORK"
+          set -e
       - name: Verify the widget extension is embedded
         script: |
           # Proves the Live Activity widget actually shipped inside the app -
