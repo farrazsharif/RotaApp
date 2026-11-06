@@ -1,4 +1,3 @@
-import PrivacyPolicy from './PrivacyPolicy';
 const APP_URL = 'https://portal.caremid.co.uk';   // managers & admins
 const CARER_URL = 'https://carer.caremid.co.uk';  // carers & staff doing visits
 const CONTACT_EMAIL = 'hello@caremid.co.uk';
@@ -316,11 +315,10 @@ function Footer() {
 }
 
 export default function App() {
-  // The site is a single page; serve the policy at /privacy without pulling in
-  // a router (Vercel rewrites every path to index.html).
-  if (typeof window !== 'undefined' && ['/privacy', '/privacy/'].includes(window.location.pathname)) {
-    return <PrivacyPolicy />;
-  }
+  // /privacy is NOT handled here. It is a static file (public/privacy.html)
+  // served directly by Vercel, because the crawlers that check a privacy
+  // policy URL do not run JavaScript and saw an empty page when this route
+  // rendered it.
   return (
     <div className="min-h-screen bg-white text-slate-800 antialiased">
       <Nav />
