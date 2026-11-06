@@ -303,6 +303,7 @@ function Footer() {
           <a href={CARER_URL} className="hover:text-white">Carer login</a>
           <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white">Contact</a>
           <a href="/privacy" className="hover:text-white">Privacy</a>
+          <a href="/terms" className="hover:text-white">Terms</a>
         </div>
       </div>
       <div className="border-t border-slate-800">
