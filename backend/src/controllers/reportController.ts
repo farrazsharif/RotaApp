@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { loadOrgSettings } from './settingsController';
-import { isScoped, relatedServiceUserScopeWhere, relatedStaffScopeWhere } from '../lib/scope';
+import { isScoped, relatedServiceUserScopeWhere, relatedStaffScopeWhere, staffScopeOr } from '../lib/scope';
 import { londonDayStart, londonDayEnd } from '../lib/londonTime';
 
 function hoursWorked(clockIn: Date, clockOut: Date | null) {
@@ -613,7 +613,7 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
 
   const suScope = relatedServiceUserScopeWhere(req.user);
   const staffScope = relatedStaffScopeWhere(req.user);
-  const employeeSiteFilter = isScoped(req.user) ? { sites: { some: { id: { in: req.user!.siteIds } } } } : {};
+  const employeeSiteFilter = isScoped(req.user) ? { OR: staffScopeOr(req.user) } : {};
 
   const [totalEmployees, pendingTimeOff, weekShifts, todayShifts, todayClock, missedMeds, trainingRecords, importantSoon] = await Promise.all([
     prisma.user.count({ where: { active: true, role: 'EMPLOYEE', ...employeeSiteFilter } }),
@@ -623,7 +623,7 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
     prisma.clockRecord.findMany({ where: { clockIn: { gte: todayStart } }, select: { shiftId: true } }),
     prisma.medAdministration.count({ where: { status: 'MISSED', scheduledFor: { gte: todayStart, lt: todayEnd }, ...suScope } }),
     prisma.training.findMany({
-      where: { expiresAt: { not: null }, user: isScoped(req.user) ? { active: true, sites: { some: { id: { in: req.user!.siteIds } } } } : { active: true } },
+      where: { expiresAt: { not: null }, user: isScoped(req.user) ? { active: true, OR: staffScopeOr(req.user) } : { active: true } },
       select: { userId: true, course: true, expiresAt: true },
       orderBy: { date: 'desc' },
     }),

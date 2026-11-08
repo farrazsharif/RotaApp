@@ -6,7 +6,7 @@ import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { createPasswordSetupToken, portalUrlForRole } from './authController';
 import { sendEmail, setPasswordEmail } from '../lib/email';
-import { isScoped, staffInScope } from '../lib/scope';
+import { isScoped, staffInScope, staffScopeOr } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { capabilitiesFor, sanitiseCapabilityList, userHasPermission } from '../middleware/permissions';
 import { evaluateCompliance, parseRequirements, parseWaivers, ComplianceInput, ComplianceWaiver } from '../lib/staffCompliance';
@@ -74,13 +74,10 @@ export async function listUsers(req: AuthRequest, res: Response) {
   if (role) where.role = role;
   else where.role = { not: Role.FAMILY_MEMBER };
   if (active !== undefined) where.active = active === 'true';
-  // A scoped viewer only sees staff sharing at least one of their sites
-  // (plus themselves).
+  // A scoped viewer sees staff sharing one of their sites, staff who belong to
+  // no site (org-wide, per the staff form), and themselves.
   if (isScoped(req.user)) {
-    where.OR = [
-      { sites: { some: { id: { in: req.user!.siteIds } } } },
-      { id: req.user!.id },
-    ];
+    where.OR = staffScopeOr(req.user);
   }
   const users = await prisma.user.findMany({ where, select: userSelect, orderBy: [{ firstName: 'asc' }] });
   // An outstanding setup token on an inactive account means the person was
@@ -160,10 +157,7 @@ async function docCountsByUser(userIds: string[]): Promise<Map<string, Record<st
 export async function staffComplianceSummary(req: AuthRequest, res: Response) {
   const where: Record<string, unknown> = { role: { not: Role.FAMILY_MEMBER }, active: true };
   if (isScoped(req.user)) {
-    where.OR = [
-      { sites: { some: { id: { in: req.user!.siteIds } } } },
-      { id: req.user!.id },
-    ];
+    where.OR = staffScopeOr(req.user);
   }
   const users = await prisma.user.findMany({
     where,

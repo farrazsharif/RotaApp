@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
-import { isScoped, relatedServiceUserScopeWhere } from '../lib/scope';
+import { isScoped, relatedServiceUserScopeWhere, staffScopeOr } from '../lib/scope';
 
 // How often each active carer should be spot-checked. Constant for Phase 1;
 // can move to an org setting later.
@@ -41,7 +41,7 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   const soon = new Date(now.getTime() + SOON_DAYS * DAY);
   // Site-scoped managers only see clients/staff on their sites.
   const suScope = relatedServiceUserScopeWhere(req.user);
-  const staffScope = isScoped(req.user) ? { sites: { some: { id: { in: req.user!.siteIds } } } } : {};
+  const staffScope = isScoped(req.user) ? { OR: staffScopeOr(req.user) } : {};
 
   const suName = { select: { firstName: true, lastName: true } };
   const [reviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes] = await Promise.all([
@@ -167,7 +167,7 @@ export async function listSpotChecks(req: AuthRequest, res: Response) {
   const where: Record<string, unknown> = {};
   if (typeof carerId === 'string') where.carerId = carerId;
   // Site-scoped managers only see spot checks for carers on their sites.
-  if (isScoped(req.user)) where.carer = { sites: { some: { id: { in: req.user!.siteIds } } } };
+  if (isScoped(req.user)) where.carer = { OR: staffScopeOr(req.user) };
   const items = await prisma.spotCheck.findMany({ where, orderBy: { date: 'desc' }, select: spotCheckSelect });
   res.json(items);
 }

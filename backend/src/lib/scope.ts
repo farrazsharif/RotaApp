@@ -29,10 +29,31 @@ export function relatedServiceUserScopeWhere(user?: ReqUser): Record<string, unk
   return isScoped(user) ? { serviceUser: { siteId: { in: user!.siteIds } } } : {};
 }
 
+// Which staff a site-scoped caller may see. Three branches, and the middle one
+// is the important one:
+//
+//   1. staff sharing one of the caller's sites — the obvious case;
+//   2. staff with NO sites at all — the staff form promises "Leave all
+//      unselected for full access to every site", so someone unselected belongs
+//      everywhere and must be visible to every manager. Prisma's `some` never
+//      matches an empty relation, so without this branch leaving sites blank
+//      quietly did the opposite of what the form says: it hid the person from
+//      every scoped manager, and from the carer picker when assigning shifts.
+//      It also meant a scoped manager who created a carer without ticking a
+//      site could never see or edit that record again;
+//   3. the caller themselves, who may have no sites in common with anyone.
+export function staffScopeOr(user: ReqUser) {
+  return [
+    { sites: { some: { id: { in: user!.siteIds } } } },
+    { sites: { none: {} } },
+    { id: user!.id },
+  ];
+}
+
 // Where-fragment for models referencing staff via a `user` relation (clock
-// records) — limits to staff sharing the caller's sites. {} when org-wide.
+// records) — limits to staff in the caller's scope. {} when org-wide.
 export function relatedStaffScopeWhere(user?: ReqUser): Record<string, unknown> {
-  return isScoped(user) ? { user: { sites: { some: { id: { in: user!.siteIds } } } } } : {};
+  return isScoped(user) ? { user: { OR: staffScopeOr(user) } } : {};
 }
 
 // True if the given service user is within the caller's scope (always true for
@@ -45,13 +66,13 @@ export async function serviceUserInScope(user: ReqUser, serviceUserId?: string |
 }
 
 // True if the caller may see/act on the given staff member: org-wide callers
-// can see everyone; scoped callers only see themselves and staff who share at
-// least one of their sites.
+// can see everyone; scoped callers see themselves, staff sharing one of their
+// sites, and staff who belong to no site (see staffScopeOr).
 export async function staffInScope(user: ReqUser, targetUserId: string): Promise<boolean> {
   if (!isScoped(user)) return true;
   if (targetUserId === user!.id) return true;
   const match = await prisma.user.findFirst({
-    where: { id: targetUserId, sites: { some: { id: { in: user!.siteIds } } } },
+    where: { id: targetUserId, OR: staffScopeOr(user) },
     select: { id: true },
   });
   return !!match;
