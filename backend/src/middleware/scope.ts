@@ -16,8 +16,17 @@ export async function scopeServiceUserRef(req: AuthRequest, res: Response, next:
 }
 
 // Guards routes addressed as `/:serviceUserId` (care plan, service plan, etc.).
+//
+// Attach this to the ROUTE, never via router.use(): `use` middleware runs
+// before the child route is matched, so req.params is empty and every scoped
+// caller is denied. That is hard to spot, because it fails closed and the
+// message blames the client's site, so say so out loud instead.
 export async function scopeServiceUserParam(req: AuthRequest, res: Response, next: NextFunction) {
   if (!isScoped(req.user)) return next();
+  if (req.params.serviceUserId === undefined) {
+    console.error(`[scope] scopeServiceUserParam has no :serviceUserId on ${req.method} ${req.baseUrl}${req.path} — attach it to the route, not router.use()`);
+    return res.status(500).json({ error: 'Server misconfiguration' });
+  }
   if (await serviceUserInScope(req.user, req.params.serviceUserId)) return next();
   return res.status(403).json(DENIED);
 }
