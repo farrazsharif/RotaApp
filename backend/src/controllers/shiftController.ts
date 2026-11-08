@@ -168,10 +168,11 @@ export async function countShifts(req: AuthRequest, res: Response) {
   if (siteIds) {
     const ids = String(siteIds).split(',').map((s) => s.trim()).filter(Boolean);
     if (ids.length) {
+      // AND the chip filter onto whatever scope already set, rather than
+      // reaching into its shape — the scope fragment is an OR (sites, or no
+      // site), so merging by key would drop it and widen past the scope.
       const su = (where.serviceUser as Record<string, unknown>) || {};
-      const scopeIn = (su.siteId as { in?: string[] } | undefined)?.in;
-      const finalIds = scopeIn ? ids.filter((id) => scopeIn.includes(id)) : ids;
-      where.serviceUser = { ...su, siteId: { in: finalIds } };
+      where.serviceUser = { AND: [su, { siteId: { in: ids } }] };
     }
   }
 

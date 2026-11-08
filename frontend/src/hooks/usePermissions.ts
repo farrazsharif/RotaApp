@@ -29,7 +29,11 @@ export function usePermissions() {
     if (!user) return false;
     const scoped = user.role !== 'EMPLOYEE' && !!user.sites && user.sites.length > 0;
     if (!scoped) return true;
-    if (!siteId) return false; // a client with no site is only visible org-wide
+    // A client with no site belongs to no branch, so everyone can work on them.
+    // This must match serviceUserScopeOr on the server; when it said the
+    // opposite, a scoped manager could open Likes & Dislikes on an unsited
+    // client, type into it, and only then be refused on save.
+    if (!siteId) return true;
     return user.sites!.some((s) => s.id === siteId);
   }
 

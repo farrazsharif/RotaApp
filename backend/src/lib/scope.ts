@@ -17,16 +17,28 @@ export function isScoped(user?: ReqUser): boolean {
   return !!user.siteIds && user.siteIds.length > 0;
 }
 
+// Which clients a site-scoped caller may see: those in one of their sites, and
+// those with NO site at all.
+//
+// The second branch matters because most clients have no site set. Without it a
+// manager who holds any site was blocked from every unsited client — he could
+// open their file but not save anything, with "This record is outside your
+// assigned sites". Leaving a client unsited meant "belongs to no branch", which
+// the app then read as "belongs to nobody but an org-wide admin".
+export function serviceUserScopeOr(user: ReqUser) {
+  return [{ siteId: { in: user!.siteIds } }, { siteId: null }];
+}
+
 // Prisma where-fragment for querying service users within scope. Returns {}
 // when org-wide so it can be spread into any existing where clause.
 export function serviceUserScopeWhere(user?: ReqUser): Record<string, unknown> {
-  return isScoped(user) ? { siteId: { in: user!.siteIds } } : {};
+  return isScoped(user) ? { OR: serviceUserScopeOr(user) } : {};
 }
 
 // Where-fragment for models that reference a service user via `serviceUser`
 // relation (reviews, call logs, medications…). {} when org-wide.
 export function relatedServiceUserScopeWhere(user?: ReqUser): Record<string, unknown> {
-  return isScoped(user) ? { serviceUser: { siteId: { in: user!.siteIds } } } : {};
+  return isScoped(user) ? { serviceUser: { OR: serviceUserScopeOr(user) } } : {};
 }
 
 // Which staff a site-scoped caller may see. Three branches, and the middle one
@@ -57,12 +69,14 @@ export function relatedStaffScopeWhere(user?: ReqUser): Record<string, unknown> 
 }
 
 // True if the given service user is within the caller's scope (always true for
-// org-wide users). A service user with no site is only visible org-wide.
+// org-wide users). A service user with no site belongs to no branch and is
+// therefore in everyone's scope — see serviceUserScopeOr.
 export async function serviceUserInScope(user: ReqUser, serviceUserId?: string | null): Promise<boolean> {
   if (!isScoped(user)) return true;
   if (!serviceUserId) return false;
   const su = await prisma.serviceUser.findUnique({ where: { id: serviceUserId }, select: { siteId: true } });
-  return !!su && !!su.siteId && user!.siteIds!.includes(su.siteId);
+  if (!su) return false;
+  return !su.siteId || user!.siteIds!.includes(su.siteId);
 }
 
 // True if the caller may see/act on the given staff member: org-wide callers

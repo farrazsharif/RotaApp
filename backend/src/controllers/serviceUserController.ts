@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { ServiceUserStatus } from '../constants';
-import { isScoped, serviceUserInScope } from '../lib/scope';
+import { isScoped, serviceUserInScope, serviceUserScopeOr } from '../lib/scope';
 import { emitToUser, emitToCompany } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
 import { logAudit } from '../lib/audit';
@@ -56,13 +56,13 @@ export async function listServiceUsers(req: AuthRequest, res: Response) {
     }));
   }
 
-  // Restrict to the caller's sites when scoped.
+  // Restrict to the caller's sites when scoped (plus unsited clients).
   if (isScoped(req.user)) {
     const scope = req.user!.siteIds!;
     if (typeof where.siteId === 'string') {
       if (!scope.includes(where.siteId)) return res.json([]);
     } else {
-      where.siteId = { in: scope };
+      where.OR = serviceUserScopeOr(req.user);
     }
   }
 
@@ -81,7 +81,7 @@ export async function listServiceUsers(req: AuthRequest, res: Response) {
 const RA_CORE_TYPES = ['ENVIRONMENT', 'FIRE_SAFETY', 'BATHING'];
 export async function getServiceUsersCompliance(req: AuthRequest, res: Response) {
   const where: Record<string, unknown> = { active: true, status: { notIn: ['DISCHARGED', 'DECEASED'] } };
-  if (isScoped(req.user)) where.siteId = { in: req.user!.siteIds! };
+  if (isScoped(req.user)) where.OR = serviceUserScopeOr(req.user);
   const clients = await prisma.serviceUser.findMany({ where, select: { id: true, careType: true } });
   const ids = clients.map((c) => c.id);
   if (ids.length === 0) return res.json([]);
@@ -123,8 +123,11 @@ export async function getServiceUser(req: AuthRequest, res: Response) {
 }
 
 // Ensures a scoped caller may create/move a service user into the given site.
+// No site is allowed: an unsited client belongs to no branch and is visible to
+// everyone, so a scoped manager leaving it blank is not escaping their scope.
 function siteAllowed(req: AuthRequest, siteId: unknown): boolean {
   if (!isScoped(req.user)) return true;
+  if (!siteId) return true;
   return typeof siteId === 'string' && req.user!.siteIds!.includes(siteId);
 }
 
