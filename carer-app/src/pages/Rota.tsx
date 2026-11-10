@@ -6,7 +6,7 @@ import Layout from '../components/Layout';
 import { myShiftsQuery } from '../lib/shiftsQuery';
 import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
-import { isCallDone } from '../lib/shiftStatus';
+import { isCallDone, staffing } from '../lib/shiftStatus';
 import { recordState } from '../lib/visitRecording';
 import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
@@ -187,6 +187,14 @@ function RotaRow({ shift, done, spent, coverRequested, onClick }: { shift: Shift
               {shift.run.name}
             </span>
           )}
+          {(() => {
+            const { assigned, needed, short } = staffing(shift);
+            return short ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                ⚠️ {assigned} of {needed} carers
+              </span>
+            ) : null;
+          })()}
           {coverRequested && !done && (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
               🤝 Cover requested

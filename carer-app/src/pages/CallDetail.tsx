@@ -10,7 +10,7 @@ import { financeApi } from '../api/finance';
 import { medicationsApi } from '../api/medications';
 import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
-import { isCallDone } from '../lib/shiftStatus';
+import { isCallDone, staffing } from '../lib/shiftStatus';
 import { usePendingClock, usePendingVisitWork } from '../lib/pendingClock';
 import { startVisitActivity, endVisitActivity } from '../lib/liveActivity';
 import { visitEndMs } from '../lib/visitRecording';
@@ -900,6 +900,25 @@ export default function CallDetail() {
               })}
             </div>
           )}
+          {(() => {
+            // Said plainly, because the consequence is physical: on a
+            // two-person call the carer needs to know the second person is not
+            // yet booked before they set off expecting help.
+            const { assigned, needed, short } = staffing(shift);
+            if (!short) return null;
+            const missing = needed - assigned;
+            return (
+              <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2">
+                <p className="text-sm font-semibold text-amber-900">
+                  ⚠️ This call needs {missing} more carer{missing > 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  {assigned} of {needed} booked so far. The office is still arranging cover, so don’t
+                  rely on anyone else being there yet — check with them before any task that needs two people.
+                </p>
+              </div>
+            );
+          })()}
           {su?.address && (
             <p className="text-base mt-2 leading-snug">
               <a

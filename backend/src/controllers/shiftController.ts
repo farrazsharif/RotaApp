@@ -754,13 +754,21 @@ export async function cancelBulkShifts(req: AuthRequest, res: Response) {
   res.json({ message: 'Cancelled', count: result.count });
 }
 
-// A shift is fully assigned once it has as many carers (primary + cover) as
-// its cover level requires — same rule the Schedule page uses to flag
-// "needs staff". Only fully assigned shifts may be published to carers.
-function isFullyAssigned(shift: { userId: string | null; cover: number; coverCarers: unknown[] }): boolean {
-  const assigned = (shift.userId ? 1 : 0) + shift.coverCarers.length;
-  const needed = shift.cover || 1;
-  return assigned >= needed;
+// What may be published. Publishing used to require FULL assignment, which
+// meant a carer already named on a double-up could not see it until the second
+// carer was found — so nobody could plan their week while the office was still
+// filling slots, which on a 94-visit week is most of it.
+//
+// Now one assigned carer is enough, and the carer app marks a short-staffed
+// visit in amber ("another carer still needed") so a half-covered double-up is
+// never mistaken for a staffed one. That distinction matters: a carer who
+// assumes the second person is coming might attempt a two-person task alone.
+//
+// A shift with NO carers stays unpublishable. It would be invisible anyway
+// (carers only see their own visits), and leaving it draft keeps the publish
+// step meaningful for whoever is assigned later.
+function isPublishable(shift: { userId: string | null; cover: number; coverCarers: unknown[] }): boolean {
+  return !!shift.userId || shift.coverCarers.length > 0;
 }
 
 type NotifiableShift = { id: string; date: Date; startTime: string; endTime: string; visitName: string | null };
@@ -876,8 +884,8 @@ export async function publishShift(req: AuthRequest, res: Response) {
     include: { coverCarers: { select: { id: true } } },
   });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
-  if (!isFullyAssigned(shift)) {
-    return res.status(400).json({ error: 'Assign a carer to every cover slot before publishing this call' });
+  if (!isPublishable(shift)) {
+    return res.status(400).json({ error: 'Assign at least one carer before publishing this call' });
   }
 
   const updated = await prisma.shift.update({
@@ -890,8 +898,8 @@ export async function publishShift(req: AuthRequest, res: Response) {
 }
 
 // Publish many shifts at once (e.g. everything currently shown on the schedule).
-// Shifts that aren't fully assigned are silently skipped rather than erroring,
-// since this is meant for "publish everything ready" bulk actions.
+// Shifts with no carer at all are silently skipped rather than erroring, since
+// this is meant for "publish everything ready" bulk actions.
 export async function publishBulkShifts(req: AuthRequest, res: Response) {
   // notify: 'none' (publish silently) | 'carers' (default) | 'all' (carers +
   // office). message: an optional custom line added to each notification.
@@ -906,7 +914,7 @@ export async function publishBulkShifts(req: AuthRequest, res: Response) {
     where: { id: { in: ids }, published: false, ...relatedServiceUserScopeWhere(req.user) },
     include: { coverCarers: { select: { id: true } } },
   });
-  const publishable = candidates.filter(isFullyAssigned);
+  const publishable = candidates.filter(isPublishable);
   const publishableIds = publishable.map((s) => s.id);
   const skipped = candidates.length - publishableIds.length;
 

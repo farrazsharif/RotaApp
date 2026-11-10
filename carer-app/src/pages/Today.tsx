@@ -10,7 +10,7 @@ import { clockApi } from '../api/clock';
 import { handoversApi } from '../api/handovers';
 import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
-import { isCallDone } from '../lib/shiftStatus';
+import { isCallDone, staffing } from '../lib/shiftStatus';
 import { unrecordedVisits } from '../lib/visitRecording';
 import { usePendingClock } from '../lib/pendingClock';
 import { formatTime12h } from '../lib/time';
@@ -297,13 +297,19 @@ function CallCard({ shift, highlighted, done, clockedIn, coverRequested, showDat
         {shift.visitName && (
           <p className={`text-sm ${highlighted && !done ? 'text-blue-100' : 'text-gray-500'}`}>{shift.visitName}</p>
         )}
-        {(shift.cover || 1) > 1 && (
-          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-            active || (highlighted && !done) ? 'bg-white/25 text-white' : 'bg-purple-100 text-purple-700'
-          }`}>
-            👥 {shift.cover} carers
-          </span>
-        )}
+        {(shift.cover || 1) > 1 && (() => {
+          // A double-up that is still a carer short says so, rather than
+          // showing a head count that reads as "two of us are going".
+          const { assigned, needed, short } = staffing(shift);
+          const onColour = active || (highlighted && !done);
+          return (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+              onColour ? 'bg-white/25 text-white' : short ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-700'
+            }`}>
+              {short ? `⚠️ ${assigned} of ${needed} carers · needs another` : `👥 ${needed} carers`}
+            </span>
+          );
+        })()}
         {coverRequested && !done && (
           <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
             active || (highlighted && !done) ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'
