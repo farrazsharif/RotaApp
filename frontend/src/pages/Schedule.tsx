@@ -267,6 +267,11 @@ export default function Schedule() {
   const assignedCarers = (s: Shift) => (s.userId ? 1 : 0) + (s.coverCarers?.length ?? 0);
   const neededCarers = (s: Shift) => s.cover || 1;
   const missingCarers = (s: Shift) => Math.max(0, neededCarers(s) - assignedCarers(s));
+  // Publishable == the backend's isPublishable: one carer on it is enough. A
+  // short-staffed double-up goes out so the carer who IS booked can plan her
+  // week, and the carer app marks it amber so it is never mistaken for staffed.
+  // Only a visit with nobody at all stays a draft.
+  const publishable = (s: Shift) => assignedCarers(s) > 0;
   // A shift whose service user is not ACTIVE (e.g. hospitalised/discharged) as of that
   // date shouldn't be treated as an unassigned call that needs a carer.
   const patientInactive = (s: Shift) => {
@@ -305,7 +310,7 @@ export default function Schedule() {
       if (assignFilter === 'assigned') return !needsStaff(s);
       if (assignFilter === 'unassigned') return needsStaff(s);
       // Ready-to-publish: fully-staffed drafts (what the Publish button acts on).
-      if (assignFilter === 'topublish') return !s.published && missingCarers(s) === 0;
+      if (assignFilter === 'topublish') return !s.published && publishable(s);
       return true;
     })
     .filter((s) => visitFilter.length === 0 || (s.visitName ? visitFilter.includes(s.visitName) : false))
@@ -320,13 +325,11 @@ export default function Schedule() {
       return names.some((n) => n.toLowerCase().includes(term));
     });
 
-  // Only fully-staffed drafts can be published (the backend skips any shift
-  // that still needs a carer), so the "ready" set must match that exactly —
-  // otherwise the count never clears. missingCarers === 0 == backend's
-  // isFullyAssigned. Under-staffed drafts are counted separately as "need a
-  // carer first".
-  const draftShown = activeShifts.filter((s) => !s.published && missingCarers(s) === 0);
-  const draftUnassignedShown = activeShifts.filter((s) => !s.published && missingCarers(s) > 0).length;
+  // The "ready" set must match the backend's isPublishable exactly, or the
+  // count never clears: drafts with at least one carer. Drafts with nobody on
+  // them are counted separately as "need a carer first".
+  const draftShown = activeShifts.filter((s) => !s.published && publishable(s));
+  const draftUnassignedShown = activeShifts.filter((s) => !s.published && !publishable(s)).length;
   // Ready drafts falling in the week the calendar is centred on — lets managers
   // publish just this week without publishing the whole loaded range.
   const weekStart = startOfWeek(anchor, { weekStartsOn: 1 });
@@ -357,10 +360,16 @@ export default function Schedule() {
   // tile), not the wider window that's loaded for smooth paging.
   const unassignedCount = summary.unassigned;
 
-  // What the Publish modal acts on: fully-staffed drafts in the visible timeline
-  // are what actually get published; the rest are surfaced as counts.
-  const readyInRange = useMemo(() => rangeShifts.filter((s) => !s.published && missingCarers(s) === 0), [rangeShifts]);
-  const needsCarerInRange = useMemo(() => rangeShifts.filter((s) => !s.published && missingCarers(s) > 0).length, [rangeShifts]);
+  // What the Publish modal acts on: drafts in the visible timeline with at
+  // least one carer. The rest are surfaced as counts — including how many of
+  // the ones being published are still short, which the office should see
+  // before sending them out.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const readyInRange = useMemo(() => rangeShifts.filter((s) => !s.published && publishable(s)), [rangeShifts]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const shortStaffedInRange = useMemo(() => readyInRange.filter((s) => missingCarers(s) > 0).length, [readyInRange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const needsCarerInRange = useMemo(() => rangeShifts.filter((s) => !s.published && !publishable(s)).length, [rangeShifts]);
   // Conflicts: the same carer booked on two overlapping visits within the view.
   const conflictCount = useMemo(() => {
     const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + (m || 0); };
@@ -904,6 +913,7 @@ export default function Schedule() {
         <PublishScheduleModal
           rangeLabel={`${format(range.start, 'dd-MM-yyyy')} – ${format(addDays(range.end, -1), 'dd-MM-yyyy')}`}
           readyCount={readyInRange.length}
+          shortStaffedCount={shortStaffedInRange}
           needsCarerCount={needsCarerInRange}
           conflictCount={conflictCount}
           isPending={publishAllMut.isPending}

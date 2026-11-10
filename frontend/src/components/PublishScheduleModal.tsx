@@ -6,6 +6,7 @@ type NotifyMode = 'none' | 'carers' | 'all';
 interface Props {
   rangeLabel: string;
   readyCount: number;
+  shortStaffedCount: number;
   needsCarerCount: number;
   conflictCount: number;
   isPending: boolean;
@@ -15,7 +16,7 @@ interface Props {
 
 // Publish confirmation: shows what will go out for the current timeline, lets
 // the manager choose who gets notified, and attach a custom message.
-export default function PublishScheduleModal({ rangeLabel, readyCount, needsCarerCount, conflictCount, isPending, onClose, onPublish }: Props) {
+export default function PublishScheduleModal({ rangeLabel, readyCount, shortStaffedCount, needsCarerCount, conflictCount, isPending, onClose, onPublish }: Props) {
   const [notify, setNotify] = useState<NotifyMode>('carers');
   const [message, setMessage] = useState('');
 
@@ -37,7 +38,11 @@ export default function PublishScheduleModal({ rangeLabel, readyCount, needsCare
                 <span className="font-semibold text-green-700">{readyCount}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">Still need a carer</span>
+                <span className="text-gray-600">…of those, still short a carer</span>
+                <span className={`font-semibold ${shortStaffedCount ? 'text-amber-600' : 'text-gray-400'}`}>{shortStaffedCount}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Nobody assigned yet</span>
                 <span className={`font-semibold ${needsCarerCount ? 'text-amber-600' : 'text-gray-400'}`}>{needsCarerCount}</span>
               </div>
               <div className="flex items-center justify-between">
@@ -45,8 +50,14 @@ export default function PublishScheduleModal({ rangeLabel, readyCount, needsCare
                 <span className={`font-semibold ${conflictCount ? 'text-red-600' : 'text-gray-400'}`}>{conflictCount}</span>
               </div>
             </div>
+            {shortStaffedCount > 0 && (
+              <p className="mt-3 text-xs text-amber-600">
+                {shortStaffedCount} double-up{shortStaffedCount > 1 ? 's' : ''} will go out still a carer short, so whoever is
+                booked can plan their week. Their app shows these in amber as needing another carer.
+              </p>
+            )}
             {needsCarerCount > 0 && (
-              <p className="mt-3 text-xs text-amber-600">{needsCarerCount} visit{needsCarerCount > 1 ? 's' : ''} still need a carer and won’t be published.</p>
+              <p className="mt-2 text-xs text-amber-600">{needsCarerCount} visit{needsCarerCount > 1 ? 's have' : ' has'} nobody assigned and won’t be published.</p>
             )}
           </div>
 
