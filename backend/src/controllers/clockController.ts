@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { carerIsOnShift, carerShiftsOr, assignmentSelect } from '../lib/shiftAssignment';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
@@ -24,7 +25,7 @@ export async function myCalls(req: AuthRequest, res: Response) {
       published: true,
       // Must be one of the carer's own calls…
       AND: [
-        { OR: [{ userId: req.user!.id }, { coverCarers: { some: { id: req.user!.id } } }] },
+        { OR: carerShiftsOr(req.user!.id) },
         // …and either falls on the requested day, OR the carer is still clocked
         // into it (open clock record). The second clause keeps an overnight shift
         // (e.g. 19:00–07:00 dated yesterday) visible past midnight so the carer
@@ -49,14 +50,22 @@ export async function myCalls(req: AuthRequest, res: Response) {
 }
 
 // Medication doses due during a shift's call window, with their current status.
-async function dueDosesForShift(shiftId: string | null) {
+// `residentId` is only meaningful on a Supported Living house visit, which
+// covers several residents and so has no single MAR chart of its own: the carer
+// picks a resident and asks for that resident's doses. A 1:1 visit ignores it
+// and uses its own client, exactly as before.
+async function dueDosesForShift(shiftId: string | null, residentId?: string | null) {
   if (!shiftId) return [];
   const shift = await prisma.shift.findUnique({ where: { id: shiftId } });
-  if (!shift || !shift.serviceUserId) return [];
+  if (!shift) return [];
+  // Whose chart this is. A house visit with no resident chosen has nothing to
+  // show — deliberately empty rather than guessing at one of them.
+  const subjectId = shift.siteId ? residentId || null : shift.serviceUserId;
+  if (!subjectId) return [];
   // Personal-care-only visits don't administer medication — hide all doses
   // (scheduled and PRN) so they don't show to, or block, that carer.
   if ((shift as { givesMedication?: boolean }).givesMedication === false) return [];
-  const meds = await prisma.medication.findMany({ where: { serviceUserId: shift.serviceUserId, active: true } });
+  const meds = await prisma.medication.findMany({ where: { serviceUserId: subjectId, active: true } });
   const day = shift.date;
   // Overnight visits (e.g. 19:00–07:00) wrap past midnight, so the call window
   // is start→midnight→end. A plain start<=t<=end test is empty for those and
@@ -81,8 +90,18 @@ async function dueDosesForShift(shiftId: string | null) {
   const lo = new Date(day); lo.setDate(lo.getDate() - 1);
   const hi = new Date(day); hi.setDate(hi.getDate() + 2);
   const targetKey = dayKey(day);
+  // Every visit that could own one of this person's doses today: their own 1:1
+  // calls, and any house visit covering them. Both have to be in the running or
+  // a dose could be offered twice — once on the house visit and once on a 1:1.
   const candidates = (await prisma.shift.findMany({
-    where: { serviceUserId: shift.serviceUserId, date: { gte: lo, lt: hi }, status: { not: 'CANCELLED' } },
+    where: {
+      date: { gte: lo, lt: hi },
+      status: { not: 'CANCELLED' },
+      OR: [
+        { serviceUserId: subjectId },
+        { residentSlots: { some: { serviceUserId: subjectId } } },
+      ],
+    },
     select: { id: true, startTime: true, endTime: true, date: true, givesMedication: true },
   })).filter((s) => dayKey(s.date) === targetKey && (s as { givesMedication?: boolean }).givesMedication !== false);
   // Does this shift own dose time t? (See ownerShiftIdForDose for the rule.)
@@ -165,12 +184,13 @@ export async function dueMeds(req: AuthRequest, res: Response) {
 // panel.
 export async function shiftMeds(req: AuthRequest, res: Response) {
   const { shiftId } = req.params;
+  const residentId = typeof req.query.residentId === 'string' ? req.query.residentId : null;
   const shift = await prisma.shift.findUnique({
     where: { id: shiftId },
-    select: { userId: true, coverCarers: { select: { id: true } } },
+    select: { ...assignmentSelect, residentSlots: { select: { userId: true, serviceUserId: true } } },
   });
   if (!shift) return res.json({ doses: [] });
-  const onShift = shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id);
+  const onShift = carerIsOnShift(shift, req.user!.id);
   if (!onShift) {
     // Office/managers can view any visit's doses read-only. Gated on schedule-
     // or medication-management capability so an ordinary carer still only sees
@@ -179,7 +199,12 @@ export async function shiftMeds(req: AuthRequest, res: Response) {
     const canOversee = caps.includes('manage_schedule') || caps.includes('manage_medications');
     if (!canOversee) return res.status(403).json({ error: 'You are not assigned to this visit' });
   }
-  const doses = await dueDosesForShift(shiftId);
+  // On a house visit, only a resident the visit actually covers — otherwise a
+  // mistyped id would show (and let a carer sign off) someone else's MAR chart.
+  if (shift.siteId && residentId && !shift.residentSlots.some((sl) => sl.serviceUserId === residentId)) {
+    return res.status(400).json({ error: 'That resident is not on this visit' });
+  }
+  const doses = await dueDosesForShift(shiftId, residentId);
   res.json({ doses });
 }
 
@@ -565,13 +590,14 @@ export async function createOwnClockRecord(req: AuthRequest, res: Response) {
 
   const shift = await prisma.shift.findUnique({
     where: { id: shiftId },
-    include: { coverCarers: { select: { id: true } } },
+    include: { coverCarers: { select: { id: true } }, residentSlots: { select: { userId: true } } },
   });
   if (!shift) return res.status(404).json({ error: 'Visit not found' });
   if (!shift.published) return res.status(400).json({ error: 'This call has not been published yet' });
 
-  // Only a carer actually on the visit (primary or cover) may record it.
-  const assigned = shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id);
+  // Only a carer actually on the visit may record it — on a house visit that
+  // means holding one of its resident slots.
+  const assigned = carerIsOnShift(shift, req.user!.id);
   if (!assigned) return res.status(403).json({ error: 'You are not assigned to this call' });
 
   // Past days only — today's calls use the normal Clock In.

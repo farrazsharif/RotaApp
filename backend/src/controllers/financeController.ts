@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { carerIsOnShift, assignmentSelect } from '../lib/shiftAssignment';
 import { randomUUID } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
@@ -68,9 +69,9 @@ export async function createTransaction(req: AuthRequest, res: Response) {
     if (!shiftId) return res.status(403).json({ error: 'A visit is required to record a transaction.' });
     const shift = await prisma.shift.findUnique({
       where: { id: shiftId },
-      select: { userId: true, coverCarers: { select: { id: true } } },
+      select: assignmentSelect,
     });
-    const onCall = !!shift && (shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id));
+    const onCall = !!shift && carerIsOnShift(shift, req.user!.id);
     if (!onCall) return res.status(403).json({ error: 'You are not assigned to this visit.' });
   }
 

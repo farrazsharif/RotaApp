@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { carerIsOnShift, assignmentSelect } from '../lib/shiftAssignment';
 import { clientTime } from '../lib/clientTime';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
@@ -78,32 +79,53 @@ export async function createCallLog(req: AuthRequest, res: Response) {
   const tasksJson = normalizeTasks(tasks);
   const domainsJson = normalizeDomains(supportDomains);
 
+  // Everything below needs the same few facts about the visit, so read it once.
+  const shiftRow = shiftId
+    ? await prisma.shift.findUnique({
+        where: { id: shiftId },
+        select: {
+          date: true,
+          siteId: true,
+          userId: true,
+          coverCarers: { select: { id: true } },
+          residentSlots: { select: { userId: true, serviceUserId: true } },
+        },
+      })
+    : null;
+  // A Supported Living house visit covers several residents, so its records are
+  // keyed per resident rather than per visit.
+  const house = !!shiftRow?.siteId;
+
   // A call log documents a visit that has happened — you can't log (or pre-sign)
   // a future-dated call before it's due.
-  if (shiftId) {
-    const sh = await prisma.shift.findUnique({ where: { id: shiftId }, select: { date: true } });
-    if (sh) {
-      const now = new Date();
-      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      if (sh.date.getTime() > endOfToday.getTime()) {
-        return res.status(400).json({ error: "You can't log a visit before it's due." });
-      }
+  if (shiftRow) {
+    const now = new Date();
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    if (shiftRow.date.getTime() > endOfToday.getTime()) {
+      return res.status(400).json({ error: "You can't log a visit before it's due." });
     }
   }
 
-  // One shared log per visit: if a log already exists for this shift, funnel
-  // the write into it (update note + re-sign) instead of creating a duplicate.
-  // This is also the path a carer takes to amend a saved log later.
+  // On a house visit the note must name a resident the visit actually covers —
+  // otherwise a mistyped id would file a care record in a stranger's file.
+  if (house && !shiftRow!.residentSlots.some((sl) => sl.serviceUserId === serviceUserId)) {
+    return res.status(400).json({ error: 'Choose which resident this note is for' });
+  }
+
+  // One shared log per visit — and on a house visit, one per RESIDENT per
+  // visit. Keying a house's notes by shift alone would funnel every resident's
+  // record into whichever one was written first, overwriting the rest.
   if (shiftId) {
-    const existing = await prisma.callLog.findFirst({ where: { shiftId } });
+    const existing = await prisma.callLog.findFirst({
+      where: house ? { shiftId, serviceUserId } : { shiftId },
+    });
     if (existing) {
       // Amending an existing visit log: only a carer on the call (or the author)
       // may change it, and only within the edit window.
-      const shift = await prisma.shift.findUnique({
-        where: { id: shiftId },
-        select: { userId: true, date: true, coverCarers: { select: { id: true } } },
-      });
-      const onCall = !!shift && (shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id));
+      const shift = shiftRow;
+      const onCall = !!shift && (house
+        ? shift.residentSlots.some((sl) => sl.userId === req.user!.id)
+        : shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id));
       if (!onCall && existing.userId !== req.user!.id) {
         return res.status(403).json({ error: 'You are not assigned to this call' });
       }
@@ -173,7 +195,16 @@ export async function createCallLogAsManager(req: AuthRequest, res: Response) {
   const author = await prisma.user.findUnique({ where: { id: authorId }, select: { firstName: true, lastName: true } });
   const sig: Signature = { userId: authorId, firstName: author?.firstName || '', lastName: author?.lastName || '', signedAt: new Date().toISOString() };
 
-  const existing = shiftId ? await prisma.callLog.findFirst({ where: { shiftId } }) : null;
+  // Same per-resident keying as the carer path: on a house visit each resident
+  // has their own log, so the office backfill must not merge them.
+  const backfillShift = shiftId
+    ? await prisma.shift.findUnique({ where: { id: shiftId }, select: { siteId: true } })
+    : null;
+  const existing = shiftId
+    ? await prisma.callLog.findFirst({
+        where: backfillShift?.siteId ? { shiftId, serviceUserId } : { shiftId },
+      })
+    : null;
   const taskData = tasksJson !== undefined ? { tasks: tasksJson } : {};
   const log = existing
     ? await prisma.callLog.update({ where: { id: existing.id }, data: { note: String(note).trim(), ...taskData, userId: authorId, signedBy: JSON.stringify([sig]) }, include })
@@ -193,9 +224,9 @@ export async function signCallLog(req: AuthRequest, res: Response) {
   if (existing.shiftId) {
     const shift = await prisma.shift.findUnique({
       where: { id: existing.shiftId },
-      select: { userId: true, coverCarers: { select: { id: true } } },
+      select: assignmentSelect,
     });
-    const onShift = !!shift && (shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id));
+    const onShift = !!shift && carerIsOnShift(shift, req.user!.id);
     if (!onShift) return res.status(403).json({ error: 'You are not assigned to this call' });
   }
 

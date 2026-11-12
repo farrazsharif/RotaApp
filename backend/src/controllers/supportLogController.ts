@@ -15,8 +15,12 @@ export async function listSupportLog(req: AuthRequest, res: Response) {
   const { shiftId, serviceUserId } = req.query as { shiftId?: string; serviceUserId?: string };
   if (!shiftId && !serviceUserId) return res.status(400).json({ error: 'shiftId or serviceUserId is required' });
   const where: Record<string, unknown> = {};
+  // Both filters now apply together. A house visit's entries belong to several
+  // residents, so "this visit's support log" has to be narrowed by resident as
+  // well — otherwise the carer reads somebody else's diary under the resident
+  // they have open. On a 1:1 visit the two agree, so nothing changes there.
   if (shiftId) where.shiftId = String(shiftId);
-  else if (serviceUserId) where.serviceUserId = String(serviceUserId);
+  if (serviceUserId) where.serviceUserId = String(serviceUserId);
   const entries = await prisma.supportLogEntry.findMany({ where, orderBy: [{ createdAt: 'asc' }] });
   res.json(entries);
 }
@@ -32,9 +36,26 @@ export async function createSupportLogEntry(req: AuthRequest, res: Response) {
   // Access: an EMPLOYEE must be assigned to the shift; managers/admins may add.
   if (req.user!.role === 'EMPLOYEE') {
     if (!shiftId) return res.status(403).json({ error: 'You can only log against your own visit' });
-    const shift = await prisma.shift.findUnique({ where: { id: shiftId }, select: { userId: true, date: true, coverCarers: { select: { id: true } } } });
-    const onCall = !!shift && (shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id));
+    const shift = await prisma.shift.findUnique({
+      where: { id: shiftId },
+      select: {
+        userId: true,
+        date: true,
+        siteId: true,
+        coverCarers: { select: { id: true } },
+        residentSlots: { select: { userId: true, serviceUserId: true } },
+      },
+    });
+    // On a house visit the carers are in the resident slots, not userId /
+    // coverCarers, so the usual check would refuse every one of them.
+    const onCall = !!shift && (shift.siteId
+      ? shift.residentSlots.some((sl) => sl.userId === req.user!.id)
+      : shift.userId === req.user!.id || shift.coverCarers.some((c) => c.id === req.user!.id));
     if (!onCall) return res.status(403).json({ error: 'You are not assigned to this visit' });
+    // And the entry must be for a resident this visit actually covers.
+    if (shift?.siteId && !shift.residentSlots.some((sl) => sl.serviceUserId === serviceUserId)) {
+      return res.status(400).json({ error: 'Choose which resident this entry is for' });
+    }
     // Can't log a future-dated visit before it's due.
     if (shift) {
       const now = new Date();
