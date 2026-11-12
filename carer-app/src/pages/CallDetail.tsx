@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import ResidentSwitcher from '../components/ResidentSwitcher';
+import { serviceUsersApi } from '../api/serviceUsers';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { isToday, format } from 'date-fns';
@@ -383,30 +385,70 @@ export default function CallDetail() {
   // Logs / meds recorded offline and not yet synced, so the UI reflects them.
   const pendingWork = usePendingVisitWork(id);
 
+  // A Supported Living house visit covers several residents and has no client
+  // of its own, so every record on this screen belongs to whichever resident
+  // the carer has selected. A 1:1 visit's subject is simply its client.
+  const isHouse = !!shift?.siteId;
+  const residents = (() => {
+    const seen = new Map<string, { id: string; firstName: string; lastName: string }>();
+    for (const sl of shift?.residentSlots ?? []) {
+      if (sl.serviceUser && !seen.has(sl.serviceUserId)) seen.set(sl.serviceUserId, sl.serviceUser);
+    }
+    return [...seen.values()].sort((a, b) => a.firstName.localeCompare(b.firstName));
+  })();
+  const [residentId, setResidentId] = useState('');
+  // If only one resident is on the visit there is nothing to choose, so don't
+  // make the carer tap through a one-item picker.
+  useEffect(() => {
+    if (isHouse && !residentId && residents.length === 1) setResidentId(residents[0].id);
+  }, [isHouse, residentId, residents]);
+  const subjectId = isHouse ? residentId : shift?.serviceUserId ?? '';
+
+  // The chosen resident's full record (address, care tasks, whether their money
+  // is handled). The shift only carries their name.
+  // Nothing may be written on a house visit until a resident is chosen —
+  // otherwise the record has no file to go in, and the server would refuse it
+  // with a message about a missing id rather than the real reason.
+  const requireResident = (): boolean => {
+    if (isHouse && !residentId) {
+      setResidentPrompt('Choose which resident this is for first.');
+      return false;
+    }
+    setResidentPrompt(null);
+    return true;
+  };
+  const [residentPrompt, setResidentPrompt] = useState<string | null>(null);
+
+  const { data: residentRecord } = useQuery({
+    queryKey: ['service-user', subjectId],
+    queryFn: () => serviceUsersApi.get(subjectId),
+    enabled: isHouse && !!subjectId,
+  });
+
   // The visit's doses (with recorded status), by shift — stays available after
   // the call is completed so the carer can review what was given.
   const { data: dueMeds = [] } = useQuery({
-    queryKey: ['shift-meds', id],
-    queryFn: () => clockApi.shiftMeds(id!),
-    enabled: !!id,
+    queryKey: ['shift-meds', id, subjectId],
+    queryFn: () => clockApi.shiftMeds(id!, isHouse ? subjectId : undefined),
+    enabled: !!id && (!isHouse || !!subjectId),
     refetchInterval: () => (clockStatus?.clockedIn ? 15000 : false),
   });
 
   const clockedIn = !!clockStatus?.clockedIn && clockStatus.record?.shiftId === shift?.id;
 
   const { data: callLogs = [] } = useQuery({
-    queryKey: ['call-logs', shift?.serviceUserId],
-    queryFn: () => callLogsApi.list(shift!.serviceUserId!),
-    enabled: !!shift?.serviceUserId,
+    queryKey: ['call-logs', subjectId],
+    queryFn: () => callLogsApi.list(subjectId),
+    enabled: !!subjectId,
   });
 
   // Financial record — only clients whose money the carer handles. The ledger
   // (balance + recent transactions) loads once we know the service user.
-  const handlesMoney = !!shift?.serviceUser?.handlesMoney;
+  const handlesMoney = !!(isHouse ? residentRecord?.handlesMoney : shift?.serviceUser?.handlesMoney);
   const { data: ledger } = useQuery({
-    queryKey: ['finance', shift?.serviceUserId],
-    queryFn: () => financeApi.list(shift!.serviceUserId!),
-    enabled: handlesMoney && !!shift?.serviceUserId,
+    queryKey: ['finance', subjectId],
+    queryFn: () => financeApi.list(subjectId),
+    enabled: handlesMoney && !!subjectId,
   });
 
   const resetFinanceForm = () => {
@@ -424,6 +466,7 @@ export default function CallDetail() {
 
   const financeMut = useMutation({
     mutationFn: async () => {
+      if (!requireResident()) throw new Error('No resident chosen');
       const amountOut = parseFloat(finOut);
       const amountIn = parseFloat(finIn);
       const body: {
@@ -436,7 +479,7 @@ export default function CallDetail() {
         unableToSign?: boolean;
         unableReason?: string;
       } = {
-        serviceUserId: shift!.serviceUserId!,
+        serviceUserId: subjectId,
         shiftId: shift!.id,
         description: finDesc.trim(),
       };
@@ -453,7 +496,7 @@ export default function CallDetail() {
     },
     onSuccess: () => {
       resetFinanceForm();
-      qc.invalidateQueries({ queryKey: ['finance', shift?.serviceUserId] });
+      qc.invalidateQueries({ queryKey: ['finance', subjectId] });
     },
     onError: (err: any) => setFinError(err?.response?.data?.error || 'Could not save the transaction. Please try again.'),
   });
@@ -473,7 +516,10 @@ export default function CallDetail() {
     refetchInterval: () => (clockStatus?.clockedIn ? 20000 : false),
   });
   const addEntryMut = useMutation({
-    mutationFn: () => supportLogApi.create({ serviceUserId: shift!.serviceUserId!, shiftId: shift!.id, body: entryText.trim(), domains: entryDomains }),
+    mutationFn: () => {
+      if (!requireResident()) return Promise.reject(new Error('No resident chosen'));
+      return supportLogApi.create({ serviceUserId: subjectId, shiftId: shift!.id, body: entryText.trim(), domains: entryDomains });
+    },
     onSuccess: () => {
       setEntryText(''); setEntryDomains([]);
       qc.invalidateQueries({ queryKey: ['support-log', shift?.id] });
@@ -606,7 +652,7 @@ export default function CallDetail() {
       if (shift) {
         const su = shift.serviceUser;
         void startVisitActivity({
-          clientName: su ? `${su.firstName} ${su.lastName}` : 'Visit',
+          clientName: shift.siteId ? shift.site?.name || 'House visit' : su ? `${su.firstName} ${su.lastName}` : 'Visit',
           visitName: shift.visitName,
           startedAt: Date.now(),
           endsAt: visitEndMs(shift),
@@ -617,7 +663,11 @@ export default function CallDetail() {
       // Pin a "still clocked in" notification so the carer doesn't forget to
       // clock out. Ask for permission the first time (right after their tap).
       await ensureNotificationPermission();
-      const clientName = shift?.serviceUser ? `${shift.serviceUser.firstName} ${shift.serviceUser.lastName}` : '';
+      const clientName = shift?.siteId
+        ? shift.site?.name || 'House visit'
+        : shift?.serviceUser
+        ? `${shift.serviceUser.firstName} ${shift.serviceUser.lastName}`
+        : '';
       showClockedInNotification(clientName, `/call/${id}`);
     },
   });
@@ -650,11 +700,13 @@ export default function CallDetail() {
 
   const saveAllMut = useMutation({
     mutationFn: () =>
-      Promise.all(
+      !requireResident()
+        ? Promise.reject(new Error('No resident chosen'))
+        : Promise.all(
         Object.values(picks).map((p) =>
           medicationsApi.recordAdministration({
             medicationId: p.medicationId,
-            serviceUserId: shift!.serviceUserId!,
+            serviceUserId: subjectId,
             scheduledFor: p.scheduledFor,
             status: p.status,
           }),
@@ -724,8 +776,10 @@ export default function CallDetail() {
   );
 
   const logMut = useMutation({
-    mutationFn: () =>
-      callLogsApi.create({ serviceUserId: shift!.serviceUserId!, shiftId: shift!.id, note: finalNote, tasks: tickList, ...(isSL ? { supportDomains: supportKeys } : {}) }),
+    mutationFn: () => {
+      if (!requireResident()) return Promise.reject(new Error('No resident chosen'));
+      return callLogsApi.create({ serviceUserId: subjectId, shiftId: shift!.id, note: finalNote, tasks: tickList, ...(isSL ? { supportDomains: supportKeys } : {}) });
+    },
     onSuccess: () => {
       setNote('');
       setTicks({});
@@ -734,7 +788,7 @@ export default function CallDetail() {
       setEditingLog(false);
       setAddingNote(false);
       setLogError(null);
-      qc.invalidateQueries({ queryKey: ['call-logs', shift?.serviceUserId] });
+      qc.invalidateQueries({ queryKey: ['call-logs', subjectId] });
       setTimeout(() => setLogSent(false), 2000);
     },
     onError: (err: any) => setLogError(err?.response?.data?.error || 'Could not save the note. Please try again.'),
@@ -745,7 +799,7 @@ export default function CallDetail() {
     mutationFn: (logId: string) => callLogsApi.sign(logId),
     onSuccess: () => {
       setClockOutError(null);
-      qc.invalidateQueries({ queryKey: ['call-logs', shift?.serviceUserId] });
+      qc.invalidateQueries({ queryKey: ['call-logs', subjectId] });
     },
   });
 
@@ -786,14 +840,31 @@ export default function CallDetail() {
     );
   }
 
-  const su = shift.serviceUser;
-  const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
-  // Other carers on this same call (double/triple-up) — so the carer can see who
-  // they're working alongside. Excludes themselves.
-  const coCarers = [
-    shift.user && shift.user.id !== user?.id ? shift.user : null,
-    ...(shift.coverCarers ?? []).filter((c) => c.id !== user?.id),
-  ].filter(Boolean) as { id: string; firstName: string; lastName: string }[];
+  // On a house visit the screen is about the chosen resident; on a 1:1 it is
+  // about the visit's client. Everything below reads `su`, so this is the only
+  // place the difference lives.
+  const su = isHouse ? residentRecord ?? null : shift.serviceUser;
+  const name = isHouse
+    ? su
+      ? `${su.firstName} ${su.lastName}`
+      : shift.site?.name || 'House visit'
+    : su
+    ? `${su.firstName} ${su.lastName}`
+    : 'Service user';
+  // Other carers on this same call — so the carer can see who they're working
+  // alongside. On a house visit they are in the resident slots, and one person
+  // can hold two places, so dedupe. Excludes themselves.
+  const coCarers = (isHouse
+    ? [...new Map(
+        (shift.residentSlots ?? [])
+          .map((sl) => sl.user)
+          .filter((u): u is { id: string; firstName: string; lastName: string } => !!u && u.id !== user?.id)
+          .map((u) => [u.id, u]),
+      ).values()]
+    : [
+        shift.user && shift.user.id !== user?.id ? shift.user : null,
+        ...(shift.coverCarers ?? []).filter((c) => c.id !== user?.id),
+      ].filter(Boolean)) as { id: string; firstName: string; lastName: string }[];
   const clockedInElsewhere = !!clockStatus?.clockedIn && clockStatus.record?.shiftId !== shift.id;
   const done = isCallDone(shift, user?.id) || doneShiftIds.includes(shift.id);
   const shiftIsToday = isToday(new Date(shift.date));
@@ -867,6 +938,22 @@ export default function CallDetail() {
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm font-medium text-blue-600 -mt-1">
           ‹ Back
         </button>
+
+        {/* A house visit covers several residents, so the carer chooses who
+            they are recording for. The choice scopes this whole screen. */}
+        {isHouse && residents.length > 1 && (
+          <ResidentSwitcher
+            residents={residents}
+            value={residentId}
+            onChange={setResidentId}
+            houseName={shift.site?.name}
+          />
+        )}
+        {residentPrompt && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+            {residentPrompt}
+          </div>
+        )}
         <div className={`rounded-2xl p-4 shadow-sm border ${done ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">

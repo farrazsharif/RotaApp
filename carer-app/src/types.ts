@@ -59,6 +59,12 @@ export interface ServiceUser {
   visitDuration: number;
   visits?: string | null;
   active: boolean;
+  // Whether the provider handles this person's money — drives the financial
+  // ledger on the visit screen. Carried on ServiceUserBrief too; needed here
+  // because a house visit looks the resident up in full.
+  handlesMoney?: boolean;
+  careType?: string | null;
+  careTasks?: string | null;
 }
 
 export interface CarePlan {
@@ -130,6 +136,20 @@ export interface Shift {
   // True when the visit has any record — a call log or a support-log entry.
   // Set by the shift list endpoint; drives the "recorded vs to record" markers.
   logged?: boolean;
+  // Supported Living house visit: one visit covering a whole house, with a
+  // carer slot per resident. serviceUserId is empty on these — the carer picks
+  // which resident each record is for.
+  siteId?: string | null;
+  site?: { id: string; name: string; color?: string; supportedLiving?: boolean } | null;
+  residentSlots?: ShiftResidentSlot[];
+}
+
+export interface ShiftResidentSlot {
+  id: string;
+  serviceUserId: string;
+  userId?: string | null;
+  serviceUser?: { id: string; firstName: string; lastName: string };
+  user?: { id: string; firstName: string; lastName: string } | null;
 }
 
 export interface ClockRecord {

@@ -8,7 +8,12 @@ export const clockApi = {
   dueMeds: () => api.get<{ doses: DueDose[] }>('/clock/due-meds').then((r) => r.data.doses),
   // A specific visit's doses (with recorded status) regardless of clock state —
   // so meds stay visible for review after the call is completed.
-  shiftMeds: (shiftId: string) => api.get<{ doses: DueDose[] }>(`/clock/shift-meds/${shiftId}`).then((r) => r.data.doses),
+  // residentId is only used on a Supported Living house visit, which has no
+  // single chart: the carer picks a resident and gets that resident's doses.
+  shiftMeds: (shiftId: string, residentId?: string) =>
+    api
+      .get<{ doses: DueDose[] }>(`/clock/shift-meds/${shiftId}`, { params: residentId ? { residentId } : undefined })
+      .then((r) => r.data.doses),
   status: () => api.get<{ clockedIn: boolean; record: ClockRecord | null }>('/clock/status').then((r) => r.data),
   // Offline-capable: queued with the real tap time if there is no signal.
   clockIn: (shiftId?: string) =>
