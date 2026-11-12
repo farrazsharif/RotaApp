@@ -165,6 +165,30 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
     await prisma.$executeRawUnsafe(`ALTER TABLE "Review" ADD COLUMN IF NOT EXISTS "supervisorSig" TEXT`);
   } catch { /* tables not created yet on this deploy; db push adds them with the column */ }
 
+  // Supported Living house shifts. A shift booked against the HOUSE rather than
+  // one resident carries siteId instead of serviceUserId; ShiftResidentSlot
+  // records one row per required carer per resident, so a house mixing a 2:1
+  // and a 1:1 can evidence which carers belong to which funded package.
+  // No DB-level foreign keys, matching the other tables created here: Prisma
+  // resolves the relations via the scalar columns, and leaving the constraints
+  // out keeps this create order-independent and idempotent.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Shift" ADD COLUMN IF NOT EXISTS "siteId" TEXT`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Shift_companyId_siteId_date_idx" ON "Shift"("companyId", "siteId", "date")`);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "ShiftResidentSlot" (
+      "id"            TEXT PRIMARY KEY,
+      "companyId"     TEXT,
+      "shiftId"       TEXT NOT NULL,
+      "serviceUserId" TEXT NOT NULL,
+      "userId"        TEXT,
+      "createdAt"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftResidentSlot_companyId_idx" ON "ShiftResidentSlot"("companyId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftResidentSlot_shiftId_idx" ON "ShiftResidentSlot"("shiftId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftResidentSlot_companyId_serviceUserId_idx" ON "ShiftResidentSlot"("companyId", "serviceUserId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ShiftResidentSlot_userId_idx" ON "ShiftResidentSlot"("userId")`);
+
   // ShiftHandover — carer-to-carer cover requests. This deploy doesn't run
   // `prisma db push`, so create the table (and its indexes) directly. No DB-level
   // foreign keys: Prisma resolves relations via the scalar columns, and skipping

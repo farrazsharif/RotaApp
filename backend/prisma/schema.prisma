@@ -98,6 +98,7 @@ model User {
 
   shifts             Shift[]
   coverShifts        Shift[]             @relation("ShiftCoverCarers")
+  residentSlots      ShiftResidentSlot[]
   runs               Run[]               @relation("RunCarers")
   timeOffRequests    TimeOffRequest[]
   clockRecords       ClockRecord[]
@@ -158,6 +159,7 @@ model Site {
 
   serviceUsers ServiceUser[]
   scopedUsers  User[]        @relation("UserSites")
+  shifts       Shift[]
 
   @@index([companyId])
 }
@@ -238,6 +240,7 @@ model ServiceUser {
   site                Site?                     @relation(fields: [siteId], references: [id])
   preferredCaregivers User[]                    @relation("PreferredCaregivers")
   shifts              Shift[]
+  residentSlots       ShiftResidentSlot[]
   callLogs            CallLog[]
   medications         Medication[]
   medAdministrations  MedAdministration[]
@@ -681,6 +684,38 @@ model Review {
 //
 // Keeping both halves on one row matters: a report with no investigation is
 // visibly an open incident, which is exactly what an inspector looks for.
+// One required carer for one resident on a house shift.
+//
+// A house can mix funded ratios: resident A on 2:1 and resident B on 1:1 means
+// three carers on site, but "cover: 3" alone cannot evidence that two of them
+// are A's. One row per required carer records the ratio, and `userId` records
+// who is filling it — so hours attribute to the right resident for invoicing,
+// and the schedule can say "A still needs 1 more" rather than just "needs 1".
+//
+// A carer in a slot is NOT restricted to that resident: on shift they cover
+// each other's breaks, and the resident switcher lets anyone on the house log
+// for anyone in it. The slot is about funding and staffing levels, not about
+// who may enter a record.
+model ShiftResidentSlot {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String   @id @default(cuid())
+  shiftId       String
+  serviceUserId String
+  // The carer filling this slot. Null = the slot is still unfilled, which is
+  // what the schedule counts as "needs another carer" for this resident.
+  userId        String?
+  createdAt     DateTime @default(now())
+
+  shift       Shift       @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id])
+  user        User?       @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([shiftId])
+  @@index([companyId, serviceUserId])
+  @@index([userId])
+}
+
 model Incident {
   companyId         String? // tenant scope (app-enforced via Prisma extension)
   id                String    @id @default(cuid())
@@ -851,6 +886,11 @@ model Shift {
   id                  String    @id @default(cuid())
   userId              String?
   serviceUserId       String?
+  // Supported Living "house shift": one visit booked against the HOUSE (Site)
+  // rather than a single resident. Exactly one of serviceUserId / siteId is
+  // set — every pre-existing shift has serviceUserId, so domiciliary and 1:1
+  // supported-living visits are unaffected by anything keyed off siteId.
+  siteId              String?
   runId               String? // optional: the run (named round) this call belongs to
   seriesId            String?
   // True for an open-ended ("Permanent") recurring series so the top-up job
@@ -881,9 +921,11 @@ model Shift {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  user         User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  coverCarers  User[]          @relation("ShiftCoverCarers")
-  serviceUser  ServiceUser?    @relation(fields: [serviceUserId], references: [id])
+  user          User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coverCarers   User[]              @relation("ShiftCoverCarers")
+  serviceUser   ServiceUser?        @relation(fields: [serviceUserId], references: [id])
+  site          Site?               @relation(fields: [siteId], references: [id])
+  residentSlots ShiftResidentSlot[]
   run          Run?            @relation(fields: [runId], references: [id])
   clockRecords ClockRecord[]
   callLogs     CallLog[]
@@ -893,6 +935,7 @@ model Shift {
   @@index([companyId])
   @@index([companyId, date])
   @@index([companyId, runId])
+  @@index([companyId, siteId, date])
   // Series-wide carer changes match a visit by serviceUserId + date; without
   // this a big rota is fully scanned on every assign (a save-timeout at scale).
   @@index([companyId, serviceUserId, date])
