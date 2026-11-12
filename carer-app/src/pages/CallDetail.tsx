@@ -1152,7 +1152,13 @@ export default function CallDetail() {
             available: something can go wrong before clocking in, after
             clocking out, or on a visit already marked done. */}
         <button
-          onClick={() => navigate(`/report-incident?shiftId=${shift.id}${su ? `&clientId=${su.id}&client=${encodeURIComponent(name)}` : ''}`)}
+          onClick={() => {
+            // On a house visit the incident belongs to one resident, so make
+            // the carer choose before the form opens — an incident filed
+            // against the house would sit in nobody's record.
+            if (!requireResident()) return;
+            navigate(`/report-incident?shiftId=${shift.id}${su ? `&clientId=${su.id}&client=${encodeURIComponent(name)}` : ''}`);
+          }}
           className="w-full text-left bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
         >
           <p className="font-semibold text-gray-800">⚠️ Report an incident</p>

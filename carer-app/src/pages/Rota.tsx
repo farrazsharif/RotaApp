@@ -6,7 +6,7 @@ import Layout from '../components/Layout';
 import { myShiftsQuery } from '../lib/shiftsQuery';
 import { handoversApi } from '../api/handovers';
 import { useAuth } from '../contexts/AuthContext';
-import { isCallDone, staffing } from '../lib/shiftStatus';
+import { isCallDone, staffing, shiftTitle } from '../lib/shiftStatus';
 import { recordState } from '../lib/visitRecording';
 import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
@@ -166,8 +166,7 @@ export default function Rota() {
 }
 
 function RotaRow({ shift, done, spent, coverRequested, onClick }: { shift: Shift; done: boolean; spent: number | null; coverRequested: boolean; onClick: () => void }) {
-  const su = shift.serviceUser;
-  const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
+  const name = shiftTitle(shift);
   // recorded = a call log exists; record = finished but not recorded yet.
   const state = recordState(shift);
   return (

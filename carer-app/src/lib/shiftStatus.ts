@@ -7,6 +7,16 @@ export function isCallDone(shift: Shift, userId: string | undefined): boolean {
   return !!shift.clockRecords?.some((r) => r.userId === userId && r.clockOut);
 }
 
+// What to call a visit. A Supported Living house visit has no client of its
+// own — it covers several residents — so it is named after the house. Reading
+// shift.serviceUser directly leaves those showing as "Service user", which
+// tells a carer nothing about where they are going.
+export function shiftTitle(shift: Shift): string {
+  if (shift.siteId) return shift.site?.name || 'House visit';
+  const su = shift.serviceUser;
+  return su ? `${su.firstName} ${su.lastName}` : 'Service user';
+}
+
 // How many carers are actually named on this visit, against how many it needs.
 //
 // A visit can now reach a carer's rota before every slot is filled, so that

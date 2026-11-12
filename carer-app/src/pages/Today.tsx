@@ -10,7 +10,7 @@ import { clockApi } from '../api/clock';
 import { handoversApi } from '../api/handovers';
 import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
-import { isCallDone, staffing } from '../lib/shiftStatus';
+import { isCallDone, staffing, shiftTitle } from '../lib/shiftStatus';
 import { unrecordedVisits } from '../lib/visitRecording';
 import { usePendingClock } from '../lib/pendingClock';
 import { formatTime12h } from '../lib/time';
@@ -75,8 +75,7 @@ export default function Today() {
   // Only shows if notification permission was already granted — never prompts here.
   useEffect(() => {
     if (activeRecord?.shift) {
-      const su = activeRecord.shift.serviceUser;
-      showClockedInNotification(su ? `${su.firstName} ${su.lastName}` : '', `/call/${activeRecord.shift.id}`);
+      showClockedInNotification(shiftTitle(activeRecord.shift), `/call/${activeRecord.shift.id}`);
     } else if (clockStatus && !clockStatus.clockedIn) {
       clearClockedInNotification();
     }
@@ -250,8 +249,10 @@ export default function Today() {
 }
 
 function CallCard({ shift, highlighted, done, clockedIn, coverRequested, showDate, onClick }: { shift: Shift; highlighted: boolean; done: boolean; clockedIn: boolean; coverRequested: boolean; showDate: boolean; onClick: () => void }) {
+  const name = shiftTitle(shift);
+  // A 1:1 visit shows the client's address. A house visit has no single client,
+  // so there is nothing to show here — the house is already the title.
   const su = shift.serviceUser;
-  const name = su ? `${su.firstName} ${su.lastName}` : 'Service user';
   const isCancelled = shift.status === 'CANCELLED';
   // An open clock-in that isn't done takes visual priority — usually a
   // carried-over overnight visit the carer still needs to clock out of.

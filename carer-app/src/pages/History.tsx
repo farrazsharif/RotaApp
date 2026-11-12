@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { shiftTitle } from '../lib/shiftStatus';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, startOfWeek, addDays, addWeeks, isSameDay } from 'date-fns';
@@ -97,7 +98,7 @@ export default function History() {
               >
                 <div className="min-w-0">
                   <p className="text-sm text-gray-700 truncate">
-                    {s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Visit'}{s.visitName ? ` · ${s.visitName}` : ''}
+                    {shiftTitle(s)}{s.visitName ? ` · ${s.visitName}` : ''}
                   </p>
                   <p className="text-xs text-gray-400">{format(new Date(s.date), 'EEE d MMM')} · {formatTime12h(s.startTime)}</p>
                 </div>
@@ -169,7 +170,7 @@ export default function History() {
                           >
                             <div className="min-w-0">
                               <p className="text-gray-800 truncate">
-                                {s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'Visit'}
+                                {shiftTitle(s)}
                                 {s.visitName ? ` · ${s.visitName}` : ''}
                               </p>
                               <p className="text-xs text-gray-400">{format(new Date(s.date), 'EEE d MMM')}</p>
