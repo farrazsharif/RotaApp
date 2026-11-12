@@ -35,6 +35,41 @@ export function serviceUserScopeWhere(user?: ReqUser): Record<string, unknown> {
   return isScoped(user) ? { OR: serviceUserScopeOr(user) } : {};
 }
 
+// True if the caller may act on this shift. A house shift has no resident, so
+// it is in scope when the HOUSE is one of theirs; a 1:1 visit follows its
+// resident as before. Without this, every guard written as
+// serviceUserInScope(user, shift.serviceUserId) would 404 a scoped manager out
+// of every house visit, since that returns false for a missing id.
+export async function shiftInScope(
+  user: ReqUser,
+  shift: { serviceUserId: string | null; siteId?: string | null },
+): Promise<boolean> {
+  if (!isScoped(user)) return true;
+  if (shift.siteId) return user!.siteIds!.includes(shift.siteId);
+  return serviceUserInScope(user, shift.serviceUserId);
+}
+
+// Where-fragment for SHIFTS specifically. A supported-living house shift has
+// no serviceUser at all — it hangs off the house (siteId) — so filtering shifts
+// through the serviceUser relation would hide every house shift from a scoped
+// manager, including houses that are theirs.
+//
+// Returned under AND rather than OR so it can be merged into a where that
+// already uses OR for something else (the carer's own-rota match does).
+export function shiftScopeWhere(user?: ReqUser): Record<string, unknown> {
+  if (!isScoped(user)) return {};
+  return {
+    AND: [
+      {
+        OR: [
+          { serviceUser: { OR: serviceUserScopeOr(user) } },
+          { siteId: { in: user!.siteIds } },
+        ],
+      },
+    ],
+  };
+}
+
 // Where-fragment for models that reference a service user via `serviceUser`
 // relation (reviews, call logs, medications…). {} when org-wide.
 export function relatedServiceUserScopeWhere(user?: ReqUser): Record<string, unknown> {

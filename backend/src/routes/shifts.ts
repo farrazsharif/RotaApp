@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listShifts, countShifts, getShift, createShift, updateShift, deleteShift, bulkCreateShifts, cancelBulkShifts, assignShiftCarer, restoreShiftAssignments, publishShift, publishBulkShifts, extendSeries } from '../controllers/shiftController';
+import { listShifts, countShifts, getShift, createShift, updateShift, deleteShift, bulkCreateShifts, cancelBulkShifts, assignShiftCarer, restoreShiftAssignments, publishShift, publishBulkShifts, extendSeries, setResidentSlots } from '../controllers/shiftController';
 import { authenticate, requireRole } from '../middleware/auth';
 import { requirePermission } from '../middleware/permissions';
 
@@ -17,6 +17,9 @@ router.post('/cancel-bulk', requirePermission('manage_schedule'), cancelBulkShif
 router.post('/publish-bulk', requirePermission('manage_schedule'), publishBulkShifts);
 router.post('/:id/publish', requirePermission('manage_schedule'), publishShift);
 router.post('/:id/assign', requirePermission('manage_schedule'), assignShiftCarer);
+// Supported Living: set which residents need how many carers on a house visit,
+// and who fills each slot.
+router.post('/:id/resident-slots', requirePermission('manage_schedule'), setResidentSlots);
 // Lengthen a recurring visit - continues the pattern of the visits already on
 // the schedule, up to a new end date.
 router.post('/:id/extend-series', requirePermission('manage_schedule'), extendSeries);

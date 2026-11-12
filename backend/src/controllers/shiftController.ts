@@ -5,7 +5,7 @@ import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { emitToUser, emitToCompany } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
-import { isScoped, serviceUserInScope, relatedServiceUserScopeWhere } from '../lib/scope';
+import { isScoped, serviceUserInScope, relatedServiceUserScopeWhere, shiftScopeWhere, shiftInScope } from '../lib/scope';
 import { runWithCompany } from '../lib/tenantContext';
 import { logAudit } from '../lib/audit';
 import { growSeries, loadRespiteLookup } from '../lib/seriesGeneration';
@@ -16,7 +16,26 @@ const shiftInclude = {
   serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true, careType: true, handlesMoney: true, careTasks: true, status: true, statusUpdatedAt: true, statusChanges: { select: { status: true, effectiveAt: true }, orderBy: { effectiveAt: 'asc' as const } }, site: { select: { id: true, name: true, color: true, order: true } } } },
   run: { select: { id: true, name: true, color: true } },
   clockRecords: { select: { id: true, userId: true, clockIn: true, clockOut: true } },
+  // Supported Living house shifts: who is required for which resident, and who
+  // is filling each slot. Empty on every 1:1 visit.
+  site: { select: { id: true, name: true, color: true, supportedLiving: true } },
+  residentSlots: {
+    select: {
+      id: true,
+      serviceUserId: true,
+      userId: true,
+      serviceUser: { select: { id: true, firstName: true, lastName: true } },
+      user: { select: { id: true, firstName: true, lastName: true } },
+    },
+  },
 };
+
+// A house shift is booked against the house, not a resident. Exactly one of
+// siteId / serviceUserId is ever set, so this is the single test the rest of
+// the code branches on.
+function isHouseShift(shift: { siteId?: string | null }): boolean {
+  return !!shift.siteId;
+}
 
 // Apply a cover-carers change (connect or set) to many shifts without building
 // one giant transaction. The many-to-many relation can't be touched by
@@ -48,14 +67,24 @@ export async function listShifts(req: AuthRequest, res: Response) {
     // Include calls they're the primary carer on AND calls they cover (2nd/3rd
     // carer on a double/triple-up call) — matching the Today screen. Without the
     // cover match, cover calls silently went missing.
-    where.OR = [{ userId: req.user!.id }, { coverCarers: { some: { id: req.user!.id } } }];
+    // On a house shift the resident slots ARE the assignment — userId and
+    // coverCarers stay null — so a carer's own rota has to match on those too.
+    where.OR = [
+      { userId: req.user!.id },
+      { coverCarers: { some: { id: req.user!.id } } },
+      { residentSlots: { some: { userId: req.user!.id } } },
+    ];
     // Carers only ever see published shifts — drafts stay manager-only until published.
     where.published = true;
   } else if (userId) {
     // A manager pulling one carer's rota wants their cover calls too, not just
     // the ones they're primary on — includeCover switches to the OR match.
     if (req.query.includeCover === '1' || req.query.includeCover === 'true') {
-      where.OR = [{ userId: String(userId) }, { coverCarers: { some: { id: String(userId) } } }];
+      where.OR = [
+        { userId: String(userId) },
+        { coverCarers: { some: { id: String(userId) } } },
+        { residentSlots: { some: { userId: String(userId) } } },
+      ];
     } else {
       where.userId = userId;
     }
@@ -70,7 +99,7 @@ export async function listShifts(req: AuthRequest, res: Response) {
   }
 
   // Scoped managers only see shifts for service users in their sites.
-  Object.assign(where, relatedServiceUserScopeWhere(req.user));
+  Object.assign(where, shiftScopeWhere(req.user));
 
   const shifts = await prisma.shift.findMany({
     where,
@@ -161,18 +190,22 @@ export async function countShifts(req: AuthRequest, res: Response) {
   }
 
   // Scoped managers only count shifts for service users in their sites.
-  Object.assign(where, relatedServiceUserScopeWhere(req.user));
+  Object.assign(where, shiftScopeWhere(req.user));
 
   // Optional explicit site filter (the Schedule site chips). When the manager
   // is already site-scoped, narrow within that scope rather than widening past it.
   if (siteIds) {
     const ids = String(siteIds).split(',').map((s) => s.trim()).filter(Boolean);
     if (ids.length) {
-      // AND the chip filter onto whatever scope already set, rather than
-      // reaching into its shape — the scope fragment is an OR (sites, or no
-      // site), so merging by key would drop it and widen past the scope.
-      const su = (where.serviceUser as Record<string, unknown>) || {};
-      where.serviceUser = { AND: [su, { siteId: { in: ids } }] };
+      // AND the chip filter on, rather than merging it into whatever scope
+      // already set — the scope fragment is an OR and a key merge would drop
+      // it and widen past the manager's sites. A house shift carries the site
+      // itself, a 1:1 visit carries it through its resident, so match either.
+      const prior = (where.AND as unknown[]) || [];
+      where.AND = [
+        ...prior,
+        { OR: [{ serviceUser: { siteId: { in: ids } } }, { siteId: { in: ids } }] },
+      ];
     }
   }
 
@@ -183,7 +216,7 @@ export async function countShifts(req: AuthRequest, res: Response) {
 export async function getShift(req: AuthRequest, res: Response) {
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id }, include: shiftInclude });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
-  if (!(await serviceUserInScope(req.user, shift.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
+  if (!(await shiftInScope(req.user, shift))) return res.status(404).json({ error: 'Shift not found' });
   res.json(shift);
 }
 
@@ -217,25 +250,80 @@ function buildRecurringDates(startStr: string, repeat: Repeat): Date[] {
   return dates.length ? dates : [start];
 }
 
+// One requested carer slot on a house shift: which resident it belongs to, and
+// optionally who is filling it.
+export interface SlotInput { serviceUserId: string; userId?: string | null }
+
+// Validate the slots asked for against the house they're being booked on.
+// Every resident must actually live there, or a visit could be booked for
+// someone whose records belong to another house entirely.
+async function validateSlots(siteId: string, slots: unknown): Promise<{ ok: SlotInput[] } | { error: string }> {
+  if (!Array.isArray(slots) || slots.length === 0) {
+    return { error: 'Choose how many carers each resident needs' };
+  }
+  const cleaned: SlotInput[] = [];
+  for (const raw of slots) {
+    const su = (raw as SlotInput)?.serviceUserId;
+    if (typeof su !== 'string' || !su) return { error: 'Every carer slot must name a resident' };
+    const u = (raw as SlotInput)?.userId;
+    cleaned.push({ serviceUserId: su, userId: typeof u === 'string' && u ? u : null });
+  }
+  const residentIds = [...new Set(cleaned.map((c) => c.serviceUserId))];
+  const residents = await prisma.serviceUser.findMany({
+    where: { id: { in: residentIds }, siteId },
+    select: { id: true },
+  });
+  if (residents.length !== residentIds.length) {
+    return { error: 'One of those residents is not at this house' };
+  }
+  return { ok: cleaned };
+}
+
 export async function createShift(req: AuthRequest, res: Response) {
-  const { userId, serviceUserId, date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, repeat, runId, givesMedication } = req.body;
+  const { userId, serviceUserId, siteId, slots, date, startTime, endTime, visitName, cover, coverCarerIds, role, notes, repeat, runId, givesMedication } = req.body;
   if (!date || !startTime || !endTime) {
     return res.status(400).json({ error: 'date, startTime, endTime required' });
   }
-  if (!serviceUserId) {
-    return res.status(400).json({ error: 'A service user (patient) is required' });
-  }
-  if (!(await serviceUserInScope(req.user, serviceUserId))) {
-    return res.status(403).json({ error: 'That service user is outside your assigned sites' });
+
+  // A HOUSE shift (supported living): booked against the site, with one slot
+  // per required carer per resident. Mutually exclusive with a 1:1 visit — the
+  // rest of the app decides which kind a shift is purely by which id is set.
+  const house = !!siteId;
+  let slotInputs: SlotInput[] = [];
+  if (house) {
+    if (serviceUserId) {
+      return res.status(400).json({ error: 'A visit is either for one client or for a whole house, not both' });
+    }
+    if (isScoped(req.user) && !req.user!.siteIds!.includes(String(siteId))) {
+      return res.status(403).json({ error: 'That house is outside your assigned sites' });
+    }
+    const site = await prisma.site.findUnique({ where: { id: String(siteId) }, select: { id: true } });
+    if (!site) return res.status(404).json({ error: 'House not found' });
+    const checked = await validateSlots(String(siteId), slots);
+    if ('error' in checked) return res.status(400).json({ error: checked.error });
+    slotInputs = checked.ok;
+  } else {
+    if (!serviceUserId) {
+      return res.status(400).json({ error: 'A service user (patient) is required' });
+    }
+    if (!(await serviceUserInScope(req.user, serviceUserId))) {
+      return res.status(403).json({ error: 'That service user is outside your assigned sites' });
+    }
   }
 
   const baseData = {
-    userId: userId || null,
-    serviceUserId: serviceUserId || null,
+    // On a house shift the slots carry the carers, so the single-carer fields
+    // stay empty; the two shapes never mix.
+    userId: house ? null : userId || null,
+    serviceUserId: house ? null : serviceUserId || null,
+    siteId: house ? String(siteId) : null,
     startTime,
     endTime,
     visitName: visitName || null,
-    cover: Number(cover) || 1,
+    // Kept in step with the slots so everything that reads `cover` (coverage
+    // tiles, "needs staff", the carer app's head count) keeps working without
+    // knowing about houses.
+    cover: house ? slotInputs.length : Number(cover) || 1,
     role: role || null,
     notes: notes || null,
     givesMedication: givesMedication !== false,
@@ -294,10 +382,34 @@ export async function createShift(req: AuthRequest, res: Response) {
     }
     shift = await prisma.shift.findFirst({ where: { seriesId }, orderBy: { date: 'asc' }, include: shiftInclude });
   }
+
+  // House shifts: one slot row per required carer, on every occurrence. Done
+  // with createMany rather than nested writes — a permanent 3-slot series is
+  // over a thousand rows, and that as individual creates is exactly what timed
+  // out when cover carers were handled that way.
+  if (house && shift) {
+    const shiftIds = dates.length === 1
+      ? [shift.id]
+      : (await prisma.shift.findMany({ where: { seriesId }, select: { id: true } })).map((x) => x.id);
+    const rows = shiftIds.flatMap((sid) =>
+      slotInputs.map((sl) => ({
+        id: randomUUID(),
+        companyId: req.user!.companyId,
+        shiftId: sid,
+        serviceUserId: sl.serviceUserId,
+        userId: sl.userId,
+      })),
+    );
+    const CHUNK = 500;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      await prisma.shiftResidentSlot.createMany({ data: rows.slice(i, i + CHUNK) });
+    }
+    shift = await prisma.shift.findUnique({ where: { id: shift.id }, include: shiftInclude });
+  }
   if (createdCount > 20) console.log(`[shift] createShift count=${createdCount} cover=${hasCoverCarers} ms=${Date.now() - t0}`);
 
   // Notify the assigned carer, if one was set (a single summary notification for recurring visits)
-  if (userId && shift) {
+  if (!house && userId && shift) {
     const message =
       createdCount > 1
         ? `You have ${createdCount} new shifts scheduled, starting ${new Date(date).toDateString()} (${startTime}–${endTime})`
@@ -361,8 +473,8 @@ export async function updateShift(req: AuthRequest, res: Response) {
   const propagate = assignScope === 'days' || assignScope === 'future' || assignScope === 'range';
 
   if (isScoped(req.user)) {
-    const cur = await prisma.shift.findUnique({ where: { id: req.params.id }, select: { serviceUserId: true } });
-    if (!cur || !(await serviceUserInScope(req.user, cur.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
+    const cur = await prisma.shift.findUnique({ where: { id: req.params.id }, select: { serviceUserId: true, siteId: true } });
+    if (!cur || !(await shiftInScope(req.user, cur))) return res.status(404).json({ error: 'Shift not found' });
     if (serviceUserId !== undefined && !(await serviceUserInScope(req.user, serviceUserId))) {
       return res.status(403).json({ error: 'That service user is outside your assigned sites' });
     }
@@ -482,7 +594,7 @@ export async function deleteShift(req: AuthRequest, res: Response) {
 
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id } });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
-  if (!(await serviceUserInScope(req.user, shift.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
+  if (!(await shiftInScope(req.user, shift))) return res.status(404).json({ error: 'Shift not found' });
 
   let idsToCancel: string[] = [shift.id];
 
@@ -598,6 +710,65 @@ export async function deleteShift(req: AuthRequest, res: Response) {
   res.json({ message: 'Cancelled', count: idsToCancel.length });
 }
 
+// Set the resident slots on a house shift: which residents need how many
+// carers, and who is filling each.
+//
+// Replaces the whole set rather than patching rows, because the office edits
+// this as one picture ("A needs 2, B needs 1, Sara and Tom on A, Jo on B").
+// Diffing rows one at a time would let a half-applied edit leave a house with
+// the wrong ratio, which is the one thing this table exists to get right.
+//
+// scope: 'one' (default) | 'future' | 'days' — same meanings as assignShiftCarer,
+// so changing a house's staffing for the rest of a series is one action.
+export async function setResidentSlots(req: AuthRequest, res: Response) {
+  const { slots, scope, days, fromDate, toDate } = req.body as {
+    slots?: unknown; scope?: string; days?: number[]; fromDate?: string; toDate?: string;
+  };
+
+  const shift = await prisma.shift.findUnique({ where: { id: req.params.id } });
+  if (!shift) return res.status(404).json({ error: 'Shift not found' });
+  if (!isHouseShift(shift)) {
+    return res.status(400).json({ error: 'This visit is for one client, not a house' });
+  }
+  if (isScoped(req.user) && !req.user!.siteIds!.includes(shift.siteId!)) {
+    return res.status(404).json({ error: 'Shift not found' });
+  }
+
+  const checked = await validateSlots(shift.siteId!, slots);
+  if ('error' in checked) return res.status(400).json({ error: checked.error });
+  const slotInputs = checked.ok;
+
+  const dayList = Array.isArray(days) ? days.map(Number) : [];
+  let ids: string[] = [shift.id];
+  if (scope && scope !== 'one') {
+    ids = await resolveVisitShiftIds(shift, scope, dayList, fromDate, toDate);
+  }
+
+  await prisma.shiftResidentSlot.deleteMany({ where: { shiftId: { in: ids } } });
+  const rows = ids.flatMap((sid) =>
+    slotInputs.map((sl) => ({
+      id: randomUUID(),
+      companyId: req.user!.companyId,
+      shiftId: sid,
+      serviceUserId: sl.serviceUserId,
+      userId: sl.userId,
+    })),
+  );
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await prisma.shiftResidentSlot.createMany({ data: rows.slice(i, i + CHUNK) });
+  }
+  // `cover` mirrors the slot count so everything reading it — coverage tiles,
+  // "needs staff", the carer app's head count — keeps working unchanged.
+  await prisma.shift.updateMany({ where: { id: { in: ids } }, data: { cover: slotInputs.length } });
+
+  await logAudit(req, 'SHIFT_SLOTS_SET', shift.visitName || 'House visit', `${slotInputs.length} carer slot(s) across ${ids.length} visit(s)`);
+  if (req.user!.companyId) emitToCompany(req.user!.companyId, 'data:changed', { resource: '/api/shifts' });
+
+  const updated = await prisma.shift.findUnique({ where: { id: shift.id }, include: shiftInclude });
+  res.json({ message: 'Saved', count: ids.length, shift: updated });
+}
+
 // Assign (or clear) a carer across a recurring series.
 // scope: 'one' (default) | 'future' (this + later in series) | 'days' (matching weekdays from this date)
 export async function assignShiftCarer(req: AuthRequest, res: Response) {
@@ -606,7 +777,7 @@ export async function assignShiftCarer(req: AuthRequest, res: Response) {
 
   const shift = await prisma.shift.findUnique({ where: { id: req.params.id } });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
-  if (!(await serviceUserInScope(req.user, shift.serviceUserId))) return res.status(404).json({ error: 'Shift not found' });
+  if (!(await shiftInScope(req.user, shift))) return res.status(404).json({ error: 'Shift not found' });
 
   const t0 = Date.now();
   let ids: string[] = [shift.id];
@@ -744,7 +915,7 @@ export async function cancelBulkShifts(req: AuthRequest, res: Response) {
   }
 
   const result = await prisma.shift.updateMany({
-    where: { id: { in: ids }, status: { not: 'CANCELLED' }, ...relatedServiceUserScopeWhere(req.user) },
+    where: { id: { in: ids }, status: { not: 'CANCELLED' }, ...shiftScopeWhere(req.user) },
     data: cancelBillingData(req.body as Record<string, unknown>),
   });
 
@@ -767,7 +938,16 @@ export async function cancelBulkShifts(req: AuthRequest, res: Response) {
 // A shift with NO carers stays unpublishable. It would be invisible anyway
 // (carers only see their own visits), and leaving it draft keeps the publish
 // step meaningful for whoever is assigned later.
-function isPublishable(shift: { userId: string | null; cover: number; coverCarers: unknown[] }): boolean {
+function isPublishable(shift: {
+  userId: string | null;
+  cover: number;
+  coverCarers: unknown[];
+  siteId?: string | null;
+  residentSlots?: { userId: string | null }[];
+}): boolean {
+  // On a house shift the slots are the assignment, so "somebody is on it"
+  // means at least one slot is filled.
+  if (isHouseShift(shift)) return (shift.residentSlots ?? []).some((sl) => !!sl.userId);
   return !!shift.userId || shift.coverCarers.length > 0;
 }
 
@@ -818,13 +998,26 @@ async function notifyCarersRemoved(removals: { carerId: string; shift: Notifiabl
 // of calls (e.g. "Publish All Shown") doesn't fire one notification per
 // shift per carer.
 async function notifyShiftsPublished(
-  shifts: (NotifiableShift & { userId: string | null; coverCarers: { id: string }[] })[],
+  shifts: (NotifiableShift & {
+    userId: string | null;
+    coverCarers: { id: string }[];
+    residentSlots?: { userId: string | null }[];
+  })[],
   customMessage?: string,
 ) {
   const byCarer = new Map<string, NotifiableShift[]>();
   for (const shift of shifts) {
-    const carerIds = [shift.userId, ...shift.coverCarers.map((c) => c.id)].filter(Boolean) as string[];
-    for (const carerId of carerIds) {
+    // On a house shift nobody is in userId/coverCarers — the carers are in the
+    // resident slots — so without these the people actually working it would
+    // never be told it had been published.
+    const carerIds = [
+      shift.userId,
+      ...shift.coverCarers.map((c) => c.id),
+      ...(shift.residentSlots ?? []).map((sl) => sl.userId),
+    ].filter(Boolean) as string[];
+    // One carer can hold two slots in the same house (both of A's, say), so
+    // don't push the same shift at them twice.
+    for (const carerId of [...new Set(carerIds)]) {
       if (!byCarer.has(carerId)) byCarer.set(carerId, []);
       byCarer.get(carerId)!.push(shift);
     }
@@ -881,7 +1074,7 @@ async function notifyManagersPublished(count: number, customMessage?: string) {
 export async function publishShift(req: AuthRequest, res: Response) {
   const shift = await prisma.shift.findUnique({
     where: { id: req.params.id },
-    include: { coverCarers: { select: { id: true } } },
+    include: { coverCarers: { select: { id: true } }, residentSlots: { select: { userId: true } } },
   });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
   if (!isPublishable(shift)) {
@@ -911,8 +1104,8 @@ export async function publishBulkShifts(req: AuthRequest, res: Response) {
   const customMessage = typeof message === 'string' && message.trim() ? message.trim().slice(0, 500) : undefined;
 
   const candidates = await prisma.shift.findMany({
-    where: { id: { in: ids }, published: false, ...relatedServiceUserScopeWhere(req.user) },
-    include: { coverCarers: { select: { id: true } } },
+    where: { id: { in: ids }, published: false, ...shiftScopeWhere(req.user) },
+    include: { coverCarers: { select: { id: true } }, residentSlots: { select: { userId: true } } },
   });
   const publishable = candidates.filter(isPublishable);
   const publishableIds = publishable.map((s) => s.id);
@@ -991,7 +1184,7 @@ export async function extendSeries(req: AuthRequest, res: Response) {
     },
   });
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
-  if (!(await serviceUserInScope(req.user, shift.serviceUserId))) {
+  if (!(await shiftInScope(req.user, shift))) {
     return res.status(404).json({ error: 'Shift not found' });
   }
   if (!shift.seriesId) {
