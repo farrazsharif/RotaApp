@@ -43,6 +43,24 @@ export async function myCalls(req: AuthRequest, res: Response) {
       serviceUser: { select: { id: true, firstName: true, lastName: true, address: true, postcode: true } },
       run: { select: { id: true, name: true, color: true } },
       clockRecords: { where: { userId: req.user!.id }, select: { id: true, userId: true, clockIn: true, clockOut: true } },
+      // Who else is on the call. Needed because the Today screen works out
+      // whether a double-up is short-staffed, and without this list it counted
+      // only the primary carer — so every properly staffed double-up was
+      // flagged "1 of 2 carers, needs another". A false alarm on a safety
+      // warning is worse than no warning: it teaches carers to ignore it.
+      coverCarers: { select: { id: true, firstName: true, lastName: true } },
+      // A Supported Living house visit is named after the house and carries its
+      // carers in the resident slots, so Today needs both to label and count it.
+      site: { select: { id: true, name: true, color: true, supportedLiving: true } },
+      residentSlots: {
+        select: {
+          id: true,
+          serviceUserId: true,
+          userId: true,
+          serviceUser: { select: { id: true, firstName: true, lastName: true } },
+          user: { select: { id: true, firstName: true, lastName: true } },
+        },
+      },
     },
     orderBy: [{ startTime: 'asc' }],
   });
