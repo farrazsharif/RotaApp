@@ -18,7 +18,7 @@ const shiftInclude = {
   clockRecords: { select: { id: true, userId: true, clockIn: true, clockOut: true } },
   // Supported Living house shifts: who is required for which resident, and who
   // is filling each slot. Empty on every 1:1 visit.
-  site: { select: { id: true, name: true, color: true, supportedLiving: true } },
+  site: { select: { id: true, name: true, color: true, order: true, supportedLiving: true } },
   residentSlots: {
     select: {
       id: true,

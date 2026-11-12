@@ -163,6 +163,20 @@ export interface Shift {
   cancelChargeAmount?: number | null;
   cancelReason?: string | null;
   cancelledAt?: string | null;
+  // Supported Living house shift: booked against the house rather than one
+  // resident, with a slot per required carer per resident. Absent on every 1:1
+  // visit, which is how the UI tells the two apart.
+  siteId?: string | null;
+  site?: { id: string; name: string; color?: string; order?: number; supportedLiving?: boolean } | null;
+  residentSlots?: ShiftResidentSlot[];
+}
+
+export interface ShiftResidentSlot {
+  id: string;
+  serviceUserId: string;
+  userId?: string | null;
+  serviceUser?: { id: string; firstName: string; lastName: string };
+  user?: { id: string; firstName: string; lastName: string } | null;
 }
 
 export interface Run {

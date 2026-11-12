@@ -25,9 +25,20 @@ export interface CancelBilling {
   reason?: string;
 }
 
+// One required carer on a house visit: which resident it belongs to, and who
+// is filling it (null while it still needs someone).
+export interface ResidentSlotInput {
+  serviceUserId: string;
+  userId: string | null;
+}
+
 export interface CreateShiftData {
   userId?: string | null;
   serviceUserId?: string;
+  // Supported Living: book the visit against the HOUSE instead of one resident.
+  // siteId and serviceUserId are mutually exclusive — the server rejects both.
+  siteId?: string;
+  slots?: ResidentSlotInput[];
   date: string;
   startTime: string;
   endTime: string;
@@ -46,6 +57,12 @@ export interface CreateShiftData {
 }
 
 export const shiftsApi = {
+  // Set a house visit's staffing: which residents need how many carers, and who
+  // fills each place. Replaces the whole set, optionally across the series.
+  setResidentSlots: (
+    id: string,
+    body: { slots: ResidentSlotInput[]; scope?: 'one' | 'future' | 'days'; days?: number[]; fromDate?: string; toDate?: string },
+  ) => api.post<{ message: string; count: number }>(`/shifts/${id}/resident-slots`, body).then((r) => r.data),
   list: (filters?: ShiftFilters) =>
     api.get<Shift[]>('/shifts', { params: filters }).then((r) => r.data),
   // Total non-cancelled shifts in an arbitrary date range (counted in the DB),

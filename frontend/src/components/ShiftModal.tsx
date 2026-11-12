@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { shiftsApi, CreateShiftData, AssignUndo } from '../api/shifts';
+import { sitesApi } from '../api/sites';
+import HouseStaffing, { SlotDraft } from './HouseStaffing';
 import { usersApi } from '../api/users';
 import { runsApi } from '../api/runs';
 import { CancelBillingFields, CancelBillingValue, emptyCancelBilling, toCancelBilling } from './CancelBillingFields';
@@ -128,11 +130,25 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [visitNameCustomOpen, setVisitNameCustomOpen] = useState(false);
 
+  // Supported Living: a visit can target one client, or a whole house with a
+  // carer slot per resident. Which one a shift is, is decided by whether it
+  // carries a siteId — never by anything the UI remembers.
+  const [target, setTarget] = useState<'client' | 'house'>('client');
+  const [houseSiteId, setHouseSiteId] = useState('');
+  const [slots, setSlots] = useState<SlotDraft[]>([]);
+
   // Include inactive staff too so they can still be assigned; each row shows an Active/Inactive badge.
   const { data: users = [] } = useQuery({ queryKey: ['users', 'all'], queryFn: () => usersApi.list() });
   // Runs are a manager-only concept; carers open the modal read-only.
   const { data: runs = [] } = useQuery({ queryKey: ['runs'], queryFn: runsApi.list, enabled: canEdit });
   const { data: serviceUsersRaw = [] } = useQuery({ queryKey: ['service-users', ''], queryFn: () => serviceUsersApi.list() });
+  const { data: sites = [] } = useQuery({ queryKey: ['sites'], queryFn: sitesApi.list, enabled: canEdit });
+  // Only supported-living schemes can take a house visit — a domiciliary "site"
+  // is a geographic area, not a house people share.
+  const houses = sites.filter((s) => s.supportedLiving);
+  const houseResidents = serviceUsersRaw
+    .filter((su) => su.siteId === houseSiteId && su.active !== false)
+    .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' }));
   const serviceUsers = [...serviceUsersRaw].sort((a, b) =>
     `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, undefined, { sensitivity: 'base' })
   );
@@ -153,6 +169,10 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
     setAssignTo('');
     setCoverCarerIds(shift?.coverCarers?.map((c) => c.id) ?? []);
     setRunId(shift?.runId || '');
+    // Read the kind off the shift itself, never off leftover modal state.
+    setTarget(shift?.siteId ? 'house' : 'client');
+    setHouseSiteId(shift?.siteId || '');
+    setSlots((shift?.residentSlots ?? []).map((sl) => ({ serviceUserId: sl.serviceUserId, userId: sl.userId ?? null })));
     if (shift) {
       reset({
         userId: shift.userId || '',
@@ -303,6 +323,17 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
     );
   };
 
+  // Staffing a house visit is its own call: it rewrites a set of rows rather
+  // than patching fields, and can be applied across the series.
+  const [houseError, setHouseError] = useState<string | null>(null);
+  const slotsMut = useMutation({
+    mutationFn: ({ id, slots: body }: { id: string; slots: SlotDraft[] }) =>
+      shiftsApi.setResidentSlots(id, { slots: body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
+    onError: (e: { response?: { data?: { error?: string } } }) =>
+      setHouseError(e?.response?.data?.error || 'Could not save the staffing for this house.'),
+  });
+
   const updateMut = useMutation({
     mutationFn: async ({ data, publishAfter }: { data: Partial<CreateShiftData>; publishAfter: boolean }) => {
       // Optimistic: reflect the change on the board and close the modal
@@ -384,17 +415,27 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
   }
 
   function onSubmit(values: FormValues, publishAfter = false) {
+    const house = target === 'house';
+    if (house) {
+      if (!houseSiteId) { setHouseError('Choose a house'); return; }
+      if (slots.length === 0) { setHouseError('Say how many carers each resident needs'); return; }
+      setHouseError(null);
+    }
     const data: CreateShiftData = {
       // null (not undefined) so an unassignment is sent and actually clears the
       // carer — undefined would be dropped from the JSON and left unchanged.
-      userId: values.userId || null,
-      serviceUserId: values.serviceUserId || undefined,
+      // A house visit carries no single carer and no single client — the
+      // resident slots hold both — so those are deliberately cleared.
+      userId: house ? null : values.userId || null,
+      serviceUserId: house ? undefined : values.serviceUserId || undefined,
+      siteId: house ? houseSiteId : undefined,
+      slots: house ? slots : undefined,
       date: values.date,
       startTime: values.startTime,
       endTime: values.endTime,
       visitName: values.visitName || undefined,
-      cover: Number(values.cover) || 1,
-      coverCarerIds: coverCarerIds.slice(0, Math.max(0, (Number(values.cover) || 1) - 1)).filter(Boolean),
+      cover: house ? slots.length : Number(values.cover) || 1,
+      coverCarerIds: house ? [] : coverCarerIds.slice(0, Math.max(0, (Number(values.cover) || 1) - 1)).filter(Boolean),
       role: values.role || undefined,
       notes: values.notes || undefined,
       givesMedication: values.givesMedication,
@@ -409,6 +450,11 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
       };
     }
     if (shift) {
+      // Staffing lives in its own endpoint (it rewrites a set of rows, and can
+      // apply across the series), so save it alongside the ordinary edit.
+      if (house) {
+        slotsMut.mutate({ id: shift.id, slots });
+      }
       updateMut.mutate({ data, publishAfter });
     } else {
       createMut.mutate(data, publishAfter ? { onSuccess: (created) => publishMut.mutate(created.id) } : undefined);
@@ -453,18 +499,78 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
           )}
 
           <fieldset disabled={readOnly} className="space-y-4 border-0 p-0 m-0 disabled:opacity-90">
-          <div>
-            <label className="label">Service User (Patient) *</label>
-            <input type="hidden" {...register('serviceUserId', { required: true })} />
-            <SearchableSelect
-              value={watch('serviceUserId') ?? ''}
-              onChange={(v) => setValue('serviceUserId', v, { shouldValidate: true })}
-              options={serviceUsers.map((su) => ({ value: su.id, label: `${su.firstName} ${su.lastName}${su.postcode ? ` — ${su.postcode}` : ''}` }))}
-              placeholder="Select a patient…"
-              className="w-full"
-            />
-            {errors.serviceUserId && <p className="text-xs text-red-500 mt-1">Required</p>}
-          </div>
+          {/* Who the visit is for. Only offered where a supported-living house
+              exists, so a domiciliary-only company never sees the choice. The
+              kind of an existing shift can't be switched — the records already
+              hanging off it would have nowhere to go — so it's create-only. */}
+          {houses.length > 0 && !shift && (
+            <div>
+              <label className="label">This visit is for</label>
+              <div className="flex gap-2">
+                {([['client', 'One client'], ['house', 'A whole house']] as const).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => { setTarget(k); setHouseError(null); }}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium ${
+                      target === k ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {target === 'house' && (
+                <p className="text-xs text-gray-500 mt-1.5">
+                  One visit covering the whole house. Carers pick which resident they’re recording for.
+                </p>
+              )}
+            </div>
+          )}
+
+          {target === 'house' ? (
+            <>
+              <div>
+                <label className="label">House *</label>
+                <select
+                  className="input"
+                  value={houseSiteId}
+                  disabled={!!shift}
+                  onChange={(e) => { setHouseSiteId(e.target.value); setSlots([]); setHouseError(null); }}
+                >
+                  <option value="">Select a house…</option>
+                  {houses.map((h) => (
+                    <option key={h.id} value={h.id}>{h.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {houseSiteId && (
+                <HouseStaffing
+                  residents={houseResidents}
+                  staff={users}
+                  slots={slots}
+                  onChange={(next) => { setSlots(next); setHouseError(null); }}
+                  disabled={readOnly}
+                />
+              )}
+
+              {houseError && <p className="text-xs text-red-600">{houseError}</p>}
+            </>
+          ) : (
+            <div>
+              <label className="label">Service User (Patient) *</label>
+              <input type="hidden" {...register('serviceUserId', { required: target === 'client' })} />
+              <SearchableSelect
+                value={watch('serviceUserId') ?? ''}
+                onChange={(v) => setValue('serviceUserId', v, { shouldValidate: true })}
+                options={serviceUsers.map((su) => ({ value: su.id, label: `${su.firstName} ${su.lastName}${su.postcode ? ` — ${su.postcode}` : ''}` }))}
+                placeholder="Select a patient…"
+                className="w-full"
+              />
+              {errors.serviceUserId && <p className="text-xs text-red-500 mt-1">Required</p>}
+            </div>
+          )}
 
           {renderVisitNamePicker(true)}
 
@@ -488,6 +594,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
             <p className="text-sm text-gray-600 -mt-1">Duration: <span className="font-medium text-gray-800">{durationLabel(watchedStart, watchedEnd)}</span></p>
           )}
 
+          {target !== 'house' && (
           <div>
             <label className="label">Cover *</label>
             <select {...register('cover', { required: true, valueAsNumber: true })} className="input">
@@ -498,13 +605,17 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
             </select>
             {errors.cover && <p className="text-xs text-red-500 mt-1">Required</p>}
           </div>
+          )}
 
           <div>
-            <label className="label">Carers</label>
-            {!readOnly && (
+            {/* The flat carer list belongs to a 1:1 visit. On a house visit the
+                carers are placed per resident above, so showing both would be
+                two staffing pictures that could disagree. */}
+            {target !== 'house' && <label className="label">Carers</label>}
+            {target !== 'house' && !readOnly && (
               <p className="text-xs text-gray-500 mb-2">{assignedIds.length} of {cover} slot{cover > 1 ? 's' : ''} filled — leave unchecked to assign later.</p>
             )}
-            {!readOnly && (
+            {target !== 'house' && !readOnly && (
               <input
                 value={employeeSearch}
                 onChange={(e) => setEmployeeSearch(e.target.value)}
@@ -512,7 +623,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                 className="input mb-2"
               />
             )}
-            <div className="mb-2">
+            <div className={target === 'house' ? 'hidden' : 'mb-2'}>
               {!readOnly && <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Who's Working ({assignedUsers.length})</p>}
               {assignedUsers.length === 0 ? (
                 <p className="text-sm text-gray-400">No one assigned yet.</p>
@@ -528,7 +639,7 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                 </div>
               )}
             </div>
-            {!readOnly && (
+            {target !== 'house' && !readOnly && (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Available ({availableUsers.length})</p>
                 <div className="space-y-1.5 max-h-56 overflow-y-auto">

@@ -53,11 +53,25 @@ function shiftDurationMinutes(startTime: string, endTime: string): number {
   return d;
 }
 
+// Which site a visit belongs to. A supported-living house visit carries the
+// site itself; a 1:1 visit inherits it from the client. Everything that groups,
+// colours or filters by site must go through this, or house visits fall out of
+// the schedule entirely.
+export function shiftSite(s: Shift) {
+  return s.site ?? s.serviceUser?.site;
+}
+
+// Who the visit is for, as a label: a house, or a person.
+export function shiftSubject(s: Shift): string {
+  if (s.siteId) return s.site?.name || 'House';
+  return s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
+}
+
 // Display rank for a shift's site — drives the "group by site, then time"
 // ordering across the day-based schedule views. Sites are ranked by the manager-
 // set `order`; shifts with no site sort last.
 function siteRankOf(s: Shift): number {
-  const site = s.serviceUser?.site;
+  const site = shiftSite(s);
   if (!site) return 1e9;
   return site.order ?? 1e9 - 1;
 }
@@ -264,8 +278,26 @@ export default function Schedule() {
     },
   });
 
-  const assignedCarers = (s: Shift) => (s.userId ? 1 : 0) + (s.coverCarers?.length ?? 0);
-  const neededCarers = (s: Shift) => s.cover || 1;
+  // On a house visit the carers live in the resident slots, not in
+  // userId/coverCarers, so both counts have to read from there instead.
+  const assignedCarers = (s: Shift) =>
+    s.siteId
+      ? (s.residentSlots ?? []).filter((sl) => sl.userId).length
+      : (s.userId ? 1 : 0) + (s.coverCarers?.length ?? 0);
+  const neededCarers = (s: Shift) => (s.siteId ? (s.residentSlots?.length || s.cover || 1) : s.cover || 1);
+  // "A needs 1 more" rather than a bare "needs 1" — on a mixed house it matters
+  // which resident's funded ratio is short.
+  const missingByResident = (s: Shift): string => {
+    if (!s.siteId) return '';
+    const byRes = new Map<string, { name: string; missing: number }>();
+    for (const sl of s.residentSlots ?? []) {
+      const name = sl.serviceUser ? sl.serviceUser.firstName : 'Resident';
+      const cur = byRes.get(sl.serviceUserId) ?? { name, missing: 0 };
+      if (!sl.userId) cur.missing += 1;
+      byRes.set(sl.serviceUserId, cur);
+    }
+    return [...byRes.values()].filter((r) => r.missing > 0).map((r) => `${r.name} needs ${r.missing}`).join(', ');
+  };
   const missingCarers = (s: Shift) => Math.max(0, neededCarers(s) - assignedCarers(s));
   // Publishable == the backend's isPublishable: one carer on it is enough. A
   // short-staffed double-up goes out so the carer who IS booked can plan her
@@ -314,11 +346,11 @@ export default function Schedule() {
       return true;
     })
     .filter((s) => visitFilter.length === 0 || (s.visitName ? visitFilter.includes(s.visitName) : false))
-    .filter((s) => filterSites.length === 0 || (s.serviceUser?.site ? filterSites.includes(s.serviceUser.site.id) : false))
+    .filter((s) => filterSites.length === 0 || (shiftSite(s) ? filterSites.includes(shiftSite(s)!.id) : false))
     .filter((s) => {
       if (!term) return true;
       const names = [
-        s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : '',
+        shiftSubject(s),
         s.user ? `${s.user.firstName} ${s.user.lastName}` : '',
         ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? []),
       ];
@@ -485,7 +517,7 @@ export default function Schedule() {
 
   const events = activeShifts.map((s) => {
     const unassigned = needsStaff(s);
-    const baseColor = s.serviceUser?.site?.color || userColor(s.userId, users);
+    const baseColor = shiftSite(s)?.color || userColor(s.userId, users);
     const dateStr = format(new Date(s.date), 'yyyy-MM-dd');
     // An overnight call (end at/before start, e.g. 11:30 PM–12:00 AM or an
     // 8 PM–8 AM night) is kept on its START day — end clamped to just before
@@ -518,7 +550,7 @@ export default function Schedule() {
 
   function renderEventContent(arg: EventContentArg) {
     const s = arg.event.extendedProps.shift as Shift;
-    const patient = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
+    const patient = shiftSubject(s);
     const unassigned = needsStaff(s);
     const missing = missingCarers(s);
     const patientStatus = statusAtShift(s.serviceUser, s.date, s.startTime);
@@ -545,10 +577,20 @@ export default function Schedule() {
         </div>
       );
     }
+    // Who is on it. A house visit's carers are in the resident slots, so read
+    // them from there; one carer can hold two places (both of A's), so dedupe.
+    const slotCarerNames = s.siteId
+      ? [...new Set((s.residentSlots ?? []).filter((sl) => sl.user).map((sl) => `${sl.user!.firstName} ${sl.user!.lastName}`))]
+      : [];
     const carerText = assignedCarers(s) === 0
       ? 'Unassigned'
+      : s.siteId
+      ? slotCarerNames.join(', ')
       : [s.user ? `${s.user.firstName} ${s.user.lastName}` : null, ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? [])].filter(Boolean).join(', ');
-    const staffLine = [carerText, unassigned ? `needs ${missing} more` : ''].filter(Boolean).join(' · ');
+    // On a mixed house, which resident's funded ratio is short matters more
+    // than the total — "Amir needs 1" tells the office what to fix.
+    const shortText = unassigned ? (s.siteId ? missingByResident(s) || `needs ${missing} more` : `needs ${missing} more`) : '';
+    const staffLine = [carerText, shortText].filter(Boolean).join(' · ');
     return (
       <div className="p-0.5 overflow-hidden leading-tight">
         <p className="text-xs font-bold truncate">
@@ -969,8 +1011,8 @@ function DayColumns({ days, shifts, isManager, needsStaff, missingCarers, onOpen
               <div className="p-1 space-y-1">
                 {list.map((s, i) => {
                   const unassigned = needsStaff(s);
-                  const color = s.serviceUser?.site?.color || '#3b82f6';
-                  const patient = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
+                  const color = shiftSite(s)?.color || '#3b82f6';
+                  const patient = shiftSubject(s);
                   const carer = s.user ? `${s.user.firstName} ${s.user.lastName}` : null;
                   const groupStart = i > 0 && siteRankOf(s) !== siteRankOf(list[i - 1]);
                   return (
@@ -1073,9 +1115,9 @@ function ListView({ days, shifts, isManager, needsStaff, missingCarers, onOpen, 
             ) : (
               list.map((s) => {
                 const unassigned = needsStaff(s);
-                const color = s.serviceUser?.site?.color || '#3b82f6';
-                const site = s.serviceUser?.site?.name;
-                const client = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No client';
+                const color = shiftSite(s)?.color || '#3b82f6';
+                const site = shiftSite(s)?.name;
+                const client = shiftSubject(s);
                 const carers = [
                   s.user ? `${s.user.firstName} ${s.user.lastName}` : null,
                   ...(s.coverCarers?.map((c) => `${c.firstName} ${c.lastName}`) ?? []),
@@ -1153,8 +1195,8 @@ function CarerTimeline({ users, days, shiftsInRange, needsStaff, missingCarers, 
   const cell = (list: Shift[], unassignedRow: boolean) => (
     <div className="flex flex-col gap-1 p-1 min-h-[52px]">
       {list.sort((a, b) => a.startTime.localeCompare(b.startTime)).map((s) => {
-        const color = s.serviceUser?.site?.color || '#3b82f6';
-        const patient = s.serviceUser ? `${s.serviceUser.firstName} ${s.serviceUser.lastName}` : 'No patient';
+        const color = shiftSite(s)?.color || '#3b82f6';
+        const patient = shiftSubject(s);
         return (
           <button
             key={s.id}
