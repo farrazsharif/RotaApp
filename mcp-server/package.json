@@ -1,0 +1,25 @@
+{
+  "name": "caremid-mcp-server",
+  "version": "1.0.0",
+  "description": "Read-only MCP server over the Caremid API: CQC readiness, staff-file compliance, expiring training, unassigned visits.",
+  "type": "module",
+  "bin": { "caremid-mcp-server": "dist/index.js" },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "engines": { "node": ">=20.3" },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3"
+  }
+}

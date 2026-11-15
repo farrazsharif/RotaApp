@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "caremid": {
+      "command": "node",
+      "args": ["mcp-server/dist/index.js"],
+      "env": {
+        "CAREMID_AGENT_EMAIL": "${CAREMID_AGENT_EMAIL}",
+        "CAREMID_AGENT_PASSWORD": "${CAREMID_AGENT_PASSWORD}"
+      }
+    }
+  }
+}
