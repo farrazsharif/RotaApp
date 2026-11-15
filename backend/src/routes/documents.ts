@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction, RequestHandler } from 'express
 import multer from 'multer';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { runWithCompany } from '../lib/tenantContext';
-import { documentConfig, listDocuments, uploadDocument, downloadDocument, deleteDocument } from '../controllers/documentController';
+import { documentConfig, listDocuments, uploadDocument, updateDocument, downloadDocument, deleteDocument } from '../controllers/documentController';
 
 // Runs a handler inside the caller's company (tenant) scope and forwards any
 // async rejection to the error handler. Re-establishing the scope matters for
@@ -38,6 +38,7 @@ router.use(authenticate);
 router.get('/config', documentConfig);
 router.get('/', scoped(listDocuments));
 router.post('/', uploadSingle, scoped(uploadDocument));
+router.patch('/:id', scoped(updateDocument));
 router.get('/:id/download', scoped(downloadDocument));
 router.delete('/:id', scoped(deleteDocument));
 

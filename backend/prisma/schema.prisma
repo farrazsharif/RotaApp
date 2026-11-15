@@ -346,6 +346,11 @@ model Document {
   ownerType    String // USER | SERVICE_USER
   ownerId      String
   category     String? // e.g. DBS, Contract, Reference, GP Letter
+  // When this document stops being valid: a DBS, passport, visa, driving
+  // licence or insurance certificate. Null for everything that doesn't expire
+  // (contracts, references, offer letters), which is most of them. Recorded by
+  // hand on upload - nothing reads a date out of the file itself.
+  expiresAt    DateTime?
   fileName     String
   contentType  String
   size         Int
@@ -355,6 +360,8 @@ model Document {
 
   @@index([ownerType, ownerId])
   @@index([companyId])
+  // Drives "what is about to lapse" across the whole company.
+  @@index([companyId, expiresAt])
 }
 
 // Links a family-member User account to the service user(s) they're allowed

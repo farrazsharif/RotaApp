@@ -12,6 +12,20 @@ function isOwnerType(v: unknown): v is OwnerType {
   return v === 'USER' || v === 'SERVICE_USER';
 }
 
+// An expiry date off the wire: 'YYYY-MM-DD' from a date input, or a full ISO
+// string. Undefined means "not supplied, leave it alone"; null or empty means
+// "clear it". Anything unparseable is an error rather than a silent drop - a
+// date that looks recorded but isn't is worse than no date at all, because
+// nobody goes chasing a renewal they believe is already tracked.
+type ExpiryRead = { ok: true; value: Date | null | undefined } | { ok: false };
+function readExpiry(v: unknown): ExpiryRead {
+  if (v === undefined) return { ok: true, value: undefined };
+  if (v === null || v === '') return { ok: true, value: null };
+  const d = new Date(String(v));
+  if (Number.isNaN(d.getTime())) return { ok: false };
+  return { ok: true, value: d };
+}
+
 // The capability that governs documents of a given owner type.
 function manageKeyFor(ownerType: OwnerType): PermissionKey {
   return ownerType === 'SERVICE_USER' ? 'manage_service_users' : 'manage_staff';
@@ -33,7 +47,7 @@ async function canManage(req: AuthRequest, ownerType: OwnerType): Promise<boolea
 }
 
 const publicSelect = {
-  id: true, ownerType: true, ownerId: true, category: true,
+  id: true, ownerType: true, ownerId: true, category: true, expiresAt: true,
   fileName: true, contentType: true, size: true, createdAt: true, uploadedById: true,
 };
 
@@ -70,6 +84,10 @@ export async function uploadDocument(req: AuthRequest, res: Response) {
   if (!isOwnerType(ownerType) || typeof ownerId !== 'string') {
     return res.status(400).json({ error: 'ownerType and ownerId are required' });
   }
+  // Checked before the file reaches R2, so a bad date can't leave an orphaned
+  // object in the bucket with no row pointing at it.
+  const expiry = readExpiry(req.body.expiresAt);
+  if (!expiry.ok) return res.status(400).json({ error: 'Expiry date is not a valid date' });
   if (!(await ownerInScope(req, ownerType, ownerId))) {
     return res.status(404).json({ error: 'Not found' });
   }
@@ -86,6 +104,7 @@ export async function uploadDocument(req: AuthRequest, res: Response) {
     data: {
       ownerType, ownerId,
       category: category?.trim() || null,
+      expiresAt: expiry.value,
       fileName: file.originalname,
       contentType: file.mimetype,
       size: file.size,
@@ -95,6 +114,30 @@ export async function uploadDocument(req: AuthRequest, res: Response) {
     select: publicSelect,
   });
   res.status(201).json(doc);
+}
+
+// PATCH /api/documents/:id — the expiry date, and only that. The file itself
+// is deliberately immutable: replacing one means a fresh upload, so the record
+// of what was held, and from when, always survives.
+export async function updateDocument(req: AuthRequest, res: Response) {
+  const doc = await prisma.document.findUnique({ where: { id: req.params.id } });
+  if (!doc) return res.status(404).json({ error: 'Not found' });
+  if (!(await ownerInScope(req, doc.ownerType as OwnerType, doc.ownerId))) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  if (!(await canManage(req, doc.ownerType as OwnerType))) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  const expiry = readExpiry(req.body?.expiresAt);
+  if (!expiry.ok) return res.status(400).json({ error: 'Expiry date is not a valid date' });
+  if (expiry.value === undefined) return res.status(400).json({ error: 'Nothing to update' });
+
+  const updated = await prisma.document.update({
+    where: { id: doc.id },
+    data: { expiresAt: expiry.value },
+    select: publicSelect,
+  });
+  res.json(updated);
 }
 
 // GET /api/documents/:id/download → short-lived signed URL

@@ -41,6 +41,11 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "staffFileRequirements" TEXT NOT NULL DEFAULT '[]'`);
   // Held-on-paper metadata for the Likes & Dislikes form (JSON, nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "LikesDislikes" ADD COLUMN IF NOT EXISTS "paperMeta" TEXT`);
+
+  // Expiry date on a stored document (DBS, passport, visa, driving licence,
+  // insurance). Nullable: most documents never expire.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Document" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Document_companyId_expiresAt_idx" ON "Document"("companyId", "expiresAt")`);
   // Editable training-course list ('[]' = use built-in defaults).
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "trainingCourses" TEXT NOT NULL DEFAULT '[]'`);
   // Master switch for carer shift swaps/cover — false freezes the rota (payroll).
