@@ -40,7 +40,10 @@ function scoreOf(checks: Check[]): number {
   return Math.round((pts / scored.length) * 100);
 }
 
-export async function getReadiness(req: AuthRequest, res: Response) {
+// The readiness sweep itself, with no Express in it, so the CQC dashboard and
+// the in-app assistant read the same numbers rather than two implementations
+// that drift apart. Company scope comes from the tenant context, as everywhere.
+export async function computeReadiness() {
   // Active caseload (exclude discharged/deceased/inactive) and active care staff.
   const clients = await prisma.serviceUser.findMany({
     where: { active: true, status: { notIn: ['DISCHARGED', 'DECEASED'] } },
@@ -168,7 +171,11 @@ export async function getReadiness(req: AuthRequest, res: Response) {
   let selfAssessment: Record<string, unknown> = {};
   if (settings?.cqcSelfAssessment) { try { selfAssessment = JSON.parse(settings.cqcSelfAssessment); } catch { selfAssessment = {}; } }
 
-  res.json({ generatedAt: new Date().toISOString(), overallScore, keyQuestions, selfAssessment });
+  return { generatedAt: new Date().toISOString(), overallScore, keyQuestions, selfAssessment };
+}
+
+export async function getReadiness(_req: AuthRequest, res: Response) {
+  res.json(await computeReadiness());
 }
 
 export async function saveSelfAssessment(req: AuthRequest, res: Response) {

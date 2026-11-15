@@ -4,6 +4,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { PermissionKey } from '../types';
 import NotificationBell from './NotificationBell';
 import OfficeNotes from './OfficeNotes';
+import AssistantPanel from './AssistantPanel';
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { settingsApi } from '../api/settings';
@@ -166,6 +167,9 @@ export default function Layout() {
           {location.pathname === '/' && isManager && <OfficeNotes />}
         </div>
       </div>
+
+      {/* Office staff only: carers have their own app and no use for this. */}
+      {isManager && <AssistantPanel />}
     </div>
   );
 }

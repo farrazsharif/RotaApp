@@ -136,7 +136,7 @@ export async function setUserPermissions(req: AuthRequest, res: Response) {
 
 // Builds a userId -> { category: count } map of documents held, for the given
 // staff ids. Used by both compliance endpoints.
-async function docCountsByUser(userIds: string[]): Promise<Map<string, Record<string, number>>> {
+export async function docCountsByUser(userIds: string[]): Promise<Map<string, Record<string, number>>> {
   const map = new Map<string, Record<string, number>>();
   if (userIds.length === 0) return map;
   const docs = await prisma.document.findMany({
