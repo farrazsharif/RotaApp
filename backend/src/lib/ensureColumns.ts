@@ -89,7 +89,12 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "SafeguardingConcern" ADD COLUMN IF NOT EXISTS "kind" TEXT NOT NULL DEFAULT 'CONCERN'`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "SafeguardingConcern" ADD COLUMN IF NOT EXISTS "confidential" BOOLEAN NOT NULL DEFAULT false`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "safeguardingLeadId" TEXT`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "safeguardingContacts" TEXT NOT NULL DEFAULT ''`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "safeguardingContacts" TEXT`);
+  // Shipped NOT NULL DEFAULT '' for about an hour. The shared settings handler
+  // turns an empty string into null, so an empty contacts box failed the whole
+  // settings save. Relaxed to match every other optional string on this table.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP NOT NULL`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP DEFAULT`);
 
   // Expiry date on a stored document (DBS, passport, visa, driving licence,
   // insurance). Nullable: most documents never expire.

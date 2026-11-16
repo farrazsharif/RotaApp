@@ -564,9 +564,15 @@ function OrganisationTab() {
   const [form, setForm] = useState<Partial<OrgSettings> | null>(null);
   const s = form ?? data;
 
+  const [saveError, setSaveError] = useState<string | null>(null);
   const mut = useMutation({
     mutationFn: (payload: Partial<OrgSettings>) => settingsApi.update(payload),
-    onSuccess: (updated) => { qc.setQueryData(['settings'], updated); setForm(null); },
+    onSuccess: (updated) => { qc.setQueryData(['settings'], updated); setForm(null); setSaveError(null); },
+    onError: (e: unknown) =>
+      setSaveError(
+        (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+          || 'Could not save those settings. Please try again.',
+      ),
   });
 
   if (isLoading || !s) return <div className="card text-gray-400">Loading…</div>;
@@ -667,6 +673,10 @@ function OrganisationTab() {
           </p>
         )}
       </div>
+
+      {saveError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{saveError}</p>
+      )}
 
       <div className="flex gap-3 pt-1 items-center">
         <div className="flex-1" />
@@ -1163,9 +1173,15 @@ function StaffDefaultsTab() {
   const [form, setForm] = useState<Partial<OrgSettings> | null>(null);
   const s = form ?? data;
 
+  const [saveError, setSaveError] = useState<string | null>(null);
   const mut = useMutation({
     mutationFn: (payload: Partial<OrgSettings>) => settingsApi.update(payload),
-    onSuccess: (updated) => { qc.setQueryData(['settings'], updated); setForm(null); },
+    onSuccess: (updated) => { qc.setQueryData(['settings'], updated); setForm(null); setSaveError(null); },
+    onError: (e: unknown) =>
+      setSaveError(
+        (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+          || 'Could not save those settings. Please try again.',
+      ),
   });
 
   if (isLoading || !s) return <div className="card text-gray-400">Loading…</div>;

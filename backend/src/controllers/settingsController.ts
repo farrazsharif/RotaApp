@@ -168,7 +168,15 @@ export async function updateOrgSettings(req: AuthRequest, res: Response) {
     if (body[key] !== undefined) data[key] = !!body[key];
   }
 
-  const settings = await upsertOrgSettings(data);
-  await logAudit(req, 'SETTINGS_UPDATED', 'Organisation settings', Object.keys(data).join(', '));
-  res.json(settings);
+  // Express 4 does not catch an async throw, so without this a failed write
+  // never answers at all: the browser sits on "Saving..." for ever and the
+  // person has no idea whether it worked. A 500 they can see beats silence.
+  try {
+    const settings = await upsertOrgSettings(data);
+    await logAudit(req, 'SETTINGS_UPDATED', 'Organisation settings', Object.keys(data).join(', '));
+    res.json(settings);
+  } catch (e) {
+    console.error('[settings] update failed:', e);
+    res.status(500).json({ error: 'Could not save those settings. Nothing has been changed.' });
+  }
 }

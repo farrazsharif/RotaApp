@@ -1290,7 +1290,7 @@ model OrgSettings {
   // Which local authority safeguarding teams this service refers to, and how.
   // Free text: a service covering three boroughs has three, each with its own
   // route in, and a dropdown would be a worse fit than a note.
-  safeguardingContacts  String   @default("")
+  safeguardingContacts  String?
   staffFileRequirements String   @default("[]") // JSON: [{ id, label, hint, type, required, category?, minCount? }] editable staff-file compliance checklist
   trainingCourses       String   @default("[]") // JSON: string[] editable training-course list ('[]' = built-in defaults)
   createdAt             DateTime @default(now())
