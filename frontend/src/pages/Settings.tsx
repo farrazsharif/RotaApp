@@ -8,6 +8,7 @@ import { authApi } from '../api/auth';
 import { sitesApi } from '../api/sites';
 import { rolesApi } from '../api/roles';
 import { auditApi } from '../api/audit';
+import { usersApi } from '../api/users';
 import { OrgSettings, Role, Site, PermissionKey, PermissionMap } from '../types';
 import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
@@ -558,6 +559,8 @@ function MyAccountTab() {
 function OrganisationTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get });
+  // For the safeguarding lead picker below.
+  const { data: staffList = [] } = useQuery({ queryKey: ['users', 'active'], queryFn: () => usersApi.list({ active: true }) });
   const [form, setForm] = useState<Partial<OrgSettings> | null>(null);
   const s = form ?? data;
 
@@ -608,6 +611,38 @@ function OrganisationTab() {
         <select value={s.timezone} onChange={(e) => set({ timezone: e.target.value })} className="input">
           {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
         </select>
+      </div>
+
+      {/* Regulation 13 asks for a named safeguarding lead. It is shown at the
+          top of the Safeguarding page so a carer with something to report does
+          not have to ask around to find out who that is. */}
+      <div className="border-t border-gray-100 pt-4 space-y-4">
+        <div>
+          <label className="label">Safeguarding lead</label>
+          <select
+            value={s.safeguardingLeadId || ''}
+            onChange={(e) => set({ safeguardingLeadId: e.target.value || null })}
+            className="input"
+          >
+            <option value="">Nobody named yet</option>
+            {staffList.map((u) => (
+              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Named on the Safeguarding page, and checked by the CQC dashboard.
+          </p>
+        </div>
+        <div>
+          <label className="label">Local authority safeguarding contacts</label>
+          <AutoGrowTextarea
+            value={s.safeguardingContacts || ''}
+            onChange={(e) => set({ safeguardingContacts: e.target.value })}
+            minRows={2}
+            className="input"
+            placeholder="Which teams you refer to, and how - a service covering three boroughs has three."
+          />
+        </div>
       </div>
 
       <div className="border-t border-gray-100 pt-4">

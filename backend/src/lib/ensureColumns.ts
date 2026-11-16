@@ -85,6 +85,11 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SafeguardingConcern_companyId_raisedAt_idx" ON "SafeguardingConcern"("companyId", "raisedAt")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SafeguardingConcern_serviceUserId_idx" ON "SafeguardingConcern"("serviceUserId")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SafeguardingConcern_raisedById_idx" ON "SafeguardingConcern"("raisedById")`);
+  // Added after the table shipped, so guarded separately from the create above.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "SafeguardingConcern" ADD COLUMN IF NOT EXISTS "kind" TEXT NOT NULL DEFAULT 'CONCERN'`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "SafeguardingConcern" ADD COLUMN IF NOT EXISTS "confidential" BOOLEAN NOT NULL DEFAULT false`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "safeguardingLeadId" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ADD COLUMN IF NOT EXISTS "safeguardingContacts" TEXT NOT NULL DEFAULT ''`);
 
   // Expiry date on a stored document (DBS, passport, visa, driving licence,
   // insurance). Nullable: most documents never expire.

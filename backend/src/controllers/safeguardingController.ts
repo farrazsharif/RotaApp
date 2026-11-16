@@ -33,9 +33,14 @@ export const HARM_TYPES = [
 
 const SOURCES = ['CARER', 'FAMILY', 'CLIENT', 'PROFESSIONAL', 'ANONYMOUS', 'OFFICE', 'OTHER'];
 const STATUSES = ['OPEN', 'INVESTIGATING', 'REFERRED', 'CLOSED'];
+// A whistleblowing disclosure is about the organisation, not a named person at
+// risk, so it shares this record without the person and harm-type half of it.
+const KINDS = ['CONCERN', 'WHISTLEBLOWING'];
 
 const listSelect = {
   id: true,
+  kind: true,
+  confidential: true,
   serviceUserId: true,
   personAtRisk: true,
   source: true,
@@ -89,6 +94,7 @@ export async function listConcerns(req: AuthRequest, res: Response) {
   if (isScoped(req.user)) {
     where.OR = [relatedServiceUserScopeWhere(req.user), { serviceUserId: null, raisedById: req.user!.id }];
   }
+  where.kind = typeof req.query.kind === 'string' && KINDS.includes(req.query.kind) ? req.query.kind : 'CONCERN';
   if (typeof req.query.status === 'string' && STATUSES.includes(req.query.status)) {
     where.status = req.query.status;
   } else if (String(req.query.open) === 'true') {
@@ -133,9 +139,13 @@ export async function createConcern(req: AuthRequest, res: Response) {
   const description = clean(b.description);
   if (!description) return res.status(400).json({ error: 'Describe the concern.' });
 
+  const kind = oneOf(b.kind, KINDS, 'CONCERN');
   const serviceUserId = clean(b.serviceUserId, 40) || null;
   const personAtRisk = clean(b.personAtRisk, 200) || null;
-  if (!serviceUserId && !personAtRisk) {
+  // Only a safeguarding concern has a person at risk. A whistleblowing
+  // disclosure is about practice, and demanding a name would be the reason it
+  // never gets filed.
+  if (kind === 'CONCERN' && !serviceUserId && !personAtRisk) {
     return res.status(400).json({ error: 'Say who is at risk — either a client or a name.' });
   }
 
@@ -144,6 +154,8 @@ export async function createConcern(req: AuthRequest, res: Response) {
 
   const concern = await prisma.safeguardingConcern.create({
     data: {
+      kind,
+      confidential: !!b.confidential,
       serviceUserId,
       personAtRisk,
       raisedById: req.user!.id,
@@ -161,7 +173,12 @@ export async function createConcern(req: AuthRequest, res: Response) {
 
   // Audited on creation, not only on close: when a concern was first recorded
   // is itself the question asked after the fact.
-  await logAudit(req, 'SAFEGUARDING_RAISED', concern.id, `Safeguarding concern raised for ${personAtRisk || 'a client'}`);
+  await logAudit(
+    req,
+    kind === 'WHISTLEBLOWING' ? 'WHISTLEBLOWING_RAISED' : 'SAFEGUARDING_RAISED',
+    concern.id,
+    kind === 'WHISTLEBLOWING' ? 'Whistleblowing disclosure recorded' : `Safeguarding concern raised for ${personAtRisk || 'a client'}`,
+  );
   res.status(201).json(concern);
 }
 
@@ -203,6 +220,7 @@ export async function updateConcern(req: AuthRequest, res: Response) {
   flag('cqcNotified');
   flag('policeInformed');
   if (b.source !== undefined) data.source = oneOf(b.source, SOURCES, existing.source);
+  if (b.confidential !== undefined) data.confidential = !!b.confidential;
   if (b.harmTypes !== undefined) data.harmTypes = harmList(b.harmTypes);
 
   if (b.status !== undefined) {

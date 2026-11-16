@@ -730,6 +730,15 @@ model ShiftResidentSlot {
 model SafeguardingConcern {
   companyId     String? // tenant scope (app-enforced via Prisma extension)
   id            String  @id @default(cuid())
+  // CONCERN | WHISTLEBLOWING. The same record: both are raised, investigated,
+  // outcomed and closed, and both answer to the same "show me one" question.
+  // A whistleblowing disclosure is about the organisation rather than a named
+  // person at risk, so personAtRisk and harmTypes simply go unused there -
+  // which is a better trade than a second near-identical module.
+  kind          String  @default("CONCERN")
+  // Identity withheld. A disclosure made in confidence stays that way on the
+  // screen too, or the log becomes the reason nobody uses it.
+  confidential  Boolean @default(false)
   // Who is at risk. Usually a client, but a concern can be about a member of
   // staff, a family member or someone else in the home - so the link is
   // optional and a free-text name carries the rest. A concern that cannot be
@@ -1275,6 +1284,13 @@ model OrgSettings {
   // When false, carers don't see the visit checklist and just free-write the note.
   callLogTasksEnabled   Boolean  @default(true)
   cqcSelfAssessment     String   @default("{}") // JSON: { statementKey: { rating, note } } manual CQC self-assessment
+  // Regulation 13 asks for a named safeguarding lead, and a carer standing in
+  // someone's hallway needs to know who that is without asking around.
+  safeguardingLeadId    String?
+  // Which local authority safeguarding teams this service refers to, and how.
+  // Free text: a service covering three boroughs has three, each with its own
+  // route in, and a dropdown would be a worse fit than a note.
+  safeguardingContacts  String   @default("")
   staffFileRequirements String   @default("[]") // JSON: [{ id, label, hint, type, required, category?, minCount? }] editable staff-file compliance checklist
   trainingCourses       String   @default("[]") // JSON: string[] editable training-course list ('[]' = built-in defaults)
   createdAt             DateTime @default(now())

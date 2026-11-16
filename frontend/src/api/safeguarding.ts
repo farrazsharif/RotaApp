@@ -26,9 +26,15 @@ export const SOURCES: { key: string; label: string }[] = [
 ];
 
 export type ConcernStatus = 'OPEN' | 'INVESTIGATING' | 'REFERRED' | 'CLOSED';
+// The same record serves both: a whistleblowing disclosure is about the
+// organisation rather than a named person at risk, so it skips the person and
+// harm-type half rather than living in a second near-identical module.
+export type ConcernKind = 'CONCERN' | 'WHISTLEBLOWING';
 
 export interface ConcernSummary {
   id: string;
+  kind: ConcernKind;
+  confidential: boolean;
   serviceUserId: string | null;
   personAtRisk: string | null;
   source: string;
@@ -64,6 +70,8 @@ export interface Concern extends ConcernSummary {
 }
 
 export interface ConcernDraft {
+  kind?: ConcernKind;
+  confidential?: boolean;
   serviceUserId?: string | null;
   personAtRisk?: string | null;
   raisedByName?: string | null;
@@ -103,7 +111,7 @@ export const harmLabel = (key: string) => HARM_TYPES.find((h) => h.key === key)?
 export const sourceLabel = (key: string) => SOURCES.find((s) => s.key === key)?.label || key;
 
 export const safeguardingApi = {
-  list: (params?: { status?: ConcernStatus; open?: boolean }) =>
+  list: (params?: { status?: ConcernStatus; open?: boolean; kind?: ConcernKind }) =>
     api.get<ConcernSummary[]>('/safeguarding', { params }).then((r) => r.data),
   get: (id: string) => api.get<Concern>(`/safeguarding/${id}`).then((r) => r.data),
   create: (body: ConcernDraft) => api.post<ConcernSummary>('/safeguarding', body).then((r) => r.data),

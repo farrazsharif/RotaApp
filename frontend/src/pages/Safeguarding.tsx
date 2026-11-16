@@ -5,6 +5,7 @@ import {
   safeguardingApi,
   ConcernSummary,
   ConcernStatus,
+  ConcernKind,
   ConcernDraft,
   ConcernPatch,
   HARM_TYPES,
@@ -15,6 +16,7 @@ import {
 } from '../api/safeguarding';
 import { serviceUsersApi } from '../api/serviceUsers';
 import { usersApi } from '../api/users';
+import { settingsApi } from '../api/settings';
 
 // The safeguarding log (Reg 13).
 //
@@ -56,17 +58,24 @@ function HarmChips({ json }: { json: string }) {
 
 export default function Safeguarding() {
   const qc = useQueryClient();
+  const [kind, setKind] = useState<ConcernKind>('CONCERN');
   const [filter, setFilter] = useState<'open' | 'all' | ConcernStatus>('open');
   const [raising, setRaising] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: concerns = [], isLoading } = useQuery({
-    queryKey: ['safeguarding', filter],
+    queryKey: ['safeguarding', kind, filter],
     queryFn: () =>
-      safeguardingApi.list(
-        filter === 'open' ? { open: true } : filter === 'all' ? {} : { status: filter },
-      ),
+      safeguardingApi.list({
+        kind,
+        ...(filter === 'open' ? { open: true } : filter === 'all' ? {} : { status: filter }),
+      }),
   });
+
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: settingsApi.get, staleTime: 5 * 60 * 1000 });
+  const { data: staff = [] } = useQuery({ queryKey: ['users', 'active'], queryFn: () => usersApi.list({ active: true }) });
+  const lead = staff.find((u) => u.id === settings?.safeguardingLeadId);
+  const whistle = kind === 'WHISTLEBLOWING';
 
   const counts = useMemo(() => {
     const open = concerns.filter((c) => c.status !== 'CLOSED').length;
@@ -83,13 +92,43 @@ export default function Safeguarding() {
             Concerns raised, referrals made, and what was learned. Regulation 13.
           </p>
         </div>
-        <button className="btn-primary btn" onClick={() => setRaising(true)}>Raise a concern</button>
+        <button className="btn-primary btn" onClick={() => setRaising(true)}>
+          {whistle ? 'Record a disclosure' : 'Raise a concern'}
+        </button>
+      </div>
+
+      {/* The named lead sits above everything. Someone opening this screen
+          because something has just happened needs to know who to tell before
+          they need anything else on it. */}
+      <div className={`rounded-lg border px-3 py-2 text-sm ${lead ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-red-200 bg-red-50 text-red-800'}`}>
+        {lead ? (
+          <>Safeguarding lead: <strong>{lead.firstName} {lead.lastName}</strong>{lead.phone ? ` · ${lead.phone}` : ''}</>
+        ) : (
+          <>No safeguarding lead is named. Set one in <strong>Settings &rarr; Organisation</strong> &mdash; Regulation 13 asks for it by name.</>
+        )}
+        {settings?.safeguardingContacts && (
+          <p className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">{settings.safeguardingContacts}</p>
+        )}
+      </div>
+
+      <div className="flex gap-1.5 border-b border-gray-200">
+        {([['CONCERN', 'Concerns'], ['WHISTLEBLOWING', 'Whistleblowing']] as const).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => { setKind(k); setFilter('open'); }}
+            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+              kind === k ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {counts.open > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <strong>{counts.open}</strong> concern{counts.open === 1 ? '' : 's'} still open
-          {counts.unreferred > 0 && <> · {counts.unreferred} not yet referred to the local authority</>}
+          <strong>{counts.open}</strong> {whistle ? 'disclosure' : 'concern'}{counts.open === 1 ? '' : 's'} still open
+          {!whistle && counts.unreferred > 0 && <> · {counts.unreferred} not yet referred to the local authority</>}
         </div>
       )}
 
@@ -118,7 +157,9 @@ export default function Safeguarding() {
           <div className="flex justify-center p-8"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>
         ) : concerns.length === 0 ? (
           <p className="text-sm text-gray-400 p-2">
-            {filter === 'open' ? 'No open concerns.' : 'Nothing recorded here yet.'}
+            {filter === 'open'
+              ? whistle ? 'No open disclosures.' : 'No open concerns.'
+              : 'Nothing recorded here yet.'}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -176,6 +217,7 @@ export default function Safeguarding() {
 
       {raising && (
         <RaiseModal
+          kind={kind}
           onClose={() => setRaising(false)}
           onSaved={() => { setRaising(false); qc.invalidateQueries({ queryKey: ['safeguarding'] }); }}
         />
@@ -225,8 +267,9 @@ function HarmPicker({ value, onChange }: { value: string[]; onChange: (v: string
   );
 }
 
-function RaiseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [draft, setDraft] = useState<ConcernDraft>({ source: 'CARER', harmTypes: [] });
+function RaiseModal({ kind, onClose, onSaved }: { kind: ConcernKind; onClose: () => void; onSaved: () => void }) {
+  const whistle = kind === 'WHISTLEBLOWING';
+  const [draft, setDraft] = useState<ConcernDraft>({ kind, source: 'CARER', harmTypes: [] });
   const [error, setError] = useState<string | null>(null);
 
   const { data: clients = [] } = useQuery({
@@ -248,8 +291,14 @@ function RaiseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
   const set = <K extends keyof ConcernDraft>(k: K, v: ConcernDraft[K]) => setDraft((d) => ({ ...d, [k]: v }));
 
   return (
-    <Shell title="Raise a safeguarding concern" onClose={onClose}>
-      <div className="grid gap-4 sm:grid-cols-2">
+    <Shell title={whistle ? 'Record a whistleblowing disclosure' : 'Raise a safeguarding concern'} onClose={onClose}>
+      {whistle && (
+        <p className="text-sm text-gray-500">
+          A disclosure about practice or about the organisation, rather than a concern about one person.
+          It does not need anyone named.
+        </p>
+      )}
+      <div className={whistle ? 'hidden' : 'grid gap-4 sm:grid-cols-2'}>
         <div>
           <label className="label">Person at risk — client</label>
           <select className="input" value={draft.serviceUserId || ''} onChange={(e) => set('serviceUserId', e.target.value || null)}>
@@ -283,10 +332,29 @@ function RaiseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
         </div>
       </div>
 
-      <div>
-        <label className="label">Type of harm</label>
-        <HarmPicker value={draft.harmTypes || []} onChange={(v) => set('harmTypes', v)} />
-      </div>
+      {!whistle && (
+        <div>
+          <label className="label">Type of harm</label>
+          <HarmPicker value={draft.harmTypes || []} onChange={(v) => set('harmTypes', v)} />
+        </div>
+      )}
+
+      {whistle && (
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={!!draft.confidential}
+            onChange={(e) => set('confidential', e.target.checked)}
+          />
+          <span>
+            Keep the identity of whoever raised this confidential
+            <span className="block text-xs text-gray-500">
+              Flagged on the record so it is handled that way. It does not hide who entered it from the audit log.
+            </span>
+          </span>
+        </label>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>

@@ -76,7 +76,7 @@ export async function ensureTrainingCourses(courses: string[]): Promise<void> {
   if (merged.length) await upsertOrgSettings({ trainingCourses: JSON.stringify(merged) });
 }
 
-const STRING_FIELDS = ['companyName', 'logo', 'address', 'phone', 'email', 'cqcProviderId', 'icoNumber', 'timezone', 'defaultRole'] as const;
+const STRING_FIELDS = ['companyName', 'logo', 'address', 'phone', 'email', 'cqcProviderId', 'icoNumber', 'timezone', 'defaultRole', 'safeguardingLeadId', 'safeguardingContacts'] as const;
 const NUMBER_FIELDS = ['defaultHourlyRate', 'overtimeThreshold', 'inviteExpiryDays'] as const;
 const BOOLEAN_FIELDS = ['handoversEnabled', 'callLogTasksEnabled'] as const;
 

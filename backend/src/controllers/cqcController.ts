@@ -59,7 +59,7 @@ export async function computeReadiness() {
   const staffLink = (s: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: s.id, label: `${s.firstName} ${s.lastName}`, link: `/users/${s.id}` });
 
   // --- Load supporting data in parallel ---
-  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned] = await Promise.all([
+  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings] = await Promise.all([
     prisma.carePlan.findMany({ select: { serviceUserId: true, reviewDate: true } }),
     prisma.riskAssessment.findMany({ select: { serviceUserId: true, type: true } }),
     prisma.likesDislikes.findMany({ select: { serviceUserId: true } }),
@@ -69,7 +69,24 @@ export async function computeReadiness() {
     prisma.training.findMany({ select: { userId: true, expiresAt: true } }),
     prisma.medAdministration.findMany({ where: { status: 'MISSED', scheduledFor: { gte: daysAgo(30) } }, select: { serviceUserId: true } }),
     prisma.shift.count({ where: { userId: null, status: 'SCHEDULED', date: { gte: now(), lte: daysAhead(7) } } }),
+    prisma.safeguardingConcern.findMany({
+      where: { status: { not: 'CLOSED' } },
+      select: { id: true, kind: true, raisedAt: true, referredToLA: true, laReference: true, personAtRisk: true, serviceUser: { select: { firstName: true, lastName: true } } },
+    }),
+    prisma.orgSettings.findFirst({ select: { safeguardingLeadId: true } }),
   ]);
+
+  // Safeguarding. Three things an inspector tests, in the order they test
+  // them: is someone named as responsible, is anything sitting open, and does
+  // every referral have the reference that proves it was made.
+  const openConcerns = concerns.filter((c) => c.kind === 'CONCERN');
+  const openDisclosures = concerns.filter((c) => c.kind === 'WHISTLEBLOWING');
+  const stale = openConcerns.filter((c) => c.raisedAt < daysAgo(30));
+  const refMissing = openConcerns.filter((c) => c.referredToLA && !c.laReference);
+  const concernLabel = (c: { personAtRisk: string | null; serviceUser: { firstName: string; lastName: string } | null }) =>
+    c.serviceUser ? `${c.serviceUser.firstName} ${c.serviceUser.lastName}` : c.personAtRisk || 'Unnamed';
+  const concernItems = (rows: typeof openConcerns): CheckItem[] =>
+    rows.slice(0, CAP).map((c) => ({ id: c.id, label: concernLabel(c), link: '/safeguarding' }));
 
   const carePlanBy = new Map(carePlans.map((c) => [c.serviceUserId, c]));
   const riskTypesBy = new Map<string, Set<string>>();
@@ -110,6 +127,32 @@ export async function computeReadiness() {
   const missedMedClients = new Set(missedMedRows.map((m) => m.serviceUserId));
 
   const safe: Check[] = [
+    {
+      id: 'safeguarding_lead', title: 'Named safeguarding lead', statement: 'Safeguarding · Reg 13',
+      status: sgSettings?.safeguardingLeadId ? 'green' : 'red', count: sgSettings?.safeguardingLeadId ? 0 : 1, total: 1,
+      detail: sgSettings?.safeguardingLeadId
+        ? 'A safeguarding lead is named for the service.'
+        : 'No safeguarding lead is named. Set one in Settings.',
+      items: sgSettings?.safeguardingLeadId ? [] : [{ id: 'lead', label: 'Name a safeguarding lead', link: '/settings' }],
+    },
+    {
+      id: 'safeguarding_open', title: 'Safeguarding concerns progressed', statement: 'Safeguarding · Reg 13',
+      status: stale.length ? 'amber' : 'green', count: stale.length, total: openConcerns.length,
+      detail: stale.length
+        ? `${stale.length} safeguarding concern(s) have been open for more than 30 days.`
+        : openConcerns.length
+          ? `${openConcerns.length} concern(s) open, all raised within the last 30 days.`
+          : 'No safeguarding concerns are currently open.',
+      items: concernItems(stale),
+    },
+    {
+      id: 'safeguarding_referral_ref', title: 'Referrals evidenced', statement: 'Safeguarding · Reg 13',
+      status: refMissing.length ? 'red' : 'green', count: refMissing.length, total: openConcerns.length,
+      detail: refMissing.length
+        ? `${refMissing.length} concern(s) are marked referred to the local authority with no reference number recorded.`
+        : 'Every referred concern carries a local authority reference.',
+      items: concernItems(refMissing),
+    },
     clientCheck('risk_assessments', 'Risk assessments in place', 'Involving people to manage risks · Reg 12',
       (c) => (riskTypesBy.get(c.id)?.size ?? 0) === 0, true, (n) => n ? `${n} active client(s) have no risk assessment on record.` : 'Every active client has at least one risk assessment.'),
     {
@@ -147,6 +190,16 @@ export async function computeReadiness() {
   ];
 
   const wellled: Check[] = [
+    {
+      id: 'speak_up', title: 'Freedom to speak up', statement: 'Freedom to speak up · Well-led',
+      status: openDisclosures.filter((c) => c.raisedAt < daysAgo(30)).length ? 'amber' : 'green',
+      count: openDisclosures.filter((c) => c.raisedAt < daysAgo(30)).length, total: openDisclosures.length,
+      detail: openDisclosures.length
+        ? `${openDisclosures.length} whistleblowing disclosure(s) open.`
+        : 'No whistleblowing disclosures are currently open.',
+      items: openDisclosures.filter((c) => c.raisedAt < daysAgo(30)).slice(0, CAP)
+        .map((c) => ({ id: c.id, label: 'Open more than 30 days', link: '/safeguarding' })),
+    },
     {
       id: 'unassigned_shifts', title: 'Upcoming visits covered', statement: 'Governance / staffing · Reg 17 & 18',
       status: unassigned > 0 ? 'amber' : 'green', count: unassigned, total: 0,
