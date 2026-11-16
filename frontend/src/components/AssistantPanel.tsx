@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { assistantApi, AssistantMessage } from '../api/assistant';
 
@@ -58,6 +59,13 @@ const SUGGESTIONS = [
 ];
 
 export default function AssistantPanel() {
+  const { pathname } = useLocation();
+  // The dashboard carries the Notes rail down its right edge (w-80, lg and up,
+  // office staff only — which is everyone who sees this panel). Sitting on top
+  // of it would bury the "write an update" box, so step left of it there and
+  // only there: 20rem of rail plus the same 1.25rem gap used everywhere else.
+  const clearOfNotesRail = pathname === '/' ? 'lg:right-[21.25rem]' : '';
+
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -101,7 +109,7 @@ export default function AssistantPanel() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-5 z-40 rounded-full bg-blue-600 text-white shadow-lg h-14 w-14 flex items-center justify-center text-2xl hover:bg-blue-700 active:scale-95"
+        className={`fixed bottom-5 right-5 ${clearOfNotesRail} z-40 rounded-full bg-blue-600 text-white shadow-lg h-14 w-14 flex items-center justify-center text-2xl hover:bg-blue-700 active:scale-95`}
         aria-label="Ask Caremid"
         title="Ask Caremid"
       >
@@ -111,7 +119,7 @@ export default function AssistantPanel() {
   }
 
   return (
-    <div className="fixed bottom-0 right-0 sm:bottom-5 sm:right-5 z-40 w-full sm:w-[420px] h-[80vh] sm:h-[600px] sm:max-h-[80vh] bg-white border border-gray-200 sm:rounded-2xl shadow-2xl flex flex-col">
+    <div className={`fixed bottom-0 right-0 sm:bottom-5 sm:right-5 ${clearOfNotesRail} z-40 w-full sm:w-[420px] h-[80vh] sm:h-[600px] sm:max-h-[80vh] bg-white border border-gray-200 sm:rounded-2xl shadow-2xl flex flex-col`}>
       <div className="flex items-center justify-between px-4 py-3 border-b bg-blue-700 text-white sm:rounded-t-2xl">
         <div>
           <p className="font-semibold text-sm">Ask Caremid</p>
