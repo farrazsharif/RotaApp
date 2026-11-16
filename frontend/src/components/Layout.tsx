@@ -21,6 +21,7 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; capa
   { to: '/documents', label: 'Documents', icon: '📄', capability: 'manage_service_users' },
   { to: '/call-logs', label: 'Call Logs', icon: '📝', capability: 'manage_service_users' },
   { to: '/incidents', label: 'Incidents', icon: '⚠️', capability: 'manage_service_users' },
+  { to: '/safeguarding', label: 'Safeguarding', icon: '🛡️', capability: 'manage_safeguarding' },
   { to: '/emar', label: 'eMAR', icon: '💊', capability: 'manage_medications' },
   { to: '/supervision', label: 'Supervision', icon: '✅', capability: 'manage_supervision' },
   { to: '/time-off', label: 'Time Off', icon: '🏖️', capability: 'manage_time_off' },

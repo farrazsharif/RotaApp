@@ -42,6 +42,50 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // Held-on-paper metadata for the Likes & Dislikes form (JSON, nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "LikesDislikes" ADD COLUMN IF NOT EXISTS "paperMeta" TEXT`);
 
+  // SafeguardingConcern - the Reg 13 log. This deploy does not run
+  // `prisma db push`, so create the table and its indexes directly. No
+  // DB-level foreign keys: Prisma resolves the relations through the scalar
+  // columns, and leaving the constraints out keeps this create
+  // order-independent and idempotent.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SafeguardingConcern" (
+      "id"              TEXT PRIMARY KEY,
+      "companyId"       TEXT,
+      "serviceUserId"   TEXT,
+      "personAtRisk"    TEXT,
+      "raisedById"      TEXT NOT NULL,
+      "raisedByName"    TEXT,
+      "source"          TEXT NOT NULL DEFAULT 'CARER',
+      "occurredAt"      TIMESTAMP(3),
+      "raisedAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "harmTypes"       TEXT NOT NULL DEFAULT '[]',
+      "description"     TEXT NOT NULL,
+      "immediateAction" TEXT,
+      "staffInvolvedId" TEXT,
+      "referredToLA"    BOOLEAN NOT NULL DEFAULT false,
+      "laName"          TEXT,
+      "laReference"     TEXT,
+      "laReferralDate"  TIMESTAMP(3),
+      "cqcNotified"     BOOLEAN NOT NULL DEFAULT false,
+      "cqcNotifiedDate" TIMESTAMP(3),
+      "cqcReference"    TEXT,
+      "policeInformed"  BOOLEAN NOT NULL DEFAULT false,
+      "policeReference" TEXT,
+      "status"          TEXT NOT NULL DEFAULT 'OPEN',
+      "outcome"         TEXT,
+      "lessonsLearned"  TEXT,
+      "closedAt"        TIMESTAMP(3),
+      "closedById"      TEXT,
+      "attachments"     TEXT NOT NULL DEFAULT '[]',
+      "createdAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SafeguardingConcern_companyId_status_idx" ON "SafeguardingConcern"("companyId", "status")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SafeguardingConcern_companyId_raisedAt_idx" ON "SafeguardingConcern"("companyId", "raisedAt")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SafeguardingConcern_serviceUserId_idx" ON "SafeguardingConcern"("serviceUserId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SafeguardingConcern_raisedById_idx" ON "SafeguardingConcern"("raisedById")`);
+
   // Expiry date on a stored document (DBS, passport, visa, driving licence,
   // insurance). Nullable: most documents never expire.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Document" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3)`);

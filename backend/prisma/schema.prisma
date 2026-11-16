@@ -97,28 +97,31 @@ model User {
   updatedAt                DateTime  @updatedAt
 
   shifts             Shift[]
-  coverShifts        Shift[]             @relation("ShiftCoverCarers")
+  coverShifts        Shift[]               @relation("ShiftCoverCarers")
   residentSlots      ShiftResidentSlot[]
-  runs               Run[]               @relation("RunCarers")
+  runs               Run[]                 @relation("RunCarers")
   timeOffRequests    TimeOffRequest[]
   clockRecords       ClockRecord[]
   notifications      Notification[]
-  preferredBy        ServiceUser[]       @relation("PreferredCaregivers")
+  preferredBy        ServiceUser[]         @relation("PreferredCaregivers")
   callLogs           CallLog[]
   medAdministrations MedAdministration[]
   pushSubscriptions  PushSubscription[]
   familyLinks        FamilyLink[]
   trainings          Training[]
   importantDates     ImportantDate[]
-  spotChecks         SpotCheck[]         @relation("SpotCheckCarer")
-  incidentsReported  Incident[]          @relation("IncidentReporter")
-  incidentsClosed    Incident[]          @relation("IncidentCloser")
-  supervisions       Supervision[]       @relation("StaffSupervision")
-  handoversSent      ShiftHandover[]     @relation("HandoverFrom")
-  handoversReceived  ShiftHandover[]     @relation("HandoverTo")
-  customRole         CustomRole?         @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  spotChecks         SpotCheck[]           @relation("SpotCheckCarer")
+  incidentsReported  Incident[]            @relation("IncidentReporter")
+  safeguardingRaised SafeguardingConcern[] @relation("SafeguardingRaiser")
+  safeguardingAbout  SafeguardingConcern[] @relation("SafeguardingStaffInvolved")
+  safeguardingClosed SafeguardingConcern[] @relation("SafeguardingCloser")
+  incidentsClosed    Incident[]            @relation("IncidentCloser")
+  supervisions       Supervision[]         @relation("StaffSupervision")
+  handoversSent      ShiftHandover[]       @relation("HandoverFrom")
+  handoversReceived  ShiftHandover[]       @relation("HandoverTo")
+  customRole         CustomRole?           @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   // Sites this user is scoped to / belongs to. Empty = org-wide (no restriction).
-  sites              Site[]              @relation("UserSites")
+  sites              Site[]                @relation("UserSites")
 
   @@index([companyId])
 }
@@ -237,25 +240,26 @@ model ServiceUser {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
-  site                Site?                     @relation(fields: [siteId], references: [id])
-  preferredCaregivers User[]                    @relation("PreferredCaregivers")
-  shifts              Shift[]
-  residentSlots       ShiftResidentSlot[]
-  callLogs            CallLog[]
-  medications         Medication[]
-  medAdministrations  MedAdministration[]
-  carePlan            CarePlan?
-  servicePlan         PersonalServicePlan?
-  riskAssessments     RiskAssessment[]
-  familyLinks         FamilyLink[]
-  likesDislikes       LikesDislikes?
-  reviews             Review[]
-  fundingArrangements FundingArrangement[]
-  invoiceLines        InvoiceLine[]
-  statusChanges       ServiceUserStatusChange[]
-  spotChecks          SpotCheck[]
-  incidents           Incident[]
-  respitePeriods      RespitePeriod[]
+  site                 Site?                     @relation(fields: [siteId], references: [id])
+  preferredCaregivers  User[]                    @relation("PreferredCaregivers")
+  shifts               Shift[]
+  residentSlots        ShiftResidentSlot[]
+  callLogs             CallLog[]
+  medications          Medication[]
+  medAdministrations   MedAdministration[]
+  carePlan             CarePlan?
+  servicePlan          PersonalServicePlan?
+  riskAssessments      RiskAssessment[]
+  familyLinks          FamilyLink[]
+  likesDislikes        LikesDislikes?
+  reviews              Review[]
+  fundingArrangements  FundingArrangement[]
+  invoiceLines         InvoiceLine[]
+  statusChanges        ServiceUserStatusChange[]
+  spotChecks           SpotCheck[]
+  incidents            Incident[]
+  safeguardingConcerns SafeguardingConcern[]
+  respitePeriods       RespitePeriod[]
 
   @@index([companyId])
 }
@@ -342,7 +346,7 @@ model FinancialTransaction {
 // metadata is kept here.
 model Document {
   companyId    String? // tenant scope (app-enforced via Prisma extension)
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   ownerType    String // USER | SERVICE_USER
   ownerId      String
   category     String? // e.g. DBS, Contract, Reference, GP Letter
@@ -356,7 +360,7 @@ model Document {
   size         Int
   storageKey   String // object key in the R2 bucket
   uploadedById String?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@index([ownerType, ownerId])
   @@index([companyId])
@@ -723,6 +727,74 @@ model ShiftResidentSlot {
   @@index([userId])
 }
 
+model SafeguardingConcern {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String  @id @default(cuid())
+  // Who is at risk. Usually a client, but a concern can be about a member of
+  // staff, a family member or someone else in the home - so the link is
+  // optional and a free-text name carries the rest. A concern that cannot be
+  // recorded because the person is not on the system is a concern that goes
+  // unrecorded.
+  serviceUserId String?
+  personAtRisk  String?
+  // Who entered it, and - when different - who actually raised it: a relative,
+  // a district nurse, an anonymous caller.
+  raisedById    String
+  raisedByName  String?
+  // CARER | FAMILY | CLIENT | PROFESSIONAL | ANONYMOUS | OFFICE | OTHER
+  source        String  @default("CARER")
+
+  occurredAt DateTime?
+  raisedAt   DateTime  @default(now())
+
+  // The Care Act 2014 categories of abuse and neglect. JSON array: a single
+  // concern often spans more than one.
+  harmTypes       String  @default("[]")
+  description     String
+  immediateAction String?
+
+  // A staff member the concern is ABOUT. Deliberately separate from
+  // raisedById so "who reported it" and "who it concerns" can never blur.
+  staffInvolvedId String?
+
+  // --- Referral to the local authority safeguarding team ---
+  referredToLA   Boolean   @default(false)
+  laName         String?
+  laReference    String?
+  laReferralDate DateTime?
+
+  // --- Statutory notification to CQC (Registration Reg 18) ---
+  cqcNotified     Boolean   @default(false)
+  cqcNotifiedDate DateTime?
+  cqcReference    String?
+
+  // --- Police ---
+  policeInformed  Boolean @default(false)
+  policeReference String?
+
+  // OPEN | INVESTIGATING | REFERRED | CLOSED
+  status         String    @default("OPEN")
+  outcome        String?
+  lessonsLearned String?
+  closedAt       DateTime?
+  closedById     String?
+
+  // R2 keys for anything attached. JSON array.
+  attachments String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  raisedBy      User         @relation("SafeguardingRaiser", fields: [raisedById], references: [id], onDelete: Cascade)
+  staffInvolved User?        @relation("SafeguardingStaffInvolved", fields: [staffInvolvedId], references: [id], onDelete: SetNull)
+  closedBy      User?        @relation("SafeguardingCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  serviceUser   ServiceUser? @relation(fields: [serviceUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([companyId, raisedAt])
+  @@index([serviceUserId])
+  @@index([raisedById])
+}
+
 model Incident {
   companyId         String? // tenant scope (app-enforced via Prisma extension)
   id                String    @id @default(cuid())
@@ -933,11 +1005,11 @@ model Shift {
   serviceUser   ServiceUser?        @relation(fields: [serviceUserId], references: [id])
   site          Site?               @relation(fields: [siteId], references: [id])
   residentSlots ShiftResidentSlot[]
-  run          Run?            @relation(fields: [runId], references: [id])
-  clockRecords ClockRecord[]
-  callLogs     CallLog[]
-  invoiceLines InvoiceLine[]
-  handovers    ShiftHandover[]
+  run           Run?                @relation(fields: [runId], references: [id])
+  clockRecords  ClockRecord[]
+  callLogs      CallLog[]
+  invoiceLines  InvoiceLine[]
+  handovers     ShiftHandover[]
 
   @@index([companyId])
   @@index([companyId, date])

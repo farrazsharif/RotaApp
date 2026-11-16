@@ -9,7 +9,7 @@ export type PermissionKey =
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
   | 'manage_supervision'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
-  | 'manage_cqc'
+  | 'manage_cqc' | 'manage_safeguarding'
   | 'manage_billing'
   | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data' | 'view_audit_log';
 
@@ -43,6 +43,10 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'view_reports',          label: 'View reports',                     group: 'Scheduling', default: AM },
 
   { key: 'manage_cqc',            label: 'CQC compliance dashboard',         group: 'Compliance', default: AM },
+  // Its own capability rather than folding into manage_service_users: a
+  // concern can name a member of staff, so who may read the log is a narrower
+  // question than who may edit a client record.
+  { key: 'manage_safeguarding',   label: 'Safeguarding log',                 group: 'Compliance', default: AM },
 
   { key: 'manage_billing',        label: 'Manage funders & service-user billing', group: 'Billing', default: AM },
 

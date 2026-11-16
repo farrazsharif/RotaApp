@@ -15,6 +15,7 @@ export type PermissionKey =
   | 'manage_supervision'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
   | 'manage_cqc'
+  | 'manage_safeguarding'
   | 'manage_billing'
   | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data' | 'view_audit_log';
 

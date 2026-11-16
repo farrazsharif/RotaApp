@@ -31,6 +31,7 @@ import Supervision from './pages/Supervision';
 import ServicePlans from './pages/ServicePlans';
 import Handovers from './pages/Handovers';
 import Incidents from './pages/Incidents';
+import Safeguarding from './pages/Safeguarding';
 import Announcements from './pages/Announcements';
 import Runs from './pages/Runs';
 import SupportedLiving from './pages/SupportedLiving';
@@ -120,6 +121,7 @@ function AppRoutes() {
         <Route path="attendance" element={<CapabilityRoute cap="manage_schedule"><Attendance /></CapabilityRoute>} />
         <Route path="handovers" element={<CapabilityRoute cap="manage_schedule"><Handovers /></CapabilityRoute>} />
         <Route path="incidents" element={<Incidents />} />
+        <Route path="safeguarding" element={<CapabilityRoute cap="manage_safeguarding"><Safeguarding /></CapabilityRoute>} />
         <Route path="announcements" element={<CapabilityRoute cap="manage_schedule"><Announcements /></CapabilityRoute>} />
         <Route path="runs" element={<CapabilityRoute cap="manage_schedule"><Runs /></CapabilityRoute>} />
         <Route path="supported-living" element={<SupportedLiving />} />
