@@ -43,6 +43,7 @@ import CareTasksEditor from '../components/CareTasksEditor';
 import { siteTintStyle } from '../lib/siteColor';
 import Icon from '../components/Icon';
 import { printPage } from '../lib/printHtml';
+import { allergyRecorded, hasAllergies, dnacprLabel, parseComms, commsLabel } from '../lib/clientSafety';
 
 type DocMode = 'view' | 'edit' | 'new';
 
@@ -345,6 +346,29 @@ export default function ServiceUserDetail() {
 
       {/* Contact */}
       <Section title="Contact & Address">
+        <div className={`rounded-lg border px-3 py-2 mb-4 text-sm ${
+          hasAllergies(su.allergies)
+            ? 'border-red-300 bg-red-50 text-red-800'
+            : allergyRecorded(su.allergies)
+              ? 'border-gray-200 bg-gray-50 text-gray-700'
+              : 'border-amber-300 bg-amber-50 text-amber-800'
+        }`}>
+          <strong>Allergies:</strong>{' '}
+          {allergyRecorded(su.allergies) ? su.allergies : 'not recorded \u2014 nobody has asked'}
+          {dnacprLabel(su.dnacprStatus) && (
+            <span className="block mt-0.5">
+              <strong>Resuscitation:</strong> {dnacprLabel(su.dnacprStatus)}
+              {su.dnacprLocation ? ` \u00b7 ${su.dnacprLocation}` : ''}
+            </span>
+          )}
+          {parseComms(su.communicationNeeds).length > 0 && (
+            <span className="block mt-0.5">
+              <strong>Communication:</strong> {parseComms(su.communicationNeeds).map(commsLabel).join(', ')}
+            </span>
+          )}
+          {su.communicationNotes && <span className="block mt-0.5 text-xs">{su.communicationNotes}</span>}
+        </div>
+
         <div className="grid grid-cols-2 gap-x-6">
           <Field label="Address" value={su.address} />
           <Field label="Postcode" value={su.postcode} />

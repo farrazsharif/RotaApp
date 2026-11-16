@@ -217,6 +217,21 @@ model ServiceUser {
   handlesMoney             Boolean   @default(false)
   financeOpeningBalance    Float     @default(0)
   careNotes                String?
+  // Allergies, shown to a carer before they start. Null means NOBODY HAS
+  // ASKED, which is not the same as none - so the form writes an explicit
+  // "None known" rather than leaving this empty, and the CQC check counts
+  // blanks.
+  allergies                String?
+  // Resuscitation status, and where the form physically is in the home: a
+  // DNACPR nobody can find in the moment may as well not exist.
+  // NONE | DNACPR | RESPECT
+  dnacprStatus             String?
+  dnacprLocation           String?
+  // Accessible Information Standard: how this person needs information given
+  // to them. JSON array of keys (large print, easy read, BSL, interpreter,
+  // hearing loop...), with a free-text note for anything the list misses.
+  communicationNeeds       String?
+  communicationNotes       String?
   contractedWeeklyHours    Float? // council-agreed hours of care per week (care package); null = not set
   visitDuration            Int       @default(30)
   visits                   String    @default("[]") // JSON array of { type, duration }

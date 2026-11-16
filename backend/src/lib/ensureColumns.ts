@@ -42,6 +42,13 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // Held-on-paper metadata for the Likes & Dislikes form (JSON, nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "LikesDislikes" ADD COLUMN IF NOT EXISTS "paperMeta" TEXT`);
 
+  // The three client-safety fields the CQC gap list called out: allergies,
+  // resuscitation status, and Accessible Information Standard needs. All
+  // nullable - blank must stay readable as "not recorded".
+  for (const col of ['allergies', 'dnacprStatus', 'dnacprLocation', 'communicationNeeds', 'communicationNotes']) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "${col}" TEXT`);
+  }
+
   // SafeguardingConcern - the Reg 13 log. This deploy does not run
   // `prisma db push`, so create the table and its indexes directly. No
   // DB-level foreign keys: Prisma resolves the relations through the scalar

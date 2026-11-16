@@ -9,6 +9,7 @@ import { settingsApi } from '../api/settings';
 import PrintBrandingHeader from './PrintBrandingHeader';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import { printPage } from '../lib/printHtml';
+import { allergyRecorded, dnacprLabel, parseComms, commsLabel } from '../lib/clientSafety';
 
 // Minutes between two HH:mm times (handles overnight).
 function durationMins(start: string, end: string): number {
@@ -141,6 +142,37 @@ export default function EmergencyGrabSheetModal({ serviceUser, canManage, onClos
                     : <span className="text-sm">{g.dateCompleted ? format(new Date(g.dateCompleted), 'dd MMM yyyy') : '—'}</span>}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Allergies and resuscitation status - the two things read out
+              first in an emergency, so they sit above everything else. */}
+          <div>
+            <h3 className="font-semibold text-gray-800 mb-1">Allergies &amp; resuscitation</h3>
+            <div className="border border-gray-300 rounded-lg overflow-hidden divide-y divide-gray-300">
+              <div className="px-3 py-2 text-sm">
+                <div className="font-semibold text-gray-700">Allergies</div>
+                <div className={allergyRecorded(su.allergies) ? 'text-gray-800' : 'text-gray-500'}>
+                  {allergyRecorded(su.allergies) ? su.allergies : 'Not recorded'}
+                </div>
+              </div>
+              <div className="px-3 py-2 text-sm">
+                <div className="font-semibold text-gray-700">Resuscitation</div>
+                <div className={dnacprLabel(su.dnacprStatus) ? 'text-gray-800' : 'text-gray-500'}>
+                  {dnacprLabel(su.dnacprStatus) || 'Not recorded'}
+                  {su.dnacprLocation ? ` \u2014 ${su.dnacprLocation}` : ''}
+                </div>
+              </div>
+              {(parseComms(su.communicationNeeds).length > 0 || su.communicationNotes) && (
+                <div className="px-3 py-2 text-sm">
+                  <div className="font-semibold text-gray-700">Communication</div>
+                  <div className="text-gray-800">
+                    {[parseComms(su.communicationNeeds).map(commsLabel).join(', '), su.communicationNotes]
+                      .filter(Boolean)
+                      .join(' \u00b7 ')}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

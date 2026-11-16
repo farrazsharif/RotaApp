@@ -531,6 +531,12 @@ export interface ServiceUser {
   handlesMoney?: boolean;
   financeOpeningBalance?: number;
   careNotes?: string;
+  // Blank means not recorded, never "none" - see lib/clientSafety.
+  allergies?: string | null;
+  dnacprStatus?: string | null;
+  dnacprLocation?: string | null;
+  communicationNeeds?: string | null; // JSON array of AIS keys
+  communicationNotes?: string | null;
   contractedWeeklyHours?: number | null;
   visitDuration: number;
   visits?: string; // JSON array of { type, duration }

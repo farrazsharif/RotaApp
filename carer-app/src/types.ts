@@ -20,6 +20,12 @@ export interface ServiceUserBrief {
   site?: { id: string; name: string; color: string } | null;
   handlesMoney?: boolean;
   careTasks?: string | null; // JSON array of { name, description?, visit? }
+  // Carried on the visit itself, not just the full client record: a carer at
+  // the door is looking at CallDetail, and an allergy one tap away is an
+  // allergy nobody sees. Blank means not recorded, never "none".
+  allergies?: string | null;
+  dnacprStatus?: string | null;
+  communicationNeeds?: string | null;
 }
 
 export interface ServiceUser {
@@ -36,6 +42,12 @@ export interface ServiceUser {
   preferredName?: string | null;
   // Property entry — carers need these to get in and to reach the meds.
   keySafe?: string | null;
+  // Blank is "not recorded", never "none" - see lib/clientSafety.
+  allergies?: string | null;
+  dnacprStatus?: string | null;
+  dnacprLocation?: string | null;
+  communicationNeeds?: string | null; // JSON array of AIS keys
+  communicationNotes?: string | null;
   medsSafeCode?: string | null;
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;

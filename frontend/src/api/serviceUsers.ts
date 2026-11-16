@@ -54,6 +54,12 @@ export interface ServiceUserData {
   handlesMoney?: boolean;
   financeOpeningBalance?: number;
   careNotes?: string;
+  // Blank is "not recorded", never "none" - see lib/clientSafety.
+  allergies?: string;
+  dnacprStatus?: string;
+  dnacprLocation?: string;
+  communicationNeeds?: string; // JSON array of AIS keys
+  communicationNotes?: string;
   contractedWeeklyHours?: number | null;
   visitDuration?: number;
   visits?: string; // JSON array of { type, duration }

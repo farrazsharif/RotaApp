@@ -14,6 +14,7 @@ import { RA_FORMS, RA_TYPES, keyForRaItem, scoreBand } from '../lib/riskAssessme
 import type { RiskVal, HazardVal, YesNoVal } from '../lib/riskAssessmentSchema';
 import { formatTime12h } from '../lib/time';
 import { mapsUrl } from '../lib/maps';
+import { allergyRecorded, hasAllergies, dnacprLabel, parseComms, commsLabel } from '../lib/clientSafety';
 
 type Tab = 'info' | 'care' | 'service' | 'emar' | 'risk';
 
@@ -168,6 +169,42 @@ export default function ServiceUserDetail() {
             <Field label="Address" value={su.address ? `${su.address}${su.postcode ? `, ${su.postcode}` : ''}` : undefined} href={mapsUrl(su.address, su.postcode)} />
             <Field label="Phone" value={su.phone} href={telHref(su.phone)} />
             <Field label="Site" value={su.site?.name} />
+
+            {/* Allergies first. A red banner for a real allergy, amber when
+                nothing has been recorded at all - because blank means nobody
+                asked, and a carer should know which of the two they are
+                looking at. Silent only when "None known" was actually chosen. */}
+            {hasAllergies(su.allergies) ? (
+              <div className="rounded-xl bg-red-50 border border-red-300 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-red-700">\u26a0 Allergies</p>
+                <p className="text-base font-bold text-gray-900">{su.allergies}</p>
+              </div>
+            ) : !allergyRecorded(su.allergies) ? (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-amber-700">Allergies not recorded</p>
+                <p className="text-sm text-amber-900">Nobody has recorded whether this person has allergies. Ask the office.</p>
+              </div>
+            ) : null}
+
+            {dnacprLabel(su.dnacprStatus) && su.dnacprStatus !== 'NONE' && (
+              <div className="rounded-xl bg-purple-50 border border-purple-200 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-purple-700">Resuscitation</p>
+                <p className="text-base font-bold text-gray-900">{dnacprLabel(su.dnacprStatus)}</p>
+                {su.dnacprLocation && <p className="text-sm text-purple-900">Form kept: {su.dnacprLocation}</p>}
+              </div>
+            )}
+
+            {(parseComms(su.communicationNeeds).length > 0 || su.communicationNotes) && (
+              <div className="rounded-xl bg-blue-50 border border-blue-200 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-700">\U0001f4ac Communication</p>
+                {parseComms(su.communicationNeeds).length > 0 && (
+                  <p className="text-sm font-semibold text-gray-900">
+                    {parseComms(su.communicationNeeds).map(commsLabel).join(' \u00b7 ')}
+                  </p>
+                )}
+                {su.communicationNotes && <p className="text-sm text-blue-900 mt-0.5">{su.communicationNotes}</p>}
+              </div>
+            )}
 
             {/* Property access — highlighted so carers can find the entry code fast */}
             {(su.keySafe || su.medsSafeCode) && (

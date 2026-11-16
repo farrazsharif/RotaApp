@@ -26,6 +26,7 @@ import { SUPPORT_DOMAINS, domainLabel, parseDomains } from '../lib/supportDomain
 import { supportLogApi } from '../api/supportLog';
 import type { CallLogTaskDef, CallLogTaskTick } from '../lib/callLogTasks';
 import type { MedAdminStatus, CallLogSignature, ClockRecord, DueDose } from '../types';
+import { allergyRecorded, hasAllergies, dnacprLabel, parseComms, commsLabel } from '../lib/clientSafety';
 
 // Green/amber chips summarising the tasks a carer ticked on a visit.
 function TaskBadges({ tasks }: { tasks?: string | null }) {
@@ -1006,6 +1007,30 @@ export default function CallDetail() {
               </div>
             );
           })()}
+          {/* Allergies on the visit screen itself, above the address. The
+              client record carries the full picture, but a carer at the door
+              is looking at this screen - an allergy one tap away is an allergy
+              nobody sees. Only a real allergy interrupts here; "none known"
+              stays quiet, and a blank says so rather than implying safety. */}
+          {hasAllergies(su?.allergies) && (
+            <div className="mt-2 rounded-lg bg-red-50 border border-red-300 px-3 py-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-red-700">\u26a0 Allergies</p>
+              <p className="text-sm font-semibold text-red-900">{su?.allergies}</p>
+            </div>
+          )}
+          {!allergyRecorded(su?.allergies) && su && (
+            <p className="mt-2 text-xs text-amber-700">Allergies not recorded for this person.</p>
+          )}
+          {dnacprLabel(su?.dnacprStatus) && su?.dnacprStatus !== 'NONE' && (
+            <div className="mt-2 rounded-lg bg-purple-50 border border-purple-200 px-3 py-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-purple-700">{dnacprLabel(su?.dnacprStatus)}</p>
+            </div>
+          )}
+          {parseComms(su?.communicationNeeds).length > 0 && (
+            <p className="mt-2 text-xs text-blue-800">
+              \U0001f4ac {parseComms(su?.communicationNeeds).map(commsLabel).join(' \u00b7 ')}
+            </p>
+          )}
           {su?.address && (
             <p className="text-base mt-2 leading-snug">
               <a

@@ -47,7 +47,7 @@ export async function computeReadiness() {
   // Active caseload (exclude discharged/deceased/inactive) and active care staff.
   const clients = await prisma.serviceUser.findMany({
     where: { active: true, status: { notIn: ['DISCHARGED', 'DECEASED'] } },
-    select: { id: true, firstName: true, lastName: true, careType: true },
+    select: { id: true, firstName: true, lastName: true, careType: true, allergies: true, dnacprStatus: true },
     orderBy: [{ lastName: 'asc' }],
   });
   const staff = await prisma.user.findMany({
@@ -153,6 +153,10 @@ export async function computeReadiness() {
         : 'Every referred concern carries a local authority reference.',
       items: concernItems(refMissing),
     },
+    clientCheck('allergies_recorded', 'Allergies recorded', 'Safe care and treatment · Reg 12',
+      (c) => !c.allergies, true, (n) => n ? `${n} active client(s) have no allergy record. Blank is not the same as none - record "None known" where that is the answer.` : 'Every active client has an allergy record.'),
+    clientCheck('resuscitation_status', 'Resuscitation status known', 'Planning for the future · Reg 9',
+      (c) => !c.dnacprStatus, false, (n) => n ? `${n} active client(s) have no DNACPR or ReSPECT status recorded.` : 'Resuscitation status is recorded for every active client.'),
     clientCheck('risk_assessments', 'Risk assessments in place', 'Involving people to manage risks · Reg 12',
       (c) => (riskTypesBy.get(c.id)?.size ?? 0) === 0, true, (n) => n ? `${n} active client(s) have no risk assessment on record.` : 'Every active client has at least one risk assessment.'),
     {

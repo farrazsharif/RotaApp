@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import PhotoUpload from '../components/PhotoUpload';
 import { VISIT_PRESETS } from '../lib/visits';
 import { SUPPORT_CATEGORIES, parseCategories } from '../lib/supportCategories';
+import { DNACPR_OPTIONS, COMMUNICATION_NEEDS, NONE_KNOWN, parseComms } from '../lib/clientSafety';
 import { parseCareTasks, serializeCareTasks, visitChoices, type CareTask } from '../lib/careTasks';
 import CareTasksEditor from '../components/CareTasksEditor';
 import AutoGrowTextarea from '../components/AutoGrowTextarea';
@@ -102,6 +103,7 @@ const emptyForm: FormState = {
   pharmacyName: '', pharmacyPhone: '', pharmacyAddress: '',
   needsMedication: false, needsMobility: false, needsPersonalCare: false,
   handlesMoney: false, financeOpeningBalance: 0, careNotes: '',
+  allergies: '', dnacprStatus: '', dnacprLocation: '', communicationNeeds: '', communicationNotes: '',
   contractedWeeklyHours: null,
   visitDuration: 30, preferredCaregiverIds: [],
 };
@@ -161,6 +163,8 @@ export default function ServiceUserForm() {
       needsMedication: su.needsMedication, needsMobility: su.needsMobility, needsPersonalCare: su.needsPersonalCare,
       handlesMoney: su.handlesMoney ?? false, financeOpeningBalance: su.financeOpeningBalance ?? 0,
       careNotes: su.careNotes || '', contractedWeeklyHours: su.contractedWeeklyHours ?? null, visitDuration: su.visitDuration,
+      allergies: su.allergies || '', dnacprStatus: su.dnacprStatus || '', dnacprLocation: su.dnacprLocation || '',
+      communicationNeeds: su.communicationNeeds || '', communicationNotes: su.communicationNotes || '',
       preferredCaregiverIds: su.preferredCaregivers.map((c) => c.id),
     });
     const loadedVisits = parseVisits(su.visits);
@@ -526,6 +530,92 @@ export default function ServiceUserForm() {
         <div className="mt-3">
           <label className="label">Care Notes</label>
           <AutoGrowTextarea value={form.careNotes} onChange={(e) => setForm({ ...form, careNotes: e.target.value })} minRows={2} className="input" />
+        </div>
+      </Section>
+
+      <Section title="Safety & Communication">
+        <p className="text-xs text-gray-500 -mt-1 mb-2">
+          Shown to carers before they start a visit, and printed on the emergency grab sheet.
+        </p>
+
+        <div>
+          <label className="label">Allergies</label>
+          <div className="flex gap-2">
+            <input
+              value={form.allergies}
+              onChange={(e) => setForm({ ...form, allergies: e.target.value })}
+              className="input flex-1"
+              placeholder="Penicillin, latex, shellfish…"
+            />
+            <button
+              type="button"
+              className="btn-secondary btn whitespace-nowrap"
+              onClick={() => setForm({ ...form, allergies: NONE_KNOWN })}
+            >
+              None known
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Leaving this empty records that <strong>nobody has asked</strong>, which is not the same as none.
+            Use the button when none is the answer.
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4 mt-3">
+          <div>
+            <label className="label">Resuscitation status</label>
+            <select
+              value={form.dnacprStatus}
+              onChange={(e) => setForm({ ...form, dnacprStatus: e.target.value })}
+              className="input"
+            >
+              <option value="">Not recorded</option>
+              {DNACPR_OPTIONS.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Where the form is kept</label>
+            <input
+              value={form.dnacprLocation}
+              onChange={(e) => setForm({ ...form, dnacprLocation: e.target.value })}
+              className="input"
+              placeholder="e.g. red folder in the kitchen"
+              disabled={!form.dnacprStatus || form.dnacprStatus === 'NONE'}
+            />
+            <p className="text-xs text-gray-500 mt-1">One nobody can find in the moment may as well not exist.</p>
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <label className="label">Communication needs <span className="font-normal text-gray-400">(Accessible Information Standard)</span></label>
+          <div className="flex flex-wrap gap-1.5">
+            {COMMUNICATION_NEEDS.map((c) => {
+              const on = parseComms(form.communicationNeeds).includes(c.key);
+              return (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => {
+                    const cur = parseComms(form.communicationNeeds);
+                    const next = on ? cur.filter((k) => k !== c.key) : [...cur, c.key];
+                    setForm({ ...form, communicationNeeds: JSON.stringify(next) });
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-xs border ${
+                    on ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
+                  }`}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+          <AutoGrowTextarea
+            value={form.communicationNotes}
+            onChange={(e) => setForm({ ...form, communicationNotes: e.target.value })}
+            minRows={2}
+            className="input mt-2"
+            placeholder="Anything else a carer needs to know about communicating with this person."
+          />
         </div>
       </Section>
 
