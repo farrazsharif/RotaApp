@@ -141,11 +141,21 @@ app.use(broadcastChanges);
 const COMMIT = (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'unknown').slice(0, 7);
 
 app.get('/health', async (_req, res) => {
+  // Which optional integrations this process actually came up with. Keys are
+  // read once at module load, so "the key is in Render" and "the running
+  // process has it" are different facts - and without this, telling them apart
+  // meant reading a logged-in user's network tab. Booleans only: whether a
+  // feature is on, never anything about the credential itself.
+  const features = {
+    assistant: !!process.env.ANTHROPIC_API_KEY,
+    storage: !!process.env.R2_ACCESS_KEY_ID,
+    email: !!(process.env.BREVO_API_KEY || process.env.SMTP_HOST),
+  };
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ok', db: 'ok', commit: COMMIT, timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', db: 'ok', commit: COMMIT, features, timestamp: new Date().toISOString() });
   } catch {
-    res.status(503).json({ status: 'error', db: 'down', commit: COMMIT, timestamp: new Date().toISOString() });
+    res.status(503).json({ status: 'error', db: 'down', commit: COMMIT, features, timestamp: new Date().toISOString() });
   }
 });
 
