@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { medicationsApi } from '../api/medications';
 import { usePermissions } from '../hooks/usePermissions';
-import { ServiceUser, Medication, MedStatus, BodyMapPoint } from '../types';
+import { ServiceUser, Medication, MedStatus, MedAdministration, BodyMapPoint } from '../types';
 import { format } from 'date-fns';
 import { formatTime12h } from '../lib/time';
 import { isMedDueOn, scheduleLabel } from '../lib/medSchedule';
@@ -211,6 +211,7 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
   const [medForm, setMedForm] = useState(emptyMed);
   const [visitTimes, setVisitTimes] = useState<Record<string, string>>({});
   const [sites, setSites] = useState<BodyMapPoint[]>([]);
+  const [medTab, setMedTab] = useState<'SCHEDULED' | 'PRN'>('SCHEDULED');
   const [viewingSitesFor, setViewingSitesFor] = useState<Medication | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -301,6 +302,16 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
 
   const activeMeds = meds.filter((m: Medication) => m.active);
   const discontinuedMeds = meds.filter((m: Medication) => !m.active);
+
+  // Scheduled and as-required medication answer different questions. A
+  // scheduled med asks "was the 8am dose given?" and belongs on a grid of
+  // times; a PRN asks "was anything needed, and did it work?" and has no
+  // times at all. Mixed into one list the PRNs sit there permanently looking
+  // like something unrecorded, and the eye stops reading them.
+  const isPrn = (m: Medication) => parseTimes(m.times).length === 0;
+  const scheduledMeds = activeMeds.filter((m: Medication) => !isPrn(m));
+  const prnMeds = activeMeds.filter(isPrn);
+  const shownMeds = medTab === 'PRN' ? prnMeds : scheduledMeds;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -469,11 +480,36 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
             </div>
           )}
 
+          {activeMeds.length > 0 && (
+            <div className="flex gap-1.5 border-b border-gray-200 mb-4">
+              {([
+                ['SCHEDULED', 'Scheduled', scheduledMeds.length],
+                ['PRN', 'As required (PRN)', prnMeds.length],
+              ] as const).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  onClick={() => setMedTab(key)}
+                  className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+                    medTab === key ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {label} <span className="text-gray-400">({count})</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {activeMeds.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">No active medications for this client</p>
+          ) : shownMeds.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">
+              {medTab === 'PRN'
+                ? 'No as-required medication for this client.'
+                : 'No scheduled medication for this client — everything they take is as-required.'}
+            </p>
           ) : (
             <div className="space-y-4">
-              {activeMeds.map((med: Medication) => {
+              {shownMeds.map((med: Medication) => {
                 const times = parseTimes(med.times);
                 // Is the med due on the selected date (UTC, matching the server)?
                 // Covers both weekday and "every N days" schedules.
@@ -529,7 +565,37 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                     </div>
 
                     {times.length === 0 ? (
-                      <p className="text-xs text-amber-600 mt-2">No dose times set (PRN / as required)</p>
+                      (() => {
+                        // A PRN has no scheduled slots, so there is nothing to
+                        // tick off — the question is whether it was needed.
+                        const given = admins
+                          .filter((a: MedAdministration) => a.medicationId === med.id)
+                          .sort((a: MedAdministration, b: MedAdministration) =>
+                            a.scheduledFor.localeCompare(b.scheduledFor));
+                        if (given.length === 0) {
+                          return (
+                            <p className="text-xs text-gray-400 mt-2">
+                              As required — nothing given on {format(new Date(`${date}T00:00:00`), 'd MMM')}.
+                            </p>
+                          );
+                        }
+                        return (
+                          <div className="mt-2 space-y-1">
+                            {given.map((a: MedAdministration) => (
+                              <div key={a.id} className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="font-semibold text-gray-700">
+                                  {format(new Date(a.scheduledFor), 'HH:mm')}
+                                </span>
+                                <span className={`badge border ${statusClass[a.status] || ''}`}>
+                                  {STATUS_OPTS.find((o) => o.value === a.status)?.label || a.status}
+                                </span>
+                                {a.user && <span className="text-gray-500">{a.user.firstName} {a.user.lastName}</span>}
+                                {a.note && <span className="text-gray-500 italic">“{a.note}”</span>}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()
                     ) : !dueToday ? (
                       <p className="text-xs text-gray-400 mt-2">Not scheduled on this day — {schedLabel}.</p>
                     ) : (
