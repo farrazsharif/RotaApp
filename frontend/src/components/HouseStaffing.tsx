@@ -15,6 +15,11 @@ import { ServiceUser, User } from '../types';
 export interface SlotDraft {
   serviceUserId: string;
   userId: string | null;
+  // This carer's own hours, when they differ from the visit's. Null on both
+  // means "the same as the visit" - a house covered 24 hours is staffed by
+  // carers on staggered shifts, not by everyone working the whole span.
+  startTime?: string | null;
+  endTime?: string | null;
 }
 
 interface Props {
@@ -23,11 +28,15 @@ interface Props {
   slots: SlotDraft[];
   onChange: (slots: SlotDraft[]) => void;
   disabled?: boolean;
+  // The visit's own times, shown as the placeholder on each carer's row so
+  // "blank" reads as "same as the visit" rather than as nothing.
+  visitStart?: string;
+  visitEnd?: string;
 }
 
 const MAX_PER_RESIDENT = 4;
 
-export default function HouseStaffing({ residents, staff, slots, onChange, disabled }: Props) {
+export default function HouseStaffing({ residents, staff, slots, onChange, disabled, visitStart, visitEnd }: Props) {
   const forResident = (id: string) => slots.filter((s) => s.serviceUserId === id);
 
   // Set how many carers a resident needs. Rebuilt in resident order so the list
@@ -52,6 +61,25 @@ export default function HouseStaffing({ residents, staff, slots, onChange, disab
         if (s.serviceUserId !== serviceUserId) return s;
         seen += 1;
         return seen === index ? { ...s, userId: userId || null } : s;
+      }),
+    );
+  };
+
+  // Times are only meaningful in pairs, so clearing one clears the other -
+  // otherwise a half-set row saves as "same as the visit" and silently throws
+  // the time away that somebody just typed.
+  const setSlotTime = (serviceUserId: string, index: number, which: 'startTime' | 'endTime', value: string) => {
+    let seen = -1;
+    onChange(
+      slots.map((s) => {
+        if (s.serviceUserId !== serviceUserId) return s;
+        seen += 1;
+        if (seen !== index) return s;
+        const next = { ...s, [which]: value || null };
+        if (!next.startTime || !next.endTime) {
+          if (!value) return { ...s, startTime: null, endTime: null };
+        }
+        return next;
       }),
     );
   };
@@ -104,10 +132,10 @@ export default function HouseStaffing({ residents, staff, slots, onChange, disab
             {mine.length > 0 && (
               <div className="mt-2 space-y-1.5">
                 {mine.map((slot, i) => (
-                  <div key={`${r.id}-${i}`} className="flex items-center gap-2">
+                  <div key={`${r.id}-${i}`} className="flex flex-wrap items-center gap-2">
                     <span className="text-xs text-gray-400 w-12 shrink-0">Carer {i + 1}</span>
                     <select
-                      className={`input py-1 text-sm flex-1 ${slot.userId ? '' : 'text-gray-500'}`}
+                      className={`input py-1 text-sm flex-1 min-w-[10rem] ${slot.userId ? '' : 'text-gray-500'}`}
                       value={slot.userId ?? ''}
                       disabled={disabled}
                       onChange={(e) => setCarer(r.id, i, e.target.value)}
@@ -119,6 +147,25 @@ export default function HouseStaffing({ residents, staff, slots, onChange, disab
                         </option>
                       ))}
                     </select>
+                    <input
+                      type="time"
+                      className="input py-1 text-sm w-[6.5rem]"
+                      value={slot.startTime ?? ''}
+                      disabled={disabled}
+                      placeholder={visitStart}
+                      title={`Start \u2014 blank means the visit's own time${visitStart ? ` (${visitStart})` : ''}`}
+                      onChange={(e) => setSlotTime(r.id, i, 'startTime', e.target.value)}
+                    />
+                    <span className="text-xs text-gray-400">to</span>
+                    <input
+                      type="time"
+                      className="input py-1 text-sm w-[6.5rem]"
+                      value={slot.endTime ?? ''}
+                      disabled={disabled}
+                      placeholder={visitEnd}
+                      title={`End \u2014 blank means the visit's own time${visitEnd ? ` (${visitEnd})` : ''}`}
+                      onChange={(e) => setSlotTime(r.id, i, 'endTime', e.target.value)}
+                    />
                   </div>
                 ))}
               </div>
@@ -130,6 +177,11 @@ export default function HouseStaffing({ residents, staff, slots, onChange, disab
       <p className="text-xs text-gray-500">
         A carer placed with one resident can still log for any resident in the house — this sets the
         funded staffing level, not who may write a record.
+      </p>
+      <p className="text-xs text-gray-500">
+        Leave a carer's times blank and they work the visit's own hours
+        {visitStart && visitEnd ? ` (${visitStart}–${visitEnd})` : ''}. Fill them in for staggered
+        cover — one carer 7am–3pm, another 2pm–10pm on the same house.
       </p>
     </div>
   );

@@ -178,6 +178,9 @@ export interface ShiftResidentSlot {
   id: string;
   serviceUserId: string;
   userId?: string | null;
+  // This carer's own hours. Null on both = the visit's own times.
+  startTime?: string | null;
+  endTime?: string | null;
   serviceUser?: { id: string; firstName: string; lastName: string };
   user?: { id: string; firstName: string; lastName: string } | null;
 }

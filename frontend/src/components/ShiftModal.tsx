@@ -172,7 +172,12 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
     // Read the kind off the shift itself, never off leftover modal state.
     setTarget(shift?.siteId ? 'house' : 'client');
     setHouseSiteId(shift?.siteId || '');
-    setSlots((shift?.residentSlots ?? []).map((sl) => ({ serviceUserId: sl.serviceUserId, userId: sl.userId ?? null })));
+    setSlots((shift?.residentSlots ?? []).map((sl) => ({
+      serviceUserId: sl.serviceUserId,
+      userId: sl.userId ?? null,
+      startTime: sl.startTime ?? null,
+      endTime: sl.endTime ?? null,
+    })));
     if (shift) {
       reset({
         userId: shift.userId || '',
@@ -552,6 +557,8 @@ export default function ShiftModal({ shift, defaultDate, onClose, onAssignUndo }
                   slots={slots}
                   onChange={(next) => { setSlots(next); setHouseError(null); }}
                   disabled={readOnly}
+                  visitStart={watch('startTime')}
+                  visitEnd={watch('endTime')}
                 />
               )}
 

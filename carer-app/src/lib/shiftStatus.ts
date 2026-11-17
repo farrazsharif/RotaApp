@@ -7,6 +7,28 @@ export function isCallDone(shift: Shift, userId: string | undefined): boolean {
   return !!shift.clockRecords?.some((r) => r.userId === userId && r.clockOut);
 }
 
+// The hours THIS carer works on a visit.
+//
+// A house is covered across the day by carers on staggered shifts - one 7am to
+// 3pm, another 2pm to 10pm - so the visit's own times describe the house, not
+// anybody's shift. Showing a carer the house's span would tell them to be
+// there for fifteen hours.
+//
+// A carer can fill more than one slot on the same house (covering two
+// residents), so take the earliest start and the latest end across their own
+// slots. Falls back to the visit's times, which is what every 1:1 visit and
+// every house slot without its own times uses.
+export function myTimes(shift: Shift, userId?: string): { startTime: string; endTime: string } {
+  const fallback = { startTime: shift.startTime, endTime: shift.endTime };
+  if (!shift.siteId || !userId) return fallback;
+  const mine = (shift.residentSlots ?? []).filter((sl) => sl.userId === userId && sl.startTime && sl.endTime);
+  if (mine.length === 0) return fallback;
+  return {
+    startTime: mine.reduce((a, b) => (b.startTime! < a ? b.startTime! : a), mine[0].startTime!),
+    endTime: mine.reduce((a, b) => (b.endTime! > a ? b.endTime! : a), mine[0].endTime!),
+  };
+}
+
 // What to call a visit. A Supported Living house visit has no client of its
 // own — it covers several residents — so it is named after the house. Reading
 // shift.serviceUser directly leaves those showing as "Service user", which

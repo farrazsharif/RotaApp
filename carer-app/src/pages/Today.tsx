@@ -18,6 +18,7 @@ import { usePendingClock } from '../lib/pendingClock';
 import { formatTime12h } from '../lib/time';
 import { showClockedInNotification, clearClockedInNotification } from '../lib/clockNotification';
 import type { Shift } from '../types';
+import { myTimes } from '../lib/shiftStatus';
 
 function nowMinutes() {
   const d = new Date();
@@ -294,6 +295,9 @@ export default function Today() {
 }
 
 function CallCard({ shift, highlighted, done, clockedIn, coverRequested, showDate, onClick }: { shift: Shift; highlighted: boolean; done: boolean; clockedIn: boolean; coverRequested: boolean; showDate: boolean; onClick: () => void }) {
+  const { user } = useAuth();
+  // On a house visit this carer may work different hours from the house.
+  const mine = myTimes(shift, user?.id);
   const name = shiftTitle(shift);
   // A 1:1 visit shows the client's address. A house visit has no single client,
   // so there is nothing to show here — the house is already the title.
@@ -321,7 +325,7 @@ function CallCard({ shift, highlighted, done, clockedIn, coverRequested, showDat
     >
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 min-w-0">
-          <span className="font-bold text-base">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</span>
+          <span className="font-bold text-base">{formatTime12h(mine.startTime)}–{formatTime12h(mine.endTime)}</span>
           <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0 ${
             active || (highlighted && !done) ? 'bg-white/20' : 'bg-gray-100 text-gray-600'
           }`}>

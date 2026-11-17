@@ -24,6 +24,8 @@ const shiftInclude = {
       id: true,
       serviceUserId: true,
       userId: true,
+      startTime: true,
+      endTime: true,
       serviceUser: { select: { id: true, firstName: true, lastName: true } },
       user: { select: { id: true, firstName: true, lastName: true } },
     },
@@ -252,7 +254,21 @@ function buildRecurringDates(startStr: string, repeat: Repeat): Date[] {
 
 // One requested carer slot on a house shift: which resident it belongs to, and
 // optionally who is filling it.
-export interface SlotInput { serviceUserId: string; userId?: string | null }
+export interface SlotInput {
+  serviceUserId: string;
+  userId?: string | null;
+  // Null means "the visit's own times" - not midnight, not an error.
+  startTime?: string | null;
+  endTime?: string | null;
+}
+
+// HH:MM off the wire. Anything else is dropped rather than stored, because a
+// half-parsed time on a rota is worse than no time at all: it reads as fact.
+function slotTime(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : null;
+}
 
 // Validate the slots asked for against the house they're being booked on.
 // Every resident must actually live there, or a visit could be booked for
@@ -266,7 +282,17 @@ async function validateSlots(siteId: string, slots: unknown): Promise<{ ok: Slot
     const su = (raw as SlotInput)?.serviceUserId;
     if (typeof su !== 'string' || !su) return { error: 'Every carer slot must name a resident' };
     const u = (raw as SlotInput)?.userId;
-    cleaned.push({ serviceUserId: su, userId: typeof u === 'string' && u ? u : null });
+    // Times only mean anything in pairs. One without the other would leave a
+    // visit that starts when the carer does and ends when the house does.
+    const st = slotTime((raw as SlotInput)?.startTime);
+    const en = slotTime((raw as SlotInput)?.endTime);
+    const paired = st && en;
+    cleaned.push({
+      serviceUserId: su,
+      userId: typeof u === 'string' && u ? u : null,
+      startTime: paired ? st : null,
+      endTime: paired ? en : null,
+    });
   }
   const residentIds = [...new Set(cleaned.map((c) => c.serviceUserId))];
   const residents = await prisma.serviceUser.findMany({
@@ -398,6 +424,8 @@ export async function createShift(req: AuthRequest, res: Response) {
         shiftId: sid,
         serviceUserId: sl.serviceUserId,
         userId: sl.userId,
+        startTime: sl.startTime ?? null,
+        endTime: sl.endTime ?? null,
       })),
     );
     const CHUNK = 500;
@@ -752,6 +780,8 @@ export async function setResidentSlots(req: AuthRequest, res: Response) {
       shiftId: sid,
       serviceUserId: sl.serviceUserId,
       userId: sl.userId,
+      startTime: sl.startTime ?? null,
+      endTime: sl.endTime ?? null,
     })),
   );
   const CHUNK = 500;

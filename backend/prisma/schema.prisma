@@ -730,6 +730,13 @@ model ShiftResidentSlot {
   // The carer filling this slot. Null = the slot is still unfilled, which is
   // what the schedule counts as "needs another carer" for this resident.
   userId        String?
+  // This carer's own hours on the house shift, when they differ from the
+  // visit's. Null on both means they work the visit's times - which is what
+  // every existing row does. A house is covered across the day by carers on
+  // staggered shifts (7-3 and 2-10 on the same house), and before this they
+  // all had to share one pair of times.
+  startTime     String?
+  endTime       String?
   createdAt     DateTime @default(now())
 
   shift       Shift       @relation(fields: [shiftId], references: [id], onDelete: Cascade)

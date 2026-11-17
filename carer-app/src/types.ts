@@ -160,6 +160,10 @@ export interface ShiftResidentSlot {
   id: string;
   serviceUserId: string;
   userId?: string | null;
+  // This carer's own hours on a house visit. Null on both = the visit's own
+  // times. See myTimes() in lib/shiftStatus.
+  startTime?: string | null;
+  endTime?: string | null;
   serviceUser?: { id: string; firstName: string; lastName: string };
   user?: { id: string; firstName: string; lastName: string } | null;
 }

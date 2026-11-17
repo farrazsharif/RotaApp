@@ -10,6 +10,7 @@ import { isCallDone, staffing, shiftTitle } from '../lib/shiftStatus';
 import { recordState } from '../lib/visitRecording';
 import { formatTime12h } from '../lib/time';
 import type { Shift } from '../types';
+import { myTimes } from '../lib/shiftStatus';
 
 const fmtSpent = (mins: number) => { const h = Math.floor(mins / 60); const m = Math.round(mins % 60); return h ? `${h}h ${m}m` : `${m}m`; };
 
@@ -166,6 +167,9 @@ export default function Rota() {
 }
 
 function RotaRow({ shift, done, spent, coverRequested, onClick }: { shift: Shift; done: boolean; spent: number | null; coverRequested: boolean; onClick: () => void }) {
+  const { user } = useAuth();
+  // On a house visit this carer may work different hours from the house.
+  const mine = myTimes(shift, user?.id);
   const name = shiftTitle(shift);
   // recorded = a call log exists; record = finished but not recorded yet.
   const state = recordState(shift);
@@ -202,7 +206,7 @@ function RotaRow({ shift, done, spent, coverRequested, onClick }: { shift: Shift
         </div>
       </div>
       <div className="text-right shrink-0 ml-2">
-        <p className="text-sm font-bold text-gray-700">{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}</p>
+        <p className="text-sm font-bold text-gray-700">{formatTime12h(mine.startTime)}–{formatTime12h(mine.endTime)}</p>
         {state === 'recorded' ? (
           <p className="text-xs text-green-600 font-semibold">✓ Recorded{spent != null ? ` · ${fmtSpent(spent)}` : ''}</p>
         ) : state === 'record' ? (

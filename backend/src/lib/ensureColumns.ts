@@ -42,6 +42,11 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // Held-on-paper metadata for the Likes & Dislikes form (JSON, nullable).
   await prisma.$executeRawUnsafe(`ALTER TABLE "LikesDislikes" ADD COLUMN IF NOT EXISTS "paperMeta" TEXT`);
 
+  // Per-carer hours on a Supported Living house shift, when they differ from
+  // the visit's own times. Nullable: null means "the visit's times".
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ShiftResidentSlot" ADD COLUMN IF NOT EXISTS "startTime" TEXT`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ShiftResidentSlot" ADD COLUMN IF NOT EXISTS "endTime" TEXT`);
+
   // The three client-safety fields the CQC gap list called out: allergies,
   // resuscitation status, and Accessible Information Standard needs. All
   // nullable - blank must stay readable as "not recorded".

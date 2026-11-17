@@ -27,6 +27,7 @@ import { supportLogApi } from '../api/supportLog';
 import type { CallLogTaskDef, CallLogTaskTick } from '../lib/callLogTasks';
 import type { MedAdminStatus, CallLogSignature, ClockRecord, DueDose } from '../types';
 import { allergyRecorded, hasAllergies, dnacprLabel, parseComms, commsLabel } from '../lib/clientSafety';
+import { myTimes } from '../lib/shiftStatus';
 
 // Green/amber chips summarising the tasks a carer ticked on a visit.
 function TaskBadges({ tasks }: { tasks?: string | null }) {
@@ -889,6 +890,9 @@ export default function CallDetail() {
   const clockedInElsewhere = !!clockStatus?.clockedIn && clockStatus.record?.shiftId !== shift.id;
   const done = isCallDone(shift, user?.id) || doneShiftIds.includes(shift.id);
   const shiftIsToday = isToday(new Date(shift.date));
+  // On a house visit this carer may work different hours from the house, so
+  // the header shows theirs rather than the building's whole span.
+  const myHours = myTimes(shift, user?.id);
   // A carer can still amend this visit's log for a week after the visit — e.g.
   // to add a task they forgot — even once the call is done. Older records are
   // amended by a manager. Mirrors the backend edit window.
@@ -981,7 +985,7 @@ export default function CallDetail() {
               <span className={`font-semibold ${shiftIsToday ? 'text-blue-600' : 'text-gray-700'}`}>
                 {shiftIsToday ? 'Today' : format(new Date(shift.date), 'EEE d MMM yyyy')}
               </span>
-              {' · '}{formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}
+              {' · '}{formatTime12h(myHours.startTime)}–{formatTime12h(myHours.endTime)}
             </p>
             {done && <span className="text-xs font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Visit Completed</span>}
           </div>
