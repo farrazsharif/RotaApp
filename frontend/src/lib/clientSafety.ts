@@ -20,6 +20,7 @@ export const COMMUNICATION_NEEDS: { key: string; label: string }[] = [
   { key: 'INTERPRETER', label: 'Language interpreter' },
   { key: 'HEARING_LOOP', label: 'Hearing loop' },
   { key: 'HEARING_AID', label: 'Wears a hearing aid' },
+  { key: 'VISUAL_IMPAIRMENT', label: 'Visual impairment' },
   { key: 'GLASSES', label: 'Wears glasses' },
   { key: 'SPEAK_SLOWLY', label: 'Speak slowly, allow time' },
   { key: 'ADVOCATE', label: 'Has an advocate' },
