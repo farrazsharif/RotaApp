@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { clearOutboxFailures, outboxFailures } from '../lib/outbox';
 import { useOnline, usePendingCount } from '../lib/useOffline';
 
@@ -7,6 +8,12 @@ export default function OfflineBanner() {
   const online = useOnline();
   const pending = usePendingCount();
   const failures = outboxFailures();
+  const qc = useQueryClient();
+
+  // How many visits can actually be opened with no signal.
+  const savedVisits = !online
+    ? qc.getQueryCache().getAll().filter((q) => q.queryKey[0] === 'shift' && q.state.data !== undefined).length
+    : 0;
 
   if (online && pending === 0 && failures.length === 0) return null;
 
@@ -19,6 +26,11 @@ export default function OfflineBanner() {
             {pending > 0
               ? `${pending} ${pending === 1 ? 'entry is' : 'entries are'} saved on this phone and will send automatically.`
               : 'Anything you record is saved on this phone and sends automatically.'}
+          </p>
+          <p className="text-xs text-amber-800 mt-0.5">
+            {savedVisits > 0
+              ? `${savedVisits} ${savedVisits === 1 ? 'visit' : 'visits'} saved on this phone and ready to open.`
+              : 'No visits saved yet — open the app once with a signal to save today’s.'}
           </p>
         </div>
       )}

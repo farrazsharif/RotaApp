@@ -833,6 +833,26 @@ export default function CallDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['my-handovers'] }),
   });
 
+  if (!isLoading && !shift) {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    return (
+      <Layout title="Call">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm font-medium text-blue-600">\u2039 Back</button>
+        <div className="mt-6 rounded-2xl bg-white border border-gray-200 p-5 text-center">
+          <p className="text-3xl mb-2">{offline ? '\U0001f4e1' : '\u26a0\ufe0f'}</p>
+          <p className="font-semibold text-gray-800">
+            {offline ? 'Can\u2019t open this visit offline' : 'Could not load this visit'}
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            {offline
+              ? 'It hasn\u2019t been opened on this phone before, so there\u2019s no saved copy. Anything you have already recorded is safe and will still send.'
+              : 'Check your connection and try again.'}
+          </p>
+        </div>
+      </Layout>
+    );
+  }
+
   if (isLoading || !shift) {
     return (
       <Layout title="Call">

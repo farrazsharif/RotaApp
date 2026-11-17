@@ -7,6 +7,8 @@ import CoverRequests from '../components/CoverRequests';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import LiveInPlacementCard from '../components/LiveInPlacementCard';
 import { clockApi } from '../api/clock';
+import { shiftDetailApi } from '../api/shiftDetail';
+import { useOnline } from '../lib/useOffline';
 import { handoversApi } from '../api/handovers';
 import { myShiftsQuery } from '../lib/shiftsQuery';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,6 +53,7 @@ export default function Today() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const online = useOnline();
 
   const { data: calls = [], isLoading } = useQuery({
     queryKey: ['my-calls'],
@@ -98,23 +101,61 @@ export default function Today() {
     (handovers?.outgoing ?? []).filter((h) => h.status === 'PENDING').map((h) => h.shiftId),
   );
 
-  // Shared shift query (also used by Rota / My Hours) drives the hours totals.
+  // Make every one of today's visits openable with no signal. The persisted
+  // cache only ever holds what has actually been fetched, so without this a
+  // carer who never tapped a visit while they had reception gets nothing when
+  // they arrive at the door — which is the whole point of caching. Measured at
+  // ~310KB for the busiest day in the data against a ~5MB ceiling.
+  //
+  // The client's call-log history is deliberately NOT prefetched: that endpoint
+  // is unbounded, so a long-standing client could pull megabytes on their own
+  // and overflow the cache again. Writing a new log offline doesn't need it.
+  const callIds = [...calls]
+    .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime))
+    .map((c) => c.id)
+    .join(',');
+  useEffect(() => {
+    if (!online || !callIds) return;
+    let stopped = false;
+    (async () => {
+      // Soonest first, so the next visit is safe before the far end of the day.
+      for (const sid of callIds.split(',')) {
+        if (stopped) return;
+        await Promise.all([
+          qc.prefetchQuery({ queryKey: ['shift', sid], queryFn: () => shiftDetailApi.get(sid) }),
+          qc.prefetchQuery({ queryKey: ['shift-meds', sid], queryFn: () => clockApi.shiftMeds(sid) }),
+        ]);
+      }
+    })();
+    return () => { stopped = true; };
+  }, [online, callIds, qc]);
+
+  // Shared shift query (also used by Rota / My Hours) drives the week total.
+  // Deliberately not persisted for offline use: it is 8 weeks of visits,
+  // measured at 2.3MB, which overflows localStorage on its own and takes the
+  // entire cache down with it (see main.tsx). So with no signal there is no
+  // week total to show, and the tile says so rather than quietly claiming zero.
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const { data: weekShifts = [] } = useQuery({
+  const { data: weekShifts } = useQuery({
     ...myShiftsQuery(user?.id ?? ''),
     enabled: !!user,
   });
 
-  const inWeek = weekShifts.filter((s) => {
+  const inWeek = (weekShifts ?? []).filter((s) => {
     const d = new Date(s.date);
     return d >= weekStart && d < addDays(weekStart, 7) && s.status !== 'CANCELLED';
   });
   const weekMins = inWeek.reduce((sum, s) => sum + durationMins(s), 0);
-  const todayMins = inWeek.filter((s) => isSameDay(new Date(s.date), new Date())).reduce((sum, s) => sum + durationMins(s), 0);
+  // Today's hours come from the day's own calls, which ARE cached — so this
+  // tile keeps working with no signal even when the week total cannot.
+  const todayMins = calls
+    .filter((s) => isSameDay(new Date(s.date), new Date()) && s.status !== 'CANCELLED')
+    .reduce((sum, s) => sum + durationMins(s), 0);
 
   // Past visits with no call log yet — nagged until recorded (tap goes to My
-  // Hours, where the full "to record" list and record buttons live).
-  const toRecord = unrecordedVisits(weekShifts);
+  // Hours, where the full "to record" list and record buttons live). Empty with
+  // no signal, since the 8-week query it reads is not persisted.
+  const toRecord = unrecordedVisits(weekShifts ?? []);
 
   async function refresh() {
     setRefreshing(true);
@@ -192,7 +233,11 @@ export default function Today() {
         </div>
         <div className="rounded-2xl bg-white border border-gray-200 shadow-sm px-4 py-3 text-center">
           <p className="text-xs text-gray-500">This week</p>
-          <p className="text-xl font-bold text-gray-800">{fmtHours(weekMins)}h</p>
+          {weekShifts === undefined ? (
+            <p className="text-xl font-bold text-gray-300" title="Not available offline">—</p>
+          ) : (
+            <p className="text-xl font-bold text-gray-800">{fmtHours(weekMins)}h</p>
+          )}
         </div>
       </div>
 

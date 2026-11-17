@@ -39,7 +39,30 @@ if (!isNativeApp) {
 // Keep a week of cached data on the device so the app opens and works with no
 // signal (rota, visit details, due meds) instead of showing empty screens.
 const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000
-const persister = createSyncStoragePersister({ storage: window.localStorage, key: CARER_CACHE_KEY })
+
+// localStorage allows roughly 5MB per origin for the WHOLE cache. The
+// 'my-shifts' query alone is 8 weeks of visits with the full include -
+// measured at 2.3MB for a busy carer - and once the total goes over, setItem
+// throws QuotaExceededError, the write is abandoned and NOTHING is persisted.
+// The app then opens empty with no signal, which is the exact failure the
+// cache exists to prevent.
+//
+// So persist only what a carer actually needs in a building with no reception:
+// today's visits, the visit they are on, its meds and the client's recent
+// logs. The 8-week rota is a planning view - useful, but not worth losing the
+// lot for.
+const NEVER_PERSIST = new Set(['my-shifts'])
+
+// A quota failure must degrade, not throw: losing one write is survivable,
+// taking the app down on a cache write is not.
+const storage = {
+  getItem: (k: string) => window.localStorage.getItem(k),
+  removeItem: (k: string) => window.localStorage.removeItem(k),
+  setItem: (k: string, v: string) => {
+    try { window.localStorage.setItem(k, v) } catch { /* over quota - skip this write */ }
+  },
+}
+const persister = createSyncStoragePersister({ storage, key: CARER_CACHE_KEY })
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,9 +72,9 @@ const queryClient = new QueryClient({
       // from cache instead of spinner + refetch. Live changes still come through
       // the socket (LiveSync invalidates), and each screen has a manual refresh.
       staleTime: 60_000,
-      // Keep cached data for 30 min so returning to a screen is instant.
-      // Must be >= the persisted maxAge below, or restored entries are
-      // garbage-collected before the app can use them offline.
+      // Keep cached data for as long as it is persisted. gcTime must be >= the
+      // persisted maxAge below, or restored entries are garbage-collected
+      // before the app can use them offline.
       gcTime: CACHE_MAX_AGE,
     },
   },
@@ -62,7 +85,17 @@ startOutbox()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: CACHE_MAX_AGE, buster: 'v1' }}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{
+      persister,
+      maxAge: CACHE_MAX_AGE,
+      // Bumped so any cache written under the old all-in scheme is discarded
+      // rather than carried forward half-written.
+      buster: 'v2',
+      dehydrateOptions: {
+        shouldDehydrateQuery: (q) =>
+          q.state.status === 'success' && !NEVER_PERSIST.has(String(q.queryKey[0])),
+      },
+    }}>
       <App />
     </PersistQueryClientProvider>
   </StrictMode>,
