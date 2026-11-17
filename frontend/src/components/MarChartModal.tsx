@@ -97,23 +97,27 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
     return admins.find((a) => a.medicationId === medicationId && new Date(a.scheduledFor).getTime() === target);
   };
 
-  // Everything given for a PRN on one day.
+  // The times an as-required medication was actually recorded at this month.
   //
-  // A scheduled dose is matched to its exact slot; an as-required dose has no
-  // slot to match, so the day is the only key there is. Without this the PRN
-  // row printed empty however many times the medication was actually given -
-  // signed for in the app, blank on the chart that gets read in an
-  // inspection, which is the worst of both.
-  const prnRecordsFor = (medicationId: string, day: number) => {
-    if (day > daysInMonth) return [];
-    const dayUTC = Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), day);
-    return admins
-      .filter((a) => {
-        if (a.medicationId !== medicationId) return false;
-        const t = new Date(a.scheduledFor);
-        return Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) === dayUTC;
-      })
-      .sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor));
+  // A PRN has no set times, so there was nothing to use as row labels - hence
+  // one flat "PRN" row that could only stack a day's initials on top of each
+  // other, with no way to tell 09:30 from 21:00. But the server anchors a PRN
+  // dose to the START OF THE VISIT it was given on (clockController), so in
+  // practice these are the client's own visit times: four or five in a month,
+  // not sixty. That makes them usable as row labels, and the chart then reads
+  // exactly like every scheduled medication on it.
+  //
+  // Read in UTC to match recordFor, which builds its comparison the same way.
+  const prnTimesFor = (medicationId: string): string[] => {
+    const set = new Set<string>();
+    for (const a of admins) {
+      if (a.medicationId !== medicationId) continue;
+      const day = dUTC(a.scheduledFor);
+      if (day < monthStartUTC || day > monthEndUTC) continue;
+      const t = new Date(a.scheduledFor);
+      set.add(`${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}`);
+    }
+    return [...set].sort();
   };
 
   // Day-granularity UTC helpers (dose matching everywhere uses UTC).
@@ -165,12 +169,17 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         </thead>
         <tbody>
           ${times.length === 0
-            ? `<tr><td class="time-col">PRN</td>${days.map((d) => {
-                if (d > daysInMonth || outsideActiveWindow(med, d)) return '<td class="invalid-day"></td>';
-                const recs = prnRecordsFor(med.id, d);
-                if (recs.length === 0) return '<td></td>';
-                return `<td>${recs.map((r) => `<div style="color:${STATUS_COLOR[r.status]};font-size:9px;line-height:1.1">${esc(initialsFor(r))}</div>`).join('')}</td>`;
-              }).join('')}</tr>`
+            ? (prnTimesFor(med.id).length === 0 ? [null] : prnTimesFor(med.id)).map((t) => `
+              <tr>
+                <td class="time-col">${t ? esc(formatTime12h(t)) : 'PRN'}</td>
+                ${days.map((d) => {
+                  if (d > daysInMonth || outsideActiveWindow(med, d)) return '<td class="invalid-day"></td>';
+                  const rec = t ? recordFor(med.id, d, t) : undefined;
+                  if (!rec) return '<td></td>';
+                  return `<td style="color:${STATUS_COLOR[rec.status]}">${esc(initialsFor(rec))}</td>`;
+                }).join('')}
+              </tr>
+            `).join('')
             : times.map((t) => `
               <tr>
                 <td class="time-col">${esc(formatTime12h(t))}</td>
@@ -278,30 +287,32 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                   </thead>
                   <tbody>
                     {times.length === 0 ? (
-                      <tr>
-                        <td className="border border-gray-300 px-2 py-1.5 font-medium">PRN</td>
-                        {days.map((d) => {
-                          if (d > daysInMonth || outsideActiveWindow(med, d)) {
-                            return <td key={d} className="border border-gray-300 bg-gray-200" />;
-                          }
-                          const recs = prnRecordsFor(med.id, d);
-                          return (
-                            <td
-                              key={d}
-                              className="border border-gray-300 text-center font-bold leading-tight"
-                              title={recs.length
-                                ? recs.map((r) => `${format(new Date(r.scheduledFor), 'HH:mm')} ${STATUS_LABEL[r.status]}${r.user ? ` · ${r.user.firstName} ${r.user.lastName}` : ''}`).join('\n')
-                                : undefined}
-                            >
-                              {recs.map((r) => (
-                                <span key={r.id} className="block text-[10px]" style={{ color: STATUS_COLOR[r.status] }}>
-                                  {initialsFor(r)}
-                                </span>
-                              ))}
-                            </td>
-                          );
-                        })}
-                      </tr>
+                      (prnTimesFor(med.id).length === 0
+                        ? [null]
+                        : prnTimesFor(med.id)
+                      ).map((t) => (
+                        <tr key={t ?? 'prn'}>
+                          <td className="border border-gray-300 px-2 py-1.5 font-medium whitespace-nowrap">
+                            {t ? formatTime12h(t) : 'PRN'}
+                          </td>
+                          {days.map((d) => {
+                            if (d > daysInMonth || outsideActiveWindow(med, d)) {
+                              return <td key={d} className="border border-gray-300 bg-gray-200" />;
+                            }
+                            const rec = t ? recordFor(med.id, d, t) : undefined;
+                            return (
+                              <td
+                                key={d}
+                                className="border border-gray-300 text-center font-bold"
+                                style={rec ? { color: STATUS_COLOR[rec.status] } : undefined}
+                                title={rec ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}` : undefined}
+                              >
+                                {rec ? initialsFor(rec) : ''}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))
                     ) : (
                       times.map((t) => (
                         <tr key={t}>
