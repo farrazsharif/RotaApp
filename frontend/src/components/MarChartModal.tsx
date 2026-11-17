@@ -97,6 +97,25 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
     return admins.find((a) => a.medicationId === medicationId && new Date(a.scheduledFor).getTime() === target);
   };
 
+  // Everything given for a PRN on one day.
+  //
+  // A scheduled dose is matched to its exact slot; an as-required dose has no
+  // slot to match, so the day is the only key there is. Without this the PRN
+  // row printed empty however many times the medication was actually given -
+  // signed for in the app, blank on the chart that gets read in an
+  // inspection, which is the worst of both.
+  const prnRecordsFor = (medicationId: string, day: number) => {
+    if (day > daysInMonth) return [];
+    const dayUTC = Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), day);
+    return admins
+      .filter((a) => {
+        if (a.medicationId !== medicationId) return false;
+        const t = new Date(a.scheduledFor);
+        return Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) === dayUTC;
+      })
+      .sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor));
+  };
+
   // Day-granularity UTC helpers (dose matching everywhere uses UTC).
   const dUTC = (iso: string) => { const d = new Date(iso); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
   const monthStartUTC = Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), 1);
@@ -146,7 +165,12 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         </thead>
         <tbody>
           ${times.length === 0
-            ? `<tr><td class="time-col">PRN</td>${days.map((d) => `<td${d > daysInMonth || outsideActiveWindow(med, d) ? ' class="invalid-day"' : ''}></td>`).join('')}</tr>`
+            ? `<tr><td class="time-col">PRN</td>${days.map((d) => {
+                if (d > daysInMonth || outsideActiveWindow(med, d)) return '<td class="invalid-day"></td>';
+                const recs = prnRecordsFor(med.id, d);
+                if (recs.length === 0) return '<td></td>';
+                return `<td>${recs.map((r) => `<div style="color:${STATUS_COLOR[r.status]};font-size:9px;line-height:1.1">${esc(initialsFor(r))}</div>`).join('')}</td>`;
+              }).join('')}</tr>`
             : times.map((t) => `
               <tr>
                 <td class="time-col">${esc(formatTime12h(t))}</td>
@@ -256,7 +280,27 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                     {times.length === 0 ? (
                       <tr>
                         <td className="border border-gray-300 px-2 py-1.5 font-medium">PRN</td>
-                        {days.map((d) => <td key={d} className={`border border-gray-300 ${d > daysInMonth || outsideActiveWindow(med, d) ? 'bg-gray-200' : ''}`} />)}
+                        {days.map((d) => {
+                          if (d > daysInMonth || outsideActiveWindow(med, d)) {
+                            return <td key={d} className="border border-gray-300 bg-gray-200" />;
+                          }
+                          const recs = prnRecordsFor(med.id, d);
+                          return (
+                            <td
+                              key={d}
+                              className="border border-gray-300 text-center font-bold leading-tight"
+                              title={recs.length
+                                ? recs.map((r) => `${format(new Date(r.scheduledFor), 'HH:mm')} ${STATUS_LABEL[r.status]}${r.user ? ` · ${r.user.firstName} ${r.user.lastName}` : ''}`).join('\n')
+                                : undefined}
+                            >
+                              {recs.map((r) => (
+                                <span key={r.id} className="block text-[10px]" style={{ color: STATUS_COLOR[r.status] }}>
+                                  {initialsFor(r)}
+                                </span>
+                              ))}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ) : (
                       times.map((t) => (
