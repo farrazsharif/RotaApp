@@ -116,6 +116,19 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
       .sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor));
   };
 
+  // Every as-required dose in the displayed month, in order. The grid shows
+  // WHICH days a PRN was needed; it cannot show WHEN, because a day column is
+  // thirty pixels wide and a day can carry four doses. A paper MAR solves
+  // this with a separate PRN record sheet, and so does this.
+  const prnLogFor = (medicationId: string) =>
+    admins
+      .filter((a) => {
+        if (a.medicationId !== medicationId) return false;
+        const t = dUTC(a.scheduledFor);
+        return t >= monthStartUTC && t <= monthEndUTC;
+      })
+      .sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor));
+
   // Day-granularity UTC helpers (dose matching everywhere uses UTC).
   const dUTC = (iso: string) => { const d = new Date(iso); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
   const monthStartUTC = Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), 1);
@@ -189,6 +202,12 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
           }
         </tbody>
       </table>
+      ${times.length === 0 && prnLogFor(med.id).length > 0
+        ? `<div class="prn-log">
+             <div class="prn-log-title">When it was given</div>
+             ${prnLogFor(med.id).map((r) => `<div class="prn-log-row"><span class="prn-when">${esc(format(new Date(r.scheduledFor), 'd MMM'))} \u00b7 ${esc(format(new Date(r.scheduledFor), 'HH:mm'))}</span> <span style="color:${STATUS_COLOR[r.status]}">${esc(STATUS_LABEL[r.status])}</span>${r.user ? ` <span class="prn-who">${esc(`${r.user.firstName} ${r.user.lastName}`)}</span>` : ''}${r.note ? ` <span class="prn-who">\u201c${esc(r.note)}\u201d</span>` : ''}</div>`).join('')}
+           </div>`
+        : ''}
       <div class="dates-row">
         <span>Date Commenced: ${med.startDate ? esc(format(new Date(med.startDate), 'dd MMM yyyy')) : '—'}</span>
         <span>Date Discontinued: ${med.endDate ? esc(format(new Date(med.endDate), 'dd MMM yyyy')) : '—'}</span>
@@ -209,6 +228,13 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         .time-col { text-align: left; font-weight: bold; white-space: nowrap; padding-left: 6px; min-width: 70px; }
         .invalid-day { background: #eee; }
         .dates-row { display: flex; justify-content: space-between; font-size: 11px; border: 1px solid #333; padding: 6px; margin-top: -1px; }
+        /* The as-required record sheet under a PRN grid: two columns where the
+           page allows, so a busy month does not run on for half a page. */
+        .prn-log { border: 1px solid #333; border-top: 0; padding: 6px; font-size: 10px; column-count: 2; column-gap: 18px; }
+        .prn-log-title { font-weight: bold; font-size: 10px; margin-bottom: 3px; column-span: all; }
+        .prn-log-row { break-inside: avoid; line-height: 1.5; }
+        .prn-when { font-weight: bold; }
+        .prn-who { color: #555; }
         .legend { display: flex; gap: 16px; font-size: 11px; margin-top: 16px; flex-wrap: wrap; }
         .legend span { font-weight: bold; }
         /* Pack as many medications onto a page as fit; only break to a new page
@@ -337,6 +363,23 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                     )}
                   </tbody>
                 </table>
+                {times.length === 0 && prnLogFor(med.id).length > 0 && (
+                  <div className="border border-gray-300 border-t-0 px-2 py-1.5">
+                    <p className="text-[11px] font-semibold text-gray-600 mb-1">When it was given</p>
+                    <div className="grid gap-x-4 gap-y-0.5 text-xs" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(15rem, 1fr))' }}>
+                      {prnLogFor(med.id).map((r) => (
+                        <div key={r.id} className="flex items-baseline gap-2 whitespace-nowrap">
+                          <span className="font-medium text-gray-700 w-24 shrink-0">
+                            {format(new Date(r.scheduledFor), 'd MMM')} · {format(new Date(r.scheduledFor), 'HH:mm')}
+                          </span>
+                          <span style={{ color: STATUS_COLOR[r.status] }}>{STATUS_LABEL[r.status]}</span>
+                          {r.user && <span className="text-gray-500">{r.user.firstName} {r.user.lastName}</span>}
+                          {r.note && <span className="text-gray-500 italic truncate">“{r.note}”</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between text-xs text-gray-500 border border-gray-300 border-t-0 px-2 py-1.5">
                   <span>Date Commenced: {med.startDate ? format(new Date(med.startDate), 'dd MMM yyyy') : '—'}</span>
                   <span>Date Discontinued: {med.endDate ? format(new Date(med.endDate), 'dd MMM yyyy') : '—'}</span>
