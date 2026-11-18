@@ -96,6 +96,12 @@ const CONTENT_TYPES: Record<string, string> = {
 
 const MAX_BYTES = 20 * 1024 * 1024;
 
+// The only categories that hold more than one document. Two references and
+// two forms of ID are the normal case, training certificates accumulate, and
+// Other is a drawer. Everywhere else a second document is a duplicate: there
+// is one offer letter, one contract, one payroll form.
+const MULTI_DOCUMENT = new Set<string>(['Reference', 'ID', 'Training Certificate', 'Other']);
+
 interface StaffUser {
   id: string;
   firstName: string;
@@ -242,8 +248,8 @@ export function registerStaffFileTools(server: McpServer) {
       description:
         'Uploads one PDF or image to a staff member and files it under a category, which is what satisfies a Reg 19 staff-file requirement. ' +
         'The category has to be the one Caremid checks for - "Staff Induction Confirmation", not "Induction" - or the document lands where nothing looks for it. ' +
-        'A file already on that person under the same category and file name is skipped rather than duplicated, so a part-finished import can simply be run again. ' +
-        'Several documents can legitimately share a category (two references, two forms of ID); only an identical name is treated as already done. ' +
+        'Nothing is uploaded twice: a document is skipped if the same bytes are already on that person under any name, if the same file name is already in that category, or if the category holds only one document and already has one. ' +
+        'So a part-finished import can simply be run again, and only References, ID, Training Certificate and Other ever accumulate more than one file. ' +
         'Only set expires_at from a date printed on the document. A guessed expiry has the file report itself as current when nobody has checked. ' +
         'Example: { staff: "Shazia Zafar", category: "Payroll Form", file: "C:\\\\staff\\\\Shazia Zafar\\\\Payroll Form.pdf" }',
       inputSchema: z.strictObject({
@@ -272,13 +278,52 @@ export function registerStaffFileTools(server: McpServer) {
         { ownerType: 'USER', ownerId: user.id },
         ctx.mcpReq.signal,
       );
-      const already = existing.find((d) => d.category === args.category && d.fileName === file.fileName);
-      if (already) {
-        return result(
-          args.response_format as Format,
-          `Skipped: **${name}** already has **${file.fileName}** filed under ${args.category}.`,
-          { skipped: true, reason: 'already on file', staff: name, document: already },
+      // Three ways the same document is already there, checked before
+      // anything is sent. A staff file that holds the same page twice is a
+      // file somebody has to read twice to be sure, and nothing here can
+      // delete the second copy afterwards.
+      const skip = (reason: string, document: DocumentRow, detail: string) =>
+        result(args.response_format as Format, `Skipped: ${detail}`, {
+          skipped: true,
+          reason,
+          staff: name,
+          document,
+        });
+
+      // Byte-for-byte the same file, wherever it happens to be filed. This is
+      // the one that catches the same document saved under another name.
+      const sameBytes = existing.find((d) => d.size === file.bytes.byteLength);
+      if (sameBytes) {
+        return skip(
+          'the same document is already on file',
+          sameBytes,
+          `**${name}** already holds this exact document as **${sameBytes.fileName}**` +
+            `${sameBytes.category ? ` under ${sameBytes.category}` : ''}.`,
         );
+      }
+
+      const sameName = existing.find((d) => d.category === args.category && d.fileName === file.fileName);
+      if (sameName) {
+        return skip(
+          'already on file',
+          sameName,
+          `**${name}** already has **${file.fileName}** filed under ${args.category}.`,
+        );
+      }
+
+      // A category that only ever holds one thing, and it is already held.
+      // Replacing it is not this tool's job, so it says what is there and
+      // leaves the decision to a person.
+      if (!MULTI_DOCUMENT.has(args.category)) {
+        const held = existing.find((d) => d.category === args.category);
+        if (held) {
+          return skip(
+            'that category is already filled',
+            held,
+            `**${name}** already has a ${args.category} on file (**${held.fileName}**). ` +
+              'Only one is expected, so this was not added. Remove the old one in Caremid first if it should be replaced.',
+          );
+        }
       }
 
       const created = await apiPostFile<DocumentRow>('documents', file, ctx.mcpReq.signal, {
