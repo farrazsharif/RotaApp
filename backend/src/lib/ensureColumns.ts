@@ -108,6 +108,59 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP NOT NULL`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP DEFAULT`);
 
+  // Care audits and the service improvement plan (Reg 17).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Audit" (
+      "companyId" TEXT,
+      "id" TEXT NOT NULL,
+      "type" TEXT NOT NULL,
+      "title" TEXT,
+      "scope" TEXT,
+      "periodStart" TIMESTAMP(3),
+      "periodEnd" TIMESTAMP(3),
+      "auditedById" TEXT NOT NULL,
+      "auditedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "score" INTEGER,
+      "maxScore" INTEGER,
+      "findings" TEXT,
+      "nextDueDate" TIMESTAMP(3),
+      "status" TEXT NOT NULL DEFAULT 'OPEN',
+      "attachments" TEXT NOT NULL DEFAULT '[]',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Audit_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Audit_companyId_type_idx" ON "Audit"("companyId", "type")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Audit_companyId_nextDueDate_idx" ON "Audit"("companyId", "nextDueDate")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Audit_companyId_auditedAt_idx" ON "Audit"("companyId", "auditedAt")`);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "ImprovementAction" (
+      "companyId" TEXT,
+      "id" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "detail" TEXT,
+      "source" TEXT NOT NULL DEFAULT 'OTHER',
+      "auditId" TEXT,
+      "ownerId" TEXT,
+      "dueDate" TIMESTAMP(3),
+      "priority" TEXT NOT NULL DEFAULT 'MEDIUM',
+      "status" TEXT NOT NULL DEFAULT 'OPEN',
+      "evidence" TEXT,
+      "completedAt" TIMESTAMP(3),
+      "completedById" TEXT,
+      "createdById" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "ImprovementAction_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ImprovementAction_companyId_status_idx" ON "ImprovementAction"("companyId", "status")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ImprovementAction_companyId_dueDate_idx" ON "ImprovementAction"("companyId", "dueDate")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ImprovementAction_auditId_idx" ON "ImprovementAction"("auditId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ImprovementAction_ownerId_idx" ON "ImprovementAction"("ownerId")`);
+
   // The policy library and its signatures (Reg 17).
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "Policy" (

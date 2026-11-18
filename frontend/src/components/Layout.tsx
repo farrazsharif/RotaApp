@@ -29,6 +29,7 @@ const navItems: { to: string; label: string; icon: string; exact?: boolean; capa
   { to: '/time-off', label: 'Time Off', icon: '🏖️', capability: 'manage_time_off' },
   { to: '/reports', label: 'Reports', icon: '📊', capability: 'view_reports' },
   { to: '/cqc', label: 'CQC', icon: '🛡️', capability: 'manage_cqc' },
+  { to: '/governance', label: 'Governance', icon: '🧭', capability: 'manage_cqc' },
   { to: '/finances', label: 'Finances', icon: '💷', capability: 'manage_billing' },
   { to: '/users', label: 'Staff', icon: '👥', capability: 'manage_staff' },
   { to: '/training', label: 'Training', icon: '🎓', capability: 'manage_staff' },

@@ -121,6 +121,10 @@ model User {
   chartEntries       CareChartEntry[]      @relation("ChartRecorder")
   policiesOwned      Policy[]              @relation("PolicyOwner")
   policySignatures   PolicyAcknowledgement[]
+  auditsCarriedOut   Audit[]               @relation("Auditor")
+  actionsOwned       ImprovementAction[]   @relation("ActionOwner")
+  actionsRaised      ImprovementAction[]   @relation("ActionRaiser")
+  actionsCompleted   ImprovementAction[]   @relation("ActionCompleter")
   capacityAssessed   CapacityAssessment[]  @relation("CapacityAssessor")
   capacityDecided    CapacityAssessment[]  @relation("CapacityDecider")
   authoritiesChecked LegalAuthority[]      @relation("AuthorityChecker")
@@ -1857,4 +1861,101 @@ model PolicyAcknowledgement {
   @@unique([policyId, userId, version])
   @@index([companyId, userId])
   @@index([policyId])
+}
+
+// A care audit (Reg 17).
+//
+// Not a checklist engine. What Reg 17 tests is that audits HAPPEN on a cycle,
+// that they find things, and that the things found get fixed - so the record
+// is the audit, its findings, and when the next one is due, with the real
+// work carried by the actions it raises. A structured form per audit type
+// would be a lot of scaffolding around the part that already works on paper.
+model Audit {
+  companyId String? // tenant scope (app-enforced via Prisma extension)
+  id        String  @id @default(cuid())
+
+  // CARE_PLAN | MAR | DAILY_NOTES | RECRUITMENT_FILE | CALL_MONITORING |
+  // MEDICATION | SAFEGUARDING | IPC | HEALTH_SAFETY | COMPLAINTS | OTHER
+  type  String
+  title String?
+
+  // What was looked at, and over what period. "Six care plans across two
+  // sites" is the line that makes an audit checkable later.
+  scope       String?
+  periodStart DateTime?
+  periodEnd   DateTime?
+
+  auditedById String
+  auditedAt   DateTime @default(now())
+
+  // Optional, because not every audit scores. Where one does, the pair is
+  // what makes two audits comparable.
+  score    Int?
+  maxScore Int?
+
+  findings String?
+  // When this audit should next run. The field the schedule is built from:
+  // an audit with no next date is an audit that happened once.
+  nextDueDate DateTime?
+
+  // OPEN | COMPLETE
+  status      String   @default("OPEN")
+  attachments String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  auditedBy User                @relation("Auditor", fields: [auditedById], references: [id], onDelete: Cascade)
+  actions   ImprovementAction[]
+
+  @@index([companyId, type])
+  @@index([companyId, nextDueDate])
+  @@index([companyId, auditedAt])
+}
+
+// The service improvement plan (Reg 17).
+//
+// One table for every action the service owes itself, wherever it came from:
+// an audit, a complaint, a safeguarding concern, an incident, an inspection,
+// or somebody noticing something. Keeping them together is the point - an
+// improvement plan split by origin is five lists nobody reads as one, and
+// "what are you doing about it" is a single question.
+model ImprovementAction {
+  companyId String? // tenant scope (app-enforced via Prisma extension)
+  id        String  @id @default(cuid())
+
+  title  String
+  detail String?
+
+  // AUDIT | COMPLAINT | SAFEGUARDING | INCIDENT | FEEDBACK | INSPECTION | OTHER
+  source  String  @default("OTHER")
+  auditId String?
+
+  ownerId String?
+  dueDate DateTime?
+  // LOW | MEDIUM | HIGH
+  priority String @default("MEDIUM")
+
+  // OPEN | IN_PROGRESS | DONE | CANCELLED
+  status String @default("OPEN")
+
+  // What proves it was done. Required to close: an action marked done with
+  // nothing behind it is the thing an inspector finds, because the plan then
+  // reads as a list of good intentions.
+  evidence      String?
+  completedAt   DateTime?
+  completedById String?
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  audit       Audit? @relation(fields: [auditId], references: [id], onDelete: SetNull)
+  owner       User?  @relation("ActionOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdBy   User   @relation("ActionRaiser", fields: [createdById], references: [id], onDelete: Cascade)
+  completedBy User?  @relation("ActionCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([companyId, dueDate])
+  @@index([auditId])
+  @@index([ownerId])
 }

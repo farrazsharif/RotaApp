@@ -60,7 +60,7 @@ export async function computeReadiness() {
   const staffLink = (s: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: s.id, label: `${s.firstName} ${s.lastName}`, link: `/users/${s.id}` });
 
   // --- Load supporting data in parallel ---
-  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, policies, policyAcks, capacityRows, authorities, feedback, incidents] = await Promise.all([
+  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, audits, openActions, policies, policyAcks, capacityRows, authorities, feedback, incidents] = await Promise.all([
     prisma.carePlan.findMany({ select: { serviceUserId: true, reviewDate: true } }),
     prisma.riskAssessment.findMany({ select: { serviceUserId: true, type: true } }),
     prisma.likesDislikes.findMany({ select: { serviceUserId: true } }),
@@ -78,6 +78,14 @@ export async function computeReadiness() {
     // Last 12 months only. This measures how the office is handling candour
     // now, not every incident ever filed - and the columns did not exist
     // before this shipped, so older rows would all read as undecided.
+    prisma.audit.findMany({
+      select: { id: true, type: true, title: true, auditedAt: true, nextDueDate: true, status: true },
+      orderBy: { auditedAt: 'desc' },
+    }),
+    prisma.improvementAction.findMany({
+      where: { status: { in: ['OPEN', 'IN_PROGRESS'] } },
+      select: { id: true, title: true, dueDate: true, priority: true },
+    }),
     prisma.policy.findMany({
       where: { status: 'ACTIVE' },
       select: { id: true, title: true, version: true, reviewDate: true, audience: true, requiresAck: true },
@@ -113,6 +121,26 @@ export async function computeReadiness() {
       orderBy: { occurredAt: 'desc' },
     }),
   ]);
+
+  // Audits and the improvement plan (Reg 17). The loop an inspector follows:
+  // are audits happening on a cycle, and did what they found get fixed.
+  //
+  // The schedule is read from the LATEST audit of each type, because that is
+  // the one carrying the next due date. An older one being overdue says
+  // nothing once a newer one has been done.
+  const latestAuditByType = new Map<string, typeof audits[number]>();
+  for (const a of audits) if (!latestAuditByType.has(a.type)) latestAuditByType.set(a.type, a);
+  const latestAudits = [...latestAuditByType.values()];
+  const auditsDue = latestAudits.filter((a) => a.nextDueDate && a.nextDueDate < now());
+  const auditLink = (a: { id: string; type: string; title: string | null }): CheckItem => ({
+    id: a.id,
+    label: a.title || a.type.replace(/_/g, ' ').toLowerCase(),
+    link: '/governance',
+  });
+  const actionsOverdue = openActions.filter((a) => a.dueDate && a.dueDate < now());
+  const actionLink = (a: { id: string; title: string }): CheckItem => ({
+    id: a.id, label: a.title, link: '/governance',
+  });
 
   // Policies (Reg 17). Two questions: are they in date, and has anyone read
   // them. Signatures are counted against the CURRENT version only - counting
@@ -410,6 +438,34 @@ export async function computeReadiness() {
     staffCheck('supervision_overdue', 'Staff supervisions up to date', 'Safe and effective staffing · Reg 18',
       (s) => { const d = latestSup.get(s.id); return d === undefined || d === null || d < now(); }, true,
       (n) => n ? `${n} staff member(s) are overdue (or have no) supervision.` : 'All staff supervisions are up to date.'),
+    {
+      id: 'audit_programme', title: 'Care audits carried out', statement: 'Governance · Reg 17',
+      status: audits.length === 0 ? 'red' : 'green', count: audits.length, total: audits.length,
+      detail: audits.length
+        ? `${audits.length} audit(s) recorded, across ${latestAudits.length} area(s).`
+        : 'No audits recorded. Reg 17 asks for regular checks on care plans, MAR charts, daily notes, recruitment files and call monitoring.',
+      items: [],
+    },
+    {
+      id: 'audit_due', title: 'Audits in date', statement: 'Governance · Reg 17',
+      status: auditsDue.length ? 'amber' : 'green', count: auditsDue.length, total: latestAudits.length,
+      detail: auditsDue.length
+        ? `${auditsDue.length} audit(s) are past the date they were due to run again.`
+        : latestAudits.length
+          ? 'Every audit area is within its schedule.'
+          : 'No audit schedule set.',
+      items: auditsDue.slice(0, CAP).map(auditLink),
+    },
+    {
+      id: 'improvement_actions', title: 'Improvement actions on time', statement: 'Governance · Reg 17',
+      status: actionsOverdue.length ? 'red' : 'green', count: actionsOverdue.length, total: openActions.length,
+      detail: actionsOverdue.length
+        ? `${actionsOverdue.length} improvement action(s) are past their due date.`
+        : openActions.length
+          ? `${openActions.length} action(s) open, none overdue.`
+          : 'No improvement actions outstanding.',
+      items: actionsOverdue.slice(0, CAP).map(actionLink),
+    },
     {
       id: 'policy_library', title: 'Policy library in place', statement: 'Governance · Reg 17',
       status: policies.length === 0 ? 'red' : 'green', count: policies.length, total: policies.length,
