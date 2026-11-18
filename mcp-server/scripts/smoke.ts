@@ -43,6 +43,7 @@ assert.deepEqual(
     'caremid_list_policies',
     'caremid_list_staff',
     'caremid_record_training',
+    'caremid_refresh_training',
     'caremid_set_policy_reviews',
     'caremid_staff_compliance',
     'caremid_staff_file',
@@ -61,6 +62,7 @@ const MAY_WRITE = new Set([
   'caremid_set_policy_reviews',
   'caremid_file_staff_documents',
   'caremid_record_training',
+  'caremid_refresh_training',
 ]);
 
 for (const t of tools) {

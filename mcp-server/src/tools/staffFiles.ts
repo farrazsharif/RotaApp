@@ -372,6 +372,64 @@ export function registerStaffFileTools(server: McpServer) {
   );
 
   server.registerTool(
+    'caremid_refresh_training',
+    {
+      title: 'Record an annual refresher',
+      description:
+        'Records the annual refresher for ONE staff member: every course they currently hold is renewed from the date given, expiring a year later. ' +
+        'This is the normal way a year of training is recorded, because one refresher day covers the whole mandatory set rather than a course at a time. ' +
+        'Previous records are kept, so the year-by-year history stays intact and only the newest record per course counts as current. ' +
+        'It renews what the person ALREADY holds - somebody with no training records yet is reported back rather than invented, and their courses have to be recorded first with caremid_record_training. ' +
+        'Use the date on the refresher certificate, never today and never a guess: it is what the next-due date and the whole training dashboard are computed from, and a date nobody attended is a compliance record that is simply untrue. ' +
+        'Example: { staff: "Usman Munir", held_on: "2026-04-06" }',
+      inputSchema: z.strictObject({
+        staff: z.string().min(2).max(120).describe('Full name, email, or Caremid id'),
+        held_on: isoDate.describe('The date the refresher was held, from the certificate'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Adds a fresh record per course and leaves the old ones in place as
+        // history. Running it twice for the same date renews to the same
+        // date again, which leaves the register saying what it already said.
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      const user = await resolveStaff(args.staff, ctx.mcpReq.signal);
+      const name = fullName(user);
+
+      const before = await apiGet<TrainingRow[]>('training', { userId: user.id }, ctx.mcpReq.signal);
+      const courses = new Set(before.map((t) => t.course));
+      if (courses.size === 0) {
+        throw new Error(
+          `${name} holds no training courses yet, so there is nothing to refresh. ` +
+            'Record the courses they hold first with caremid_record_training.',
+        );
+      }
+
+      const done = await apiPost<{ count?: number }>(
+        'training/refresh',
+        { userId: user.id, date: args.held_on },
+        ctx.mcpReq.signal,
+      );
+
+      const due = new Date(args.held_on);
+      due.setFullYear(due.getFullYear() + 1);
+      const renewed = done.count ?? courses.size;
+
+      return result(
+        args.response_format as Format,
+        `Renewed **${renewed}** course${renewed === 1 ? '' : 's'} for **${name}** from ${fmtDate(args.held_on)}. ` +
+          `Next due ${fmtDate(due.toISOString())}.`,
+        { staff: name, renewed, held_on: args.held_on, next_due: due.toISOString().slice(0, 10) },
+      );
+    },
+  );
+
+  server.registerTool(
     'caremid_record_training',
     {
       title: 'Record a training certificate',
