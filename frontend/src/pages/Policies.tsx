@@ -138,7 +138,10 @@ function PolicyModal({ id, onClose }: { id?: string; onClose: () => void }) {
     enabled: !!id,
   });
 
-  const [draft, setDraft] = useState<PolicyInput>({ category: 'OTHER' });
+  // Empty, deliberately. `val` prefers anything present in the draft, so a
+  // seeded key shadows the saved value - which is how every policy came to
+  // show as Other, and would have written Other back on the next save.
+  const [draft, setDraft] = useState<PolicyInput>({});
   const set = <K extends keyof PolicyInput>(k: K, v: PolicyInput[K]) => setDraft((d) => ({ ...d, [k]: v }));
   const val = <K extends keyof PolicyInput>(k: K, fallback: PolicyInput[K]): PolicyInput[K] =>
     k in draft ? draft[k] : fallback;
@@ -150,11 +153,6 @@ function PolicyModal({ id, onClose }: { id?: string; onClose: () => void }) {
 
   const save = useMutation({
     mutationFn: (patch: PolicyInput) => (isNew ? policiesApi.create(patch) : policiesApi.update(id!, patch)),
-    onSuccess: () => { refresh(); onClose(); },
-  });
-
-  const remove = useMutation({
-    mutationFn: () => policiesApi.remove(id!),
     onSuccess: () => { refresh(); onClose(); },
   });
 
@@ -186,14 +184,22 @@ function PolicyModal({ id, onClose }: { id?: string; onClose: () => void }) {
         </div>
 
         <div className="p-5 space-y-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Title</p>
-            <input
-              className="input"
-              value={(val('title', policy?.title) ?? '') as string}
-              onChange={(e) => set('title', e.target.value)}
-            />
-          </div>
+          {/* Set once. The title is how a policy is found, and how each of the
+              147 documents was matched to its record on import - renaming one
+              quietly breaks that link, and there is nothing to be gained. The
+              heading above shows it. */}
+          {isNew && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Title</p>
+              <input
+                className="input"
+                autoFocus
+                value={draft.title ?? ''}
+                onChange={(e) => set('title', e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">This cannot be changed afterwards.</p>
+            </div>
+          )}
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
@@ -264,29 +270,22 @@ function PolicyModal({ id, onClose }: { id?: string; onClose: () => void }) {
             </div>
           )}
 
-          {(save.isError || remove.isError || attach.isError || openFile.isError || detach.isError) && (
+          {(save.isError || attach.isError || openFile.isError || detach.isError) && (
             <p className="text-sm text-red-600">
-              {err(save.error || remove.error || attach.error || openFile.error || detach.error)}
+              {err(save.error || attach.error || openFile.error || detach.error)}
             </p>
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            {!isNew && (
-              <button
-                className="text-sm text-gray-400 hover:text-red-600"
-                onClick={() => {
-                  if (window.confirm('Delete this policy and its document?')) remove.mutate();
-                }}
-              >
-                Delete
-              </button>
-            )}
             <div className="flex-1" />
             <button className="btn-secondary btn" onClick={onClose}>Cancel</button>
             <button
               className="btn-primary btn"
               disabled={save.isPending || (isNew && !draft.title?.trim())}
-              onClick={() => save.mutate(draft)}
+              onClick={() => {
+                if (!isNew && Object.keys(draft).length === 0) return onClose();
+                save.mutate(draft);
+              }}
             >
               {save.isPending ? 'Saving…' : isNew ? 'Add' : 'Save'}
             </button>

@@ -47,7 +47,9 @@ export const policiesApi = {
   get: (id: string) => api.get<Policy>(`/policies/${id}`).then((r) => r.data),
   create: (body: PolicyInput) => api.post<Policy>('/policies', body).then((r) => r.data),
   update: (id: string, body: PolicyInput) => api.patch<Policy>(`/policies/${id}`, body).then((r) => r.data),
-  remove: (id: string) => api.delete(`/policies/${id}`).then((r) => r.data),
+  // No remove. A policy is a record of what the service runs on, and deleting
+  // one from the screen is how a register quietly loses a document nobody
+  // noticed was there. The API can still do it if a bad row ever needs lifting.
 
   attachment: (id: string) =>
     api.get<{ url: string; fileName: string }>(`/policies/${id}/attachment`).then((r) => r.data),
