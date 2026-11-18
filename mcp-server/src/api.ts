@@ -137,11 +137,11 @@ export async function apiGet<T>(
 /**
  * POST to a Caremid endpoint. Same 401 retry as apiGet.
  *
- * Writes are deliberately rare here and each one is narrow. The rule the
- * write tools follow: an agent may CREATE a record in a state that does
- * nothing until a person acts on it, and may not move a record into the state
- * that has an effect on anyone. Filling the policy library is the first;
- * publishing a policy - which asks every carer to sign it - is the second.
+ * Writes are deliberately narrow. The rule the write tools follow: they ADD
+ * a record that was missing, and never replace, amend or delete one. Filling
+ * the policy register and filling a staff file are both that shape; signing a
+ * policy off, or recording a supervision held on paper, are not, and have no
+ * tool here.
  */
 export async function apiPost<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   const attempt = async (bearer: string): Promise<Response> =>
@@ -197,7 +197,12 @@ export async function apiPatch<T>(path: string, body: unknown, signal: AbortSign
 }
 
 /**
- * POST a single file as multipart/form-data. Same 401 retry as the others.
+ * POST a single file as multipart/form-data, with any accompanying fields.
+ * Same 401 retry as the others.
+ *
+ * The fields travel in the form rather than the query string because that is
+ * where the API reads them from: multer populates req.body from the multipart
+ * parts, and a query parameter would simply not arrive.
  *
  * The Content-Type header is deliberately NOT set: fetch derives it from the
  * FormData, boundary and all, and setting it by hand produces a boundary that
@@ -207,9 +212,13 @@ export async function apiPostFile<T>(
   path: string,
   file: { bytes: Uint8Array; fileName: string; contentType: string },
   signal: AbortSignal,
+  fields: Record<string, string | undefined> = {},
 ): Promise<T> {
   const attempt = async (bearer: string): Promise<Response> => {
     const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) {
+      if (v !== undefined) form.append(k, v);
+    }
     form.append('file', new Blob([file.bytes], { type: file.contentType }), file.fileName);
     return fetch(`${API_BASE_URL}/${path.replace(/^\//, '')}`, {
       method: 'POST',

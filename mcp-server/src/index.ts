@@ -2,17 +2,20 @@
 /**
  * MCP server over the Caremid API.
  *
- * Almost every tool here reads. These are care records and compliance
- * evidence, and an agent that can quietly change them is a different risk
- * conversation from one that can only report on them.
+ * Most tools here read. These are care records and compliance evidence, and
+ * an agent that can quietly change them is a different risk conversation from
+ * one that can only report on them.
  *
- * The one write surface is the policy library, and it is shaped by the rule
- * this file previously stated as "behind an explicit human confirmation
- * step": an agent may CREATE a record in a state that does nothing until a
- * person acts on it, and may not move a record into the state that has an
- * effect on anyone. So policies are created as DRAFTS and there is no publish
- * tool - publishing is what asks every carer to read and sign a document, and
- * a person does that in the portal having looked at what was created.
+ * The writes are filing, and every one obeys the same two rules. ADDITIVE: a
+ * tool may add a record that was missing, and may never replace, amend or
+ * delete one. NO JUDGEMENT: a tool records what a document actually says,
+ * never a date or a status inferred because it seemed likely. So the policy
+ * register can be filled and a staff file can be filled, and nothing here can
+ * publish, sign off, or decide that something is compliant.
+ *
+ * Supervisions are the worked example of where that stops. Caremid lets only
+ * an ADMIN record a supervision held on paper, because backdating one makes a
+ * dashboard show a conversation nobody had. There is no tool for it.
  *
  * Any future write tool has to clear the same bar.
  *
@@ -27,12 +30,14 @@ import { API_BASE_URL, credentialsConfigured } from './api.js';
 import { registerCqcTools } from './tools/cqc.js';
 import { registerPolicyTools } from './tools/policies.js';
 import { registerShiftTools } from './tools/shifts.js';
+import { registerStaffFileTools } from './tools/staffFiles.js';
 import { registerStaffTools } from './tools/staff.js';
 
 function createServer(): McpServer {
   const server = new McpServer({ name: 'caremid-mcp-server', version: '1.0.0' });
   registerCqcTools(server);
   registerStaffTools(server);
+  registerStaffFileTools(server);
   registerShiftTools(server);
   registerPolicyTools(server);
   return server;

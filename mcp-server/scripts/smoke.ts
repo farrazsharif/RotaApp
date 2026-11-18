@@ -39,19 +39,29 @@ assert.deepEqual(
     'caremid_cqc_readiness',
     'caremid_create_policy',
     'caremid_expiring_training',
+    'caremid_file_staff_document',
     'caremid_list_policies',
     'caremid_list_staff',
+    'caremid_record_training',
     'caremid_set_policy_reviews',
     'caremid_staff_compliance',
+    'caremid_staff_file',
     'caremid_unstaffed_visits',
   ],
   'unexpected tool list',
 );
 
-// Exactly one tool on this server writes, and it creates drafts. If that
-// list ever grows, it should grow because somebody decided to widen it - not
-// because a write tool slipped in next to the reporting ones.
-const MAY_WRITE = new Set(['caremid_create_policy', 'caremid_attach_policy_pdf', 'caremid_set_policy_reviews']);
+// The tools on this server that write. Every one only ADDS: none can replace,
+// amend or delete a record. If this list grows it should grow because somebody
+// decided to widen it - not because a write tool slipped in among the
+// reporting ones.
+const MAY_WRITE = new Set([
+  'caremid_create_policy',
+  'caremid_attach_policy_pdf',
+  'caremid_set_policy_reviews',
+  'caremid_file_staff_document',
+  'caremid_record_training',
+]);
 
 for (const t of tools) {
   assert.ok(t.description && t.description.length > 80, `${t.name} needs a description the model can act on`);
