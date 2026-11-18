@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
-import { extname, isAbsolute } from 'node:path';
+import { basename, extname, isAbsolute } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { apiGet, apiPost } from '../api.js';
+import { apiGet, apiPost, apiPostFile } from '../api.js';
 import { Format, ResponseFormat, fitToLimit, result } from '../shared.js';
 
 /**
@@ -199,6 +199,62 @@ export function registerPolicyTools(server: McpServer) {
         '_Not published. Nobody has been asked to sign it. Publish it in the portal once the details have been checked._';
 
       return result(args.response_format as Format, md, created);
+    },
+  );
+
+  server.registerTool(
+    'caremid_attach_policy_pdf',
+    {
+      title: 'Attach the original document to a policy',
+      description:
+        'Attaches a PDF to a policy that is already in the library, so the office has the formatted original to print or hand to an inspector alongside the readable text. ' +
+        'Finds the policy by its exact title; if the title matches no policy, or more than one, it refuses rather than guessing. ' +
+        'Re-attaching a file with the same name replaces it, so a policy never ends up with three slightly different PDFs and nobody able to tell which is in force. ' +
+        'Example: { title: "Adult Safeguarding", file: "C:\\policies\\Adult Safeguarding.pdf" }',
+      inputSchema: z.strictObject({
+        title: z.string().min(1).max(300).describe('The policy title, exactly as caremid_list_policies shows it'),
+        file: z.string().describe('Absolute path to the PDF on this machine'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Replaces a same-named file on the policy it names, and nothing else.
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      if (!isAbsolute(args.file)) throw new Error('file must be an absolute path.');
+      if (extname(args.file).toLowerCase() !== '.pdf') {
+        throw new Error(`file must be a .pdf, got "${extname(args.file) || 'no extension'}".`);
+      }
+
+      // Matched on the title the library actually holds. Guessing which of two
+      // similarly named policies was meant is how the wrong document ends up
+      // attached to the one people read.
+      const all = await apiGet<PolicyRow[]>('policies', {}, ctx.mcpReq.signal);
+      const hits = all.filter((p) => p.title === args.title);
+      if (hits.length === 0) {
+        throw new Error(`No policy titled "${args.title}". Call caremid_list_policies to see the exact titles.`);
+      }
+      if (hits.length > 1) {
+        throw new Error(`${hits.length} policies are titled "${args.title}". Rename one before attaching.`);
+      }
+
+      const bytes = await readFile(args.file);
+      const uploaded = await apiPostFile<{ fileName: string; size: number }>(
+        `policies/${hits[0].id}/attachment`,
+        { bytes, fileName: basename(args.file), contentType: 'application/pdf' },
+        ctx.mcpReq.signal,
+      );
+
+      const kb = Math.round(uploaded.size / 1024);
+      return result(
+        args.response_format as Format,
+        `Attached **${uploaded.fileName}** (${kb} KB) to **${args.title}**.`,
+        { policy: args.title, ...uploaded },
+      );
     },
   );
 }

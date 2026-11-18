@@ -3,6 +3,12 @@ import api from '../lib/axios'
 // The list carries no policy text: a full library is megabytes of it, and a
 // phone on mobile data should not download all of that to show a list of
 // titles. The body arrives from mine(id) when one is opened.
+export interface PolicyFileSummary {
+  fileName: string
+  contentType: string
+  size: number
+}
+
 export interface MyPolicy {
   id: string
   title: string
@@ -14,6 +20,7 @@ export interface MyPolicy {
   audience: string
   requiresAck: boolean
   status: string
+  files: PolicyFileSummary[]
   signedAt: string | null
   needsSignature: boolean
 }
@@ -40,4 +47,6 @@ export const policiesApi = {
   mine: () => api.get<MyPolicy[]>('/policies/mine').then((r) => r.data),
   one: (id: string) => api.get<MyPolicyDetail>(`/policies/mine/${id}`).then((r) => r.data),
   sign: (id: string) => api.post(`/policies/${id}/sign`).then((r) => r.data),
+  attachment: (id: string) =>
+    api.get<{ url: string; fileName: string }>(`/policies/mine/${id}/attachment`).then((r) => r.data),
 }

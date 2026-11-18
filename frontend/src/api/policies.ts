@@ -20,6 +20,16 @@ export const AUDIENCES: { key: string; label: string; hint: string }[] = [
   { key: 'MANAGERS', label: 'Managers only', hint: 'Managers and admins.' },
 ];
 
+// The original document, kept alongside the text rather than instead of it.
+// The text reflows and searches; the file has the tables as tables and is what
+// gets printed. The storage key never leaves the server - a download mints a
+// short-lived signed URL per request.
+export interface PolicyFileSummary {
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
 export type PolicyStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
 
 export interface PolicySummary {
@@ -35,6 +45,7 @@ export interface PolicySummary {
   status: PolicyStatus;
   updatedAt: string;
   owner?: { id: string; firstName: string; lastName: string } | null;
+  files: PolicyFileSummary[];
   dueCount: number;
   signedCount: number;
 }
@@ -94,5 +105,16 @@ export const policiesApi = {
   update: (id: string, body: PolicyInput) =>
     api.patch<PolicySummary>(`/policies/${id}`, body).then((r) => r.data),
   sign: (id: string) => api.post(`/policies/${id}/sign`).then((r) => r.data),
+
+  attachment: (id: string) =>
+    api.get<{ url: string; fileName: string }>(`/policies/${id}/attachment`).then((r) => r.data),
+  attach: (id: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api
+      .post<PolicyFileSummary>(`/policies/${id}/attachment`, form)
+      .then((r) => r.data);
+  },
+  removeAttachment: (id: string) => api.delete(`/policies/${id}/attachment`).then((r) => r.data),
   remove: (id: string) => api.delete(`/policies/${id}`).then((r) => r.data),
 };

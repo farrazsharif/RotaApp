@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { logAudit } from '../lib/audit';
+import { storageConfigured, putObject, deleteObject, getDownloadUrl } from '../lib/storage';
+import { randomUUID } from 'crypto';
 
 // The policy library (Reg 17).
 //
@@ -53,6 +55,28 @@ function oneOf(v: unknown, allowed: string[], fallback: string): string {
   return allowed.includes(s) ? s : fallback;
 }
 
+// The original document, kept alongside the extracted text rather than
+// instead of it. The text is what reads well on a phone - it reflows, it
+// searches, and it does not need pinch-zooming through forty pages. The file
+// is what prints, what goes in an inspection pack, and what has the tables as
+// tables. Neither replaces the other.
+export interface PolicyFile {
+  key: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string;
+}
+
+function parseFiles(json?: string | null): PolicyFile[] {
+  try {
+    const v = JSON.parse(json || '[]');
+    return Array.isArray(v) ? (v as PolicyFile[]).filter((f) => f && typeof f.key === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 // Does this policy apply to this person? An office manager does not need to
 // sign the lone-working policy, and asking them to is how a read-and-sign
 // list stops being believed.
@@ -76,8 +100,14 @@ const listSelect = {
   requiresAck: true,
   status: true,
   updatedAt: true,
+  attachments: true,
   owner: { select: { id: true, firstName: true, lastName: true } },
 };
+
+// What a client needs to render a download button, without the storage keys -
+// those are the server's business and a signed URL is minted per request.
+const fileSummary = (json?: string | null) =>
+  parseFiles(json).map((f) => ({ fileName: f.fileName, contentType: f.contentType, size: f.size }));
 
 // GET /api/policies — the office library, with signature counts.
 export async function listPolicies(req: AuthRequest, res: Response) {
@@ -105,7 +135,13 @@ export async function listPolicies(req: AuthRequest, res: Response) {
     const due = staff.filter((u) => appliesTo(p.audience, u.role));
     const dueIds = new Set(due.map((u) => u.id));
     const signed = acks.filter((a) => a.policyId === p.id && a.version === p.version && dueIds.has(a.userId)).length;
-    return { ...p, dueCount: p.requiresAck ? due.length : 0, signedCount: p.requiresAck ? signed : 0 };
+    return {
+      ...p,
+      attachments: undefined,
+      files: fileSummary(p.attachments),
+      dueCount: p.requiresAck ? due.length : 0,
+      signedCount: p.requiresAck ? signed : 0,
+    };
   });
 
   res.json(rows);
@@ -134,7 +170,13 @@ export async function myPolicies(req: AuthRequest, res: Response) {
     .filter((p) => appliesTo(p.audience, req.user!.role))
     .map((p) => {
       const sig = mine.find((a) => a.policyId === p.id && a.version === p.version);
-      return { ...p, signedAt: sig?.signedAt ?? null, needsSignature: p.requiresAck && !sig };
+      return {
+        ...p,
+        attachments: undefined,
+        files: fileSummary(p.attachments),
+        signedAt: sig?.signedAt ?? null,
+        needsSignature: p.requiresAck && !sig,
+      };
     });
 
   res.json(rows);
@@ -157,6 +199,8 @@ export async function myPolicy(req: AuthRequest, res: Response) {
   });
   res.json({
     ...policy,
+    attachments: undefined,
+    files: fileSummary(policy.attachments),
     signedAt: sig?.signedAt ?? null,
     needsSignature: policy.requiresAck && !sig,
   });
@@ -197,6 +241,8 @@ export async function getPolicy(req: AuthRequest, res: Response) {
 
   res.json({
     ...policy,
+    attachments: undefined,
+    files: fileSummary(policy.attachments),
     due,
     outstanding: policy.requiresAck ? due.filter((u) => !signedIds.has(u.id)) : [],
   });
@@ -309,6 +355,123 @@ export async function signPolicy(req: AuthRequest, res: Response) {
   });
   await logAudit(req, 'POLICY_SIGNED', policy.id, `${policy.title} v${policy.version} read and signed`);
   res.status(201).json(ack);
+}
+
+// --- The original document ---------------------------------------------
+//
+// Stored in R2 and handed out as a short-lived signed URL, so the bytes never
+// stream back through the API and a link cannot be forwarded to somebody who
+// should not have it.
+
+const MAX_BYTES = 20 * 1024 * 1024;
+const ALLOWED = ['application/pdf'];
+
+// POST /api/policies/:id/attachment
+export async function uploadPolicyAttachment(req: AuthRequest, res: Response) {
+  if (!storageConfigured()) {
+    return res.status(503).json({
+      error: 'Document storage is not set up yet. Add the Cloudflare R2 keys to enable uploads.',
+      code: 'STORAGE_NOT_CONFIGURED',
+    });
+  }
+  const policy = await prisma.policy.findUnique({ where: { id: req.params.id } });
+  if (!policy) return res.status(404).json({ error: 'Not found' });
+
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
+  if (!ALLOWED.includes(file.mimetype)) {
+    return res.status(400).json({ error: 'Attach a PDF. It is what prints and what an inspector is handed.' });
+  }
+  if (file.size > MAX_BYTES) return res.status(400).json({ error: 'File is too large (max 20MB)' });
+
+  const fileName = (file.originalname || 'policy.pdf').slice(0, 200);
+  const files = parseFiles(policy.attachments);
+
+  // Replacing rather than piling up: a policy with three slightly different
+  // PDFs attached is worse than one with none, because nobody can tell which
+  // is the one in force. The old object goes from the bucket too.
+  const existing = files.find((f) => f.fileName === fileName);
+  if (existing) {
+    await deleteObject(existing.key).catch(() => { /* already gone */ });
+  }
+
+  const key = `policies/${policy.id}/${randomUUID()}.pdf`;
+  await putObject(key, file.buffer, file.mimetype);
+
+  const next: PolicyFile = {
+    key,
+    fileName,
+    contentType: file.mimetype,
+    size: file.size,
+    uploadedAt: new Date().toISOString(),
+  };
+  const kept = files.filter((f) => f.fileName !== fileName);
+
+  await prisma.policy.update({
+    where: { id: policy.id },
+    data: { attachments: JSON.stringify([...kept, next]) },
+  });
+
+  await logAudit(req, 'POLICY_FILE_ATTACHED', policy.id, `${fileName} attached to ${policy.title}`);
+  res.status(201).json({ fileName, contentType: next.contentType, size: next.size });
+}
+
+// Shared by the office and staff routes: both end up needing a signed URL for
+// one file on one policy, and the only difference is who may ask.
+async function signFirstFile(policy: { id: string; title: string; attachments: string }, res: Response) {
+  const files = parseFiles(policy.attachments);
+  if (files.length === 0) return res.status(404).json({ error: 'This policy has no document attached.' });
+  if (!storageConfigured()) {
+    return res.status(503).json({ error: 'Document storage is not set up.', code: 'STORAGE_NOT_CONFIGURED' });
+  }
+  const file = files[0];
+  // inline: a policy is for reading, so it opens in the viewer rather than
+  // landing in a downloads folder the reader then has to go and find.
+  const url = await getDownloadUrl(file.key, file.fileName, true);
+  res.json({ url, fileName: file.fileName, contentType: file.contentType, size: file.size });
+}
+
+// GET /api/policies/:id/attachment — the office.
+export async function downloadPolicyAttachment(req: AuthRequest, res: Response) {
+  const policy = await prisma.policy.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, title: true, attachments: true },
+  });
+  if (!policy) return res.status(404).json({ error: 'Not found' });
+  return signFirstFile(policy, res);
+}
+
+// GET /api/policies/mine/:id/attachment — staff, scoped to what applies to
+// them, so this cannot become a way to pull any policy document by id.
+export async function downloadMyPolicyAttachment(req: AuthRequest, res: Response) {
+  const policy = await prisma.policy.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, title: true, attachments: true, status: true, audience: true },
+  });
+  if (!policy || policy.status !== 'ACTIVE') return res.status(404).json({ error: 'Not found' });
+  if (!appliesTo(policy.audience, req.user!.role)) return res.status(404).json({ error: 'Not found' });
+  return signFirstFile(policy, res);
+}
+
+// DELETE /api/policies/:id/attachment
+export async function deletePolicyAttachment(req: AuthRequest, res: Response) {
+  const policy = await prisma.policy.findUnique({ where: { id: req.params.id } });
+  if (!policy) return res.status(404).json({ error: 'Not found' });
+
+  const files = parseFiles(policy.attachments);
+  if (files.length === 0) return res.status(404).json({ error: 'Nothing attached.' });
+
+  // Published policies with no text would be left with nothing to read at all.
+  if (policy.status === 'ACTIVE' && !policy.bodyText) {
+    return res.status(400).json({
+      error: 'This policy is published and has no text of its own. Removing the document would leave staff nothing to read.',
+    });
+  }
+
+  for (const f of files) await deleteObject(f.key).catch(() => { /* already gone */ });
+  await prisma.policy.update({ where: { id: policy.id }, data: { attachments: '[]' } });
+  await logAudit(req, 'POLICY_FILE_REMOVED', policy.id, `Document removed from ${policy.title}`);
+  res.json({ ok: true });
 }
 
 // DELETE /api/policies/:id — for one created in error. A policy that is no

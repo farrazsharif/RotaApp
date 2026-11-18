@@ -169,4 +169,41 @@ export async function apiPost<T>(path: string, body: unknown, signal: AbortSigna
   return (await res.json()) as T;
 }
 
+/**
+ * POST a single file as multipart/form-data. Same 401 retry as the others.
+ *
+ * The Content-Type header is deliberately NOT set: fetch derives it from the
+ * FormData, boundary and all, and setting it by hand produces a boundary that
+ * does not match the body.
+ */
+export async function apiPostFile<T>(
+  path: string,
+  file: { bytes: Uint8Array; fileName: string; contentType: string },
+  signal: AbortSignal,
+): Promise<T> {
+  const attempt = async (bearer: string): Promise<Response> => {
+    const form = new FormData();
+    form.append('file', new Blob([file.bytes], { type: file.contentType }), file.fileName);
+    return fetch(`${API_BASE_URL}/${path.replace(/^\//, '')}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
+      body: form,
+      // Longer than the JSON calls: this is megabytes over a domestic upload.
+      signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)]),
+    });
+  };
+
+  let res = await attempt(await currentToken(signal));
+  if (res.status === 401) {
+    token = null;
+    res = await attempt(await currentToken(signal));
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(res.status, httpErrorMessage(res.status, text));
+  }
+  return (await res.json()) as T;
+}
+
 export const credentialsConfigured = () => !!EMAIL && !!PASSWORD;

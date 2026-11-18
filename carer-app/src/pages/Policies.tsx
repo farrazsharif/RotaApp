@@ -95,6 +95,29 @@ function Row({ policy, onOpen }: { policy: MyPolicy; onOpen: () => void }) {
   )
 }
 
+// The formatted original, for anyone who wants it. Under the text, not above:
+// on a phone the text is the readable one, and a 40-page PDF is the fallback
+// rather than the first thing offered.
+function OriginalDocument({ policyId, fileName }: { policyId: string; fileName: string }) {
+  const open = useMutation({
+    mutationFn: () => policiesApi.attachment(policyId),
+    onSuccess: (d) => window.open(d.url, '_blank', 'noopener'),
+  })
+
+  return (
+    <div className="mt-4 pt-3 border-t">
+      <button
+        className="text-sm text-blue-600 font-medium disabled:opacity-50"
+        disabled={open.isPending}
+        onClick={() => open.mutate()}
+      >
+        {open.isPending ? 'Opening…' : `📄 Open the original (${fileName})`}
+      </button>
+      {open.isError && <p className="text-xs text-red-600 mt-1">{err(open.error)}</p>}
+    </div>
+  )
+}
+
 function PolicySheet({ policy, onClose }: { policy: MyPolicy; onClose: () => void }) {
   const qc = useQueryClient()
 
@@ -136,6 +159,8 @@ function PolicySheet({ policy, onClose }: { policy: MyPolicy; onClose: () => voi
               This policy is held as a document. Ask the office for a copy if you have not been given one.
             </p>
           )}
+
+          {full?.files?.length ? <OriginalDocument policyId={policy.id} fileName={full.files[0].fileName} /> : null}
 
           {sign.isError && <p className="text-sm text-red-600 mt-3">{err(sign.error)}</p>}
         </div>

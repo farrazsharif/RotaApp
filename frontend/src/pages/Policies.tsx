@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import {
   policiesApi,
+  Policy,
   PolicySummary,
   PolicyInput,
   PolicyStatus,
@@ -126,6 +127,7 @@ export default function Policies() {
                         </p>
                         <p className="text-xs text-gray-500">
                           v{p.version} · issued {fmt(p.issuedAt)} · {audienceLabel(p.audience)}
+                          {p.files?.length ? ' · 📄 PDF' : ''}
                           {p.reviewDate && (
                             <span className={overdue ? 'text-red-600 font-medium' : ''}>
                               {' '}· review {overdue ? 'overdue' : 'due'} {fmt(p.reviewDate)}
@@ -296,7 +298,9 @@ function PolicyModal({ id, onClose }: { id?: string; onClose: () => void }) {
             Staff must read and sign this
           </label>
 
-          <Labelled label="The policy" hint="Paste the text here, or attach the document to the client file and reference it.">
+          {policy && <AttachmentBlock policy={policy} />}
+
+          <Labelled label="The policy" hint="What staff read on screen. It reflows and searches, which the PDF does not.">
             <textarea
               className="input font-mono text-xs"
               rows={12}
@@ -396,6 +400,89 @@ function PolicyModal({ id, onClose }: { id?: string; onClose: () => void }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// The original document. Shown above the text because that is the order the
+// office thinks in: "which policy is this, and can I print it" comes before
+// "what does it say".
+function AttachmentBlock({ policy }: { policy: Policy }) {
+  const qc = useQueryClient();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const file = policy.files?.[0];
+
+  const open = useMutation({
+    mutationFn: () => policiesApi.attachment(policy.id),
+    // A signed URL, good for five minutes, straight to storage — the bytes
+    // never come back through the API.
+    onSuccess: (d) => window.open(d.url, '_blank', 'noopener'),
+  });
+
+  const attach = useMutation({
+    mutationFn: (f: File) => policiesApi.attach(policy.id, f),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['policy', policy.id] }),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => policiesApi.removeAttachment(policy.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['policy', policy.id] }),
+  });
+
+  return (
+    <div className="rounded-xl border border-gray-200 p-3">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
+        The original document
+      </p>
+      {file ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="btn-secondary btn btn-sm"
+            disabled={open.isPending}
+            onClick={() => open.mutate()}
+          >
+            {open.isPending ? 'Opening…' : `📄 ${file.fileName}`}
+          </button>
+          <span className="text-xs text-gray-400">{Math.round(file.size / 1024)} KB</span>
+          <div className="flex-1" />
+          <button
+            className="text-xs text-gray-400 hover:text-red-600"
+            disabled={remove.isPending}
+            onClick={() => {
+              if (window.confirm('Remove the attached document? The text stays.')) remove.mutate();
+            }}
+          >
+            Remove
+          </button>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-400">
+          Nothing attached. A PDF is what prints with its tables intact and what goes in an inspection pack.
+        </p>
+      )}
+
+      <input
+        ref={fileInput}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) attach.mutate(f);
+          e.target.value = '';
+        }}
+      />
+      <button
+        className="btn-secondary btn btn-sm mt-2"
+        disabled={attach.isPending}
+        onClick={() => fileInput.current?.click()}
+      >
+        {attach.isPending ? 'Uploading…' : file ? 'Replace the PDF' : 'Attach a PDF'}
+      </button>
+
+      {(attach.isError || open.isError || remove.isError) && (
+        <p className="text-sm text-red-600 mt-1">{err(attach.error || open.error || remove.error)}</p>
+      )}
     </div>
   );
 }
