@@ -1129,7 +1129,265 @@ export const RA_CHOKING: RaForm = {
   ],
 };
 
-export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, FALLS: RA_FALLS, MOVING_HANDLING: RA_MOVING_HANDLING, MEDICATION: RA_MEDICATION, PRESSURE_ULCER: RA_PRESSURE_ULCER, MALNUTRITION: RA_MALNUTRITION, CHOKING: RA_CHOKING, SMOKING: RA_SMOKING, BATHING: RA_BATHING };
+// Self-neglect and hoarding. Self-neglect is a Care Act category of abuse, so
+// anything scored high here should also be raised as a safeguarding concern -
+// the plan section says so rather than leaving it to be remembered.
+export const RA_SELF_NEGLECT: RaForm = {
+  type: 'SELF_NEGLECT',
+  title: 'Self-Neglect & Hoarding Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [
+        { label: 'Name of service user', type: 'text' },
+        { label: 'Name of assessor', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'presentation',
+      title: 'What Is Being Seen',
+      items: [
+        { label: 'Personal care - washing, clothing, continence', type: 'risk' },
+        { label: 'Condition of the home - cleanliness, smell, vermin', type: 'risk' },
+        { label: 'Food - out of date, spoiled, or none in the house', type: 'risk' },
+        { label: 'Heating, lighting, water and power', type: 'risk' },
+        { label: 'Refusing medical treatment, or not taking medicines', type: 'risk' },
+        { label: 'Untreated wounds, infections or health conditions', type: 'risk' },
+        { label: 'Money, bills and debt', type: 'risk' },
+        { label: 'Animals in the home, and their condition', type: 'risk' },
+      ],
+    },
+    {
+      id: 'hoarding',
+      title: 'Hoarding',
+      intro: 'Where a clutter rating has been done by the local authority or fire service, record it. Leave blank if none has.',
+      items: [
+        { label: 'Is hoarding a feature', type: 'yesno' },
+        { label: 'Clutter rating, if one has been given, and by whom', type: 'text' },
+        { label: 'Rooms that cannot be used for their purpose', type: 'longtext' },
+        { label: 'Exits, stairs and hallways blocked', type: 'risk', hint: 'A blocked exit is a fire-service referral, not a housekeeping note.' },
+        { label: 'Fire risk from stored material', type: 'risk' },
+        { label: 'Can carers work safely in the space available', type: 'yesno' },
+        { label: 'Can an ambulance crew get a stretcher in and out', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'capacity',
+      title: 'Capacity and Engagement',
+      items: [
+        { label: 'Does the person recognise the risk to themselves', type: 'yesno' },
+        { label: 'Has a mental capacity assessment been done for these decisions', type: 'yesno', hint: 'A person with capacity may choose to live this way. The duty then is to reduce risk with their agreement, not to override them.' },
+        { label: 'What the person says they want', type: 'longtext' },
+        { label: 'What they will and will not accept help with', type: 'longtext' },
+        { label: 'Who the person trusts, and who has the best relationship with them', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'plan',
+      title: 'Actions and Plan',
+      items: [
+        { label: 'Has this been raised as a safeguarding concern', type: 'yesno', hint: 'Self-neglect is a category of abuse under the Care Act. If the risk is serious, raise a concern in Caremid and refer to the local authority.' },
+        { label: 'Other agencies involved (GP, social work, housing, fire service, environmental health)', type: 'longtext' },
+        { label: 'Actions agreed, and who is responsible for each', type: 'longtext' },
+        { label: 'What a carer must do if conditions get worse', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+// Behaviour. Written as positive behaviour support: most of the form is about
+// what prevents the behaviour, and the reactive part is last and shortest,
+// because a plan weighted the other way tends to get used the other way.
+export const RA_BEHAVIOUR: RaForm = {
+  type: 'BEHAVIOUR',
+  title: 'Behaviour Support Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [
+        { label: 'Name of service user', type: 'text' },
+        { label: 'Name of assessor', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'behaviour',
+      title: 'The Behaviour',
+      items: [
+        { label: 'What the behaviour actually looks like', type: 'longtext', hint: 'Describe it so a new carer would recognise it. Avoid labels like "aggressive" - say what happens.' },
+        { label: 'How often it happens, and how long it lasts', type: 'longtext' },
+        { label: 'Who or what is at risk when it happens', type: 'longtext' },
+        { label: 'What the person may be communicating by it', type: 'longtext', hint: 'Pain, fear, needing the toilet, too much noise, being rushed, not being understood.' },
+      ],
+    },
+    {
+      id: 'triggers',
+      title: 'Triggers and Early Signs',
+      items: [
+        { label: 'Known triggers', type: 'longtext' },
+        { label: 'Times of day, or tasks, when it is more likely', type: 'longtext' },
+        { label: 'Early warning signs a carer can notice', type: 'longtext' },
+        { label: 'Health causes to rule out first', type: 'longtext', hint: 'Pain, infection, constipation, dehydration, a new medicine, poor sleep, hearing or sight.' },
+      ],
+    },
+    {
+      id: 'proactive',
+      title: 'What Prevents It',
+      items: [
+        { label: 'How this person likes to be approached and spoken to', type: 'longtext' },
+        { label: 'Routines and preferences that keep them settled', type: 'longtext' },
+        { label: 'What helps at the first early sign', type: 'longtext' },
+        { label: 'Things carers should avoid doing', type: 'longtext' },
+        { label: 'Activities, objects or people that help', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'reactive',
+      title: 'If It Escalates',
+      items: [
+        { label: 'Step by step, what a carer should do', type: 'longtext' },
+        { label: 'When to withdraw, and how to leave safely', type: 'longtext' },
+        { label: 'Who to ring, and at what point', type: 'longtext' },
+        { label: 'When to call 999', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'restrictive',
+      title: 'Restrictive Practice',
+      intro: 'Anything restrictive must be the least restrictive option that works, agreed in advance, recorded every time it is used, and reviewed. It is never a carer’s decision on the day.',
+      items: [
+        { label: 'Is any restrictive practice agreed for this person', type: 'yesno' },
+        { label: 'What it is, and exactly when it may be used', type: 'longtext' },
+        { label: 'Who authorised it, and when', type: 'text' },
+        { label: 'Mental capacity assessment and best-interest decision on file', type: 'yesno' },
+        { label: 'Is a DoLS or Court of Protection authorisation in place', type: 'yesno' },
+        { label: 'Date this must be reviewed', type: 'date' },
+      ],
+    },
+    {
+      id: 'after',
+      title: 'Afterwards',
+      items: [
+        { label: 'How the person is supported after an incident', type: 'longtext' },
+        { label: 'How staff are debriefed and supported', type: 'longtext' },
+        { label: 'Recording required', type: 'longtext', hint: 'Record an incident every time. Patterns across incidents are what change the plan.' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+// Lone working. The only assessment on the list whose subject is the carer
+// rather than the client: this is the employer's duty of care, assessed at
+// the property where the work happens.
+export const RA_LONE_WORKING: RaForm = {
+  type: 'LONE_WORKING',
+  title: 'Lone Working Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [
+        { label: 'Name of service user', type: 'text' },
+        { label: 'Address of the visit', type: 'text' },
+        { label: 'Name of assessor', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'area',
+      title: 'Getting There and Away',
+      items: [
+        { label: 'Parking - where, and how far from the door', type: 'risk' },
+        { label: 'Lighting on the approach, after dark', type: 'risk' },
+        { label: 'Known problems in the area', type: 'risk' },
+        { label: 'Mobile signal at the property', type: 'risk', hint: 'No signal changes what a carer can do in an emergency, and whether they can clock in.' },
+        { label: 'Lift, stairs or communal areas to pass through', type: 'risk' },
+      ],
+    },
+    {
+      id: 'access',
+      title: 'Access',
+      items: [
+        { label: 'How carers get in', type: 'text', hint: 'Key safe, key held, answered by the person, answered by family.' },
+        { label: 'Key safe location', type: 'text' },
+        { label: 'Is the key safe code held securely and changed when staff leave', type: 'yesno' },
+        { label: 'How carers get out in a hurry', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'inside',
+      title: 'Inside the Home',
+      items: [
+        { label: 'Other people in the home, and their relationship to the person', type: 'longtext' },
+        { label: 'History of aggression, threats or violence towards staff', type: 'risk', hint: 'From the person, or from anyone else at the address. Record it here even if it was once and long ago.' },
+        { label: 'Alcohol or drug use in the home', type: 'risk' },
+        { label: 'Weapons in the home', type: 'risk' },
+        { label: 'Dogs or other animals', type: 'risk' },
+        { label: 'Smoking in the home', type: 'risk' },
+        { label: 'Infection risk', type: 'risk' },
+        { label: 'Trip, slip and clutter hazards for staff', type: 'risk' },
+        { label: 'Gas, electrical or heating hazards', type: 'risk' },
+      ],
+    },
+    {
+      id: 'controls',
+      title: 'Controls',
+      items: [
+        { label: 'Number of carers required at this address, and why', type: 'text' },
+        { label: 'Any visits that must not be done alone', type: 'longtext' },
+        { label: 'Any times of day to avoid', type: 'longtext' },
+        { label: 'Is a check-in and check-out expected for every visit', type: 'yesno' },
+        { label: 'Who a carer rings if they do not feel safe', type: 'text' },
+        { label: 'Out-of-hours contact', type: 'text' },
+        { label: 'Personal safety equipment issued', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'escalation',
+      title: 'If Something Goes Wrong',
+      items: [
+        { label: 'What a carer should do if they feel threatened', type: 'longtext', hint: 'Leaving is always allowed. Say so plainly here - carers will not do it unless the plan says they may.' },
+        { label: 'What the office does if a carer does not check out of a visit', type: 'longtext' },
+        { label: 'Reporting required afterwards', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, FALLS: RA_FALLS, MOVING_HANDLING: RA_MOVING_HANDLING, MEDICATION: RA_MEDICATION, PRESSURE_ULCER: RA_PRESSURE_ULCER, MALNUTRITION: RA_MALNUTRITION, CHOKING: RA_CHOKING, SELF_NEGLECT: RA_SELF_NEGLECT, BEHAVIOUR: RA_BEHAVIOUR, LONE_WORKING: RA_LONE_WORKING, SMOKING: RA_SMOKING, BATHING: RA_BATHING };
 
 export const RA_TYPES: { type: string; title: string }[] = Object.values(RA_FORMS).map((f) => ({ type: f.type, title: f.title }));
 
