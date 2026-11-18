@@ -108,6 +108,44 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP NOT NULL`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP DEFAULT`);
 
+  // The daily charts: food, fluid, repositioning, continence and skin.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CareChartEntry" (
+      "companyId" TEXT,
+      "id" TEXT NOT NULL,
+      "serviceUserId" TEXT NOT NULL,
+      "kind" TEXT NOT NULL,
+      "recordedById" TEXT NOT NULL,
+      "shiftId" TEXT,
+      "occurredAt" TIMESTAMP(3) NOT NULL,
+      "amountMl" INTEGER,
+      "portion" TEXT,
+      "description" TEXT,
+      "position" TEXT,
+      "continence" TEXT,
+      "incontinent" BOOLEAN NOT NULL DEFAULT false,
+      "stoolScale" INTEGER,
+      "padChanged" BOOLEAN NOT NULL DEFAULT false,
+      "bodySite" TEXT,
+      "skinFinding" TEXT,
+      "refused" BOOLEAN NOT NULL DEFAULT false,
+      "concern" BOOLEAN NOT NULL DEFAULT false,
+      "notes" TEXT,
+      "attachments" TEXT NOT NULL DEFAULT '[]',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "CareChartEntry_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CareChartEntry_serviceUserId_kind_occurredAt_idx" ON "CareChartEntry"("serviceUserId", "kind", "occurredAt")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CareChartEntry_companyId_occurredAt_idx" ON "CareChartEntry"("companyId", "occurredAt")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CareChartEntry_recordedById_idx" ON "CareChartEntry"("recordedById")`);
+
+  // Which charts a client is on, and the two targets that make them readable.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "careCharts" TEXT NOT NULL DEFAULT '[]'`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "fluidTargetMl" INTEGER`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceUser" ADD COLUMN IF NOT EXISTS "repositionHours" INTEGER`);
+
   // Mental capacity assessments and legal authorities (MCA 2005, Reg 11).
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "CapacityAssessment" (

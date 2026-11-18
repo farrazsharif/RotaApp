@@ -541,6 +541,9 @@ export interface ServiceUser {
   dnacprLocation?: string | null;
   communicationNeeds?: string | null; // JSON array of AIS keys
   communicationNotes?: string | null;
+  careCharts?: string | null; // JSON array of chart kinds
+  fluidTargetMl?: number | null;
+  repositionHours?: number | null;
   contractedWeeklyHours?: number | null;
   visitDuration: number;
   visits?: string; // JSON array of { type, duration }

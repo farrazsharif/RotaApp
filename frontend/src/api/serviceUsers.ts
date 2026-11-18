@@ -60,6 +60,10 @@ export interface ServiceUserData {
   dnacprLocation?: string;
   communicationNeeds?: string; // JSON array of AIS keys
   communicationNotes?: string;
+  // Which daily charts this person is on, and the targets that make them readable.
+  careCharts?: string[];
+  fluidTargetMl?: number | null;
+  repositionHours?: number | null;
   contractedWeeklyHours?: number | null;
   visitDuration?: number;
   visits?: string; // JSON array of { type, duration }

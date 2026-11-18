@@ -118,6 +118,7 @@ model User {
   complaintsReceived Complaint[]           @relation("ComplaintReceiver")
   complaintsAbout    Complaint[]           @relation("ComplaintStaffInvolved")
   complaintsClosed   Complaint[]           @relation("ComplaintCloser")
+  chartEntries       CareChartEntry[]      @relation("ChartRecorder")
   capacityAssessed   CapacityAssessment[]  @relation("CapacityAssessor")
   capacityDecided    CapacityAssessment[]  @relation("CapacityDecider")
   authoritiesChecked LegalAuthority[]      @relation("AuthorityChecker")
@@ -238,6 +239,17 @@ model ServiceUser {
   // hearing loop...), with a free-text note for anything the list misses.
   communicationNeeds       String?
   communicationNotes       String?
+  // Which daily charts this person is on. JSON array of CareChartEntry kinds
+  // (FLUID, FOOD, REPOSITION, CONTINENCE, SKIN). Empty for most people: a
+  // chart nobody needs is a chart that gets filled in without being read,
+  // and four of them on every client would bury the ones that matter.
+  careCharts               String    @default("[]")
+  // Daily fluid target in millilitres. Without one a fluid chart is a list of
+  // numbers nobody can call good or bad.
+  fluidTargetMl            Int?
+  // How often this person must be repositioned, in hours. Drives the overdue
+  // warning on the repositioning chart.
+  repositionHours          Int?
   contractedWeeklyHours    Float? // council-agreed hours of care per week (care package); null = not set
   visitDuration            Int       @default(30)
   visits                   String    @default("[]") // JSON array of { type, duration }
@@ -281,6 +293,7 @@ model ServiceUser {
   incidents            Incident[]
   safeguardingConcerns SafeguardingConcern[]
   complaints           Complaint[]
+  chartEntries         CareChartEntry[]
   capacityAssessments  CapacityAssessment[]
   legalAuthorities     LegalAuthority[]
   respitePeriods       RespitePeriod[]
@@ -1692,4 +1705,81 @@ model LegalAuthority {
 
   @@index([companyId, serviceUserId])
   @@index([serviceUserId, kind])
+}
+
+// The daily charts: food, fluid, repositioning, continence and skin.
+//
+// One table rather than five. They differ in which columns they use and in
+// nothing else: all five are "a carer observed something about this person at
+// this time", written on a doorstep in under ten seconds, and read back as a
+// day or a week. Five tables would mean five controllers, five endpoints and
+// five screens to keep in step, for records that are already answered by one
+// question - what happened today.
+//
+// Every kind-specific column is nullable and `kind` decides which apply. The
+// one number that gets totalled - fluid in millilitres - is a real column
+// rather than JSON, because the whole point of a fluid chart is the running
+// total against a target.
+model CareChartEntry {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String  @id @default(cuid())
+  serviceUserId String
+
+  // FLUID | FOOD | REPOSITION | CONTINENCE | SKIN
+  kind String
+
+  recordedById String
+  shiftId      String?
+  // When it happened, which is not always when it was typed - a carer writes
+  // up the 8am drink at 8.20 on the doorstep.
+  occurredAt DateTime
+
+  // FLUID: millilitres taken. The number the daily total is built from.
+  amountMl Int?
+  // FOOD: how much of what was offered was actually eaten.
+  // NONE | QUARTER | HALF | THREE_QUARTERS | ALL
+  portion String?
+  // FOOD / FLUID: what was offered. SKIN: what was seen.
+  description String?
+
+  // REPOSITION: the position they were moved INTO.
+  // BACK | LEFT | RIGHT | CHAIR | STANDING | WALKING | OTHER
+  position String?
+
+  // CONTINENCE: what happened.
+  // URINE | BOWEL | BOTH | NONE | CATHETER
+  continence String?
+  // Was it continent, or an episode? Separate from the above because "used
+  // the toilet" and "was wet" are different records of the same event type.
+  incontinent Boolean @default(false)
+  // Bristol stool scale, 1-7. Null unless a bowel movement was recorded.
+  stoolScale Int?
+  padChanged Boolean @default(false)
+
+  // SKIN / REPOSITION: where on the body.
+  bodySite String?
+  // SKIN: what was found. INTACT | RED_BLANCHING | RED_NON_BLANCHING |
+  // BROKEN | BLISTER | BRUISE | RASH | OTHER
+  skinFinding String?
+
+  // The person said no. Recorded rather than left blank: a refused drink and
+  // a drink nobody offered look identical on a chart otherwise, and only one
+  // of them is the carer's problem.
+  refused Boolean @default(false)
+  // Flagged for the office. Anything a carer thinks someone should look at.
+  concern Boolean @default(false)
+  notes   String?
+
+  // R2 keys, for a skin photo.
+  attachments String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+  recordedBy  User        @relation("ChartRecorder", fields: [recordedById], references: [id], onDelete: Cascade)
+
+  // The query this table exists to answer: one person, one kind, one day.
+  @@index([serviceUserId, kind, occurredAt])
+  @@index([companyId, occurredAt])
+  @@index([recordedById])
 }

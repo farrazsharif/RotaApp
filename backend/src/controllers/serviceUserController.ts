@@ -6,6 +6,7 @@ import { isScoped, serviceUserInScope, serviceUserScopeOr } from '../lib/scope';
 import { emitToUser, emitToCompany } from '../lib/socket';
 import { sendPushToUser } from '../lib/push';
 import { logAudit } from '../lib/audit';
+import { CHART_KINDS } from './careChartController';
 import { cancelAwayWindow, restoreAwayFrom, awayCancelledInWindow } from '../lib/awayPeriods';
 
 // Turn a camelCase field name into readable words for the audit details,
@@ -155,6 +156,21 @@ function buildData(body: Record<string, unknown>) {
     data.financeOpeningBalance = isNaN(n) ? 0 : n;
   }
   if (body.visitDuration !== undefined) data.visitDuration = Number(body.visitDuration) || 30;
+  // Which daily charts this person is on. Unknown kinds are dropped rather
+  // than stored, so a stale client cannot switch on a chart that no longer
+  // exists and leave a tab nobody can fill in.
+  if (body.careCharts !== undefined) {
+    const raw = Array.isArray(body.careCharts) ? body.careCharts : [];
+    data.careCharts = JSON.stringify(
+      raw.filter((k: unknown) => typeof k === 'string' && CHART_KINDS.includes(k)),
+    );
+  }
+  for (const f of ['fluidTargetMl', 'repositionHours'] as const) {
+    if (body[f] === undefined) continue;
+    const n = Number(body[f]);
+    const max = f === 'fluidTargetMl' ? 6000 : 24;
+    data[f] = body[f] === '' || body[f] === null || !Number.isFinite(n) || n <= 0 || n > max ? null : Math.round(n);
+  }
   if (body.contractedWeeklyHours !== undefined) {
     const n = Number(body.contractedWeeklyHours);
     data.contractedWeeklyHours = body.contractedWeeklyHours === '' || body.contractedWeeklyHours === null || isNaN(n) ? null : n;
