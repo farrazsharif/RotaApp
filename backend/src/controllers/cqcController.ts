@@ -51,7 +51,7 @@ export async function computeReadiness() {
     orderBy: [{ lastName: 'asc' }],
   });
   const staff = await prisma.user.findMany({
-    where: { active: true, role: { not: 'FAMILY_MEMBER' }, platformAdmin: false },
+    where: { active: true, role: { not: 'FAMILY_MEMBER' }, platformAdmin: false, serviceAccount: false },
     // role is needed to work out which policies apply to whom.
     select: { id: true, firstName: true, lastName: true, role: true },
     orderBy: [{ lastName: 'asc' }],

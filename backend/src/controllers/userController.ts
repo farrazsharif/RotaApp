@@ -14,7 +14,7 @@ import { loadOrgSettings } from './settingsController';
 
 const userSelect = {
   id: true, email: true, firstName: true, lastName: true, role: true,
-  hourlyRate: true, phone: true, photo: true, active: true, createdAt: true,
+  hourlyRate: true, phone: true, photo: true, active: true, serviceAccount: true, createdAt: true,
   customRoleId: true, permissionsOverride: true,
   customRole: { select: { id: true, name: true, baseType: true, permissions: true } },
   sites: { select: { id: true, name: true, color: true } },
@@ -155,7 +155,12 @@ export async function docCountsByUser(userIds: string[]): Promise<Map<string, Re
 // GET /api/users/compliance — staff-file completeness for every in-scope active
 // staff member, so the Staff list can flag anyone with missing documents.
 export async function staffComplianceSummary(req: AuthRequest, res: Response) {
-  const where: Record<string, unknown> = { role: { not: Role.FAMILY_MEMBER }, active: true };
+  const where: Record<string, unknown> = {
+    role: { not: Role.FAMILY_MEMBER },
+    active: true,
+    // A service account has no staff file to be incomplete.
+    serviceAccount: false,
+  };
   if (isScoped(req.user)) {
     where.OR = staffScopeOr(req.user);
   }
@@ -318,7 +323,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (!(await staffInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, emergencyContactAddress, fitForWork, staffType, staffRole, rightToWorkCheckedAt, rightToWorkCheckedBy, rightToWorkMethod, rightToWorkDocument, rightToWorkNote } = req.body;
+  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, emergencyContactAddress, fitForWork, staffType, staffRole, rightToWorkCheckedAt, rightToWorkCheckedBy, rightToWorkMethod, rightToWorkDocument, rightToWorkNote, serviceAccount } = req.body;
   const data: Record<string, unknown> = {};
   // Changing the login email — must stay unique. Only admins may change the
   // email of another admin account.
@@ -336,6 +341,13 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (firstName !== undefined) data.firstName = firstName;
   if (lastName !== undefined) data.lastName = lastName;
   if (role !== undefined && req.user!.role === Role.ADMIN) data.role = role;
+  // Marks a login as a machine's rather than a person's, which takes it out of
+  // every count that means "our staff". Admin-only: flipping it on a real
+  // employee would quietly remove them from the compliance figures, which is
+  // exactly the kind of thing that should need an admin.
+  if (serviceAccount !== undefined && req.user!.role === Role.ADMIN) {
+    data.serviceAccount = serviceAccount === true;
+  }
   if (hourlyRate !== undefined) data.hourlyRate = Number(hourlyRate);
   if (phone !== undefined) data.phone = phone || null;
   if (photo !== undefined) data.photo = photo || null;

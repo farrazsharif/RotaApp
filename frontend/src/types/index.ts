@@ -87,6 +87,8 @@ export interface User {
   lastName: string;
   role: Role;
   hourlyRate: number;
+  // A machine's login rather than a person's: left out of every staff count.
+  serviceAccount?: boolean;
   phone?: string;
   photo?: string;
   active: boolean;

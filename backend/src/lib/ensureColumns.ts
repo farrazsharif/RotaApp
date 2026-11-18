@@ -108,6 +108,9 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP NOT NULL`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP DEFAULT`);
 
+  // A service account is a machine's login. It must not be counted as staff.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "serviceAccount" BOOLEAN NOT NULL DEFAULT false`);
+
   // Care audits and the service improvement plan (Reg 17).
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "Audit" (

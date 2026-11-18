@@ -94,7 +94,7 @@ export async function listPolicies(req: AuthRequest, res: Response) {
   // signatures of any version would report a policy as read when the version
   // people read has since been replaced.
   const [staff, acks] = await Promise.all([
-    prisma.user.findMany({ where: { active: true }, select: { id: true, role: true } }),
+    prisma.user.findMany({ where: { active: true, serviceAccount: false }, select: { id: true, role: true } }),
     prisma.policyAcknowledgement.findMany({ select: { policyId: true, userId: true, version: true } }),
   ]);
 
@@ -158,7 +158,7 @@ export async function getPolicy(req: AuthRequest, res: Response) {
   // Everyone it applies to, so the screen can show who has NOT signed - which
   // is the half of the list that leads to an action.
   const staff = await prisma.user.findMany({
-    where: { active: true },
+    where: { active: true, serviceAccount: false },
     select: { id: true, firstName: true, lastName: true, role: true },
   });
   const due = staff.filter((u) => appliesTo(policy.audience, u.role));

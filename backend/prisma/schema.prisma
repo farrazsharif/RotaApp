@@ -118,6 +118,12 @@ model User {
   complaintsReceived Complaint[]           @relation("ComplaintReceiver")
   complaintsAbout    Complaint[]           @relation("ComplaintStaffInvolved")
   complaintsClosed   Complaint[]           @relation("ComplaintCloser")
+  // A machine's login, not a person's. Excluded from every count that means
+  // "our staff": it has no DBS, no training and no supervision, and it is
+  // not supposed to. Without this flag the agent account sits in the
+  // compliance figures as a permanently non-compliant employee and in the
+  // "still to sign" list of every policy.
+  serviceAccount     Boolean               @default(false)
   chartEntries       CareChartEntry[]      @relation("ChartRecorder")
   policiesOwned      Policy[]              @relation("PolicyOwner")
   policySignatures   PolicyAcknowledgement[]

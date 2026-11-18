@@ -23,6 +23,7 @@ interface FormState {
   customRoleId: string;
   siteIds: string[];
   hourlyRate: string;
+  serviceAccount: boolean;
   phone: string;
   photo: string;
   staffType: 'LOCAL' | 'OVERSEAS';
@@ -32,12 +33,12 @@ interface FormState {
 
 const emptyForm: FormState = {
   email: '', password: '', firstName: '', lastName: '',
-  role: 'EMPLOYEE', customRoleId: '', siteIds: [], hourlyRate: '', phone: '', photo: '', staffType: 'LOCAL', staffRole: 'CARE', sendInvite: true,
+  role: 'EMPLOYEE', customRoleId: '', siteIds: [], hourlyRate: '', phone: '', photo: '', staffType: 'LOCAL', staffRole: 'CARE', sendInvite: true, serviceAccount: false,
 };
 
 function initialForm(u: User | null): FormState {
   if (!u) return emptyForm;
-  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', siteIds: (u.sites || []).map((s) => s.id), hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', staffType: u.staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL', staffRole: u.staffRole === 'OFFICE' ? 'OFFICE' : 'CARE', sendInvite: false };
+  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', siteIds: (u.sites || []).map((s) => s.id), hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', staffType: u.staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL', staffRole: u.staffRole === 'OFFICE' ? 'OFFICE' : 'CARE', sendInvite: false, serviceAccount: !!u.serviceAccount };
 }
 
 export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
@@ -243,6 +244,26 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
               <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input" />
             </div>
           </div>
+
+          {/* A machine's login. Admin-only, because flipping it on a real
+              employee would quietly take them out of the compliance figures. */}
+          {isAdmin && (
+            <label className="flex items-start gap-2.5 text-sm text-gray-800">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={form.serviceAccount}
+                onChange={(e) => setForm({ ...form, serviceAccount: e.target.checked })}
+              />
+              <span>
+                This is a service account, not a person
+                <span className="block text-xs text-gray-500">
+                  For an integration or agent login. It is left out of staff compliance, training, supervision
+                  and the policy read-and-sign lists &mdash; it has no DBS and is not supposed to.
+                </span>
+              </span>
+            </label>
+          )}
         </div>
         <div className="flex gap-3 p-6 border-t shrink-0">
           <div className="flex-1" />
