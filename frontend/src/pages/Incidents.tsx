@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { incidentsApi, IncidentSummary } from '../api/incidents';
+import { incidentsApi, IncidentSummary, IncidentPatch } from '../api/incidents';
 import {
   INCIDENT_INVESTIGATION,
   INCIDENT_QUESTION_COUNT,
@@ -28,6 +28,16 @@ const FILTERS = [
   { v: 'INVESTIGATING', label: 'Investigating' },
   { v: 'CLOSED', label: 'Closed' },
   { v: '', label: 'All' },
+];
+
+// Reg 20's harm levels. Candour is engaged from moderate upwards.
+const HARM_LEVELS = [
+  { v: 'NONE', label: 'No harm' },
+  { v: 'LOW', label: 'Low' },
+  { v: 'MODERATE', label: 'Moderate' },
+  { v: 'SEVERE', label: 'Severe' },
+  { v: 'DEATH', label: 'Death' },
+  { v: 'PSYCHOLOGICAL', label: 'Prolonged psychological' },
 ];
 
 export default function Incidents() {
@@ -146,6 +156,17 @@ function IncidentDetail({
 
   const [values, setValues] = useState<Record<string, unknown> | null>(null);
   const [saved, setSaved] = useState(false);
+
+  // Duty of candour lives in real columns rather than the investigation blob,
+  // because the dashboard has to be able to ask which incidents are still
+  // waiting on it. So it gets its own draft, merged into the same save.
+  const [candour, setCandour] = useState<IncidentPatch>({});
+  const setC = <K extends keyof IncidentPatch>(key: K, val: IncidentPatch[K]) => {
+    setSaved(false);
+    setCandour((c) => ({ ...c, [key]: val }));
+  };
+  const cv = <K extends keyof IncidentPatch>(key: K, fallback: IncidentPatch[K]): IncidentPatch[K] =>
+    key in candour ? candour[key] : fallback;
 
   // Load the stored answers once the record arrives, and not on every render.
   const stored = useMemo(() => {
@@ -285,6 +306,135 @@ function IncidentDetail({
                 </div>
               </div>
 
+              {/* Duty of candour (Reg 20) and RIDDOR. Shown for every incident
+                  rather than only the harmful ones: the decision that candour
+                  does NOT apply is itself a record an inspector asks to see. */}
+              <div className="rounded-xl border border-gray-200">
+                <div className="bg-gray-50 px-3 py-2 rounded-t-xl">
+                  <p className="text-sm font-semibold text-gray-800">Duty of candour</p>
+                  <p className="text-xs text-gray-500">
+                    Regulation 20. Engaged from moderate harm upwards: tell the person face to face, apologise,
+                    then follow up in writing.
+                  </p>
+                </div>
+                <div className="p-3 space-y-3">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Level of harm</p>
+                    <div className="flex flex-wrap gap-1">
+                      {HARM_LEVELS.map((h) => {
+                        const on = cv('candourHarm', inc.candourHarm) === h.v;
+                        return (
+                          <button
+                            key={h.v}
+                            type="button"
+                            disabled={!canManage}
+                            onClick={() => setC('candourHarm', on ? null : h.v)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium border disabled:opacity-60 ${
+                              on ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-300'
+                            }`}
+                          >
+                            {h.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <TriState
+                    label="Does duty of candour apply?"
+                    value={cv('candourRequired', inc.candourRequired) ?? null}
+                    disabled={!canManage}
+                    onChange={(val) => setC('candourRequired', val)}
+                  />
+
+                  {cv('candourRequired', inc.candourRequired) === true && (
+                    <div className="space-y-3 border-l-2 border-amber-300 pl-3">
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <DateField
+                          label="Told in person on"
+                          value={cv('candourToldAt', inc.candourToldAt) ?? null}
+                          disabled={!canManage}
+                          onChange={(val) => setC('candourToldAt', val)}
+                        />
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Who was told</p>
+                          <input
+                            className="input text-sm"
+                            disabled={!canManage}
+                            placeholder="Name and relationship"
+                            value={(cv('candourToldWho', inc.candourToldWho) ?? '') as string}
+                            onChange={(e) => setC('candourToldWho', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-gray-800">
+                        <input
+                          type="checkbox"
+                          disabled={!canManage}
+                          checked={(cv('candourApology', inc.candourApology) ?? false) as boolean}
+                          onChange={(e) => setC('candourApology', e.target.checked)}
+                        />
+                        An apology was given
+                      </label>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <DateField
+                          label="Written follow-up sent"
+                          value={cv('candourWrittenAt', inc.candourWrittenAt) ?? null}
+                          disabled={!canManage}
+                          onChange={(val) => setC('candourWrittenAt', val)}
+                        />
+                        <DateField
+                          label="Findings shared"
+                          value={cv('candourOutcomeAt', inc.candourOutcomeAt) ?? null}
+                          disabled={!canManage}
+                          onChange={(val) => setC('candourOutcomeAt', val)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">Notes</p>
+                    <AutoGrowTextarea
+                      value={(cv('candourNotes', inc.candourNotes) ?? '') as string}
+                      minRows={2}
+                      disabled={!canManage}
+                      placeholder="What was said, and by whom. If the person could not be reached or did not want to be told, record that here — it still discharges the duty."
+                      onChange={(e) => setC('candourNotes', e.target.value)}
+                      className="input text-sm"
+                    />
+                  </div>
+
+                  <div className="border-t pt-3 space-y-3">
+                    <TriState
+                      label="Is this reportable under RIDDOR?"
+                      value={cv('riddorRequired', inc.riddorRequired) ?? null}
+                      disabled={!canManage}
+                      onChange={(val) => setC('riddorRequired', val)}
+                    />
+                    {cv('riddorRequired', inc.riddorRequired) === true && (
+                      <div className="grid sm:grid-cols-2 gap-3 border-l-2 border-amber-300 pl-3">
+                        <DateField
+                          label="Reported on"
+                          value={cv('riddorReportedAt', inc.riddorReportedAt) ?? null}
+                          disabled={!canManage}
+                          onChange={(val) => setC('riddorReportedAt', val)}
+                        />
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">HSE reference</p>
+                          <input
+                            className="input text-sm"
+                            disabled={!canManage}
+                            value={(cv('riddorRef', inc.riddorRef) ?? '') as string}
+                            onChange={(e) => setC('riddorRef', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {inc.status === 'CLOSED' && inc.closedAt && (
                 <p className="text-sm text-green-700 font-medium">
                   Closed {format(new Date(inc.closedAt), 'd MMM yyyy')}
@@ -298,12 +448,18 @@ function IncidentDetail({
         {canManage && inc && (
           <div className="flex flex-wrap items-center gap-2 p-4 border-t shrink-0">
             {saved && <span className="text-sm text-green-600">Saved ✓</span>}
+            {save.isError && (
+              <span className="text-sm text-red-600 font-medium">
+                {(save.error as { response?: { data?: { error?: string } } })?.response?.data?.error
+                  || 'That did not save. Please try again.'}
+              </span>
+            )}
             <div className="flex-1" />
             <button className="btn-secondary btn" onClick={onClose}>Close</button>
             <button
               className="btn-secondary btn"
               disabled={save.isPending}
-              onClick={() => save.mutate({ investigation: v, status: inc.status === 'REPORTED' ? 'INVESTIGATING' : undefined })}
+              onClick={() => save.mutate({ ...candour, investigation: v, status: inc.status === 'REPORTED' ? 'INVESTIGATING' : undefined })}
             >
               {save.isPending ? 'Saving…' : 'Save'}
             </button>
@@ -311,7 +467,7 @@ function IncidentDetail({
               <button
                 className="btn-primary btn"
                 disabled={save.isPending}
-                onClick={() => save.mutate({ investigation: v, status: 'CLOSED' })}
+                onClick={() => save.mutate({ ...candour, investigation: v, status: 'CLOSED' })}
               >
                 Save &amp; close incident
               </button>
@@ -327,6 +483,73 @@ function IncidentDetail({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// Yes / No / not yet decided. The third state is the point: an unanswered
+// question is what the dashboard chases, and a plain checkbox cannot say it.
+function TriState({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: boolean | null;
+  disabled?: boolean;
+  onChange: (v: boolean | null) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <span className="text-sm text-gray-800 flex-1 min-w-[200px]">{label}</span>
+      <div className="flex gap-1 shrink-0">
+        {([true, false] as const).map((opt) => (
+          <button
+            key={String(opt)}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(value === opt ? null : opt)}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium border disabled:opacity-60 ${
+              value === opt
+                ? opt
+                  ? 'bg-amber-600 text-white border-amber-600'
+                  : 'bg-gray-500 text-white border-gray-500'
+                : 'bg-white text-gray-600 border-gray-300'
+            }`}
+          >
+            {opt ? 'Yes' : 'No'}
+          </button>
+        ))}
+      </div>
+      {value === null && <span className="text-xs text-gray-400">Not yet decided</span>}
+    </div>
+  );
+}
+
+// A date the office can set or clear. Sends an ISO date or null, which is what
+// the server distinguishes from a typo.
+function DateField({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  disabled?: boolean;
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1">{label}</p>
+      <input
+        type="date"
+        className="input text-sm"
+        disabled={disabled}
+        value={value ? value.slice(0, 10) : ''}
+        onChange={(e) => onChange(e.target.value || null)}
+      />
     </div>
   );
 }

@@ -59,7 +59,7 @@ export async function computeReadiness() {
   const staffLink = (s: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: s.id, label: `${s.firstName} ${s.lastName}`, link: `/users/${s.id}` });
 
   // --- Load supporting data in parallel ---
-  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings] = await Promise.all([
+  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, incidents] = await Promise.all([
     prisma.carePlan.findMany({ select: { serviceUserId: true, reviewDate: true } }),
     prisma.riskAssessment.findMany({ select: { serviceUserId: true, type: true } }),
     prisma.likesDislikes.findMany({ select: { serviceUserId: true } }),
@@ -74,7 +74,35 @@ export async function computeReadiness() {
       select: { id: true, kind: true, raisedAt: true, referredToLA: true, laReference: true, personAtRisk: true, serviceUser: { select: { firstName: true, lastName: true } } },
     }),
     prisma.orgSettings.findFirst({ select: { safeguardingLeadId: true } }),
+    // Last 12 months only. This measures how the office is handling candour
+    // now, not every incident ever filed - and the columns did not exist
+    // before this shipped, so older rows would all read as undecided.
+    prisma.incident.findMany({
+      where: { occurredAt: { gte: daysAgo(365) } },
+      select: {
+        id: true, occurredAt: true, kind: true, status: true,
+        candourRequired: true, candourHarm: true, candourToldAt: true, candourWrittenAt: true,
+        serviceUser: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { occurredAt: 'desc' },
+    }),
   ]);
+
+  // Duty of candour. Two separate failures: nobody has decided whether it
+  // applies, and somebody decided it applies and then did not follow through.
+  const incidentLabel = (i: { id: string; occurredAt: Date; kind: string; serviceUser: { firstName: string; lastName: string } | null }): CheckItem => ({
+    id: i.id,
+    label: `${i.kind.replace('_', ' ').toLowerCase()}${i.serviceUser ? ` - ${i.serviceUser.firstName} ${i.serviceUser.lastName}` : ''}, ${i.occurredAt.toISOString().slice(0, 10)}`,
+    link: '/incidents',
+  });
+  // Only incidents with an actual outcome need the decision: a near miss with
+  // nobody harmed does not engage Reg 20, and chasing those would train people
+  // to click through the question rather than answer it.
+  const candourRelevant = incidents.filter((i) => i.kind !== 'NEAR_MISS');
+  const candourUndecided = candourRelevant.filter((i) => i.candourRequired === null);
+  const candourOutstanding = incidents.filter(
+    (i) => i.candourRequired === true && (!i.candourToldAt || !i.candourWrittenAt),
+  );
 
   // Safeguarding. Three things an inspector tests, in the order they test
   // them: is someone named as responsible, is anything sitting open, and does
@@ -216,7 +244,34 @@ export async function computeReadiness() {
     staffCheck('spot_check_overdue', 'Spot checks up to date', 'Governance · Reg 17',
       (s) => { const d = latestSpot.get(s.id); return !d || d < daysAgo(180); }, false,
       (n) => n ? `${n} staff member(s) have had no spot check in the last 6 months.` : 'All staff have a recent spot check.'),
-    { id: 'incidents', title: 'Accidents & incidents register', statement: 'Learning culture · Reg 12 & 17', status: 'info', count: 0, total: 0, detail: 'Not yet evidenced in the system — an incident register is planned for Phase 2.', items: [] },
+    {
+      id: 'incidents', title: 'Accidents & incidents register', statement: 'Learning culture · Reg 12 & 17',
+      status: 'green', count: incidents.length, total: incidents.length,
+      detail: incidents.length
+        ? `${incidents.length} accident(s), incident(s) and near miss(es) recorded in the last 12 months.`
+        : 'No incidents recorded in the last 12 months.',
+      items: [],
+    },
+    {
+      id: 'candour_decision', title: 'Duty of candour considered', statement: 'Duty of candour · Reg 20',
+      status: candourUndecided.length ? 'amber' : 'green',
+      count: candourUndecided.length, total: candourRelevant.length,
+      detail: candourUndecided.length
+        ? `${candourUndecided.length} incident(s) in the last 12 months have no duty of candour decision recorded. Deciding it does not apply is also an answer.`
+        : candourRelevant.length
+          ? 'Duty of candour has been considered on every incident in the last 12 months.'
+          : 'No incidents in the last 12 months needed a duty of candour decision.',
+      items: candourUndecided.slice(0, CAP).map(incidentLabel),
+    },
+    {
+      id: 'candour_done', title: 'Duty of candour discharged', statement: 'Duty of candour · Reg 20',
+      status: candourOutstanding.length ? 'red' : 'green',
+      count: candourOutstanding.length, total: incidents.filter((i) => i.candourRequired === true).length,
+      detail: candourOutstanding.length
+        ? `${candourOutstanding.length} incident(s) where candour applies are missing the notification or the written follow-up.`
+        : 'Every incident where candour applies has been notified and followed up in writing.',
+      items: candourOutstanding.slice(0, CAP).map(incidentLabel),
+    },
   ];
 
   const blocks: Record<string, Check[]> = { safe, effective, caring, responsive, wellled };

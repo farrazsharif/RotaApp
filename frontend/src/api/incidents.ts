@@ -10,6 +10,11 @@ export interface IncidentSummary {
   whatHappened: string;
   injuries: string | null;
   emergencyServices: boolean;
+  // Duty of candour (Reg 20). null on required means nobody has decided yet,
+  // which is not the same as decided and not required.
+  candourRequired: boolean | null;
+  candourToldAt: string | null;
+  candourWrittenAt: string | null;
   status: string;
   closedAt: string | null;
   createdAt: string;
@@ -22,6 +27,14 @@ export interface Incident extends IncidentSummary {
   whoInformed: string | null;
   witnesses: string | null;
   investigation: string; // JSON
+  candourHarm: string | null;
+  candourToldWho: string | null;
+  candourApology: boolean;
+  candourOutcomeAt: string | null;
+  candourNotes: string | null;
+  riddorRequired: boolean | null;
+  riddorReportedAt: string | null;
+  riddorRef: string | null;
   closedSignature: string | null;
   closedBy?: { id: string; firstName: string; lastName: string } | null;
   serviceUser?: { id: string; firstName: string; lastName: string; address?: string | null; postcode?: string | null } | null;
@@ -39,6 +52,17 @@ export interface IncidentPatch {
   whoInformed?: string | null;
   witnesses?: string | null;
   emergencyServices?: boolean;
+  candourRequired?: boolean | null;
+  candourHarm?: string | null;
+  candourToldAt?: string | null;
+  candourToldWho?: string | null;
+  candourApology?: boolean;
+  candourWrittenAt?: string | null;
+  candourOutcomeAt?: string | null;
+  candourNotes?: string | null;
+  riddorRequired?: boolean | null;
+  riddorReportedAt?: string | null;
+  riddorRef?: string | null;
 }
 
 export const incidentsApi = {

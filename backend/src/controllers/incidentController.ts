@@ -18,6 +18,10 @@ import { logAudit } from '../lib/audit';
 
 const KINDS = ['ACCIDENT', 'INCIDENT', 'NEAR_MISS'];
 const STATUSES = ['REPORTED', 'INVESTIGATING', 'CLOSED'];
+// Harm levels, in the language Reg 20 uses. Candour is engaged from MODERATE
+// upwards; the office still records the level for the lower ones, because the
+// decision not to apply candour is itself a thing an inspector asks to see.
+const HARM_LEVELS = ['NONE', 'LOW', 'MODERATE', 'SEVERE', 'DEATH', 'PSYCHOLOGICAL'];
 
 const listSelect = {
   id: true,
@@ -29,6 +33,9 @@ const listSelect = {
   whatHappened: true,
   injuries: true,
   emergencyServices: true,
+  candourRequired: true,
+  candourToldAt: true,
+  candourWrittenAt: true,
   status: true,
   closedAt: true,
   createdAt: true,
@@ -40,6 +47,15 @@ function clean(v: unknown, max = 4000): string | undefined {
   if (v === undefined || v === null) return undefined;
   const s = String(v).trim();
   return s === '' ? undefined : s.slice(0, max);
+}
+
+// A date the office can set or clear. Distinguishes "clear this" (null) from
+// "that is not a date" (not ok), so a typo is refused rather than silently
+// wiping a date somebody relies on.
+function dateField(v: unknown): { ok: true; value: Date | null } | { ok: false } {
+  if (v === null || v === '') return { ok: true, value: null };
+  const d = new Date(String(v));
+  return isNaN(d.getTime()) ? { ok: false } : { ok: true, value: d };
 }
 
 // GET /api/incidents — the office list. Carers get only their own reports,
@@ -157,7 +173,13 @@ export async function createIncident(req: AuthRequest, res: Response) {
 export async function updateIncident(req: AuthRequest, res: Response) {
   const existing = await prisma.incident.findUnique({
     where: { id: req.params.id },
-    select: { id: true, serviceUserId: true, status: true },
+    select: {
+      id: true,
+      serviceUserId: true,
+      status: true,
+      candourRequired: true,
+      candourToldAt: true,
+    },
   });
   if (!existing) return res.status(404).json({ error: 'Incident not found' });
   if (existing.serviceUserId && !(await serviceUserInScope(req.user, existing.serviceUserId))) {
@@ -183,11 +205,46 @@ export async function updateIncident(req: AuthRequest, res: Response) {
   if (b.emergencyServices !== undefined) data.emergencyServices = b.emergencyServices === true;
   if (b.kind !== undefined && KINDS.includes(String(b.kind))) data.kind = String(b.kind);
 
+  // Duty of candour and RIDDOR. Both "required" flags are tri-state: null is
+  // an open question, and the dashboard chases those rather than treating an
+  // unanswered incident as cleared.
+  for (const f of ['candourRequired', 'riddorRequired'] as const) {
+    if (f in b) data[f] = b[f] === null || b[f] === '' ? null : b[f] === true;
+  }
+  if (b.candourApology !== undefined) data.candourApology = b.candourApology === true;
+  for (const f of ['candourToldWho', 'candourNotes', 'riddorRef'] as const) {
+    if (f in b) data[f] = clean(b[f]) ?? null;
+  }
+  if ('candourHarm' in b) {
+    const harm = clean(b.candourHarm, 20);
+    if (harm && !HARM_LEVELS.includes(harm)) return res.status(400).json({ error: 'Unknown harm level' });
+    data.candourHarm = harm ?? null;
+  }
+  for (const f of ['candourToldAt', 'candourWrittenAt', 'candourOutcomeAt', 'riddorReportedAt'] as const) {
+    if (!(f in b)) continue;
+    const parsed = dateField(b[f]);
+    if (!parsed.ok) return res.status(400).json({ error: 'That date is not valid.' });
+    if (parsed.value && parsed.value.getTime() > Date.now() + 5 * 60 * 1000) {
+      return res.status(400).json({ error: 'That date cannot be in the future.' });
+    }
+    data[f] = parsed.value;
+  }
+
   if (b.status !== undefined) {
     const status = String(b.status);
     if (!STATUSES.includes(status)) return res.status(400).json({ error: 'Unknown status' });
     data.status = status;
     if (status === 'CLOSED') {
+      // Reg 20 is a duty to tell the person, not a box on a form. If the office
+      // has said candour applies, closing without a notification date would
+      // leave a record that says the duty was owed and never discharged.
+      const required = ('candourRequired' in data ? data.candourRequired : existing.candourRequired) === true;
+      const toldAt = 'candourToldAt' in data ? data.candourToldAt : existing.candourToldAt;
+      if (required && !toldAt) {
+        return res.status(400).json({
+          error: 'Duty of candour applies to this incident. Record the date the person was told before closing it.',
+        });
+      }
       // Closing is the thing an inspector asks about, so it is stamped with who
       // and when rather than inferred from the row's last edit.
       data.closedAt = new Date();

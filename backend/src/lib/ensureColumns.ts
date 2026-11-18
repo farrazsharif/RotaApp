@@ -108,6 +108,26 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP NOT NULL`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP DEFAULT`);
 
+  // Duty of candour (Reg 20) and RIDDOR, on the incident they belong to.
+  //
+  // candourRequired is deliberately NULLABLE rather than defaulting to false:
+  // "nobody has decided yet" and "decided, not required" are different states,
+  // and only the first one is a thing the dashboard should chase. A boolean
+  // defaulting to false would silently report every historic incident as
+  // considered and cleared.
+  for (const col of ['candourRequired', 'riddorRequired']) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Incident" ADD COLUMN IF NOT EXISTS "${col}" BOOLEAN`);
+  }
+  for (const col of ['candourToldAt', 'candourWrittenAt', 'candourOutcomeAt', 'riddorReportedAt']) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Incident" ADD COLUMN IF NOT EXISTS "${col}" TIMESTAMP(3)`);
+  }
+  for (const col of ['candourHarm', 'candourToldWho', 'candourNotes', 'riddorRef']) {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Incident" ADD COLUMN IF NOT EXISTS "${col}" TEXT`);
+  }
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Incident" ADD COLUMN IF NOT EXISTS "candourApology" BOOLEAN NOT NULL DEFAULT false`);
+  // Drives the dashboard check for incidents still awaiting a candour decision.
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Incident_companyId_candourRequired_idx" ON "Incident"("companyId", "candourRequired")`);
+
   // Expiry date on a stored document (DBS, passport, visa, driving licence,
   // insurance). Nullable: most documents never expire.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Document" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3)`);

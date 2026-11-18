@@ -849,6 +849,23 @@ model Incident {
   // The office investigation checklist answers, keyed like the risk
   // assessment forms. JSON.
   investigation     String    @default("{}")
+  // Duty of candour (Reg 20). Nullable boolean: null means nobody has decided
+  // yet, which is the state the dashboard chases. False means considered and
+  // not required, which is a complete answer.
+  candourRequired   Boolean?
+  // NONE | LOW | MODERATE | SEVERE | DEATH | PSYCHOLOGICAL
+  candourHarm       String?
+  candourToldAt     DateTime?
+  candourToldWho    String?
+  candourApology    Boolean   @default(false)
+  candourWrittenAt  DateTime?
+  candourOutcomeAt  DateTime?
+  candourNotes      String?
+  // RIDDOR, which rides along with candour because the same office decision
+  // produces both.
+  riddorRequired    Boolean?
+  riddorReportedAt  DateTime?
+  riddorRef         String?
   // REPORTED | INVESTIGATING | CLOSED
   status            String    @default("REPORTED")
   closedAt          DateTime?
@@ -862,6 +879,7 @@ model Incident {
   serviceUser ServiceUser? @relation(fields: [serviceUserId], references: [id], onDelete: SetNull)
 
   @@index([companyId, status])
+  @@index([companyId, candourRequired])
   @@index([serviceUserId, occurredAt])
   @@index([reportedById])
 }
