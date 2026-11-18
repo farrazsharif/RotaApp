@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { extname, isAbsolute } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { apiGet, apiPost } from '../api.js';
@@ -108,7 +110,16 @@ export function registerPolicyTools(server: McpServer) {
           .string()
           .min(1)
           .max(300_000)
-          .describe('The policy text. This is what a carer reads on their phone, so include the whole thing, not a summary.'),
+          .optional()
+          .describe('The policy text, inline. This is what a carer reads on their phone, so include the whole thing, not a summary. Use body_file instead for anything long.'),
+        body_file: z
+          .string()
+          .optional()
+          .describe(
+            'Absolute path to a UTF-8 .txt or .md file holding the policy text, read by the server. ' +
+            'Prefer this for a bulk import: it keeps a 2MB library out of the conversation entirely. ' +
+            'Exactly one of body_text or body_file.',
+          ),
         reference: z.string().max(60).optional().describe("The company's own reference, e.g. POL-012"),
         version: z.string().max(20).optional().describe('From the document. Defaults to 1.0 if the document gives none.'),
         issued_at: z.string().optional().describe('ISO date the version was issued, if the document says'),
@@ -137,12 +148,38 @@ export function registerPolicyTools(server: McpServer) {
       },
     },
     async (args, ctx) => {
+      // Exactly one source. Both would be ambiguous; neither leaves a policy
+      // staff are asked to sign with nothing in it.
+      if (!args.body_text === !args.body_file) {
+        throw new Error('Give exactly one of body_text or body_file.');
+      }
+
+      let body = args.body_text ?? '';
+      if (args.body_file) {
+        // The server runs locally as the operator, so this reads their own
+        // disk. Kept to plain text on an absolute path: it is a policy
+        // import, and the extension check turns a wrong path into an error
+        // rather than a policy full of binary.
+        if (!isAbsolute(args.body_file)) {
+          throw new Error('body_file must be an absolute path.');
+        }
+        const ext = extname(args.body_file).toLowerCase();
+        if (ext !== '.txt' && ext !== '.md') {
+          throw new Error(`body_file must be .txt or .md, got "${ext || 'no extension'}".`);
+        }
+        body = await readFile(args.body_file, 'utf8');
+        if (!body.trim()) throw new Error(`${args.body_file} is empty.`);
+        if (body.length > 300_000) {
+          throw new Error(`${args.body_file} is ${body.length} characters, over the 300,000 limit.`);
+        }
+      }
+
       const created = await apiPost<PolicyRow>(
         'policies',
         {
           title: args.title,
           category: args.category,
-          bodyText: args.body_text,
+          bodyText: body,
           reference: args.reference,
           version: args.version,
           issuedAt: args.issued_at,
