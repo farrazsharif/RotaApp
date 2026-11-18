@@ -4,6 +4,7 @@ import { requirePermission } from '../middleware/permissions';
 import {
   listPolicies,
   myPolicies,
+  myPolicy,
   getPolicy,
   createPolicy,
   updatePolicy,
@@ -19,6 +20,7 @@ router.use(authenticate);
 // office can open is a filing cabinet, not a governance record — and the
 // signature is the half an inspector asks for.
 router.get('/mine', myPolicies);
+router.get('/mine/:id', myPolicy);
 router.post('/:id/sign', signPolicy);
 
 // Writing the library is the office's.

@@ -1,5 +1,8 @@
 import api from '../lib/axios'
 
+// The list carries no policy text: a full library is megabytes of it, and a
+// phone on mobile data should not download all of that to show a list of
+// titles. The body arrives from mine(id) when one is opened.
 export interface MyPolicy {
   id: string
   title: string
@@ -11,10 +14,13 @@ export interface MyPolicy {
   audience: string
   requiresAck: boolean
   status: string
-  bodyText: string | null
-  attachments: string
   signedAt: string | null
   needsSignature: boolean
+}
+
+export interface MyPolicyDetail extends MyPolicy {
+  bodyText: string | null
+  attachments: string
 }
 
 export const CATEGORY_LABEL: Record<string, string> = {
@@ -32,5 +38,6 @@ export const CATEGORY_LABEL: Record<string, string> = {
 
 export const policiesApi = {
   mine: () => api.get<MyPolicy[]>('/policies/mine').then((r) => r.data),
+  one: (id: string) => api.get<MyPolicyDetail>(`/policies/mine/${id}`).then((r) => r.data),
   sign: (id: string) => api.post(`/policies/${id}/sign`).then((r) => r.data),
 }

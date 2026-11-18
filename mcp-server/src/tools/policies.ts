@@ -107,7 +107,7 @@ export function registerPolicyTools(server: McpServer) {
         body_text: z
           .string()
           .min(1)
-          .max(100_000)
+          .max(300_000)
           .describe('The policy text. This is what a carer reads on their phone, so include the whole thing, not a summary.'),
         reference: z.string().max(60).optional().describe("The company's own reference, e.g. POL-012"),
         version: z.string().max(20).optional().describe('From the document. Defaults to 1.0 if the document gives none.'),

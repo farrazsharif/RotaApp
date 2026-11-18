@@ -97,6 +97,14 @@ function Row({ policy, onOpen }: { policy: MyPolicy; onOpen: () => void }) {
 
 function PolicySheet({ policy, onClose }: { policy: MyPolicy; onClose: () => void }) {
   const qc = useQueryClient()
+
+  // Fetched on open, not with the list. One policy is a few kilobytes; the
+  // whole library is a couple of megabytes.
+  const { data: full, isLoading } = useQuery({
+    queryKey: ['policy', policy.id],
+    queryFn: () => policiesApi.one(policy.id),
+  })
+
   const sign = useMutation({
     mutationFn: () => policiesApi.sign(policy.id),
     onSuccess: () => {
@@ -119,8 +127,10 @@ function PolicySheet({ policy, onClose }: { policy: MyPolicy; onClose: () => voi
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          {policy.bodyText ? (
-            <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{policy.bodyText}</p>
+          {isLoading ? (
+            <p className="text-sm text-gray-400">Loading…</p>
+          ) : full?.bodyText ? (
+            <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{full.bodyText}</p>
           ) : (
             <p className="text-sm text-gray-500">
               This policy is held as a document. Ask the office for a copy if you have not been given one.
@@ -134,7 +144,7 @@ function PolicySheet({ policy, onClose }: { policy: MyPolicy; onClose: () => voi
           {policy.needsSignature ? (
             <button
               className="w-full rounded-xl bg-blue-600 text-white py-3.5 font-semibold disabled:opacity-50"
-              disabled={sign.isPending}
+              disabled={sign.isPending || isLoading}
               onClick={() => sign.mutate()}
             >
               {sign.isPending ? 'Saving…' : 'I have read this'}

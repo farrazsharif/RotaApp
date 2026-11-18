@@ -32,7 +32,10 @@ export const POLICY_CATEGORIES = [
 const AUDIENCES = ['ALL', 'CARERS', 'OFFICE', 'MANAGERS'];
 const STATUSES = ['DRAFT', 'ACTIVE', 'ARCHIVED'];
 
-function clean(v: unknown, max = 100000): string | undefined {
+// The cap is per field, and the policy body is the one that needs room: a
+// full medication policy in a professional library runs past 130,000
+// characters, and truncating a policy is not an option.
+function clean(v: unknown, max = 300000): string | undefined {
   if (v === undefined || v === null) return undefined;
   const s = String(v).trim();
   return s === '' ? undefined : s.slice(0, max);
@@ -109,13 +112,17 @@ export async function listPolicies(req: AuthRequest, res: Response) {
 }
 
 // GET /api/policies/mine — what the signed-in person still has to read.
-// Deliberately only ACTIVE policies that apply to them and need signing.
+//
+// Deliberately WITHOUT the policy text. A real library is a couple of
+// megabytes of it, and sending all of that so somebody can see a list of
+// titles is how a phone on mobile data stops being able to open the screen
+// at all. The text comes from /mine/:id when a policy is actually opened.
 export async function myPolicies(req: AuthRequest, res: Response) {
   const [policies, mine] = await Promise.all([
     prisma.policy.findMany({
       where: { status: 'ACTIVE' },
       orderBy: [{ issuedAt: 'desc' }],
-      select: { ...listSelect, bodyText: true, attachments: true },
+      select: listSelect,
     }),
     prisma.policyAcknowledgement.findMany({
       where: { userId: req.user!.id },
@@ -131,6 +138,28 @@ export async function myPolicies(req: AuthRequest, res: Response) {
     });
 
   res.json(rows);
+}
+
+// GET /api/policies/mine/:id — one policy's text, for the person reading it.
+// Scoped to what applies to them: this is the staff-facing read, so it must
+// not become a way to pull any policy by id.
+export async function myPolicy(req: AuthRequest, res: Response) {
+  const policy = await prisma.policy.findUnique({
+    where: { id: req.params.id },
+    select: { ...listSelect, bodyText: true, attachments: true },
+  });
+  if (!policy || policy.status !== 'ACTIVE') return res.status(404).json({ error: 'Not found' });
+  if (!appliesTo(policy.audience, req.user!.role)) return res.status(404).json({ error: 'Not found' });
+
+  const sig = await prisma.policyAcknowledgement.findFirst({
+    where: { policyId: policy.id, userId: req.user!.id, version: policy.version },
+    select: { signedAt: true },
+  });
+  res.json({
+    ...policy,
+    signedAt: sig?.signedAt ?? null,
+    needsSignature: policy.requiresAck && !sig,
+  });
 }
 
 // GET /api/policies/:id — the document, plus who has signed it.
