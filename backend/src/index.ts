@@ -62,6 +62,7 @@ import supportLogRoutes from './routes/supportLog';
 import cqcRoutes from './routes/cqc';
 import assistantRoutes from './routes/assistant';
 import safeguardingRoutes from './routes/safeguarding';
+import complaintsRoutes from './routes/complaints';
 import { backfillAllCompanyRoles } from './lib/defaultRoles';
 import { normalizeVisitNames } from './lib/normalizeVisitNames';
 import { ensureServiceUserColumns } from './lib/ensureColumns';
@@ -213,6 +214,7 @@ app.use('/api/support-log', supportLogRoutes);
 app.use('/api/cqc', cqcRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/safeguarding', safeguardingRoutes);
+app.use('/api/complaints', complaintsRoutes);
 
 app.use(errorHandler);
 

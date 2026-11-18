@@ -59,7 +59,7 @@ export async function computeReadiness() {
   const staffLink = (s: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: s.id, label: `${s.firstName} ${s.lastName}`, link: `/users/${s.id}` });
 
   // --- Load supporting data in parallel ---
-  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, incidents] = await Promise.all([
+  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, feedback, incidents] = await Promise.all([
     prisma.carePlan.findMany({ select: { serviceUserId: true, reviewDate: true } }),
     prisma.riskAssessment.findMany({ select: { serviceUserId: true, type: true } }),
     prisma.likesDislikes.findMany({ select: { serviceUserId: true } }),
@@ -77,6 +77,16 @@ export async function computeReadiness() {
     // Last 12 months only. This measures how the office is handling candour
     // now, not every incident ever filed - and the columns did not exist
     // before this shipped, so older rows would all read as undecided.
+    prisma.complaint.findMany({
+      where: { receivedAt: { gte: daysAgo(365) } },
+      select: {
+        id: true, kind: true, reference: true, receivedAt: true, status: true,
+        acknowledgedAt: true, respondedAt: true, outcome: true, ombudsmanSignposted: true,
+        complainantName: true,
+        serviceUser: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { receivedAt: 'desc' },
+    }),
     prisma.incident.findMany({
       where: { occurredAt: { gte: daysAgo(365) } },
       select: {
@@ -87,6 +97,29 @@ export async function computeReadiness() {
       orderBy: { occurredAt: 'desc' },
     }),
   ]);
+
+  // Complaints (Reg 16). The two clocks an inspector checks - acknowledged,
+  // and responded to - plus whether anyone was told they could go further.
+  // Working days are approximated as calendar days here: the dashboard is a
+  // prompt to go and look, not the record itself.
+  const ACK_DAYS = 3;
+  const RESPONSE_DAYS = 28;
+  const complaints = feedback.filter((f) => f.kind === 'COMPLAINT');
+  const compliments = feedback.filter((f) => f.kind === 'COMPLIMENT');
+  const complaintLabel = (f: { id: string; reference: string | null; receivedAt: Date; complainantName: string | null; serviceUser: { firstName: string; lastName: string } | null }): CheckItem => ({
+    id: f.id,
+    label: `${f.reference || f.complainantName || (f.serviceUser ? `${f.serviceUser.firstName} ${f.serviceUser.lastName}` : 'Complaint')}, ${f.receivedAt.toISOString().slice(0, 10)}`,
+    link: '/complaints',
+  });
+  const open = complaints.filter((f) => f.status !== 'CLOSED');
+  const ackLate = open.filter((f) => !f.acknowledgedAt && f.receivedAt < daysAgo(ACK_DAYS));
+  const respLate = open.filter((f) => !f.respondedAt && f.receivedAt < daysAgo(RESPONSE_DAYS));
+  // Closed, not upheld in full, and nobody recorded telling them they could
+  // take it to the Ombudsman. New records cannot reach this state - the server
+  // refuses the close - so anything here predates that rule or was imported.
+  const noSignpost = complaints.filter(
+    (f) => f.status === 'CLOSED' && (f.outcome === 'NOT_UPHELD' || f.outcome === 'PARTLY_UPHELD') && !f.ombudsmanSignposted,
+  );
 
   // Duty of candour. Two separate failures: nobody has decided whether it
   // applies, and somebody decided it applies and then did not follow through.
@@ -218,7 +251,38 @@ export async function computeReadiness() {
   const responsive: Check[] = [
     clientCheck('sl_support_plan', 'Supported-living support plan', 'Person centred care · Reg 9',
       (c) => !hasType(c.id, 'SL_SUPPORT_PLAN'), false, (n) => n ? `${n} supported-living client(s) have no support plan.` : 'Every supported-living client has a support plan.', slClients),
-    { id: 'complaints', title: 'Complaints log', statement: 'Listening to and involving people · Reg 16', status: 'info', count: 0, total: 0, detail: 'Not yet evidenced in the system — a complaints register is planned for Phase 2.', items: [] },
+    {
+      id: 'complaints', title: 'Complaints log', statement: 'Listening to and involving people · Reg 16',
+      status: 'green', count: complaints.length, total: complaints.length,
+      detail: complaints.length
+        ? `${complaints.length} complaint(s) and ${compliments.length} compliment(s) recorded in the last 12 months.`
+        : `No complaints recorded in the last 12 months. ${compliments.length} compliment(s) on record.`,
+      items: [],
+    },
+    {
+      id: 'complaints_acknowledged', title: 'Complaints acknowledged promptly', statement: 'Listening to and involving people · Reg 16',
+      status: ackLate.length ? 'red' : 'green', count: ackLate.length, total: open.length,
+      detail: ackLate.length
+        ? `${ackLate.length} open complaint(s) have gone more than ${ACK_DAYS} days without being acknowledged.`
+        : 'Every open complaint has been acknowledged in time.',
+      items: ackLate.slice(0, CAP).map(complaintLabel),
+    },
+    {
+      id: 'complaints_responded', title: 'Complaints answered', statement: 'Listening to and involving people · Reg 16',
+      status: respLate.length ? 'red' : 'green', count: respLate.length, total: open.length,
+      detail: respLate.length
+        ? `${respLate.length} complaint(s) have been open more than ${RESPONSE_DAYS} days with no response recorded.`
+        : 'No complaint has been open longer than ' + RESPONSE_DAYS + ' days without a response.',
+      items: respLate.slice(0, CAP).map(complaintLabel),
+    },
+    {
+      id: 'complaints_ombudsman', title: 'Right to escalate explained', statement: 'Listening to and involving people · Reg 16',
+      status: noSignpost.length ? 'amber' : 'green', count: noSignpost.length, total: complaints.length,
+      detail: noSignpost.length
+        ? `${noSignpost.length} closed complaint(s) were not upheld in full with no record that the person was told they could go to the Ombudsman.`
+        : 'Everyone whose complaint was not upheld in full was told they could take it further.',
+      items: noSignpost.slice(0, CAP).map(complaintLabel),
+    },
   ];
 
   const wellled: Check[] = [

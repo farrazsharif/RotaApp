@@ -115,6 +115,9 @@ model User {
   safeguardingRaised SafeguardingConcern[] @relation("SafeguardingRaiser")
   safeguardingAbout  SafeguardingConcern[] @relation("SafeguardingStaffInvolved")
   safeguardingClosed SafeguardingConcern[] @relation("SafeguardingCloser")
+  complaintsReceived Complaint[]           @relation("ComplaintReceiver")
+  complaintsAbout    Complaint[]           @relation("ComplaintStaffInvolved")
+  complaintsClosed   Complaint[]           @relation("ComplaintCloser")
   incidentsClosed    Incident[]            @relation("IncidentCloser")
   supervisions       Supervision[]         @relation("StaffSupervision")
   handoversSent      ShiftHandover[]       @relation("HandoverFrom")
@@ -274,6 +277,7 @@ model ServiceUser {
   spotChecks           SpotCheck[]
   incidents            Incident[]
   safeguardingConcerns SafeguardingConcern[]
+  complaints           Complaint[]
   respitePeriods       RespitePeriod[]
 
   @@index([companyId])
@@ -1472,4 +1476,86 @@ model InvoiceLine {
   @@unique([sourceShiftId, funderId])
   @@index([invoiceId])
   @@index([companyId])
+}
+
+// The complaints and compliments log (Regulation 16).
+//
+// One model for both, the way SafeguardingConcern carries whistleblowing: a
+// compliment is received, recorded and shared, and the only difference is that
+// there is nothing to investigate. A second near-identical module would cost
+// more than the handful of fields a compliment leaves empty - and keeping them
+// together is what makes "show me the feedback you had this year" answerable
+// in one place.
+//
+// Not restricted to clients on the system. A neighbour can complain about a
+// carer parking across their drive, and that is still a complaint.
+model Complaint {
+  companyId String? // tenant scope (app-enforced via Prisma extension)
+  id        String  @id @default(cuid())
+  // COMPLAINT | COMPLIMENT
+  kind      String  @default("COMPLAINT")
+  // The office's own reference, for quoting in a letter.
+  reference String?
+
+  // What it is about.
+  serviceUserId   String?
+  staffInvolvedId String?
+
+  // Who raised it. A name is optional: an anonymous complaint is still a
+  // complaint, and demanding a name is how they stop being recorded.
+  complainantName    String?
+  complainantContact String?
+  // CLIENT | FAMILY | ADVOCATE | STAFF | PROFESSIONAL | COMMISSIONER | PUBLIC | ANONYMOUS | OTHER
+  relationship       String  @default("CLIENT")
+  // PHONE | EMAIL | LETTER | IN_PERSON | WEBSITE | SURVEY | OTHER
+  channel            String  @default("PHONE")
+
+  receivedById String
+  receivedAt   DateTime  @default(now())
+  occurredAt   DateTime?
+
+  // What it is about, as a JSON array - one complaint often spans several,
+  // and the categories are what make a trend report possible.
+  categories String @default("[]")
+  summary    String
+
+  // --- Handling ---
+  acknowledgedAt DateTime?
+  investigation  String?
+
+  // --- Outcome ---
+  // UPHELD | PARTLY_UPHELD | NOT_UPHELD | WITHDRAWN
+  outcome        String?
+  respondedAt    DateTime?
+  actionsTaken   String?
+  lessonsLearned String?
+
+  // --- Escalation ---
+  // Signposting to the Local Government & Social Care Ombudsman is part of
+  // responding, not a last resort: the person has to be told they can go
+  // further before they can choose to.
+  ombudsmanSignposted Boolean @default(false)
+  escalatedToOmbudsman Boolean @default(false)
+  ombudsmanReference  String?
+
+  // OPEN | INVESTIGATING | RESPONDED | CLOSED
+  status     String    @default("OPEN")
+  closedAt   DateTime?
+  closedById String?
+
+  // R2 keys for letters and attachments. JSON array.
+  attachments String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  receivedBy    User         @relation("ComplaintReceiver", fields: [receivedById], references: [id], onDelete: Cascade)
+  staffInvolved User?        @relation("ComplaintStaffInvolved", fields: [staffInvolvedId], references: [id], onDelete: SetNull)
+  closedBy      User?        @relation("ComplaintCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  serviceUser   ServiceUser? @relation(fields: [serviceUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([companyId, receivedAt])
+  @@index([companyId, kind])
+  @@index([serviceUserId])
+  @@index([receivedById])
 }

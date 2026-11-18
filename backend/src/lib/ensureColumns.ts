@@ -108,6 +108,50 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP NOT NULL`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP DEFAULT`);
 
+  // The complaints and compliments log (Reg 16). Same shape as the
+  // safeguarding table: created here rather than by a migration, so a deploy
+  // brings its own table with it.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Complaint" (
+      "companyId" TEXT,
+      "id" TEXT NOT NULL,
+      "kind" TEXT NOT NULL DEFAULT 'COMPLAINT',
+      "reference" TEXT,
+      "serviceUserId" TEXT,
+      "staffInvolvedId" TEXT,
+      "complainantName" TEXT,
+      "complainantContact" TEXT,
+      "relationship" TEXT NOT NULL DEFAULT 'CLIENT',
+      "channel" TEXT NOT NULL DEFAULT 'PHONE',
+      "receivedById" TEXT NOT NULL,
+      "receivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "occurredAt" TIMESTAMP(3),
+      "categories" TEXT NOT NULL DEFAULT '[]',
+      "summary" TEXT NOT NULL,
+      "acknowledgedAt" TIMESTAMP(3),
+      "investigation" TEXT,
+      "outcome" TEXT,
+      "respondedAt" TIMESTAMP(3),
+      "actionsTaken" TEXT,
+      "lessonsLearned" TEXT,
+      "ombudsmanSignposted" BOOLEAN NOT NULL DEFAULT false,
+      "escalatedToOmbudsman" BOOLEAN NOT NULL DEFAULT false,
+      "ombudsmanReference" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'OPEN',
+      "closedAt" TIMESTAMP(3),
+      "closedById" TEXT,
+      "attachments" TEXT NOT NULL DEFAULT '[]',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Complaint_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Complaint_companyId_status_idx" ON "Complaint"("companyId", "status")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Complaint_companyId_receivedAt_idx" ON "Complaint"("companyId", "receivedAt")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Complaint_companyId_kind_idx" ON "Complaint"("companyId", "kind")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Complaint_serviceUserId_idx" ON "Complaint"("serviceUserId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Complaint_receivedById_idx" ON "Complaint"("receivedById")`);
+
   // Duty of candour (Reg 20) and RIDDOR, on the incident they belong to.
   //
   // candourRequired is deliberately NULLABLE rather than defaulting to false:
