@@ -40,8 +40,15 @@ function httpErrorMessage(status: number, body: string): string {
       return `Caremid rejected the service account's credentials${detail}. Check CAREMID_AGENT_EMAIL and CAREMID_AGENT_PASSWORD, and that the account is still active.`;
     case 402:
       return "Caremid returned 402: the company's subscription is inactive or the trial has lapsed. Nothing can be read until that is resolved in the billing settings.";
-    case 403:
+    case 403: {
+      // Caremid returns 403 for two different problems, and sending someone
+      // to look at roles when the account simply was never activated wastes
+      // their afternoon. Its own message is the accurate one, so lead with it.
+      if (/not active|invite/i.test(body)) {
+        return `Caremid says the service account is not usable yet${detail}. An account created with "email them a link to set their own password" stays inactive and has a RANDOM password until that link is used — so the password in CAREMID_AGENT_PASSWORD will never match. Recreate it with that option turned off and type the password directly, or have an admin activate it and reset its password.`;
+      }
       return `The service account does not have permission for this${detail}. Its role in Caremid needs the matching capability — ask an admin to widen it, and keep it to the minimum that works.`;
+    }
     case 404:
       return `Caremid has no such record${detail}. Check the id is current; it may have been deleted.`;
     case 429:
