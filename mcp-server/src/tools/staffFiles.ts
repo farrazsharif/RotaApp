@@ -432,26 +432,37 @@ export function registerStaffFileTools(server: McpServer) {
   server.registerTool(
     'caremid_record_training',
     {
-      title: 'Record a training certificate',
+      title: 'Record training certificates',
       description:
-        'Records one training course as taken by a staff member on a given date. Use it to load certificates a company already holds on paper. ' +
-        'The course must be one Caremid tracks: it counts the most recent record per course name, so a certificate recorded under a name of its own renews nothing and leaves the real course showing as expired. ' +
-        'The same course and date recorded twice is skipped, so a part-finished import can be run again. ' +
-        'Use the date printed on the certificate, never today and never a guess - the date is what the expiry and the whole training dashboard are computed from. ' +
-        'Upload the certificate itself with caremid_file_staff_document under "Training Certificate". ' +
-        'Example: { staff: "Shazia Zafar", course: "Moving & Handling", taken_on: "2022-10-28" }',
+        'Records courses as taken by ONE staff member on the dates their certificates give. Use it to load the training a company already holds on paper, and to set up somebody with no records yet so a refresher has something to renew. ' +
+        'Up to 25 courses at a time, because a carer holds a whole mandatory set rather than one certificate. ' +
+        'Each course must be one Caremid tracks: it counts the most recent record per course name, so a certificate recorded under a name of its own renews nothing and leaves the real course showing as expired. ' +
+        'Expiry defaults to one year after the date taken, which is what Caremid does everywhere else; give expires_at only where a certificate states something different. ' +
+        'The same course on the same date is skipped rather than duplicated, so a part-finished run can be repeated. ' +
+        'Use the date printed on the certificate, never today and never a guess - it is what the expiry and the whole training dashboard are computed from. ' +
+        'Example: { staff: "M Hamad Khalid", courses: [{ course: "Moving & Handling", taken_on: "2025-05-01" }] }',
       inputSchema: z.strictObject({
         staff: z.string().min(2).max(120).describe('Full name, email, or Caremid id'),
-        course: z.enum(COURSES).describe('Must be a course Caremid tracks'),
-        taken_on: isoDate.describe('The date printed on the certificate'),
-        expires_at: isoDate.optional().describe('If the certificate states one. Left unset means no expiry is tracked.'),
-        accredited: z.boolean().optional().describe('Whether the certificate is from an accredited provider'),
+        courses: z
+          .array(
+            z.strictObject({
+              course: z.enum(COURSES).describe('Must be a course Caremid tracks'),
+              taken_on: isoDate.describe('The date printed on the certificate'),
+              expires_at: isoDate
+                .optional()
+                .describe('Only if the certificate states one. Otherwise a year after taken_on.'),
+              accredited: z.boolean().optional().describe('Whether the provider is accredited'),
+            }),
+          )
+          .min(1)
+          .max(25)
+          .describe('The courses to record, all for the one staff member'),
         response_format: ResponseFormat,
       }),
       annotations: {
         readOnlyHint: false,
-        // Adds a training record. Cannot amend or remove one, and the same
-        // course on the same date is not recorded twice.
+        // Adds records. Cannot amend or remove one, and the same course on
+        // the same date is not recorded twice.
         destructiveHint: false,
         idempotentHint: true,
         openWorldHint: true,
@@ -461,35 +472,70 @@ export function registerStaffFileTools(server: McpServer) {
       const user = await resolveStaff(args.staff, ctx.mcpReq.signal);
       const name = fullName(user);
 
-      const existing = await apiGet<TrainingRow[]>('training', { userId: user.id }, ctx.mcpReq.signal);
-      const already = existing.find((t) => t.course === args.course && t.date.slice(0, 10) === args.taken_on);
-      if (already) {
-        return result(
-          args.response_format as Format,
-          `Skipped: **${name}** already has **${args.course}** recorded for ${fmtDate(args.taken_on)}.`,
-          { skipped: true, reason: 'already recorded', staff: name, training: already },
-        );
+      // Read once and keep updated, so the same course twice in one batch is
+      // caught as well as one already on the record.
+      const held = await apiGet<TrainingRow[]>('training', { userId: user.id }, ctx.mcpReq.signal);
+      const seen = new Set(held.map((t) => `${t.course}@${t.date.slice(0, 10)}`));
+
+      const recorded: { course: string; taken_on: string; expires_at: string }[] = [];
+      const skipped: { course: string; why: string }[] = [];
+      const failed: { course: string; why: string }[] = [];
+
+      for (const want of args.courses) {
+        const key = `${want.course}@${want.taken_on}`;
+        if (seen.has(key)) {
+          skipped.push({ course: want.course, why: `already recorded for ${fmtDate(want.taken_on)}` });
+          continue;
+        }
+
+        // A year, matching refreshTraining and the spreadsheet import. A
+        // record with no expiry at all would read as permanently current,
+        // which is the one answer that is certainly wrong.
+        let expires = want.expires_at;
+        if (!expires) {
+          const d = new Date(`${want.taken_on}T00:00:00.000Z`);
+          d.setUTCFullYear(d.getUTCFullYear() + 1);
+          expires = d.toISOString().slice(0, 10);
+        }
+
+        try {
+          await apiPost<TrainingRow>(
+            'training',
+            {
+              userId: user.id,
+              course: want.course,
+              date: want.taken_on,
+              expiresAt: expires,
+              accredited: want.accredited ?? false,
+            },
+            ctx.mcpReq.signal,
+          );
+          seen.add(key);
+          recorded.push({ course: want.course, taken_on: want.taken_on, expires_at: expires });
+        } catch (e) {
+          failed.push({ course: want.course, why: (e as Error).message });
+        }
       }
 
-      const created = await apiPost<TrainingRow>(
-        'training',
-        {
-          userId: user.id,
-          course: args.course,
-          date: args.taken_on,
-          expiresAt: args.expires_at ?? null,
-          accredited: args.accredited ?? false,
-        },
-        ctx.mcpReq.signal,
-      );
+      const lines = [`**${name}** — ${recorded.length} recorded, ${skipped.length} skipped, ${failed.length} failed.`];
+      if (recorded.length) {
+        lines.push(
+          '',
+          '| Course | Taken | Expires |',
+          '| --- | --- | --- |',
+          ...recorded.map((r) => `| ${r.course} | ${fmtDate(r.taken_on)} | ${fmtDate(r.expires_at)} |`),
+        );
+      }
+      if (skipped.length) lines.push('', '**Skipped**', ...skipped.map((r) => `- ${r.course} — ${r.why}`));
+      if (failed.length) lines.push('', '**Failed**', ...failed.map((r) => `- ${r.course} — ${r.why}`));
 
-      return result(
-        args.response_format as Format,
-        `Recorded **${args.course}** for **${name}**, taken ${fmtDate(args.taken_on)}` +
-          (args.expires_at ? `, expires ${fmtDate(args.expires_at)}` : '') +
-          '.',
-        { skipped: false, staff: name, training: created },
-      );
+      return result(args.response_format as Format, lines.join('\n'), {
+        staff: name,
+        recorded,
+        skipped,
+        failed,
+      });
     },
   );
+
 }
