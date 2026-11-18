@@ -67,7 +67,7 @@ export async function computeReadiness() {
     prisma.review.findMany({ select: { serviceUserId: true, nextReviewDate: true } }),
     prisma.supervision.findMany({ select: { userId: true, nextReviewDate: true } }),
     prisma.spotCheck.findMany({ select: { carerId: true, date: true } }),
-    prisma.training.findMany({ select: { userId: true, expiresAt: true } }),
+    prisma.training.findMany({ select: { userId: true, course: true, date: true, expiresAt: true } }),
     prisma.medAdministration.findMany({ where: { status: 'MISSED', scheduledFor: { gte: daysAgo(30) } }, select: { serviceUserId: true } }),
     prisma.shift.count({ where: { userId: null, status: 'SCHEDULED', date: { gte: now(), lte: daysAhead(7) } } }),
     prisma.safeguardingConcern.findMany({
@@ -253,7 +253,24 @@ export async function computeReadiness() {
   }
   const latestSpot = new Map<string, Date>();
   for (const s of spotChecks) { const cur = latestSpot.get(s.carerId); if (!cur || s.date > cur) latestSpot.set(s.carerId, s.date); }
-  const expiredTrainingStaff = new Set(trainings.filter((t) => t.expiresAt && t.expiresAt < now()).map((t) => t.userId));
+  // Expired training, counted the way the Training tab counts it: the LATEST
+  // record per course is the one in force, and the older ones are history.
+  // Taking any expired row instead made the check permanent - a refresher
+  // adds a new record and keeps the old, so a course renewed this morning
+  // still left yesterday's expired row behind and the staff member stayed
+  // red for ever.
+  const latestTraining = new Map<string, Map<string, (typeof trainings)[number]>>();
+  for (const t of trainings) {
+    const byCourse = latestTraining.get(t.userId) ?? new Map<string, (typeof trainings)[number]>();
+    const held = byCourse.get(t.course);
+    if (!held || t.date > held.date) byCourse.set(t.course, t);
+    latestTraining.set(t.userId, byCourse);
+  }
+  const expiredTrainingStaff = new Set(
+    [...latestTraining.entries()]
+      .filter(([, byCourse]) => [...byCourse.values()].some((t) => t.expiresAt && t.expiresAt < now()))
+      .map(([userId]) => userId),
+  );
 
   // Build one check from a filter over clients.
   const clientCheck = (id: string, title: string, statement: string, fail: (c: typeof clients[number]) => boolean, redIfAny: boolean, detail: (n: number) => string, pop = clients): Check => {
