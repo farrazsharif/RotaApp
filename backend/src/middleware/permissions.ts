@@ -9,7 +9,7 @@ export type PermissionKey =
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
   | 'manage_supervision'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
-  | 'manage_cqc' | 'manage_safeguarding' | 'manage_complaints'
+  | 'manage_cqc' | 'manage_safeguarding' | 'manage_complaints' | 'manage_policies'
   | 'manage_billing'
   | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data' | 'view_audit_log';
 
@@ -50,6 +50,9 @@ export const PERMISSIONS: PermissionDef[] = [
   // Same reasoning as safeguarding: a complaint can name a member of staff,
   // so who may read the log is a narrower question than who may edit a client.
   { key: 'manage_complaints',     label: 'Complaints & compliments log',     group: 'Compliance', default: AM },
+  // Writing the library only. Everyone can always read and sign the policies
+  // that apply to them - that is what the library is for.
+  { key: 'manage_policies',       label: 'Policy library',                   group: 'Compliance', default: AM },
 
   { key: 'manage_billing',        label: 'Manage funders & service-user billing', group: 'Billing', default: AM },
 

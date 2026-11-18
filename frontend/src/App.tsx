@@ -33,6 +33,7 @@ import Handovers from './pages/Handovers';
 import Incidents from './pages/Incidents';
 import Safeguarding from './pages/Safeguarding';
 import Complaints from './pages/Complaints';
+import Policies from './pages/Policies';
 import Announcements from './pages/Announcements';
 import Runs from './pages/Runs';
 import SupportedLiving from './pages/SupportedLiving';
@@ -124,6 +125,7 @@ function AppRoutes() {
         <Route path="incidents" element={<Incidents />} />
         <Route path="safeguarding" element={<CapabilityRoute cap="manage_safeguarding"><Safeguarding /></CapabilityRoute>} />
         <Route path="complaints" element={<CapabilityRoute cap="manage_complaints"><Complaints /></CapabilityRoute>} />
+        <Route path="policies" element={<CapabilityRoute cap="manage_policies"><Policies /></CapabilityRoute>} />
         <Route path="announcements" element={<CapabilityRoute cap="manage_schedule"><Announcements /></CapabilityRoute>} />
         <Route path="runs" element={<CapabilityRoute cap="manage_schedule"><Runs /></CapabilityRoute>} />
         <Route path="supported-living" element={<SupportedLiving />} />

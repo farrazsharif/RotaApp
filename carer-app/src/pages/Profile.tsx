@@ -31,6 +31,14 @@ export default function Profile() {
       </button>
 
       <button
+        onClick={() => navigate('/policies')}
+        className="w-full mt-4 bg-white border border-gray-200 rounded-xl py-3.5 px-4 flex items-center justify-between shadow-sm"
+      >
+        <span className="flex items-center gap-2 font-semibold text-gray-800">📘 Policies</span>
+        <span className="text-gray-400">›</span>
+      </button>
+
+      <button
         onClick={() => navigate('/time-off')}
         className="w-full mt-4 bg-white border border-gray-200 rounded-xl py-3.5 px-4 flex items-center justify-between shadow-sm"
       >

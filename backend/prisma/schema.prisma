@@ -119,6 +119,8 @@ model User {
   complaintsAbout    Complaint[]           @relation("ComplaintStaffInvolved")
   complaintsClosed   Complaint[]           @relation("ComplaintCloser")
   chartEntries       CareChartEntry[]      @relation("ChartRecorder")
+  policiesOwned      Policy[]              @relation("PolicyOwner")
+  policySignatures   PolicyAcknowledgement[]
   capacityAssessed   CapacityAssessment[]  @relation("CapacityAssessor")
   capacityDecided    CapacityAssessment[]  @relation("CapacityDecider")
   authoritiesChecked LegalAuthority[]      @relation("AuthorityChecker")
@@ -1782,4 +1784,77 @@ model CareChartEntry {
   @@index([serviceUserId, kind, occurredAt])
   @@index([companyId, occurredAt])
   @@index([recordedById])
+}
+
+// The policy library (Reg 17).
+//
+// Three things make this a governance record rather than a folder of files:
+// a version, a review date, and who has read it. The last one is the point.
+// "We have a medication policy" is not an answer an inspector accepts; "here
+// is version 3, issued in March, and here are the nineteen carers who signed
+// it" is.
+model Policy {
+  companyId String? // tenant scope (app-enforced via Prisma extension)
+  id        String  @id @default(cuid())
+
+  title     String
+  reference String?
+  // SAFEGUARDING | MEDICATION | HEALTH_SAFETY | IPC | HR | DATA | CARE |
+  // COMPLAINTS | BUSINESS_CONTINUITY | OTHER
+  category String @default("OTHER")
+
+  // Free text, a stored file, or both. Most providers have these as Word
+  // documents already, so a link to the file has to be as good as pasting it.
+  bodyText    String?
+  attachments String  @default("[]")
+
+  // Bumping this is what re-asks everyone. Acknowledgements are recorded
+  // against the version signed, so a new version leaves the old signatures
+  // standing as the record of what people agreed to at the time, and asks
+  // again rather than quietly counting the old answer.
+  version  String   @default("1.0")
+  issuedAt DateTime @default(now())
+  // Reg 17 does not name an interval. Annual is the convention, and an
+  // overdue review is what the dashboard counts.
+  reviewDate DateTime?
+
+  // Who has to read it. ALL | CARERS | OFFICE | MANAGERS
+  audience    String  @default("ALL")
+  requiresAck Boolean @default(true)
+
+  // DRAFT | ACTIVE | ARCHIVED
+  status  String  @default("DRAFT")
+  ownerId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner           User?                   @relation("PolicyOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  acknowledgements PolicyAcknowledgement[]
+
+  @@index([companyId, status])
+  @@index([companyId, reviewDate])
+  @@index([companyId, category])
+}
+
+// One row per person per VERSION. Never updated - a signature is a fact about
+// a moment, and re-signing a new version is a new fact rather than an edit to
+// the old one.
+model PolicyAcknowledgement {
+  companyId String? // tenant scope (app-enforced via Prisma extension)
+  id        String  @id @default(cuid())
+  policyId  String
+  userId    String
+  version   String
+  signedAt  DateTime @default(now())
+
+  policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // policyId is already unique to one company, so this needs no companyId of
+  // its own to be safe across tenants. It exists to stop a double tap on a
+  // bad signal recording two signatures.
+  @@unique([policyId, userId, version])
+  @@index([companyId, userId])
+  @@index([policyId])
 }

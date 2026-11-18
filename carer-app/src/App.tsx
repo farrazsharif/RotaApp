@@ -14,6 +14,7 @@ import LiveInPlacement from './pages/LiveInPlacement';
 import ServiceUserDetail from './pages/ServiceUserDetail';
 import Profile from './pages/Profile';
 import TimeOff from './pages/TimeOff';
+import Policies from './pages/Policies';
 import ReportIncident from './pages/ReportIncident';
 import History from './pages/History';
 import Announcements from './pages/Announcements';
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/client/:id" element={<ProtectedRoute><ServiceUserDetail /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/time-off" element={<ProtectedRoute><TimeOff /></ProtectedRoute>} />
+          <Route path="/policies" element={<ProtectedRoute><Policies /></ProtectedRoute>} />
           <Route path="/report-incident" element={<ProtectedRoute><ReportIncident /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>

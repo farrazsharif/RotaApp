@@ -65,6 +65,7 @@ import safeguardingRoutes from './routes/safeguarding';
 import complaintsRoutes from './routes/complaints';
 import capacityRoutes from './routes/capacity';
 import chartRoutes from './routes/charts';
+import policyRoutes from './routes/policies';
 import { backfillAllCompanyRoles } from './lib/defaultRoles';
 import { normalizeVisitNames } from './lib/normalizeVisitNames';
 import { ensureServiceUserColumns } from './lib/ensureColumns';
@@ -219,6 +220,7 @@ app.use('/api/safeguarding', safeguardingRoutes);
 app.use('/api/complaints', complaintsRoutes);
 app.use('/api/capacity', capacityRoutes);
 app.use('/api/charts', chartRoutes);
+app.use('/api/policies', policyRoutes);
 
 app.use(errorHandler);
 

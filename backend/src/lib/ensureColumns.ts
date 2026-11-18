@@ -108,6 +108,49 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP NOT NULL`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP DEFAULT`);
 
+  // The policy library and its signatures (Reg 17).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Policy" (
+      "companyId" TEXT,
+      "id" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "reference" TEXT,
+      "category" TEXT NOT NULL DEFAULT 'OTHER',
+      "bodyText" TEXT,
+      "attachments" TEXT NOT NULL DEFAULT '[]',
+      "version" TEXT NOT NULL DEFAULT '1.0',
+      "issuedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "reviewDate" TIMESTAMP(3),
+      "audience" TEXT NOT NULL DEFAULT 'ALL',
+      "requiresAck" BOOLEAN NOT NULL DEFAULT true,
+      "status" TEXT NOT NULL DEFAULT 'DRAFT',
+      "ownerId" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "Policy_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Policy_companyId_status_idx" ON "Policy"("companyId", "status")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Policy_companyId_reviewDate_idx" ON "Policy"("companyId", "reviewDate")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Policy_companyId_category_idx" ON "Policy"("companyId", "category")`);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "PolicyAcknowledgement" (
+      "companyId" TEXT,
+      "id" TEXT NOT NULL,
+      "policyId" TEXT NOT NULL,
+      "userId" TEXT NOT NULL,
+      "version" TEXT NOT NULL,
+      "signedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "PolicyAcknowledgement_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  // One signature per person per version. Stops a double tap on a bad signal
+  // writing the same agreement twice.
+  await prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "PolicyAcknowledgement_policyId_userId_version_key" ON "PolicyAcknowledgement"("policyId", "userId", "version")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PolicyAcknowledgement_companyId_userId_idx" ON "PolicyAcknowledgement"("companyId", "userId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PolicyAcknowledgement_policyId_idx" ON "PolicyAcknowledgement"("policyId")`);
+
   // The daily charts: food, fluid, repositioning, continence and skin.
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "CareChartEntry" (

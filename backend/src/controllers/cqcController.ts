@@ -52,14 +52,15 @@ export async function computeReadiness() {
   });
   const staff = await prisma.user.findMany({
     where: { active: true, role: { not: 'FAMILY_MEMBER' }, platformAdmin: false },
-    select: { id: true, firstName: true, lastName: true },
+    // role is needed to work out which policies apply to whom.
+    select: { id: true, firstName: true, lastName: true, role: true },
     orderBy: [{ lastName: 'asc' }],
   });
   const clientLink = (c: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: c.id, label: `${c.firstName} ${c.lastName}`, link: `/service-users/${c.id}` });
   const staffLink = (s: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: s.id, label: `${s.firstName} ${s.lastName}`, link: `/users/${s.id}` });
 
   // --- Load supporting data in parallel ---
-  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, capacityRows, authorities, feedback, incidents] = await Promise.all([
+  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, policies, policyAcks, capacityRows, authorities, feedback, incidents] = await Promise.all([
     prisma.carePlan.findMany({ select: { serviceUserId: true, reviewDate: true } }),
     prisma.riskAssessment.findMany({ select: { serviceUserId: true, type: true } }),
     prisma.likesDislikes.findMany({ select: { serviceUserId: true } }),
@@ -77,6 +78,11 @@ export async function computeReadiness() {
     // Last 12 months only. This measures how the office is handling candour
     // now, not every incident ever filed - and the columns did not exist
     // before this shipped, so older rows would all read as undecided.
+    prisma.policy.findMany({
+      where: { status: 'ACTIVE' },
+      select: { id: true, title: true, version: true, reviewDate: true, audience: true, requiresAck: true },
+    }),
+    prisma.policyAcknowledgement.findMany({ select: { policyId: true, userId: true, version: true } }),
     prisma.capacityAssessment.findMany({
       select: {
         id: true, serviceUserId: true, decision: true, outcome: true, reviewDate: true,
@@ -107,6 +113,31 @@ export async function computeReadiness() {
       orderBy: { occurredAt: 'desc' },
     }),
   ]);
+
+  // Policies (Reg 17). Two questions: are they in date, and has anyone read
+  // them. Signatures are counted against the CURRENT version only - counting
+  // any version would report a policy as read when the version people read
+  // has since been replaced, which is the failure the versioning exists to
+  // prevent.
+  const policyApplies = (audience: string, role: string) =>
+    audience === 'ALL'
+    || (audience === 'CARERS' && role === 'EMPLOYEE')
+    || ((audience === 'OFFICE' || audience === 'MANAGERS') && (role === 'ADMIN' || role === 'MANAGER'));
+  const stalePolicies = policies.filter((p) => p.reviewDate && p.reviewDate < now());
+  const policyGaps = policies
+    .filter((p) => p.requiresAck)
+    .map((p) => {
+      const due = staff.filter((u) => policyApplies(p.audience, u.role));
+      const dueIds = new Set(due.map((u) => u.id));
+      const signed = policyAcks.filter((a) => a.policyId === p.id && a.version === p.version && dueIds.has(a.userId)).length;
+      return { ...p, outstanding: due.length - signed };
+    })
+    .filter((p) => p.outstanding > 0);
+  const policyLink = (p: { id: string; title: string; version: string }): CheckItem => ({
+    id: p.id,
+    label: `${p.title} (v${p.version})`,
+    link: '/policies',
+  });
 
   // Mental capacity (Reg 11). Three things that go wrong, in the order they
   // get found: a finding with no best-interest decision behind it, a review
@@ -379,6 +410,32 @@ export async function computeReadiness() {
     staffCheck('supervision_overdue', 'Staff supervisions up to date', 'Safe and effective staffing · Reg 18',
       (s) => { const d = latestSup.get(s.id); return d === undefined || d === null || d < now(); }, true,
       (n) => n ? `${n} staff member(s) are overdue (or have no) supervision.` : 'All staff supervisions are up to date.'),
+    {
+      id: 'policy_library', title: 'Policy library in place', statement: 'Governance · Reg 17',
+      status: policies.length === 0 ? 'red' : 'green', count: policies.length, total: policies.length,
+      detail: policies.length
+        ? `${policies.length} published polic${policies.length === 1 ? 'y' : 'ies'}.`
+        : 'No published policies. Reg 17 asks for the policies that govern the service, with a version and a review date.',
+      items: [],
+    },
+    {
+      id: 'policy_review', title: 'Policies in date', statement: 'Governance · Reg 17',
+      status: stalePolicies.length ? 'amber' : 'green', count: stalePolicies.length, total: policies.length,
+      detail: stalePolicies.length
+        ? `${stalePolicies.length} polic${stalePolicies.length === 1 ? 'y is' : 'ies are'} past the review date.`
+        : 'Every published policy is within its review date.',
+      items: stalePolicies.slice(0, CAP).map(policyLink),
+    },
+    {
+      id: 'policy_signed', title: 'Policies read and signed', statement: 'Governance · Reg 17',
+      status: policyGaps.length ? 'amber' : 'green', count: policyGaps.length, total: policies.filter((p) => p.requiresAck).length,
+      detail: policyGaps.length
+        ? `${policyGaps.length} polic${policyGaps.length === 1 ? 'y has' : 'ies have'} staff who have not signed the current version.`
+        : policies.length
+          ? 'Everyone has signed the current version of every policy that applies to them.'
+          : 'No policies to sign.',
+      items: policyGaps.slice(0, CAP).map(policyLink),
+    },
     staffCheck('spot_check_overdue', 'Spot checks up to date', 'Governance · Reg 17',
       (s) => { const d = latestSpot.get(s.id); return !d || d < daysAgo(180); }, false,
       (n) => n ? `${n} staff member(s) have had no spot check in the last 6 months.` : 'All staff have a recent spot check.'),

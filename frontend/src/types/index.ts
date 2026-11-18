@@ -17,6 +17,7 @@ export type PermissionKey =
   | 'manage_cqc'
   | 'manage_safeguarding'
   | 'manage_complaints'
+  | 'manage_policies'
   | 'manage_billing'
   | 'manage_sites' | 'manage_settings' | 'manage_permissions' | 'reset_test_data' | 'view_audit_log';
 
