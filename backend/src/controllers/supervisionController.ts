@@ -125,6 +125,12 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   const RA_LABEL: Record<string, string> = {
     ENVIRONMENT: 'Risk Assessment — Environment',
     FIRE_SAFETY: 'Risk Assessment — Fire Safety',
+    FALLS: 'Risk Assessment — Falls',
+    MOVING_HANDLING: 'Risk Assessment — Moving & Handling',
+    MEDICATION: 'Risk Assessment — Medication',
+    PRESSURE_ULCER: 'Risk Assessment — Pressure Ulcers',
+    MALNUTRITION: 'Risk Assessment — Nutrition & Hydration',
+    CHOKING: 'Risk Assessment — Choking & Swallowing',
     BATHING: 'Risk Assessment — Bathing & Showering',
     ONE_PAGE_PROFILE: 'One Page Profile',
     CONTRACT_OF_CARE: 'Contract of Care',

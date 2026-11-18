@@ -773,6 +773,294 @@ export const RA_MEDICATION: RaForm = {
   ],
 };
 
-export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, FALLS: RA_FALLS, MOVING_HANDLING: RA_MOVING_HANDLING, MEDICATION: RA_MEDICATION, SMOKING: RA_SMOKING, BATHING: RA_BATHING };
+// Pressure ulcers. Waterlow and PURPOSE-T are published clinical tools with
+// their own scoring tables; this form does not reproduce them. It records the
+// domains a carer can observe, the score the clinical tool produced, and what
+// follows from it - so the tool stays the clinical source and Caremid holds
+// the record, the actions and the review date.
+export const RA_PRESSURE_ULCER: RaForm = {
+  type: 'PRESSURE_ULCER',
+  title: 'Pressure Ulcer / Skin Integrity Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [
+        { label: 'Name of service user', type: 'text' },
+        { label: 'Name of assessor', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'tool',
+      title: 'Clinical Score',
+      intro: 'Where a district nurse or clinician has scored this person on a recognised tool, record the result here. Leave blank if no tool has been used - the observations below still apply.',
+      items: [
+        { label: 'Tool used (Waterlow, PURPOSE-T, Braden, other)', type: 'text' },
+        { label: 'Score', type: 'text' },
+        { label: 'Risk band the tool gave', type: 'text' },
+        { label: 'Who scored it, and their role', type: 'text' },
+        { label: 'Date scored', type: 'date' },
+      ],
+    },
+    {
+      id: 'factors',
+      title: 'Risk Factors',
+      intro: 'Mark Yes for each factor that applies.',
+      items: [
+        { label: 'Limited mobility, or unable to reposition without help', type: 'yesno' },
+        { label: 'Spends most of the day in a bed or chair', type: 'yesno' },
+        { label: 'Has an existing pressure ulcer, or has had one before', type: 'yesno' },
+        { label: 'Incontinence, or skin regularly damp', type: 'yesno' },
+        { label: 'Poor appetite, weight loss, or poor fluid intake', type: 'yesno' },
+        { label: 'Diabetes, circulation problems or peripheral vascular disease', type: 'yesno' },
+        { label: 'Reduced sensation - cannot feel discomfort or pressure', type: 'yesno' },
+        { label: 'Very thin, or very heavy', type: 'yesno' },
+        { label: 'Skin is fragile, dry, papery or already broken', type: 'yesno' },
+        { label: 'Equipment in contact with skin (catheter, oxygen tubing, cast, splint, ill-fitting shoes)', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'skin',
+      title: 'Current Skin Condition',
+      intro: 'Record what the skin looks like now at each pressure point, and where any existing damage is.',
+      items: [
+        { label: 'Sacrum and buttocks', type: 'risk' },
+        { label: 'Heels and ankles', type: 'risk' },
+        { label: 'Hips', type: 'risk' },
+        { label: 'Elbows and shoulders', type: 'risk' },
+        { label: 'Back of the head and ears', type: 'risk' },
+        { label: 'Under breasts, skin folds, between toes', type: 'risk' },
+        { label: 'Existing wounds or pressure damage - where, what grade, who is dressing it', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'prevention',
+      title: 'Prevention in Place',
+      items: [
+        { label: 'Repositioning schedule agreed', type: 'yesno', hint: 'If Yes, say how often below and start a repositioning chart.' },
+        { label: 'Pressure-relieving mattress in use', type: 'yesno' },
+        { label: 'Pressure-relieving cushion in use', type: 'yesno' },
+        { label: 'Heel protectors or other devices in use', type: 'yesno' },
+        { label: 'Barrier cream or prescribed skin products in use', type: 'yesno' },
+        { label: 'District nurse involved', type: 'yesno' },
+        { label: 'How often the person needs repositioning, and in what positions', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'plan',
+      title: 'Actions and Plan',
+      items: [
+        { label: 'Actions agreed, and who is responsible for each', type: 'longtext' },
+        { label: 'What a carer must do if they see new redness, broken skin or a blister', type: 'longtext', hint: 'Redness that does not fade under light pressure is already damage. Name who to ring and by when - this is often also an incident.' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+// Nutrition and hydration. As with pressure ulcers, MUST is a published tool
+// with its own scoring; this records the result and the care that follows.
+export const RA_MALNUTRITION: RaForm = {
+  type: 'MALNUTRITION',
+  title: 'Nutrition & Hydration Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [
+        { label: 'Name of service user', type: 'text' },
+        { label: 'Name of assessor', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'measures',
+      title: 'Measurements',
+      items: [
+        { label: 'Weight', type: 'text' },
+        { label: 'Date weighed', type: 'date' },
+        { label: 'Height', type: 'text' },
+        { label: 'BMI, if known', type: 'text' },
+        { label: 'Usual weight, and any recent change', type: 'text' },
+        { label: 'How often this person should be weighed', type: 'text' },
+      ],
+    },
+    {
+      id: 'tool',
+      title: 'Clinical Score',
+      intro: 'Where a clinician has screened this person on a recognised tool such as MUST, record the result. Leave blank if none has been done.',
+      items: [
+        { label: 'Tool used', type: 'text' },
+        { label: 'Score', type: 'text' },
+        { label: 'Risk band the tool gave', type: 'text' },
+        { label: 'Who screened, and their role', type: 'text' },
+        { label: 'Date screened', type: 'date' },
+      ],
+    },
+    {
+      id: 'factors',
+      title: 'Risk Factors',
+      items: [
+        { label: 'Unintentional weight loss', type: 'yesno' },
+        { label: 'Clothes, rings or dentures have become loose', type: 'yesno' },
+        { label: 'Poor appetite, or regularly leaves food', type: 'yesno' },
+        { label: 'Difficulty chewing, or problems with teeth or dentures', type: 'yesno' },
+        { label: 'Difficulty swallowing', type: 'yesno', hint: 'If Yes, a choking risk assessment is also required, and any SALT advice must be on file.' },
+        { label: 'Needs help to eat or drink', type: 'yesno' },
+        { label: 'Forgets to eat or drink, or forgets having eaten', type: 'yesno' },
+        { label: 'Drinks very little during the day', type: 'yesno' },
+        { label: 'Avoids drinking because of continence worries', type: 'yesno' },
+        { label: 'Nausea, vomiting, constipation or diarrhoea affecting intake', type: 'yesno' },
+        { label: 'Low mood or bereavement affecting appetite', type: 'yesno' },
+        { label: 'Unable to shop or prepare food', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'needs',
+      title: 'Diet and Preferences',
+      items: [
+        { label: 'Special diet (diabetic, renal, gluten free, low salt, fortified)', type: 'longtext' },
+        { label: 'Texture-modified diet or thickened fluids, and the exact level prescribed', type: 'longtext', hint: 'Record the IDDSI level exactly as SALT prescribed it. Getting this wrong is a choking risk.' },
+        { label: 'Cultural, religious or ethical requirements', type: 'longtext' },
+        { label: 'Allergies and intolerances', type: 'longtext' },
+        { label: 'Foods and drinks the person likes, and what they will usually accept', type: 'longtext' },
+        { label: 'Prescribed supplements, and when they are taken', type: 'longtext' },
+        { label: 'Equipment that helps (adapted cutlery, plate guard, beaker, non-slip mat)', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'risks',
+      title: 'Risks',
+      items: [
+        { label: 'Not eating enough across the day, given the visit pattern', type: 'risk' },
+        { label: 'Not drinking enough across the day', type: 'risk' },
+        { label: 'Food left out of date, or stored unsafely', type: 'risk' },
+        { label: 'Unable to reach food and drink left between visits', type: 'risk' },
+        { label: 'Meals missed at weekends, or when a family member is away', type: 'risk' },
+      ],
+    },
+    {
+      id: 'plan',
+      title: 'Actions and Plan',
+      items: [
+        { label: 'Food and fluid charts required', type: 'yesno' },
+        { label: 'Target daily fluid intake, if one has been set', type: 'text' },
+        { label: 'Actions agreed, and who is responsible for each', type: 'longtext' },
+        { label: 'Referrals made (GP, dietitian, speech and language therapy)', type: 'longtext' },
+        { label: 'What a carer must do if the person repeatedly refuses food or drink', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+// Choking and swallowing. Short on purpose: a carer needs to read this one in
+// under a minute, standing in a kitchen, before they put food in front of
+// someone. The SALT instructions are the part that matters, so they are
+// written to be copied out exactly rather than summarised.
+export const RA_CHOKING: RaForm = {
+  type: 'CHOKING',
+  title: 'Choking & Swallowing Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [
+        { label: 'Name of service user', type: 'text' },
+        { label: 'Name of assessor', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'signs',
+      title: 'Signs of Swallowing Difficulty',
+      intro: 'Any Yes here means a speech and language therapy referral, if one has not already been made.',
+      items: [
+        { label: 'Coughing or choking during or just after eating or drinking', type: 'yesno' },
+        { label: 'A wet or gurgly voice after swallowing', type: 'yesno' },
+        { label: 'Food or drink leaking from the mouth', type: 'yesno' },
+        { label: 'Food held in the mouth, or pocketed in the cheek', type: 'yesno' },
+        { label: 'Takes a very long time to finish a meal', type: 'yesno' },
+        { label: 'Repeated chest infections or pneumonia', type: 'yesno', hint: 'Often the first sign that food or drink is going into the lungs.' },
+        { label: 'Avoids particular foods or drinks', type: 'yesno' },
+        { label: 'Weight loss alongside any of the above', type: 'yesno' },
+        { label: 'Has choked before, and needed help', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'salt',
+      title: 'Speech and Language Therapy',
+      items: [
+        { label: 'Has this person been seen by speech and language therapy', type: 'yesno' },
+        { label: 'Date last seen', type: 'date' },
+        { label: 'Food texture prescribed, exactly as written by SALT', type: 'longtext', hint: 'Record the IDDSI level and its name. Do not paraphrase - a carer will follow what is written here.' },
+        { label: 'Drink thickness prescribed, exactly as written by SALT', type: 'longtext', hint: 'Include the thickener product, the number of scoops and the volume it applies to.' },
+        { label: 'Positioning required for eating and drinking', type: 'longtext' },
+        { label: 'Pacing, prompting and supervision required', type: 'longtext' },
+        { label: 'Anything this person must never be given', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'risks',
+      title: 'Other Risks',
+      items: [
+        { label: 'Teeth, dentures and mouth care', type: 'risk' },
+        { label: 'Eating unsupervised, or between visits', type: 'risk' },
+        { label: 'Access to food that is the wrong texture', type: 'risk', hint: 'Including food brought in by family or neighbours.' },
+        { label: 'Medicines that are hard to swallow', type: 'risk' },
+        { label: 'Rushing, distraction or talking while eating', type: 'risk' },
+        { label: 'Alcohol or sedating medicines at mealtimes', type: 'risk' },
+      ],
+    },
+    {
+      id: 'emergency',
+      title: 'If This Person Chokes',
+      items: [
+        { label: 'What a carer must do, step by step', type: 'longtext', hint: 'Encourage coughing; back blows and abdominal thrusts if the airway is blocked; 999 immediately if they cannot clear it. Record it as an incident afterwards whatever the outcome.' },
+        { label: 'Staff supporting this person are trained in choking first aid', type: 'yesno' },
+        { label: 'Suction or other equipment in the home, and who may use it', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'plan',
+      title: 'Actions and Plan',
+      items: [
+        { label: 'Actions agreed, and who is responsible for each', type: 'longtext' },
+        { label: 'Referrals made', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, FALLS: RA_FALLS, MOVING_HANDLING: RA_MOVING_HANDLING, MEDICATION: RA_MEDICATION, PRESSURE_ULCER: RA_PRESSURE_ULCER, MALNUTRITION: RA_MALNUTRITION, CHOKING: RA_CHOKING, SMOKING: RA_SMOKING, BATHING: RA_BATHING };
 
 export const RA_TYPES: { type: string; title: string }[] = Object.values(RA_FORMS).map((f) => ({ type: f.type, title: f.title }));
