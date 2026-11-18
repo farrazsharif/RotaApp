@@ -561,7 +561,287 @@ export const RA_SMOKING: RaForm = {
   ],
 };
 
-export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, SMOKING: RA_SMOKING, BATHING: RA_BATHING };
+// Falls. The most common cause of harm in home care, and the first assessment
+// an inspector asks for. Split into the person (what makes THIS person likely
+// to fall) and the property (what they would fall over), because the two lead
+// to different actions: a referral versus a job someone can do this week.
+export const RA_FALLS: RaForm = {
+  type: 'FALLS',
+  title: 'Falls Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [
+        { label: 'Name of service user', type: 'text' },
+        { label: 'Name of assessor', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'history',
+      title: 'Falls History',
+      intro: 'A fall in the last twelve months is the strongest single predictor of another one. Any Yes here means this assessment needs reviewing more often than annually.',
+      items: [
+        { label: 'Has the person fallen in the last 12 months?', type: 'yesno' },
+        { label: 'Has the person fallen more than once in the last 12 months?', type: 'yesno' },
+        { label: 'Did any fall result in injury, or an ambulance or hospital attendance?', type: 'yesno' },
+        { label: 'Was the person on the floor a long time before help arrived?', type: 'yesno' },
+        { label: 'Is the person afraid of falling, or doing less because of that fear?', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'factors',
+      title: 'Personal Risk Factors',
+      intro: 'Mark Yes for each factor that applies. Every Yes should carry a comment saying what is being done about it.',
+      items: [
+        { label: 'Unsteady gait, poor balance or reduced mobility', type: 'yesno' },
+        { label: 'Difficulty rising from a chair, or muscle weakness', type: 'yesno' },
+        { label: 'Uses a walking aid (stick, frame, rollator)', type: 'yesno' },
+        { label: 'Dizziness, light-headedness, blackouts, or falls with no warning', type: 'yesno' },
+        { label: 'Blood pressure drops on standing (postural hypotension)', type: 'yesno' },
+        { label: 'Takes four or more prescribed medicines', type: 'yesno' },
+        { label: 'Takes sedatives, antidepressants, opioids, diuretics or blood pressure medicines', type: 'yesno', hint: 'These raise falls risk. A medication review is often the single most useful action on this form.' },
+        { label: 'Alcohol affects steadiness', type: 'yesno' },
+        { label: 'Sight problems, or glasses that are not up to date', type: 'yesno' },
+        { label: 'Hearing problems affecting balance', type: 'yesno' },
+        { label: 'Foot problems, or unsafe or poorly fitting footwear', type: 'yesno' },
+        { label: 'Continence problems, or needing the toilet urgently at night', type: 'yesno' },
+        { label: 'Confusion or cognitive impairment affecting awareness of danger', type: 'yesno' },
+        { label: 'Osteoporosis, or known fragile bones', type: 'yesno', hint: 'Changes the consequence of a fall rather than its likelihood - a fracture becomes far more likely.' },
+      ],
+    },
+    {
+      id: 'environment',
+      title: 'The Home',
+      items: [
+        { label: 'Floors, rugs, trailing wires and clutter on the routes the person actually walks', type: 'risk' },
+        { label: 'Lighting, including at night and on the stairs', type: 'risk' },
+        { label: 'Stairs, steps and handrails', type: 'risk' },
+        { label: 'Height of the bed, chair and toilet, and grab rails where needed', type: 'risk' },
+        { label: 'Bathroom - wet floors, and getting in and out of the bath or shower', type: 'risk' },
+        { label: 'Reaching a phone, call alarm or pendant from the floor', type: 'risk' },
+        { label: 'Outside - paths, steps, doorways and lighting', type: 'risk' },
+        { label: 'Pets underfoot', type: 'risk' },
+      ],
+    },
+    {
+      id: 'equipment',
+      title: 'Equipment',
+      items: [
+        { label: 'Equipment in use is suitable, in good order and within its service date', type: 'yesno' },
+        { label: 'The person can use their walking aid safely and keeps it within reach', type: 'yesno' },
+        { label: 'A falls alarm or pendant is in place and actually worn', type: 'yesno' },
+        { label: 'Bed rails are in use', type: 'yesno', hint: 'If Yes, a separate bed rails assessment is required - rails carry their own entrapment risk.' },
+      ],
+    },
+    {
+      id: 'plan',
+      title: 'Actions and Plan',
+      items: [
+        { label: 'Actions agreed to reduce the risk, and who is responsible for each', type: 'longtext' },
+        { label: 'Referrals made (GP, falls service, occupational therapy, physiotherapy)', type: 'longtext' },
+        { label: 'What a carer must do if they find this person on the floor', type: 'longtext', hint: 'Be specific. Do not lift before checking for injury; call 999 if injury is suspected or the person cannot get up; record it as an incident either way.' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+// Moving and handling. The one assessment a carer genuinely reads before a
+// visit, so the method section is written to be followed rather than filed.
+// Carries the hoist and sling detail including LOLER dates, because a sling of
+// the wrong size is how people get hurt.
+export const RA_MOVING_HANDLING: RaForm = {
+  type: 'MOVING_HANDLING',
+  title: 'Moving & Handling Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [
+        { label: 'Name of service user', type: 'text' },
+        { label: 'Name of assessor', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'person',
+      title: 'The Person',
+      items: [
+        { label: 'Approximate weight', type: 'text' },
+        { label: 'Approximate height', type: 'text' },
+        { label: 'Able to bear weight through both legs', type: 'yesno' },
+        { label: 'Able to understand and follow instructions during a move', type: 'yesno' },
+        { label: 'Able to tell a carer about pain or discomfort', type: 'yesno' },
+        { label: 'Able to help with the move', type: 'yesno' },
+        { label: 'Pain, stiffness, contractures or joint problems affecting handling', type: 'longtext' },
+        { label: 'Skin condition, wounds or pressure damage to protect during a move', type: 'longtext' },
+        { label: 'Catheter, PEG, stoma, oxygen or other lines to protect during a move', type: 'longtext' },
+        { label: 'Behaviour that may change during a move, and what helps', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'tasks',
+      title: 'Handling Tasks',
+      intro: 'Score each move this person actually needs. Leave blank any that do not apply.',
+      items: [
+        { label: 'Moving up or turning in bed', type: 'risk' },
+        { label: 'Bed to chair, and chair to bed', type: 'risk' },
+        { label: 'Sit to stand from a chair', type: 'risk' },
+        { label: 'On and off the toilet or commode', type: 'risk' },
+        { label: 'Bathing and showering transfers', type: 'risk' },
+        { label: 'Walking and moving around the home', type: 'risk' },
+        { label: 'Stairs', type: 'risk' },
+        { label: 'In and out of a vehicle', type: 'risk' },
+        { label: 'Moving the person after a fall', type: 'risk' },
+      ],
+    },
+    {
+      id: 'equipment',
+      title: 'Equipment',
+      items: [
+        { label: 'Equipment required', type: 'longtext', hint: 'Hoist, stand aid, slide sheet, transfer board, handling belt, bed rails, profiling bed, specialist chair.' },
+        { label: 'Hoist make and model', type: 'text' },
+        { label: 'Sling type and size', type: 'text' },
+        { label: 'Sling loop settings to use', type: 'text' },
+        { label: 'Date of last LOLER inspection', type: 'date', hint: 'Hoists and slings must be thoroughly examined every 6 months under LOLER.' },
+        { label: 'Next LOLER inspection due', type: 'date' },
+        { label: 'Who owns and maintains the equipment', type: 'text' },
+      ],
+    },
+    {
+      id: 'carers',
+      title: 'Carers Required',
+      items: [
+        { label: 'Number of carers required for each move', type: 'text' },
+        { label: 'If any move is single-handed, what makes it safe', type: 'longtext' },
+      ],
+    },
+    {
+      id: 'method',
+      title: 'Method',
+      items: [
+        { label: 'Step-by-step method carers must follow', type: 'longtext' },
+        { label: 'What must never be done with this person', type: 'longtext', hint: 'For example drag lifts, lifting under the arms, or lifting from the floor by hand.' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+// Medication. Also carries the support level - prompt, assist or administer -
+// which the compliance review found was recorded nowhere in the system, even
+// though it decides what a carer is allowed to do at every visit.
+export const RA_MEDICATION: RaForm = {
+  type: 'MEDICATION',
+  title: 'Medication Risk Assessment',
+  sections: [
+    {
+      id: 'details',
+      title: 'Assessment Details',
+      items: [
+        { label: 'Name of service user', type: 'text' },
+        { label: 'Name of assessor', type: 'text' },
+        { label: 'Date', type: 'date' },
+        { label: 'Review date', type: 'date' },
+      ],
+    },
+    {
+      id: 'support',
+      title: 'Level of Support',
+      intro: 'Mark Yes against one level only. This is what carers are authorised to do with this person’s medicines.',
+      items: [
+        { label: 'Prompt - the person takes their own medicines and needs reminding', type: 'yesno' },
+        { label: 'Assist - the person takes their medicines with physical help, such as opening a pack or passing a glass', type: 'yesno' },
+        { label: 'Administer - the carer gives the medicine', type: 'yesno' },
+        { label: 'Who orders repeat prescriptions', type: 'text' },
+        { label: 'Who collects medicines from the pharmacy', type: 'text' },
+        { label: 'Pharmacy name and contact', type: 'text' },
+        { label: 'GP practice name and contact', type: 'text' },
+      ],
+    },
+    {
+      id: 'capacity',
+      title: 'Consent and Capacity',
+      items: [
+        { label: 'The person understands what their medicines are for, and what happens if they are not taken', type: 'yesno' },
+        { label: 'A mental capacity assessment has been completed for decisions about medicines', type: 'yesno' },
+        { label: 'The person has refused medicines in the past', type: 'yesno' },
+        { label: 'Any medicine is given covertly', type: 'yesno', hint: 'Covert administration needs a capacity assessment, a recorded best-interest decision and written pharmacist advice BEFORE it starts. Never a carer’s decision on the day.' },
+      ],
+    },
+    {
+      id: 'kinds',
+      title: 'Kinds of Medicine in Use',
+      items: [
+        { label: 'Time-critical medicines', type: 'yesno', hint: 'Parkinson’s medicines, insulin, anticoagulants, some epilepsy medicines. A late dose is a harm, not a late visit.' },
+        { label: 'Controlled drugs', type: 'yesno' },
+        { label: 'Insulin or other injections', type: 'yesno' },
+        { label: 'Anticoagulants needing blood monitoring', type: 'yesno' },
+        { label: 'Oxygen', type: 'yesno' },
+        { label: 'Patches', type: 'yesno' },
+        { label: 'Creams and other topical medicines', type: 'yesno' },
+        { label: 'Eye, ear or nose drops', type: 'yesno' },
+        { label: 'Medicines given through a PEG or other tube', type: 'yesno' },
+        { label: 'As-required (PRN) medicines', type: 'yesno', hint: 'Each one needs a written protocol: when to give it, the maximum in 24 hours, and what effect to record afterwards.' },
+        { label: 'Blister pack or monitored dosage system in use', type: 'yesno' },
+      ],
+    },
+    {
+      id: 'risks',
+      title: 'Risks',
+      items: [
+        { label: 'Storage - where medicines are kept, and whether that is secure', type: 'risk' },
+        { label: 'Medicines needing a fridge, and how the temperature is checked', type: 'risk' },
+        { label: 'Controlled drugs - recording, witnessing and stock checks', type: 'risk' },
+        { label: 'Sharps, and how they are disposed of', type: 'risk' },
+        { label: 'Return and disposal of unwanted or out-of-date medicines', type: 'risk' },
+        { label: 'Swallowing difficulties affecting medicines', type: 'risk', hint: 'Crushing a tablet or opening a capsule changes how the medicine works and needs pharmacist advice first.' },
+        { label: 'Known allergies or previous reactions to a medicine', type: 'risk' },
+        { label: 'Doses left out between visits, or taken by someone else in the home', type: 'risk' },
+        { label: 'Gaps between visits that the dosing schedule cannot cover', type: 'risk' },
+      ],
+    },
+    {
+      id: 'plan',
+      title: 'Actions and Plan',
+      items: [
+        { label: 'Actions agreed, and who is responsible for each', type: 'longtext' },
+        { label: 'What a carer must do if a dose is refused, missed, spilt or given in error', type: 'longtext', hint: 'Name who to ring and by when. A medication error is an incident, and may also be a safeguarding concern.' },
+      ],
+    },
+    {
+      id: 'signoff',
+      title: 'Sign-off',
+      items: [
+        { label: 'Person conducting risk assessment', type: 'text' },
+        { label: 'Signature', type: 'signature' },
+        { label: 'Date', type: 'date' },
+      ],
+    },
+  ],
+};
+
+export const RA_FORMS: Record<string, RaForm> = { ENVIRONMENT: RA_ENVIRONMENT, FIRE_SAFETY: RA_FIRE_SAFETY, FALLS: RA_FALLS, MOVING_HANDLING: RA_MOVING_HANDLING, MEDICATION: RA_MEDICATION, SMOKING: RA_SMOKING, BATHING: RA_BATHING };
 
 export const RA_TYPES: { type: string; title: string }[] = Object.values(RA_FORMS).map((f) => ({ type: f.type, title: f.title }));
 
