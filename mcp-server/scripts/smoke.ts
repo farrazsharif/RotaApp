@@ -35,6 +35,7 @@ const { tools } = await client.listTools();
 assert.deepEqual(
   tools.map((t) => t.name).sort(),
   [
+    'caremid_attach_policy_pdf',
     'caremid_cqc_readiness',
     'caremid_create_policy',
     'caremid_expiring_training',
@@ -49,7 +50,7 @@ assert.deepEqual(
 // Exactly one tool on this server writes, and it creates drafts. If that
 // list ever grows, it should grow because somebody decided to widen it - not
 // because a write tool slipped in next to the reporting ones.
-const MAY_WRITE = new Set(['caremid_create_policy']);
+const MAY_WRITE = new Set(['caremid_create_policy', 'caremid_attach_policy_pdf']);
 
 for (const t of tools) {
   assert.ok(t.description && t.description.length > 80, `${t.name} needs a description the model can act on`);

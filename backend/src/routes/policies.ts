@@ -5,22 +5,18 @@ import { runWithCompany } from '../lib/tenantContext';
 import { requirePermission } from '../middleware/permissions';
 import {
   listPolicies,
-  myPolicies,
-  myPolicy,
   getPolicy,
   createPolicy,
   updatePolicy,
-  signPolicy,
   deletePolicy,
   uploadPolicyAttachment,
   downloadPolicyAttachment,
-  downloadMyPolicyAttachment,
   deletePolicyAttachment,
 } from '../controllers/policyController';
 
 // Re-establishes the caller's company scope around the handler. Multer parses
 // the body on a stream event that runs outside the async-local context set at
-// auth, so without this the policy update would be unscoped — and Express 4
+// auth, so without this the policy write would be unscoped — and Express 4
 // would not surface the thrown error either.
 const scoped = (fn: RequestHandler): RequestHandler => (req, res, next) => {
   const companyId = (req as AuthRequest).user?.companyId;
@@ -48,26 +44,18 @@ const router = Router();
 
 router.use(authenticate);
 
-// Everyone reads and signs their own. A policy library nobody outside the
-// office can open is a filing cabinet, not a governance record — and the
-// signature is the half an inspector asks for.
-router.get('/mine', myPolicies);
-router.get('/mine/:id', myPolicy);
-router.get('/mine/:id/attachment', downloadMyPolicyAttachment);
-router.post('/:id/sign', signPolicy);
+// The register is the office's. There is no staff-facing half: policies are
+// not pushed at carers, and nobody is asked to sign one.
+router.use(requirePermission('manage_policies'));
 
-// Writing the library is the office's.
-router.get('/', requirePermission('manage_policies'), listPolicies);
-router.get('/:id', requirePermission('manage_policies'), getPolicy);
-router.post('/', requirePermission('manage_policies'), createPolicy);
-router.patch('/:id', requirePermission('manage_policies'), updatePolicy);
-router.delete('/:id', requirePermission('manage_policies'), deletePolicy);
+router.get('/', listPolicies);
+router.post('/', createPolicy);
+router.get('/:id', getPolicy);
+router.patch('/:id', updatePolicy);
+router.delete('/:id', deletePolicy);
 
-router.get('/:id/attachment', requirePermission('manage_policies'), downloadPolicyAttachment);
-router.post('/:id/attachment', requirePermission('manage_policies'), uploadSingle, scoped(uploadPolicyAttachment));
-router.delete('/:id/attachment', requirePermission('manage_policies'), deletePolicyAttachment);
-
-// Deliberately no DELETE on the library itself beyond the above. CQC can ask
-// for a summary of every policy in force.
+router.get('/:id/attachment', downloadPolicyAttachment);
+router.post('/:id/attachment', uploadSingle, scoped(uploadPolicyAttachment));
+router.delete('/:id/attachment', deletePolicyAttachment);
 
 export default router;

@@ -6,19 +6,15 @@ import { apiGet, apiPost, apiPostFile } from '../api.js';
 import { Format, ResponseFormat, fitToLimit, result } from '../shared.js';
 
 /**
- * The policy library.
+ * The policy register.
  *
- * This is the first write surface on the server, and it is shaped by one
- * rule: an agent may create a record in a state that does nothing until a
- * person acts on it, and may not move a record into the state that has an
- * effect on anyone.
+ * A list of the policies the service runs on: title, category, when it was
+ * last reviewed, and the document. There are no draft/published states and no
+ * read-and-sign - the register is an office record, and nothing here is
+ * pushed at carers.
  *
- * So a policy is always created as a DRAFT, and there is no publish tool.
- * Publishing is what asks every carer in the company to read and sign a
- * document; a person does that, in the portal, having looked at what was
- * created. Bulk-loading forty policies from a folder is a filing job and a
- * good use of an agent. Asking forty carers to sign documents nobody checked
- * is not.
+ * Two write tools, and both are additive: one adds a policy, one attaches its
+ * PDF. Neither can delete anything.
  */
 
 const CATEGORIES = [
@@ -34,24 +30,15 @@ const CATEGORIES = [
   'OTHER',
 ] as const;
 
-const AUDIENCES = ['ALL', 'CARERS', 'OFFICE', 'MANAGERS'] as const;
-
 interface PolicyRow {
   id: string;
   title: string;
-  reference: string | null;
   category: string;
-  version: string;
-  issuedAt: string;
-  reviewDate: string | null;
-  audience: string;
-  requiresAck: boolean;
-  status: string;
-  dueCount: number;
-  signedCount: number;
+  reviewedAt: string | null;
+  files: { fileName: string; size: number }[];
 }
 
-const day = (iso?: string | null) => (iso ? iso.slice(0, 10) : '—');
+const day = (iso?: string | null) => (iso ? iso.slice(0, 10) : 'never');
 
 export function registerPolicyTools(server: McpServer) {
   server.registerTool(
@@ -59,31 +46,29 @@ export function registerPolicyTools(server: McpServer) {
     {
       title: 'List policies',
       description:
-        'Every policy in the library, with its version, review date, audience and how many of the staff it applies to have signed the current version. ' +
-        'Use this before creating policies to see what is already there — the library has no duplicate check, so creating the same policy twice is easy and ugly to undo. ' +
-        'Example: { status: "ACTIVE" } for the published ones.',
+        'The policy register: every policy, its category, the date it was last reviewed, and whether the document is attached. ' +
+        'Call this before adding anything - the register has no duplicate check, so adding the same policy twice is easy and ugly to undo. ' +
+        'Example: { category: "MEDICATION" }.',
       inputSchema: z.strictObject({
-        status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).optional().describe('Filter by state'),
         category: z.enum(CATEGORIES).optional().describe('Filter by category'),
         response_format: ResponseFormat,
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async ({ status, category, response_format }, ctx) => {
-      const rows = await apiGet<PolicyRow[]>('policies', { status, category }, ctx.mcpReq.signal);
+    async ({ category, response_format }, ctx) => {
+      const rows = await apiGet<PolicyRow[]>('policies', { category }, ctx.mcpReq.signal);
       if (rows.length === 0) {
-        return result(response_format as Format, 'The policy library is empty.', { policies: [] });
+        return result(response_format as Format, 'The policy register is empty.', { policies: [] });
       }
 
       const { rows: kept, text, omitted } = fitToLimit(rows, (rs) =>
         [
           `**${rows.length} polic${rows.length === 1 ? 'y' : 'ies'}**`,
           '',
-          '| Title | Ref | Category | Version | Review | Audience | Signed | State |',
-          '| --- | --- | --- | --- | --- | --- | --- | --- |',
+          '| Title | Category | Last reviewed | Document |',
+          '| --- | --- | --- | --- |',
           ...rs.map(
-            (p) =>
-              `| ${p.title} | ${p.reference ?? '—'} | ${p.category} | ${p.version} | ${day(p.reviewDate)} | ${p.audience} | ${p.requiresAck ? `${p.signedCount}/${p.dueCount}` : 'n/a'} | ${p.status} |`,
+            (p) => `| ${p.title} | ${p.category} | ${day(p.reviewedAt)} | ${p.files.length ? p.files[0].fileName : '—'} |`,
           ),
         ].join('\n'),
       );
@@ -96,50 +81,22 @@ export function registerPolicyTools(server: McpServer) {
   server.registerTool(
     'caremid_create_policy',
     {
-      title: 'Add a policy (as a draft)',
+      title: 'Add a policy to the register',
       description:
-        'Creates ONE policy in the library, always as a DRAFT. Use it to load policies the company already has — from a folder of documents, for example. ' +
-        'It cannot publish: a person does that in the portal, because publishing is what asks every carer the policy applies to to read and sign it. ' +
-        'Call caremid_list_policies first; creating the same policy twice is easy and there is no duplicate check. ' +
-        'Only fill review_date and version from what the document actually says. A guessed review date is worse than none, because the CQC dashboard will then report the policy as in date. ' +
-        'Example: { title: "Medication Policy", category: "MEDICATION", version: "3.0", audience: "CARERS", body_text: "..." }',
+        'Adds ONE policy to the register. Use it to load the policies a company already has, from a folder of documents. ' +
+        'Attach the document itself with caremid_attach_policy_pdf afterwards. ' +
+        'Call caremid_list_policies first; adding the same policy twice is easy and there is no duplicate check. ' +
+        'Only set reviewed_at from what the document or the office actually says - a guessed date would have the CQC dashboard report the policy as reviewed when nobody has looked at it. ' +
+        'Example: { title: "Medication", category: "MEDICATION" }',
       inputSchema: z.strictObject({
         title: z.string().min(1).max(300).describe('The policy name, as the document calls it'),
-        category: z.enum(CATEGORIES).describe('Used to group the library'),
-        body_text: z
-          .string()
-          .min(1)
-          .max(300_000)
-          .optional()
-          .describe('The policy text, inline. This is what a carer reads on their phone, so include the whole thing, not a summary. Use body_file instead for anything long.'),
-        body_file: z
+        category: z.enum(CATEGORIES).describe('Used to group the register'),
+        reviewed_at: z
           .string()
           .optional()
-          .describe(
-            'Absolute path to a UTF-8 .txt or .md file holding the policy text, read by the server. ' +
-            'Prefer this for a bulk import: it keeps a 2MB library out of the conversation entirely. ' +
-            'Exactly one of body_text or body_file.',
-          ),
-        reference: z.string().max(60).optional().describe("The company's own reference, e.g. POL-012"),
-        version: z.string().max(20).optional().describe('From the document. Defaults to 1.0 if the document gives none.'),
-        issued_at: z.string().optional().describe('ISO date the version was issued, if the document says'),
-        review_date: z
-          .string()
-          .optional()
-          .describe('ISO date it is next due for review. Leave unset unless the document states one.'),
-        audience: z
-          .enum(AUDIENCES)
-          .optional()
-          .describe('Who must read it. Defaults to ALL. Use CARERS for things only field staff do, like lone working.'),
-        requires_ack: z
-          .boolean()
-          .optional()
-          .describe('Whether staff must sign it. Defaults to true.'),
+          .describe('ISO date it was last reviewed. Leave unset unless that date is actually known.'),
         response_format: ResponseFormat,
       }),
-      // The only tool on this server that writes. Not destructive - it adds a
-      // draft and changes nothing that exists - but not idempotent either:
-      // calling it twice makes two policies.
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -148,57 +105,16 @@ export function registerPolicyTools(server: McpServer) {
       },
     },
     async (args, ctx) => {
-      // Exactly one source. Both would be ambiguous; neither leaves a policy
-      // staff are asked to sign with nothing in it.
-      if (!args.body_text === !args.body_file) {
-        throw new Error('Give exactly one of body_text or body_file.');
-      }
-
-      let body = args.body_text ?? '';
-      if (args.body_file) {
-        // The server runs locally as the operator, so this reads their own
-        // disk. Kept to plain text on an absolute path: it is a policy
-        // import, and the extension check turns a wrong path into an error
-        // rather than a policy full of binary.
-        if (!isAbsolute(args.body_file)) {
-          throw new Error('body_file must be an absolute path.');
-        }
-        const ext = extname(args.body_file).toLowerCase();
-        if (ext !== '.txt' && ext !== '.md') {
-          throw new Error(`body_file must be .txt or .md, got "${ext || 'no extension'}".`);
-        }
-        body = await readFile(args.body_file, 'utf8');
-        if (!body.trim()) throw new Error(`${args.body_file} is empty.`);
-        if (body.length > 300_000) {
-          throw new Error(`${args.body_file} is ${body.length} characters, over the 300,000 limit.`);
-        }
-      }
-
       const created = await apiPost<PolicyRow>(
         'policies',
-        {
-          title: args.title,
-          category: args.category,
-          bodyText: body,
-          reference: args.reference,
-          version: args.version,
-          issuedAt: args.issued_at,
-          reviewDate: args.review_date,
-          audience: args.audience,
-          requiresAck: args.requires_ack,
-          // Explicit rather than relying on the API default: this tool must
-          // never create anything that is already in front of staff.
-          status: 'DRAFT',
-        },
+        { title: args.title, category: args.category, reviewedAt: args.reviewed_at },
         ctx.mcpReq.signal,
       );
-
-      const md =
-        `Created **${created.title}** (v${created.version}) as a draft.\n\n` +
-        `Category ${created.category} · audience ${created.audience} · review ${day(created.reviewDate)}\n\n` +
-        '_Not published. Nobody has been asked to sign it. Publish it in the portal once the details have been checked._';
-
-      return result(args.response_format as Format, md, created);
+      return result(
+        args.response_format as Format,
+        `Added **${created.title}** (${created.category}, last reviewed ${day(created.reviewedAt)}).`,
+        created,
+      );
     },
   );
 
@@ -207,7 +123,7 @@ export function registerPolicyTools(server: McpServer) {
     {
       title: 'Attach the original document to a policy',
       description:
-        'Attaches a PDF to a policy that is already in the library, so the office has the formatted original to print or hand to an inspector alongside the readable text. ' +
+        'Attaches the PDF to a policy already on the register - the document itself, which is what prints and what an inspector is handed. ' +
         'Finds the policy by its exact title; if the title matches no policy, or more than one, it refuses rather than guessing. ' +
         'Re-attaching a file with the same name replaces it, so a policy never ends up with three slightly different PDFs and nobody able to tell which is in force. ' +
         'Example: { title: "Adult Safeguarding", file: "C:\\policies\\Adult Safeguarding.pdf" }',

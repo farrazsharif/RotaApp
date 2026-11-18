@@ -1,22 +1,22 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
-import { Role } from '../constants';
 import { logAudit } from '../lib/audit';
 import { storageConfigured, putObject, deleteObject, getDownloadUrl } from '../lib/storage';
 import { randomUUID } from 'crypto';
 
-// The policy library (Reg 17).
+// The policy register (Reg 17).
 //
-// A folder of documents is not a governance record. Three things make it one:
-// a version, a review date, and who has read it. The last is what an
-// inspector actually asks for - not "do you have a medication policy" but
-// "show me who has read it".
+// A list of the policies the service runs on: what it is called, what it
+// covers, when it was last reviewed, and the document itself. That is what an
+// inspector asks to see, and it is the whole of this module.
 //
-// Signatures are recorded against the VERSION signed. Bumping a version is
-// therefore the act of re-asking everybody, and the old signatures stand as
-// the record of what people agreed to at the time rather than being
-// overwritten or quietly counted as current.
+// It deliberately has no draft/published states, no per-policy audience and no
+// read-and-sign. Those were built and then taken out: a register of 147
+// documents does not need a publishing workflow to be useful, and the
+// machinery was costing more attention than it earned. If staff sign-off is
+// wanted later it goes back on top of this, rather than this being shaped
+// around it now.
 
 export const POLICY_CATEGORIES = [
   'SAFEGUARDING',
@@ -31,12 +31,30 @@ export const POLICY_CATEGORIES = [
   'OTHER',
 ];
 
-const AUDIENCES = ['ALL', 'CARERS', 'OFFICE', 'MANAGERS'];
-const STATUSES = ['DRAFT', 'ACTIVE', 'ARCHIVED'];
+// The original document. One per policy in practice; the array is what the
+// column already holds and leaves room for a second without a migration.
+export interface PolicyFile {
+  key: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string;
+}
 
-// The cap is per field, and the policy body is the one that needs room: a
-// full medication policy in a professional library runs past 130,000
-// characters, and truncating a policy is not an option.
+function parseFiles(json?: string | null): PolicyFile[] {
+  try {
+    const v = JSON.parse(json || '[]');
+    return Array.isArray(v) ? (v as PolicyFile[]).filter((f) => f && typeof f.key === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+// What a screen needs to render a download button, without the storage keys -
+// those stay server-side and a signed URL is minted per request.
+const fileSummary = (json?: string | null) =>
+  parseFiles(json).map((f) => ({ fileName: f.fileName, contentType: f.contentType, size: f.size }));
+
 function clean(v: unknown, max = 300000): string | undefined {
   if (v === undefined || v === null) return undefined;
   const s = String(v).trim();
@@ -55,197 +73,53 @@ function oneOf(v: unknown, allowed: string[], fallback: string): string {
   return allowed.includes(s) ? s : fallback;
 }
 
-// The original document, kept alongside the extracted text rather than
-// instead of it. The text is what reads well on a phone - it reflows, it
-// searches, and it does not need pinch-zooming through forty pages. The file
-// is what prints, what goes in an inspection pack, and what has the tables as
-// tables. Neither replaces the other.
-export interface PolicyFile {
-  key: string;
-  fileName: string;
-  contentType: string;
-  size: number;
-  uploadedAt: string;
-}
-
-function parseFiles(json?: string | null): PolicyFile[] {
-  try {
-    const v = JSON.parse(json || '[]');
-    return Array.isArray(v) ? (v as PolicyFile[]).filter((f) => f && typeof f.key === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-// Does this policy apply to this person? An office manager does not need to
-// sign the lone-working policy, and asking them to is how a read-and-sign
-// list stops being believed.
-function appliesTo(audience: string, role: string): boolean {
-  if (audience === 'ALL') return true;
-  if (audience === 'CARERS') return role === Role.EMPLOYEE;
-  if (audience === 'OFFICE') return role === Role.ADMIN || role === Role.MANAGER;
-  if (audience === 'MANAGERS') return role === Role.ADMIN || role === Role.MANAGER;
-  return true;
-}
-
-const listSelect = {
+const selectFields = {
   id: true,
   title: true,
-  reference: true,
   category: true,
-  version: true,
-  issuedAt: true,
+  // Holds the date the policy was LAST reviewed. The column kept its original
+  // name through the simplification; every row was null at the time, so there
+  // is no older meaning sitting in the data to be misread.
   reviewDate: true,
-  audience: true,
-  requiresAck: true,
-  status: true,
-  updatedAt: true,
   attachments: true,
-  owner: { select: { id: true, firstName: true, lastName: true } },
+  updatedAt: true,
 };
 
-// What a client needs to render a download button, without the storage keys -
-// those are the server's business and a signed URL is minted per request.
-const fileSummary = (json?: string | null) =>
-  parseFiles(json).map((f) => ({ fileName: f.fileName, contentType: f.contentType, size: f.size }));
+const shape = (p: {
+  id: string;
+  title: string;
+  category: string;
+  reviewDate: Date | null;
+  attachments: string;
+  updatedAt: Date;
+}) => ({
+  id: p.id,
+  title: p.title,
+  category: p.category,
+  reviewedAt: p.reviewDate,
+  files: fileSummary(p.attachments),
+  updatedAt: p.updatedAt,
+});
 
-// GET /api/policies — the office library, with signature counts.
+// GET /api/policies
 export async function listPolicies(req: AuthRequest, res: Response) {
   const where: Record<string, unknown> = {};
-  const status = String(req.query.status || '');
-  if (STATUSES.includes(status)) where.status = status;
   const category = String(req.query.category || '');
   if (POLICY_CATEGORIES.includes(category)) where.category = category;
 
-  const policies = await prisma.policy.findMany({
+  const rows = await prisma.policy.findMany({
     where,
     orderBy: [{ category: 'asc' }, { title: 'asc' }],
-    select: listSelect,
+    select: selectFields,
   });
-
-  // How many of the people it applies to have signed THIS version. Counting
-  // signatures of any version would report a policy as read when the version
-  // people read has since been replaced.
-  const [staff, acks] = await Promise.all([
-    prisma.user.findMany({ where: { active: true, serviceAccount: false }, select: { id: true, role: true } }),
-    prisma.policyAcknowledgement.findMany({ select: { policyId: true, userId: true, version: true } }),
-  ]);
-
-  const rows = policies.map((p) => {
-    const due = staff.filter((u) => appliesTo(p.audience, u.role));
-    const dueIds = new Set(due.map((u) => u.id));
-    const signed = acks.filter((a) => a.policyId === p.id && a.version === p.version && dueIds.has(a.userId)).length;
-    return {
-      ...p,
-      attachments: undefined,
-      files: fileSummary(p.attachments),
-      dueCount: p.requiresAck ? due.length : 0,
-      signedCount: p.requiresAck ? signed : 0,
-    };
-  });
-
-  res.json(rows);
+  res.json(rows.map(shape));
 }
 
-// GET /api/policies/mine — what the signed-in person still has to read.
-//
-// Deliberately WITHOUT the policy text. A real library is a couple of
-// megabytes of it, and sending all of that so somebody can see a list of
-// titles is how a phone on mobile data stops being able to open the screen
-// at all. The text comes from /mine/:id when a policy is actually opened.
-export async function myPolicies(req: AuthRequest, res: Response) {
-  const [policies, mine] = await Promise.all([
-    prisma.policy.findMany({
-      where: { status: 'ACTIVE' },
-      orderBy: [{ issuedAt: 'desc' }],
-      select: listSelect,
-    }),
-    prisma.policyAcknowledgement.findMany({
-      where: { userId: req.user!.id },
-      select: { policyId: true, version: true, signedAt: true },
-    }),
-  ]);
-
-  const rows = policies
-    .filter((p) => appliesTo(p.audience, req.user!.role))
-    .map((p) => {
-      const sig = mine.find((a) => a.policyId === p.id && a.version === p.version);
-      return {
-        ...p,
-        attachments: undefined,
-        files: fileSummary(p.attachments),
-        signedAt: sig?.signedAt ?? null,
-        needsSignature: p.requiresAck && !sig,
-      };
-    });
-
-  res.json(rows);
-}
-
-// GET /api/policies/mine/:id — one policy's text, for the person reading it.
-// Scoped to what applies to them: this is the staff-facing read, so it must
-// not become a way to pull any policy by id.
-export async function myPolicy(req: AuthRequest, res: Response) {
-  const policy = await prisma.policy.findUnique({
-    where: { id: req.params.id },
-    select: { ...listSelect, bodyText: true, attachments: true },
-  });
-  if (!policy || policy.status !== 'ACTIVE') return res.status(404).json({ error: 'Not found' });
-  if (!appliesTo(policy.audience, req.user!.role)) return res.status(404).json({ error: 'Not found' });
-
-  const sig = await prisma.policyAcknowledgement.findFirst({
-    where: { policyId: policy.id, userId: req.user!.id, version: policy.version },
-    select: { signedAt: true },
-  });
-  res.json({
-    ...policy,
-    attachments: undefined,
-    files: fileSummary(policy.attachments),
-    signedAt: sig?.signedAt ?? null,
-    needsSignature: policy.requiresAck && !sig,
-  });
-}
-
-// GET /api/policies/:id — the document, plus who has signed it.
+// GET /api/policies/:id
 export async function getPolicy(req: AuthRequest, res: Response) {
-  const policy = await prisma.policy.findUnique({
-    where: { id: req.params.id },
-    select: {
-      ...listSelect,
-      bodyText: true,
-      attachments: true,
-      createdAt: true,
-      acknowledgements: {
-        orderBy: { signedAt: 'desc' },
-        select: {
-          id: true,
-          version: true,
-          signedAt: true,
-          user: { select: { id: true, firstName: true, lastName: true, role: true } },
-        },
-      },
-    },
-  });
+  const policy = await prisma.policy.findUnique({ where: { id: req.params.id }, select: selectFields });
   if (!policy) return res.status(404).json({ error: 'Not found' });
-
-  // Everyone it applies to, so the screen can show who has NOT signed - which
-  // is the half of the list that leads to an action.
-  const staff = await prisma.user.findMany({
-    where: { active: true, serviceAccount: false },
-    select: { id: true, firstName: true, lastName: true, role: true },
-  });
-  const due = staff.filter((u) => appliesTo(policy.audience, u.role));
-  const signedIds = new Set(
-    policy.acknowledgements.filter((a) => a.version === policy.version).map((a) => a.user.id),
-  );
-
-  res.json({
-    ...policy,
-    attachments: undefined,
-    files: fileSummary(policy.attachments),
-    due,
-    outstanding: policy.requiresAck ? due.filter((u) => !signedIds.has(u.id)) : [],
-  });
+  res.json(shape(policy));
 }
 
 // POST /api/policies
@@ -257,114 +131,59 @@ export async function createPolicy(req: AuthRequest, res: Response) {
   const policy = await prisma.policy.create({
     data: {
       title,
-      reference: clean(b.reference, 60) || null,
       category: oneOf(b.category, POLICY_CATEGORIES, 'OTHER'),
-      bodyText: clean(b.bodyText) || null,
-      version: clean(b.version, 20) || '1.0',
-      issuedAt: date(b.issuedAt) || new Date(),
-      reviewDate: date(b.reviewDate) ?? null,
-      audience: oneOf(b.audience, AUDIENCES, 'ALL'),
-      requiresAck: b.requiresAck !== false,
-      status: oneOf(b.status, STATUSES, 'DRAFT'),
-      ownerId: clean(b.ownerId, 40) || null,
+      reviewDate: date(b.reviewedAt) ?? null,
     },
-    select: listSelect,
+    select: selectFields,
   });
 
-  await logAudit(req, 'POLICY_CREATED', policy.id, `Policy created: ${title}`);
-  res.status(201).json(policy);
+  await logAudit(req, 'POLICY_CREATED', policy.id, `Policy added: ${title}`);
+  res.status(201).json(shape(policy));
 }
 
 // PATCH /api/policies/:id
 export async function updatePolicy(req: AuthRequest, res: Response) {
-  const existing = await prisma.policy.findUnique({ where: { id: req.params.id } });
+  const existing = await prisma.policy.findUnique({ where: { id: req.params.id }, select: { id: true } });
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
   const b = req.body as Record<string, unknown>;
   const data: Record<string, unknown> = {};
 
-  for (const [key, max] of [['title', 300], ['reference', 60], ['bodyText', 100000], ['ownerId', 40]] as const) {
-    if (b[key] !== undefined) data[key] = clean(b[key], max) || null;
+  if (b.title !== undefined) {
+    const title = clean(b.title, 300);
+    if (!title) return res.status(400).json({ error: 'A policy needs a title.' });
+    data.title = title;
   }
-  for (const key of ['issuedAt', 'reviewDate'] as const) {
-    const d = date(b[key]);
-    if (d !== undefined) data[key] = d;
-  }
-  if (b.category !== undefined) data.category = oneOf(b.category, POLICY_CATEGORIES, existing.category);
-  if (b.audience !== undefined) data.audience = oneOf(b.audience, AUDIENCES, existing.audience);
-  if (b.requiresAck !== undefined) data.requiresAck = b.requiresAck !== false;
-
-  if (b.version !== undefined) {
-    const version = clean(b.version, 20);
-    if (!version) return res.status(400).json({ error: 'A policy needs a version.' });
-    data.version = version;
-  }
-
-  if (b.status !== undefined) {
-    const status = oneOf(b.status, STATUSES, existing.status);
-    // Publishing is what puts it in front of staff, so it has to be a
-    // document rather than an empty shell.
-    if (status === 'ACTIVE' && existing.status !== 'ACTIVE') {
-      const body = ('bodyText' in data ? data.bodyText : existing.bodyText) as string | null;
-      const hasFile = existing.attachments && existing.attachments !== '[]';
-      if (!body && !hasFile) {
-        return res.status(400).json({ error: 'Add the policy text or attach the document before publishing it.' });
-      }
-    }
-    data.status = status;
-  }
+  if (b.category !== undefined) data.category = oneOf(b.category, POLICY_CATEGORIES, 'OTHER');
+  const reviewed = date(b.reviewedAt);
+  if (reviewed !== undefined) data.reviewDate = reviewed;
 
   if (Object.keys(data).length === 0) return res.status(400).json({ error: 'Nothing to update' });
 
-  const policy = await prisma.policy.update({ where: { id: existing.id }, data, select: listSelect });
-
-  if (data.version && data.version !== existing.version) {
-    await logAudit(
-      req,
-      'POLICY_VERSION_BUMPED',
-      policy.id,
-      `${policy.title} moved from v${existing.version} to v${data.version} — everyone it applies to must sign again`,
-    );
-  } else if (data.status) {
-    await logAudit(req, 'POLICY_STATUS_CHANGED', policy.id, `${policy.title} marked ${String(data.status).toLowerCase()}`);
-  }
-  res.json(policy);
+  const policy = await prisma.policy.update({ where: { id: existing.id }, data, select: selectFields });
+  res.json(shape(policy));
 }
 
-// POST /api/policies/:id/sign — the signature. Anyone can sign one that
-// applies to them; nobody can sign on anyone else's behalf.
-export async function signPolicy(req: AuthRequest, res: Response) {
-  const policy = await prisma.policy.findUnique({ where: { id: req.params.id } });
-  if (!policy) return res.status(404).json({ error: 'Not found' });
-  if (policy.status !== 'ACTIVE') {
-    return res.status(400).json({ error: 'This policy is not published.' });
-  }
-  if (!appliesTo(policy.audience, req.user!.role)) {
-    return res.status(400).json({ error: 'This policy does not apply to you.' });
-  }
-
-  // Signing twice is not an error - a carer tapping again on a bad signal
-  // means the same thing they meant the first time.
-  const existing = await prisma.policyAcknowledgement.findFirst({
-    where: { policyId: policy.id, userId: req.user!.id, version: policy.version },
+// DELETE /api/policies/:id — takes the stored document with it, so the bucket
+// does not fill with objects nothing points at.
+export async function deletePolicy(req: AuthRequest, res: Response) {
+  const existing = await prisma.policy.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, title: true, attachments: true },
   });
-  if (existing) return res.json(existing);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  const ack = await prisma.policyAcknowledgement.create({
-    data: { policyId: policy.id, userId: req.user!.id, version: policy.version },
-  });
-  await logAudit(req, 'POLICY_SIGNED', policy.id, `${policy.title} v${policy.version} read and signed`);
-  res.status(201).json(ack);
+  for (const f of parseFiles(existing.attachments)) {
+    await deleteObject(f.key).catch(() => { /* already gone */ });
+  }
+  await prisma.policy.delete({ where: { id: existing.id } });
+  await logAudit(req, 'POLICY_DELETED', existing.id, `Policy deleted: ${existing.title}`);
+  res.json({ ok: true });
 }
 
-// --- The original document ---------------------------------------------
-//
-// Stored in R2 and handed out as a short-lived signed URL, so the bytes never
-// stream back through the API and a link cannot be forwarded to somebody who
-// should not have it.
+// --- The document ----------------------------------------------------------
 
 const MAX_BYTES = 20 * 1024 * 1024;
-const ALLOWED = ['application/pdf'];
 
 // POST /api/policies/:id/attachment
 export async function uploadPolicyAttachment(req: AuthRequest, res: Response) {
@@ -379,7 +198,7 @@ export async function uploadPolicyAttachment(req: AuthRequest, res: Response) {
 
   const file = req.file;
   if (!file) return res.status(400).json({ error: 'No file uploaded' });
-  if (!ALLOWED.includes(file.mimetype)) {
+  if (file.mimetype !== 'application/pdf') {
     return res.status(400).json({ error: 'Attach a PDF. It is what prints and what an inspector is handed.' });
   }
   if (file.size > MAX_BYTES) return res.status(400).json({ error: 'File is too large (max 20MB)' });
@@ -388,11 +207,10 @@ export async function uploadPolicyAttachment(req: AuthRequest, res: Response) {
   const files = parseFiles(policy.attachments);
 
   // Replacing rather than piling up: a policy with three slightly different
-  // PDFs attached is worse than one with none, because nobody can tell which
-  // is the one in force. The old object goes from the bucket too.
-  const existing = files.find((f) => f.fileName === fileName);
-  if (existing) {
-    await deleteObject(existing.key).catch(() => { /* already gone */ });
+  // PDFs on it is worse than one with none, because nobody can tell which is
+  // the one in force. The old object leaves the bucket too.
+  for (const old of files) {
+    await deleteObject(old.key).catch(() => { /* already gone */ });
   }
 
   const key = `policies/${policy.id}/${randomUUID()}.pdf`;
@@ -405,52 +223,32 @@ export async function uploadPolicyAttachment(req: AuthRequest, res: Response) {
     size: file.size,
     uploadedAt: new Date().toISOString(),
   };
-  const kept = files.filter((f) => f.fileName !== fileName);
-
-  await prisma.policy.update({
-    where: { id: policy.id },
-    data: { attachments: JSON.stringify([...kept, next]) },
-  });
+  await prisma.policy.update({ where: { id: policy.id }, data: { attachments: JSON.stringify([next]) } });
 
   await logAudit(req, 'POLICY_FILE_ATTACHED', policy.id, `${fileName} attached to ${policy.title}`);
   res.status(201).json({ fileName, contentType: next.contentType, size: next.size });
 }
 
-// Shared by the office and staff routes: both end up needing a signed URL for
-// one file on one policy, and the only difference is who may ask.
-async function signFirstFile(policy: { id: string; title: string; attachments: string }, res: Response) {
+// GET /api/policies/:id/attachment — a five-minute signed URL straight to
+// storage, so the bytes never stream back through the API and a forwarded
+// link stops working.
+export async function downloadPolicyAttachment(req: AuthRequest, res: Response) {
+  const policy = await prisma.policy.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, attachments: true },
+  });
+  if (!policy) return res.status(404).json({ error: 'Not found' });
+
   const files = parseFiles(policy.attachments);
   if (files.length === 0) return res.status(404).json({ error: 'This policy has no document attached.' });
   if (!storageConfigured()) {
     return res.status(503).json({ error: 'Document storage is not set up.', code: 'STORAGE_NOT_CONFIGURED' });
   }
-  const file = files[0];
+
   // inline: a policy is for reading, so it opens in the viewer rather than
   // landing in a downloads folder the reader then has to go and find.
-  const url = await getDownloadUrl(file.key, file.fileName, true);
-  res.json({ url, fileName: file.fileName, contentType: file.contentType, size: file.size });
-}
-
-// GET /api/policies/:id/attachment — the office.
-export async function downloadPolicyAttachment(req: AuthRequest, res: Response) {
-  const policy = await prisma.policy.findUnique({
-    where: { id: req.params.id },
-    select: { id: true, title: true, attachments: true },
-  });
-  if (!policy) return res.status(404).json({ error: 'Not found' });
-  return signFirstFile(policy, res);
-}
-
-// GET /api/policies/mine/:id/attachment — staff, scoped to what applies to
-// them, so this cannot become a way to pull any policy document by id.
-export async function downloadMyPolicyAttachment(req: AuthRequest, res: Response) {
-  const policy = await prisma.policy.findUnique({
-    where: { id: req.params.id },
-    select: { id: true, title: true, attachments: true, status: true, audience: true },
-  });
-  if (!policy || policy.status !== 'ACTIVE') return res.status(404).json({ error: 'Not found' });
-  if (!appliesTo(policy.audience, req.user!.role)) return res.status(404).json({ error: 'Not found' });
-  return signFirstFile(policy, res);
+  const url = await getDownloadUrl(files[0].key, files[0].fileName, true);
+  res.json({ url, fileName: files[0].fileName });
 }
 
 // DELETE /api/policies/:id/attachment
@@ -461,33 +259,8 @@ export async function deletePolicyAttachment(req: AuthRequest, res: Response) {
   const files = parseFiles(policy.attachments);
   if (files.length === 0) return res.status(404).json({ error: 'Nothing attached.' });
 
-  // Published policies with no text would be left with nothing to read at all.
-  if (policy.status === 'ACTIVE' && !policy.bodyText) {
-    return res.status(400).json({
-      error: 'This policy is published and has no text of its own. Removing the document would leave staff nothing to read.',
-    });
-  }
-
   for (const f of files) await deleteObject(f.key).catch(() => { /* already gone */ });
   await prisma.policy.update({ where: { id: policy.id }, data: { attachments: '[]' } });
   await logAudit(req, 'POLICY_FILE_REMOVED', policy.id, `Document removed from ${policy.title}`);
-  res.json({ ok: true });
-}
-
-// DELETE /api/policies/:id — for one created in error. A policy that is no
-// longer in force is archived instead, so its signatures stay readable.
-export async function deletePolicy(req: AuthRequest, res: Response) {
-  const existing = await prisma.policy.findUnique({
-    where: { id: req.params.id },
-    select: { id: true, title: true, status: true, _count: { select: { acknowledgements: true } } },
-  });
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-  if (existing._count.acknowledgements > 0) {
-    return res.status(400).json({
-      error: 'People have signed this policy. Archive it instead — deleting it would delete their signatures.',
-    });
-  }
-  await prisma.policy.delete({ where: { id: existing.id } });
-  await logAudit(req, 'POLICY_DELETED', existing.id, `Policy deleted: ${existing.title}`);
   res.json({ ok: true });
 }

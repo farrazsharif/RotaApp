@@ -60,7 +60,7 @@ export async function computeReadiness() {
   const staffLink = (s: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: s.id, label: `${s.firstName} ${s.lastName}`, link: `/users/${s.id}` });
 
   // --- Load supporting data in parallel ---
-  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, audits, openActions, policies, policyAcks, capacityRows, authorities, feedback, incidents] = await Promise.all([
+  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, audits, openActions, policies, capacityRows, authorities, feedback, incidents] = await Promise.all([
     prisma.carePlan.findMany({ select: { serviceUserId: true, reviewDate: true } }),
     prisma.riskAssessment.findMany({ select: { serviceUserId: true, type: true } }),
     prisma.likesDislikes.findMany({ select: { serviceUserId: true } }),
@@ -87,10 +87,8 @@ export async function computeReadiness() {
       select: { id: true, title: true, dueDate: true, priority: true },
     }),
     prisma.policy.findMany({
-      where: { status: 'ACTIVE' },
-      select: { id: true, title: true, version: true, reviewDate: true, audience: true, requiresAck: true },
+      select: { id: true, title: true, reviewDate: true },
     }),
-    prisma.policyAcknowledgement.findMany({ select: { policyId: true, userId: true, version: true } }),
     prisma.capacityAssessment.findMany({
       select: {
         id: true, serviceUserId: true, decision: true, outcome: true, reviewDate: true,
@@ -142,28 +140,16 @@ export async function computeReadiness() {
     id: a.id, label: a.title, link: '/governance',
   });
 
-  // Policies (Reg 17). Two questions: are they in date, and has anyone read
-  // them. Signatures are counted against the CURRENT version only - counting
-  // any version would report a policy as read when the version people read
-  // has since been replaced, which is the failure the versioning exists to
-  // prevent.
-  const policyApplies = (audience: string, role: string) =>
-    audience === 'ALL'
-    || (audience === 'CARERS' && role === 'EMPLOYEE')
-    || ((audience === 'OFFICE' || audience === 'MANAGERS') && (role === 'ADMIN' || role === 'MANAGER'));
-  const stalePolicies = policies.filter((p) => p.reviewDate && p.reviewDate < now());
-  const policyGaps = policies
-    .filter((p) => p.requiresAck)
-    .map((p) => {
-      const due = staff.filter((u) => policyApplies(p.audience, u.role));
-      const dueIds = new Set(due.map((u) => u.id));
-      const signed = policyAcks.filter((a) => a.policyId === p.id && a.version === p.version && dueIds.has(a.userId)).length;
-      return { ...p, outstanding: due.length - signed };
-    })
-    .filter((p) => p.outstanding > 0);
-  const policyLink = (p: { id: string; title: string; version: string }): CheckItem => ({
+  // Policies (Reg 17). The register answers two things: is there one, and is
+  // it being kept up. A policy reviewed three years ago is evidence of a
+  // policy, not of governance - and one never reviewed at all is the same
+  // question with no answer, so both land in the same count.
+  const POLICY_REVIEW_MONTHS = 12;
+  const policyReviewCutoff = new Date(now().getTime() - POLICY_REVIEW_MONTHS * 30.44 * 86400000);
+  const stalePolicies = policies.filter((p) => !p.reviewDate || p.reviewDate < policyReviewCutoff);
+  const policyLink = (p: { id: string; title: string }): CheckItem => ({
     id: p.id,
-    label: `${p.title} (v${p.version})`,
+    label: p.title,
     link: '/policies',
   });
 
@@ -467,30 +453,20 @@ export async function computeReadiness() {
       items: actionsOverdue.slice(0, CAP).map(actionLink),
     },
     {
-      id: 'policy_library', title: 'Policy library in place', statement: 'Governance · Reg 17',
+      id: 'policy_library', title: 'Policy register in place', statement: 'Governance · Reg 17',
       status: policies.length === 0 ? 'red' : 'green', count: policies.length, total: policies.length,
       detail: policies.length
-        ? `${policies.length} published polic${policies.length === 1 ? 'y' : 'ies'}.`
-        : 'No published policies. Reg 17 asks for the policies that govern the service, with a version and a review date.',
+        ? `${policies.length} polic${policies.length === 1 ? 'y' : 'ies'} on the register.`
+        : 'No policies on the register. Reg 17 asks for the policies the service runs on, with the document and the date it was last reviewed.',
       items: [],
     },
     {
-      id: 'policy_review', title: 'Policies in date', statement: 'Governance · Reg 17',
+      id: 'policy_review', title: 'Policies reviewed in the last year', statement: 'Governance · Reg 17',
       status: stalePolicies.length ? 'amber' : 'green', count: stalePolicies.length, total: policies.length,
       detail: stalePolicies.length
-        ? `${stalePolicies.length} polic${stalePolicies.length === 1 ? 'y is' : 'ies are'} past the review date.`
-        : 'Every published policy is within its review date.',
+        ? `${stalePolicies.length} polic${stalePolicies.length === 1 ? 'y has' : 'ies have'} no review recorded in the last ${POLICY_REVIEW_MONTHS} months.`
+        : 'Every policy has been reviewed within the last year.',
       items: stalePolicies.slice(0, CAP).map(policyLink),
-    },
-    {
-      id: 'policy_signed', title: 'Policies read and signed', statement: 'Governance · Reg 17',
-      status: policyGaps.length ? 'amber' : 'green', count: policyGaps.length, total: policies.filter((p) => p.requiresAck).length,
-      detail: policyGaps.length
-        ? `${policyGaps.length} polic${policyGaps.length === 1 ? 'y has' : 'ies have'} staff who have not signed the current version.`
-        : policies.length
-          ? 'Everyone has signed the current version of every policy that applies to them.'
-          : 'No policies to sign.',
-      items: policyGaps.slice(0, CAP).map(policyLink),
     },
     staffCheck('spot_check_overdue', 'Spot checks up to date', 'Governance · Reg 17',
       (s) => { const d = latestSpot.get(s.id); return !d || d < daysAgo(180); }, false,
