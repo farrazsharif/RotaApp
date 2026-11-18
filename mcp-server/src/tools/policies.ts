@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { apiGet, apiPost, apiPostFile } from '../api.js';
+import { apiGet, apiPost, apiPatch, apiPostFile } from '../api.js';
 import { Format, ResponseFormat, fitToLimit, result } from '../shared.js';
 
 /**
@@ -115,6 +115,83 @@ export function registerPolicyTools(server: McpServer) {
         `Added **${created.title}** (${created.category}, last reviewed ${day(created.reviewedAt)}).`,
         created,
       );
+    },
+  );
+
+  server.registerTool(
+    'caremid_set_policy_reviews',
+    {
+      title: 'Record when policies were last reviewed',
+      description:
+        'Sets the last-reviewed date on policies already on the register, matched by exact title. ' +
+        'Takes many at once because the date usually comes from the documents themselves - a whole library is often reviewed in one go and carries the same date. ' +
+        'Setting the same date twice changes nothing, so a partial run can simply be repeated. ' +
+        'A title that matches no policy, or more than one, is reported back rather than guessed at, and the rest still go through. ' +
+        'Only use dates the documents or the office actually state: a guessed one tells the CQC dashboard a policy was reviewed when nobody looked at it. ' +
+        'Example: { reviews: [{ title: "Medication", reviewed_at: "2026-01-01" }] }',
+      inputSchema: z.strictObject({
+        reviews: z
+          .array(
+            z.strictObject({
+              title: z.string().min(1).max(300).describe('Exactly as caremid_list_policies shows it'),
+              reviewed_at: z.string().describe('ISO date, e.g. 2026-01-01. A month-only source should use the 1st.'),
+            }),
+          )
+          .min(1)
+          .max(500)
+          .describe('One entry per policy'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Overwrites one date on policies named explicitly. Running it twice
+        // with the same input leaves the register exactly as it was.
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      const all = await apiGet<PolicyRow[]>('policies', {}, ctx.mcpReq.signal);
+      const byTitle = new Map<string, PolicyRow[]>();
+      for (const p of all) {
+        const list = byTitle.get(p.title) ?? [];
+        list.push(p);
+        byTitle.set(p.title, list);
+      }
+
+      const updated: string[] = [];
+      const problems: string[] = [];
+
+      for (const r of args.reviews) {
+        const hits = byTitle.get(r.title) ?? [];
+        if (hits.length === 0) {
+          problems.push(`${r.title} — no policy with that title`);
+          continue;
+        }
+        if (hits.length > 1) {
+          problems.push(`${r.title} — ${hits.length} policies share that title`);
+          continue;
+        }
+        try {
+          await apiPatch(`policies/${hits[0].id}`, { reviewedAt: r.reviewed_at }, ctx.mcpReq.signal);
+          updated.push(r.title);
+        } catch (e) {
+          problems.push(`${r.title} — ${(e as Error).message}`);
+        }
+      }
+
+      const md = [
+        `Recorded a review date on **${updated.length}** polic${updated.length === 1 ? 'y' : 'ies'}.`,
+        problems.length ? '' : null,
+        problems.length ? `**${problems.length} not set:**` : null,
+        ...problems.slice(0, 20).map((p) => `- ${p}`),
+        problems.length > 20 ? `_…and ${problems.length - 20} more._` : null,
+      ]
+        .filter((l) => l !== null)
+        .join('\n');
+
+      return result(args.response_format as Format, md, { updated, problems });
     },
   );
 

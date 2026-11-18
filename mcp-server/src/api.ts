@@ -169,6 +169,33 @@ export async function apiPost<T>(path: string, body: unknown, signal: AbortSigna
   return (await res.json()) as T;
 }
 
+/** PATCH a Caremid endpoint. Same 401 retry as the rest. */
+export async function apiPatch<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
+  const attempt = async (bearer: string): Promise<Response> =>
+    fetch(`${API_BASE_URL}/${path.replace(/^\//, '')}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
+    });
+
+  let res = await attempt(await currentToken(signal));
+  if (res.status === 401) {
+    token = null;
+    res = await attempt(await currentToken(signal));
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(res.status, httpErrorMessage(res.status, text));
+  }
+  return (await res.json()) as T;
+}
+
 /**
  * POST a single file as multipart/form-data. Same 401 retry as the others.
  *
