@@ -86,7 +86,12 @@ export function registerCqcTools(server: McpServer) {
           return [
             `## ${kq.label} — ${kq.score}%`,
             ...kq.checks.map((c) => {
-              const head = `- ${ICON[c.status]} **${c.title}** (${c.count}/${c.total}) — ${c.detail}`;
+              // Some checks count things rather than measuring a population
+              // (unassigned visits has no denominator), and "47/0" reads as a
+              // bug rather than as a count. Print the ratio only when there
+              // is one.
+              const tally = c.total > 0 ? `(${c.count}/${c.total}) ` : c.count > 0 ? `(${c.count}) ` : '';
+              const head = `- ${ICON[c.status]} **${c.title}** ${tally}— ${c.detail}`;
               const sub = `  _${c.statement}_`;
               const names =
                 include_items && c.items.length
