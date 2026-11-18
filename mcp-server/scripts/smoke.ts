@@ -47,6 +47,7 @@ assert.deepEqual(
     'caremid_set_policy_reviews',
     'caremid_staff_compliance',
     'caremid_staff_file',
+    'caremid_training_due',
     'caremid_unstaffed_visits',
   ],
   'unexpected tool list',

@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { apiGet } from '../api.js';
-import { Format, ResponseFormat, daysUntil, fitToLimit, fmtDate, result } from '../shared.js';
+import { Format, ResponseFormat, daysUntil, fitToLimit, fmtDate, isoDate, result } from '../shared.js';
 
 interface StaffUser {
   id: string;
@@ -224,6 +224,95 @@ export function registerStaffTools(server: McpServer) {
         omitted,
         expired_count: expired,
         training: kept,
+      });
+    },
+  );
+  server.registerTool(
+    'caremid_training_due',
+    {
+      title: 'Who is due a refresher',
+      description:
+        'One row per active staff member: how many courses they hold, when the FIRST of those courses lapses, and when the LAST one does. ' +
+        'Use it to decide who should attend a refresher on a given day - caremid_expiring_training lists courses, which runs to hundreds of rows and gets truncated; this lists people. ' +
+        'Give due_by to see who is out of date by that date rather than today, which is how a session held in the past is reconciled. ' +
+        'Induction Training and the Care Certificate are one-off qualifications that Caremid nonetheless expires annually, so they drag "first lapse" back years for long-serving staff; "last lapse" is the honest measure of when somebody is wholly out of date. ' +
+        'Example: { due_by: "2026-07-15" }',
+      inputSchema: z.strictObject({
+        due_by: isoDate
+          .optional()
+          .describe('Judge expiry as at this date instead of today'),
+        only_due: z
+          .boolean()
+          .default(true)
+          .describe('Only staff with at least one course lapsed by that date. False lists everyone.'),
+        response_format: ResponseFormat,
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ due_by, only_due, response_format }, ctx) => {
+      const asAt = due_by ? new Date(`${due_by}T00:00:00.000Z`) : new Date();
+      const [staff, training] = await Promise.all([
+        activeStaff(ctx.mcpReq.signal),
+        apiGet<TrainingRow[]>('training', {}, ctx.mcpReq.signal),
+      ]);
+
+      // Only the newest record per course counts: an older certificate for a
+      // course since refreshed is history, not the current position.
+      const latestPerCourse = new Map<string, Map<string, TrainingRow>>();
+      for (const t of training) {
+        const byCourse = latestPerCourse.get(t.userId) ?? new Map<string, TrainingRow>();
+        const held = byCourse.get(t.course);
+        if (!held || new Date(t.date) > new Date(held.date)) byCourse.set(t.course, t);
+        latestPerCourse.set(t.userId, byCourse);
+      }
+
+      const rows = staff.map((u) => {
+        const byCourse = latestPerCourse.get(u.id) ?? new Map<string, TrainingRow>();
+        const expiries = [...byCourse.values()]
+          .map((t) => t.expiresAt)
+          .filter((d): d is string => !!d)
+          .sort();
+        const lapsed = expiries.filter((d) => new Date(d) < asAt).length;
+        return {
+          name: nameOf(u),
+          staff_id: u.id,
+          courses: byCourse.size,
+          first_lapse: expiries[0] ?? null,
+          last_lapse: expiries[expiries.length - 1] ?? null,
+          courses_lapsed: lapsed,
+          wholly_out_of_date: expiries.length > 0 && lapsed === expiries.length,
+        };
+      });
+
+      const shown = (only_due ? rows.filter((r) => r.courses_lapsed > 0 || r.courses === 0) : rows).sort(
+        (a, b) => (a.last_lapse ?? '9999').localeCompare(b.last_lapse ?? '9999'),
+      );
+
+      const when = due_by ? `as at ${fmtDate(due_by)}` : 'as at today';
+      if (shown.length === 0) {
+        return result(response_format as Format, `Nobody is out of date ${when}.`, { due_by, staff: [] });
+      }
+
+      const { rows: kept, text, omitted } = fitToLimit(shown, (rs) =>
+        [
+          `**${shown.length} of ${rows.length} staff** have training lapsed ${when}.`,
+          '',
+          '| Staff | Courses | Lapsed | First lapse | Last lapse |',
+          '| --- | --- | --- | --- | --- |',
+          ...rs.map(
+            (r) =>
+              `| ${r.name} | ${r.courses} | ${r.courses_lapsed} | ${fmtDate(r.first_lapse)} | ${fmtDate(r.last_lapse)} |`,
+          ),
+        ].join('\n'),
+      );
+
+      const note = omitted ? `\n\n_${omitted} more not shown._` : '';
+      return result(response_format as Format, text + note, {
+        due_by: due_by ?? null,
+        total: rows.length,
+        count: kept.length,
+        omitted,
+        staff: kept,
       });
     },
   );
