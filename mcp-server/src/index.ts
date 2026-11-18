@@ -1,12 +1,20 @@
 #!/usr/bin/env node
 /**
- * Read-only MCP server over the Caremid API.
+ * MCP server over the Caremid API.
  *
- * Every tool here reads; none writes. That is deliberate rather than a first
- * milestone: these are care records and compliance evidence, and an agent that
- * can quietly change them is a different risk conversation from one that can
- * only report on them. Write tools, when they come, belong behind an explicit
- * human confirmation step.
+ * Almost every tool here reads. These are care records and compliance
+ * evidence, and an agent that can quietly change them is a different risk
+ * conversation from one that can only report on them.
+ *
+ * The one write surface is the policy library, and it is shaped by the rule
+ * this file previously stated as "behind an explicit human confirmation
+ * step": an agent may CREATE a record in a state that does nothing until a
+ * person acts on it, and may not move a record into the state that has an
+ * effect on anyone. So policies are created as DRAFTS and there is no publish
+ * tool - publishing is what asks every carer to read and sign a document, and
+ * a person does that in the portal having looked at what was created.
+ *
+ * Any future write tool has to clear the same bar.
  *
  * Launched over stdio by the MCP client, with the service account's
  * credentials in the environment:
@@ -17,6 +25,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { API_BASE_URL, credentialsConfigured } from './api.js';
 import { registerCqcTools } from './tools/cqc.js';
+import { registerPolicyTools } from './tools/policies.js';
 import { registerShiftTools } from './tools/shifts.js';
 import { registerStaffTools } from './tools/staff.js';
 
@@ -25,6 +34,7 @@ function createServer(): McpServer {
   registerCqcTools(server);
   registerStaffTools(server);
   registerShiftTools(server);
+  registerPolicyTools(server);
   return server;
 }
 

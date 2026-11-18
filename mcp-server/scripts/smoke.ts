@@ -34,13 +34,33 @@ await client.connect(
 const { tools } = await client.listTools();
 assert.deepEqual(
   tools.map((t) => t.name).sort(),
-  ['caremid_cqc_readiness', 'caremid_expiring_training', 'caremid_list_staff', 'caremid_staff_compliance', 'caremid_unstaffed_visits'],
+  [
+    'caremid_cqc_readiness',
+    'caremid_create_policy',
+    'caremid_expiring_training',
+    'caremid_list_policies',
+    'caremid_list_staff',
+    'caremid_staff_compliance',
+    'caremid_unstaffed_visits',
+  ],
   'unexpected tool list',
 );
 
+// Exactly one tool on this server writes, and it creates drafts. If that
+// list ever grows, it should grow because somebody decided to widen it - not
+// because a write tool slipped in next to the reporting ones.
+const MAY_WRITE = new Set(['caremid_create_policy']);
+
 for (const t of tools) {
   assert.ok(t.description && t.description.length > 80, `${t.name} needs a description the model can act on`);
-  assert.equal(t.annotations?.readOnlyHint, true, `${t.name} must be marked read-only`);
+  assert.equal(
+    t.annotations?.readOnlyHint,
+    !MAY_WRITE.has(t.name),
+    `${t.name}: readOnlyHint must match whether the tool writes`,
+  );
+  if (MAY_WRITE.has(t.name)) {
+    assert.equal(t.annotations?.destructiveHint, false, `${t.name} must not be marked destructive`);
+  }
 }
 
 // Bad input is rejected before the handler runs, and comes back as a tool error.

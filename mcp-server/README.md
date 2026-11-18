@@ -11,8 +11,14 @@ needs a conversation this server deliberately does not pre-empt. When write
 tools arrive they belong behind an explicit human confirmation step, not as a
 quiet addition to this list.
 
-The read-only stance is enforced by construction: there are no write tools and
-no generic "call this endpoint" escape hatch.
+Almost every tool reads. The one that writes adds policies to the library as
+DRAFTS, and there is no publish tool — publishing is what asks every carer to
+read and sign a document, and a person does that in the portal. That is the
+rule any future write tool has to clear: an agent may create a record in a
+state that does nothing until a person acts on it, and may not move a record
+into the state that has an effect on anyone.
+
+There is no generic "call this endpoint" escape hatch.
 
 ## Tools
 
@@ -23,6 +29,8 @@ no generic "call this endpoint" escape hatch.
 | `caremid_expiring_training` | Training that has lapsed or is about to, latest certificate per person per course |
 | `caremid_unstaffed_visits` | Visits in a date range with no carer, or fewer than they need |
 | `caremid_list_staff` | Active staff with ids, for resolving a name before calling anything else |
+| `caremid_list_policies` | The policy library: versions, review dates, and how many staff have signed the current version |
+| `caremid_create_policy` | **Writes.** Adds one policy as a draft. Cannot publish. |
 
 Every tool takes `response_format: "markdown" | "json"`. Markdown is the default
 and is what you want when a person is reading the answer; JSON when something
@@ -32,11 +40,23 @@ downstream is going to process it.
 
 ### 1. A service account in Caremid
 
-Create a dedicated user with its own restricted role rather than reusing a
-personal login. The audit trail then shows the agent rather than a person, and
-revoking it is a single switch that affects nobody's day.
+Create a dedicated user with its own custom role rather than reusing a personal
+login. The audit trail then shows the agent rather than a person, and revoking
+it is a single switch that affects nobody's day.
 
-It needs permission to read staff and the CQC dashboard, and nothing else.
+Give it the narrowest set that covers what you actually want it to do:
+
+| Capability | Needed for |
+| --- | --- |
+| `manage_staff` | `caremid_staff_compliance`, `caremid_expiring_training`, `caremid_list_staff` |
+| `manage_cqc` | `caremid_cqc_readiness` |
+| `manage_schedule` | `caremid_unstaffed_visits` |
+| `manage_policies` | `caremid_list_policies`, `caremid_create_policy` |
+
+Admin is not required and is not recommended. The reporting tools are harmless
+if the account leaks; a full-admin account is not, and the blast radius of an
+agent that misreads something is whatever its role allows. Widening a role
+later takes two clicks. Un-writing records does not.
 
 ### 2. Credentials in the environment
 

@@ -127,4 +127,39 @@ export async function apiGet<T>(
   return (await res.json()) as T;
 }
 
+/**
+ * POST to a Caremid endpoint. Same 401 retry as apiGet.
+ *
+ * Writes are deliberately rare here and each one is narrow. The rule the
+ * write tools follow: an agent may CREATE a record in a state that does
+ * nothing until a person acts on it, and may not move a record into the state
+ * that has an effect on anyone. Filling the policy library is the first;
+ * publishing a policy - which asks every carer to sign it - is the second.
+ */
+export async function apiPost<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
+  const attempt = async (bearer: string): Promise<Response> =>
+    fetch(`${API_BASE_URL}/${path.replace(/^\//, '')}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
+    });
+
+  let res = await attempt(await currentToken(signal));
+  if (res.status === 401) {
+    token = null;
+    res = await attempt(await currentToken(signal));
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(res.status, httpErrorMessage(res.status, text));
+  }
+  return (await res.json()) as T;
+}
+
 export const credentialsConfigured = () => !!EMAIL && !!PASSWORD;
