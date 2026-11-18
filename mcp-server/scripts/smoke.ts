@@ -39,7 +39,7 @@ assert.deepEqual(
     'caremid_cqc_readiness',
     'caremid_create_policy',
     'caremid_expiring_training',
-    'caremid_file_staff_document',
+    'caremid_file_staff_documents',
     'caremid_list_policies',
     'caremid_list_staff',
     'caremid_record_training',
@@ -59,7 +59,7 @@ const MAY_WRITE = new Set([
   'caremid_create_policy',
   'caremid_attach_policy_pdf',
   'caremid_set_policy_reviews',
-  'caremid_file_staff_document',
+  'caremid_file_staff_documents',
   'caremid_record_training',
 ]);
 

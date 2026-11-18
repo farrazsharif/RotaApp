@@ -242,26 +242,37 @@ export function registerStaffFileTools(server: McpServer) {
   );
 
   server.registerTool(
-    'caremid_file_staff_document',
+    'caremid_file_staff_documents',
     {
-      title: "File a document on a staff member's record",
+      title: "File documents on a staff member's record",
       description:
-        'Uploads one PDF or image to a staff member and files it under a category, which is what satisfies a Reg 19 staff-file requirement. ' +
+        'Files PDFs or images against ONE staff member, each under the category that satisfies a Reg 19 staff-file requirement. ' +
+        'Takes up to 20 at a time because a staff file is loaded a folder at a time, not a page at a time. ' +
         'The category has to be the one Caremid checks for - "Staff Induction Confirmation", not "Induction" - or the document lands where nothing looks for it. ' +
-        'Nothing is uploaded twice: a document is skipped if the same bytes are already on that person under any name, if the same file name is already in that category, or if the category holds only one document and already has one. ' +
-        'So a part-finished import can simply be run again, and only References, ID, Training Certificate and Other ever accumulate more than one file. ' +
-        'Only set expires_at from a date printed on the document. A guessed expiry has the file report itself as current when nobody has checked. ' +
-        'Example: { staff: "Shazia Zafar", category: "Payroll Form", file: "C:\\\\staff\\\\Shazia Zafar\\\\Payroll Form.pdf" }',
+        'Nothing is filed twice: a document is skipped if the same bytes are already on that person under any name, if the same file name is already in that category, or if the category holds only one document and already has one. ' +
+        'Duplicates WITHIN the batch are skipped the same way, so the same page listed twice goes in once. ' +
+        'A part-finished run can simply be repeated, and only References, ID, Training Certificate and Other ever accumulate more than one file. ' +
+        'Only set expires_at from a date printed on the document: a guessed expiry has the file report itself as current when nobody has checked. ' +
+        'Every document is reported back as filed, skipped or failed - one bad path does not stop the rest. ' +
+        'Example: { staff: "Shazia Zafar", documents: [{ category: "Payroll Form", file: "C:\\staff\\Shazia Zafar\\Payroll Form.pdf" }] }',
       inputSchema: z.strictObject({
         staff: z.string().min(2).max(120).describe('Full name, email, or Caremid id'),
-        category: z.enum(CATEGORIES).describe('The requirement this document satisfies'),
-        file: z.string().describe('Absolute path to the PDF or image on this machine'),
-        expires_at: isoDate.optional().describe('Only if an expiry date is printed on the document'),
+        documents: z
+          .array(
+            z.strictObject({
+              category: z.enum(CATEGORIES).describe('The requirement this document satisfies'),
+              file: z.string().describe('Absolute path to the PDF or image on this machine'),
+              expires_at: isoDate.optional().describe('Only if an expiry date is printed on the document'),
+            }),
+          )
+          .min(1)
+          .max(20)
+          .describe('The documents to file, all for the one staff member'),
         response_format: ResponseFormat,
       }),
       annotations: {
         readOnlyHint: false,
-        // Adds a document. Cannot replace or remove one, and re-running with
+        // Adds documents. Cannot replace or remove one, and re-running with
         // the same input adds nothing further.
         destructiveHint: false,
         idempotentHint: true,
@@ -269,76 +280,94 @@ export function registerStaffFileTools(server: McpServer) {
       },
     },
     async (args, ctx) => {
-      const file = await readLocalFile(args.file);
       const user = await resolveStaff(args.staff, ctx.mcpReq.signal);
       const name = fullName(user);
 
-      const existing = await apiGet<DocumentRow[]>(
+      // Read once for the whole batch, then kept up to date as each document
+      // goes in - otherwise two copies of the same page in one call would
+      // both pass the check and both land.
+      const onFile = await apiGet<DocumentRow[]>(
         'documents',
         { ownerType: 'USER', ownerId: user.id },
         ctx.mcpReq.signal,
       );
-      // Three ways the same document is already there, checked before
-      // anything is sent. A staff file that holds the same page twice is a
-      // file somebody has to read twice to be sure, and nothing here can
-      // delete the second copy afterwards.
-      const skip = (reason: string, document: DocumentRow, detail: string) =>
-        result(args.response_format as Format, `Skipped: ${detail}`, {
-          skipped: true,
-          reason,
-          staff: name,
-          document,
-        });
 
-      // Byte-for-byte the same file, wherever it happens to be filed. This is
-      // the one that catches the same document saved under another name.
-      const sameBytes = existing.find((d) => d.size === file.bytes.byteLength);
-      if (sameBytes) {
-        return skip(
-          'the same document is already on file',
-          sameBytes,
-          `**${name}** already holds this exact document as **${sameBytes.fileName}**` +
-            `${sameBytes.category ? ` under ${sameBytes.category}` : ''}.`,
-        );
-      }
+      const filed: { file: string; category: string; kb: number }[] = [];
+      const skipped: { file: string; why: string }[] = [];
+      const failed: { file: string; why: string }[] = [];
 
-      const sameName = existing.find((d) => d.category === args.category && d.fileName === file.fileName);
-      if (sameName) {
-        return skip(
-          'already on file',
-          sameName,
-          `**${name}** already has **${file.fileName}** filed under ${args.category}.`,
-        );
-      }
+      for (const want of args.documents) {
+        let file;
+        try {
+          file = await readLocalFile(want.file);
+        } catch (e) {
+          failed.push({ file: basename(want.file), why: (e as Error).message });
+          continue;
+        }
 
-      // A category that only ever holds one thing, and it is already held.
-      // Replacing it is not this tool's job, so it says what is there and
-      // leaves the decision to a person.
-      if (!MULTI_DOCUMENT.has(args.category)) {
-        const held = existing.find((d) => d.category === args.category);
-        if (held) {
-          return skip(
-            'that category is already filled',
-            held,
-            `**${name}** already has a ${args.category} on file (**${held.fileName}**). ` +
-              'Only one is expected, so this was not added. Remove the old one in Caremid first if it should be replaced.',
-          );
+        // Byte-for-byte the same file, wherever it is filed. This is the one
+        // that catches the same document saved under another name.
+        const sameBytes = onFile.find((d) => d.size === file.bytes.byteLength);
+        if (sameBytes) {
+          skipped.push({
+            file: file.fileName,
+            why: `already on file as ${sameBytes.fileName}${sameBytes.category ? ` under ${sameBytes.category}` : ''}`,
+          });
+          continue;
+        }
+
+        const sameName = onFile.find((d) => d.category === want.category && d.fileName === file.fileName);
+        if (sameName) {
+          skipped.push({ file: file.fileName, why: `already filed under ${want.category}` });
+          continue;
+        }
+
+        // A category that only ever holds one thing, and it is already held.
+        // Replacing it is not this tool's job.
+        if (!MULTI_DOCUMENT.has(want.category)) {
+          const held = onFile.find((d) => d.category === want.category);
+          if (held) {
+            skipped.push({
+              file: file.fileName,
+              why: `${want.category} already holds ${held.fileName}, and only one is expected`,
+            });
+            continue;
+          }
+        }
+
+        try {
+          const created = await apiPostFile<DocumentRow>('documents', file, ctx.mcpReq.signal, {
+            ownerType: 'USER',
+            ownerId: user.id,
+            category: want.category,
+            expiresAt: want.expires_at,
+          });
+          onFile.push(created);
+          filed.push({ file: file.fileName, category: want.category, kb: Math.round(file.bytes.byteLength / 1024) });
+        } catch (e) {
+          failed.push({ file: file.fileName, why: (e as Error).message });
         }
       }
 
-      const created = await apiPostFile<DocumentRow>('documents', file, ctx.mcpReq.signal, {
-        ownerType: 'USER',
-        ownerId: user.id,
-        category: args.category,
-        expiresAt: args.expires_at,
-      });
+      const lines = [
+        `**${name}** — ${filed.length} filed, ${skipped.length} skipped, ${failed.length} failed.`,
+      ];
+      if (filed.length) {
+        lines.push('', '**Filed**', ...filed.map((f) => `- ${f.file} → ${f.category} (${f.kb} KB)`));
+      }
+      if (skipped.length) {
+        lines.push('', '**Skipped**', ...skipped.map((f) => `- ${f.file} — ${f.why}`));
+      }
+      if (failed.length) {
+        lines.push('', '**Failed**', ...failed.map((f) => `- ${f.file} — ${f.why}`));
+      }
 
-      const kb = Math.round(file.bytes.byteLength / 1024);
-      return result(
-        args.response_format as Format,
-        `Filed **${file.fileName}** (${kb} KB) under **${args.category}** for **${name}**.`,
-        { skipped: false, staff: name, document: created },
-      );
+      return result(args.response_format as Format, lines.join('\n'), {
+        staff: name,
+        filed,
+        skipped,
+        failed,
+      });
     },
   );
 
