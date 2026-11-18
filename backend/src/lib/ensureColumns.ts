@@ -108,6 +108,73 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP NOT NULL`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "OrgSettings" ALTER COLUMN "safeguardingContacts" DROP DEFAULT`);
 
+  // Mental capacity assessments and legal authorities (MCA 2005, Reg 11).
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CapacityAssessment" (
+      "companyId" TEXT,
+      "id" TEXT NOT NULL,
+      "serviceUserId" TEXT NOT NULL,
+      "decision" TEXT NOT NULL,
+      "category" TEXT NOT NULL DEFAULT 'OTHER',
+      "assessedById" TEXT NOT NULL,
+      "assessedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "impairment" BOOLEAN NOT NULL DEFAULT false,
+      "impairmentDetail" TEXT,
+      "stepsTaken" TEXT,
+      "bestTimeOfDay" TEXT,
+      "communicationUsed" TEXT,
+      "canUnderstand" BOOLEAN,
+      "canRetain" BOOLEAN,
+      "canWeigh" BOOLEAN,
+      "canCommunicate" BOOLEAN,
+      "evidence" TEXT,
+      "outcome" TEXT,
+      "reviewDate" TIMESTAMP(3),
+      "biOptions" TEXT,
+      "biPersonsViews" TEXT,
+      "biConsulted" TEXT,
+      "biLeastRestrictive" TEXT,
+      "biDecision" TEXT,
+      "biDecidedById" TEXT,
+      "biDecidedAt" TIMESTAMP(3),
+      "deprivationConcern" BOOLEAN NOT NULL DEFAULT false,
+      "deprivationRaisedWith" TEXT,
+      "deprivationRaisedAt" TIMESTAMP(3),
+      "deprivationReference" TEXT,
+      "attachments" TEXT NOT NULL DEFAULT '[]',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "CapacityAssessment_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CapacityAssessment_companyId_serviceUserId_idx" ON "CapacityAssessment"("companyId", "serviceUserId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CapacityAssessment_companyId_reviewDate_idx" ON "CapacityAssessment"("companyId", "reviewDate")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CapacityAssessment_serviceUserId_assessedAt_idx" ON "CapacityAssessment"("serviceUserId", "assessedAt")`);
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "LegalAuthority" (
+      "companyId" TEXT,
+      "id" TEXT NOT NULL,
+      "serviceUserId" TEXT NOT NULL,
+      "kind" TEXT NOT NULL,
+      "holderName" TEXT,
+      "holderContact" TEXT,
+      "registered" BOOLEAN NOT NULL DEFAULT false,
+      "reference" TEXT,
+      "evidenceSeen" BOOLEAN NOT NULL DEFAULT false,
+      "evidenceSeenAt" TIMESTAMP(3),
+      "evidenceSeenById" TEXT,
+      "scope" TEXT,
+      "notes" TEXT,
+      "active" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "LegalAuthority_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "LegalAuthority_companyId_serviceUserId_idx" ON "LegalAuthority"("companyId", "serviceUserId")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "LegalAuthority_serviceUserId_kind_idx" ON "LegalAuthority"("serviceUserId", "kind")`);
+
   // The complaints and compliments log (Reg 16). Same shape as the
   // safeguarding table: created here rather than by a migration, so a deploy
   // brings its own table with it.

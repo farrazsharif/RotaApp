@@ -118,6 +118,9 @@ model User {
   complaintsReceived Complaint[]           @relation("ComplaintReceiver")
   complaintsAbout    Complaint[]           @relation("ComplaintStaffInvolved")
   complaintsClosed   Complaint[]           @relation("ComplaintCloser")
+  capacityAssessed   CapacityAssessment[]  @relation("CapacityAssessor")
+  capacityDecided    CapacityAssessment[]  @relation("CapacityDecider")
+  authoritiesChecked LegalAuthority[]      @relation("AuthorityChecker")
   incidentsClosed    Incident[]            @relation("IncidentCloser")
   supervisions       Supervision[]         @relation("StaffSupervision")
   handoversSent      ShiftHandover[]       @relation("HandoverFrom")
@@ -278,6 +281,8 @@ model ServiceUser {
   incidents            Incident[]
   safeguardingConcerns SafeguardingConcern[]
   complaints           Complaint[]
+  capacityAssessments  CapacityAssessment[]
+  legalAuthorities     LegalAuthority[]
   respitePeriods       RespitePeriod[]
 
   @@index([companyId])
@@ -1558,4 +1563,133 @@ model Complaint {
   @@index([companyId, kind])
   @@index([serviceUserId])
   @@index([receivedById])
+}
+
+// A mental capacity assessment (Mental Capacity Act 2005, and Reg 11).
+//
+// One row per DECISION. That is the whole point of the Act and the thing care
+// records get wrong most often: capacity is not a property of a person, it is
+// a question about one decision at one moment. A record saying "lacks
+// capacity" with no decision named is the finding an inspector writes up, so
+// this table cannot hold one - the decision is required.
+//
+// The Act's five principles are enforced rather than printed: capacity is
+// presumed unless this record proves otherwise, an unwise decision is still
+// the person's to make, and the controller refuses to record a finding of
+// lacking capacity unless stage one, stage two and the practicable steps have
+// all been answered.
+model CapacityAssessment {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String  @id @default(cuid())
+  serviceUserId String
+
+  // The decision itself, in plain words: "whether to accept help with
+  // washing", not "personal care".
+  decision String
+  // PERSONAL_CARE | MEDICATION | FINANCES | ACCOMMODATION | HEALTHCARE |
+  // CONTACT | SAFETY | TECHNOLOGY | OTHER - for grouping only.
+  category String @default("OTHER")
+
+  assessedById String
+  assessedAt   DateTime @default(now())
+
+  // --- Stage 1: the diagnostic threshold ---
+  // Is there an impairment of, or disturbance in, the functioning of the mind
+  // or brain? If not, the person has capacity and stage two is never reached.
+  impairment       Boolean @default(false)
+  impairmentDetail String?
+
+  // --- Principle 2: all practicable steps ---
+  // Taken before concluding anyone cannot decide. The step most often skipped,
+  // which is why it is its own required field rather than a tick.
+  stepsTaken        String?
+  bestTimeOfDay     String?
+  communicationUsed String?
+
+  // --- Stage 2: the functional test ---
+  // Four separate abilities. Failing any ONE of them means the person cannot
+  // make this decision at this time. Nullable: unanswered is not the same as
+  // "no", and only a real answer can support a finding.
+  canUnderstand  Boolean?
+  canRetain      Boolean?
+  canWeigh       Boolean?
+  canCommunicate Boolean?
+  evidence       String?
+
+  // HAS_CAPACITY | LACKS_CAPACITY
+  outcome    String?
+  reviewDate DateTime?
+
+  // --- Best interests (s4), only where capacity is lacking ---
+  biOptions          String?
+  biPersonsViews     String?
+  biConsulted        String?
+  biLeastRestrictive String?
+  biDecision         String?
+  biDecidedById      String?
+  biDecidedAt        DateTime?
+
+  // Would what is proposed amount to a deprivation of liberty? In someone's
+  // own home that is a Court of Protection matter rather than DoLS, and the
+  // thing that must be evidenced is that it was raised with somebody.
+  deprivationConcern    Boolean   @default(false)
+  deprivationRaisedWith String?
+  deprivationRaisedAt   DateTime?
+  deprivationReference  String?
+
+  attachments String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  serviceUser ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+  assessedBy  User        @relation("CapacityAssessor", fields: [assessedById], references: [id], onDelete: Cascade)
+  biDecidedBy User?       @relation("CapacityDecider", fields: [biDecidedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, serviceUserId])
+  @@index([companyId, reviewDate])
+  @@index([serviceUserId, assessedAt])
+}
+
+// Who may lawfully decide for this person, and whether anyone has actually
+// looked at the paperwork.
+//
+// The gap an inspector finds is never "no LPA". It is that everyone believes a
+// relative holds one, a carer has been taking instructions from them for a
+// year, and nobody has seen the document or checked what it covers. So
+// evidenceSeen is a field in its own right rather than an assumption.
+model LegalAuthority {
+  companyId     String? // tenant scope (app-enforced via Prisma extension)
+  id            String  @id @default(cuid())
+  serviceUserId String
+
+  // LPA_HEALTH | LPA_PROPERTY | DEPUTY_HEALTH | DEPUTY_PROPERTY |
+  // APPOINTEE | COURT_ORDER | ADRT
+  // ADRT has no holder - it is the person's own advance decision - and uses
+  // holderName for where the document is kept.
+  kind          String
+  holderName    String?
+  holderContact String?
+
+  // Registered with the Office of the Public Guardian. An unregistered LPA
+  // confers no authority at all, which is the detail most often missed.
+  registered Boolean @default(false)
+  reference  String?
+
+  evidenceSeen     Boolean   @default(false)
+  evidenceSeenAt   DateTime?
+  evidenceSeenById String?
+
+  // What it actually covers, and anything it does not.
+  scope String?
+  notes String?
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  serviceUser    ServiceUser @relation(fields: [serviceUserId], references: [id], onDelete: Cascade)
+  evidenceSeenBy User?       @relation("AuthorityChecker", fields: [evidenceSeenById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, serviceUserId])
+  @@index([serviceUserId, kind])
 }

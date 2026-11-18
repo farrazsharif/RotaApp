@@ -26,6 +26,7 @@ import LikesDislikesModal from '../components/LikesDislikesModal';
 import { likesDislikesApi } from '../api/likesDislikes';
 import PersonalServicePlanModal from '../components/PersonalServicePlanModal';
 import RiskAssessmentModal from '../components/RiskAssessmentModal';
+import MentalCapacitySection from '../components/MentalCapacitySection';
 import { riskAssessmentsApi } from '../api/riskAssessments';
 import { RA_TYPES, PROFILE_TYPES, FORM_BY_TYPE } from '../lib/riskAssessmentSchema';
 import EmarModal from '../components/EmarModal';
@@ -1053,7 +1054,7 @@ export default function ServiceUserDetail() {
       case 'tasks':
         return renderTasks();
       case 'care':
-        return <>{renderDocumentsChecklist()}{renderCarePlan()}{renderLikesDislikes()}{renderServicePlan()}{renderSupportedLiving()}{renderOnePageProfile()}{renderContractOfCare()}</>;
+        return <>{renderDocumentsChecklist()}{renderCarePlan()}{renderLikesDislikes()}{renderServicePlan()}{renderSupportedLiving()}{renderOnePageProfile()}{renderContractOfCare()}<MentalCapacitySection serviceUserId={su.id} canEdit={canEditDocs} /></>;
       case 'risk':
         return renderRiskAssessments();
       case 'meds':
@@ -1237,6 +1238,7 @@ export default function ServiceUserDetail() {
           {renderSupportedLiving()}
           {renderOnePageProfile()}
           {renderContractOfCare()}
+          <MentalCapacitySection serviceUserId={su.id} canEdit={canEditDocs} />
           {renderRiskAssessments()}
           {renderMedications()}
           {renderCallLogs()}

@@ -59,7 +59,7 @@ export async function computeReadiness() {
   const staffLink = (s: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: s.id, label: `${s.firstName} ${s.lastName}`, link: `/users/${s.id}` });
 
   // --- Load supporting data in parallel ---
-  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, feedback, incidents] = await Promise.all([
+  const [carePlans, riskRows, likes, reviews, supervisions, spotChecks, trainings, missedMedRows, unassigned, concerns, sgSettings, capacityRows, authorities, feedback, incidents] = await Promise.all([
     prisma.carePlan.findMany({ select: { serviceUserId: true, reviewDate: true } }),
     prisma.riskAssessment.findMany({ select: { serviceUserId: true, type: true } }),
     prisma.likesDislikes.findMany({ select: { serviceUserId: true } }),
@@ -77,6 +77,16 @@ export async function computeReadiness() {
     // Last 12 months only. This measures how the office is handling candour
     // now, not every incident ever filed - and the columns did not exist
     // before this shipped, so older rows would all read as undecided.
+    prisma.capacityAssessment.findMany({
+      select: {
+        id: true, serviceUserId: true, decision: true, outcome: true, reviewDate: true,
+        biDecision: true, deprivationConcern: true, deprivationRaisedAt: true,
+      },
+    }),
+    prisma.legalAuthority.findMany({
+      where: { active: true },
+      select: { id: true, serviceUserId: true, kind: true, registered: true, evidenceSeen: true },
+    }),
     prisma.complaint.findMany({
       where: { receivedAt: { gte: daysAgo(365) } },
       select: {
@@ -97,6 +107,34 @@ export async function computeReadiness() {
       orderBy: { occurredAt: 'desc' },
     }),
   ]);
+
+  // Mental capacity (Reg 11). Three things that go wrong, in the order they
+  // get found: a finding with no best-interest decision behind it, a review
+  // date that has passed (capacity returns, and a stale finding is used as if
+  // it had not), and an authority nobody has actually looked at.
+  const capacityLink = (r: { id: string; serviceUserId: string; decision: string }): CheckItem => {
+    const c = clients.find((x) => x.id === r.serviceUserId);
+    return {
+      id: r.id,
+      label: `${c ? `${c.firstName} ${c.lastName}` : 'Client'} - ${r.decision}`,
+      link: c ? `/service-users/${c.id}` : undefined,
+    };
+  };
+  const lacking = capacityRows.filter((r) => r.outcome === 'LACKS_CAPACITY');
+  const noBestInterest = lacking.filter((r) => !r.biDecision);
+  const staleCapacity = capacityRows.filter((r) => r.outcome && r.reviewDate && r.reviewDate < now());
+  const dolUnraised = capacityRows.filter((r) => r.deprivationConcern && !r.deprivationRaisedAt);
+  const authorityUnchecked = authorities.filter(
+    (a) => !a.evidenceSeen || ((a.kind.startsWith('LPA_') || a.kind.startsWith('DEPUTY_')) && !a.registered),
+  );
+  const authorityLink = (a: { id: string; serviceUserId: string; kind: string }): CheckItem => {
+    const c = clients.find((x) => x.id === a.serviceUserId);
+    return {
+      id: a.id,
+      label: `${c ? `${c.firstName} ${c.lastName}` : 'Client'} - ${a.kind.replace(/_/g, ' ').toLowerCase()}`,
+      link: c ? `/service-users/${c.id}` : undefined,
+    };
+  };
 
   // Complaints (Reg 16). The two clocks an inspector checks - acknowledged,
   // and responded to - plus whether anyone was told they could go further.
@@ -231,6 +269,42 @@ export async function computeReadiness() {
   ];
 
   const effective: Check[] = [
+    {
+      id: 'capacity_best_interest', title: 'Best-interest decisions recorded', statement: 'Consent to care · Reg 11',
+      status: noBestInterest.length ? 'red' : 'green', count: noBestInterest.length, total: lacking.length,
+      detail: noBestInterest.length
+        ? `${noBestInterest.length} assessment(s) found a person lacks capacity with no best-interest decision recorded. A finding on its own authorises nothing.`
+        : lacking.length
+          ? 'Every finding that someone lacks capacity has a best-interest decision behind it.'
+          : 'No assessment has found that anyone lacks capacity.',
+      items: noBestInterest.slice(0, CAP).map(capacityLink),
+    },
+    {
+      id: 'capacity_review', title: 'Capacity assessments in date', statement: 'Consent to care · Reg 11',
+      status: staleCapacity.length ? 'amber' : 'green', count: staleCapacity.length, total: capacityRows.length,
+      detail: staleCapacity.length
+        ? `${staleCapacity.length} capacity assessment(s) are past their review date. Capacity can return, and a stale finding gets used as though it has not.`
+        : 'No capacity assessment is overdue a review.',
+      items: staleCapacity.slice(0, CAP).map(capacityLink),
+    },
+    {
+      id: 'capacity_deprivation', title: 'Deprivation of liberty raised', statement: 'Consent to care · Reg 11',
+      status: dolUnraised.length ? 'red' : 'green', count: dolUnraised.length, total: capacityRows.filter((r) => r.deprivationConcern).length,
+      detail: dolUnraised.length
+        ? `${dolUnraised.length} arrangement(s) flagged as a possible deprivation of liberty have not been raised with anyone.`
+        : 'Every possible deprivation of liberty has been raised.',
+      items: dolUnraised.slice(0, CAP).map(capacityLink),
+    },
+    {
+      id: 'legal_authority_evidence', title: 'Authority to decide evidenced', statement: 'Consent to care · Reg 11',
+      status: authorityUnchecked.length ? 'amber' : 'green', count: authorityUnchecked.length, total: authorities.length,
+      detail: authorityUnchecked.length
+        ? `${authorityUnchecked.length} recorded authority(ies) are unregistered, or nobody has recorded seeing the document. An unregistered LPA confers nothing.`
+        : authorities.length
+          ? 'Every recorded authority has been seen and, where it applies, registered.'
+          : 'No attorneys, deputies or advance decisions recorded.',
+      items: authorityUnchecked.slice(0, CAP).map(authorityLink),
+    },
     clientCheck('care_plan_missing', 'Care plan in place', 'Assessing needs · Reg 9',
       (c) => !carePlanBy.has(c.id), true, (n) => n ? `${n} active client(s) have no care plan.` : 'Every active client has a care plan.'),
     clientCheck('care_plan_review', 'Care plan reviews up to date', 'Assessing needs / Monitoring outcomes · Reg 9',

@@ -63,6 +63,7 @@ import cqcRoutes from './routes/cqc';
 import assistantRoutes from './routes/assistant';
 import safeguardingRoutes from './routes/safeguarding';
 import complaintsRoutes from './routes/complaints';
+import capacityRoutes from './routes/capacity';
 import { backfillAllCompanyRoles } from './lib/defaultRoles';
 import { normalizeVisitNames } from './lib/normalizeVisitNames';
 import { ensureServiceUserColumns } from './lib/ensureColumns';
@@ -215,6 +216,7 @@ app.use('/api/cqc', cqcRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/safeguarding', safeguardingRoutes);
 app.use('/api/complaints', complaintsRoutes);
+app.use('/api/capacity', capacityRoutes);
 
 app.use(errorHandler);
 
