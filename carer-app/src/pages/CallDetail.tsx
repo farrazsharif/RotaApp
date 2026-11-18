@@ -22,6 +22,7 @@ import { mapsUrl } from '../lib/maps';
 import { settingsApi } from '../api/settings';
 import { resolveCallLogTasks, buildNoteFromTicks, parseCallLogTicks } from '../lib/callLogTasks';
 import { parseCareTasks, careTasksForVisit, careTaskId, buildCareTaskNote } from '../lib/careTasks';
+import ChartQuickEntry from '../components/ChartQuickEntry';
 import { SUPPORT_DOMAINS, domainLabel, parseDomains } from '../lib/supportDomains';
 import { supportLogApi } from '../api/supportLog';
 import type { CallLogTaskDef, CallLogTaskTick } from '../lib/callLogTasks';
@@ -1315,6 +1316,17 @@ export default function CallDetail() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Daily charts. Only the ones this client is actually on, and only
+            once the carer is on the visit — a drink recorded from the rota
+            screen is a drink nobody watched them take. */}
+        {su && (clockedIn || done) && (
+          <ChartQuickEntry
+            serviceUserId={su.id}
+            shiftId={shift.id}
+            careCharts={su.careCharts}
+          />
         )}
 
         {/* Medication — interactive while on the call; read-only afterwards so

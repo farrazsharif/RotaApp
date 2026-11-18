@@ -20,6 +20,11 @@ export interface ServiceUserBrief {
   site?: { id: string; name: string; color: string } | null;
   handlesMoney?: boolean;
   careTasks?: string | null; // JSON array of { name, description?, visit? }
+  // Which daily charts this person is on, and the targets that make the
+  // running totals mean something to the carer standing there.
+  careCharts?: string | null; // JSON array of chart kinds
+  fluidTargetMl?: number | null;
+  repositionHours?: number | null;
   // Carried on the visit itself, not just the full client record: a carer at
   // the door is looking at CallDetail, and an allergy one tap away is an
   // allergy nobody sees. Blank means not recorded, never "none".
@@ -77,6 +82,9 @@ export interface ServiceUser {
   handlesMoney?: boolean;
   careType?: string | null;
   careTasks?: string | null;
+  careCharts?: string | null;
+  fluidTargetMl?: number | null;
+  repositionHours?: number | null;
 }
 
 export interface CarePlan {
