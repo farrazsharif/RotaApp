@@ -1,10 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { format, addMonths } from 'date-fns';
 import SignatureField from './SignatureField';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import { staffSupervisionApi, Supervision, SupervisionData } from '../api/staffSupervision';
 import { SUPERVISION_QUESTIONS, SUPERVISION_OBSERVATIONS, parseMap } from '../lib/staffSupervision';
+import { useFormDraft } from '../lib/useFormDraft';
+
+interface SupervisionForm {
+  date: string;
+  position: string;
+  answers: Record<string, string>;
+  serviceUsers: string;
+  observations: Record<string, string>;
+  assessorName: string;
+  assessorSignature: string;
+  staffSignature: string;
+}
 
 interface Props {
   userId: string;
@@ -17,7 +29,12 @@ interface Props {
 export default function SupervisionFormModal({ userId, staffName, editSupervision, readOnly = false, onClose }: Props) {
   const qc = useQueryClient();
   const s = editSupervision;
-  const [form, setForm] = useState({
+
+  // One draft per supervision being written: a new one for this staff member,
+  // or the particular record being edited.
+  const draft = useFormDraft<SupervisionForm>(`supervision:${userId}:${s?.id ?? 'new'}`, !readOnly);
+
+  const [form, setForm] = useState<SupervisionForm>(() => ({
     date: s ? format(new Date(s.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
     position: s?.position || '',
     answers: parseMap(s?.answers),
@@ -26,7 +43,24 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
     assessorName: s?.assessorName || '',
     assessorSignature: s?.assessorSignature || '',
     staffSignature: s?.staffSignature || '',
-  });
+    // Whatever was left behind wins: it is newer than the saved record and it
+    // is the work somebody is in the middle of.
+    ...(draft.restored ?? {}),
+  }));
+  const [discarded, setDiscarded] = useState(false);
+
+  // Not on the first run: opening a form and closing it again without typing
+  // is not a draft, and storing one would greet them with "picked up where
+  // you left off" every single time.
+  const touched = useRef(false);
+  useEffect(() => {
+    if (!touched.current) {
+      touched.current = true;
+      return;
+    }
+    if (!readOnly) draft.keep(form);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, readOnly]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['supervisions'] });
@@ -49,7 +83,7 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
       };
       return s ? staffSupervisionApi.update(s.id, payload) : staffSupervisionApi.create(payload);
     },
-    onSuccess: () => { invalidate(); onClose(); },
+    onSuccess: () => { draft.clear(); invalidate(); onClose(); },
   });
 
   const setAnswer = (k: string, v: string) => setForm((f) => ({ ...f, answers: { ...f.answers, [k]: v } }));
@@ -64,6 +98,36 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
         </div>
 
         <fieldset disabled={readOnly} className="p-6 space-y-5 overflow-y-auto border-0 m-0">
+          {/* Said out loud. Text reappearing with no explanation is unnerving,
+              and somebody who meant to start again needs a way to do it. */}
+          {draft.restored && !discarded && draft.restoredAt && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex flex-wrap items-center gap-2 text-sm text-blue-900">
+              <span>
+                Picked up where you left off — unsaved from {format(draft.restoredAt, 'd MMM, HH:mm')}.
+              </span>
+              <div className="flex-1" />
+              <button
+                type="button"
+                className="text-xs underline hover:no-underline"
+                onClick={() => {
+                  draft.clear();
+                  setDiscarded(true);
+                  setForm({
+                    date: s ? format(new Date(s.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+                    position: s?.position || '',
+                    answers: parseMap(s?.answers),
+                    serviceUsers: s?.serviceUsers || '',
+                    observations: parseMap(s?.observations),
+                    assessorName: s?.assessorName || '',
+                    assessorSignature: s?.assessorSignature || '',
+                    staffSignature: s?.staffSignature || '',
+                  });
+                }}
+              >
+                Start again
+              </button>
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label">Position</label>

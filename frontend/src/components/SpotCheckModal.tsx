@@ -9,6 +9,19 @@ import { SPOT_CHECK_ITEMS } from '../lib/spotCheckSchema';
 import SearchableSelect from './SearchableSelect';
 import SignatureField from './SignatureField';
 import AutoGrowTextarea from './AutoGrowTextarea';
+import { useFormDraft } from '../lib/useFormDraft';
+
+interface SpotCheckForm {
+  carerId: string;
+  serviceUserId: string;
+  date: string;
+  time: string;
+  location: string;
+  answers: Answers;
+  generalComments: string;
+  observerName: string;
+  observerSignature: string;
+}
 
 type Answers = Record<string, { answer: YesNoNa; comment: string }>;
 
@@ -32,15 +45,40 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
   const carers = staff.filter((u) => u.role !== 'ADMIN');
   const { data: serviceUsers = [] } = useQuery({ queryKey: ['service-users', 'active'], queryFn: () => serviceUsersApi.list({ active: true }), enabled: !readOnly });
 
-  const [carerId, setCarerId] = useState(initialCarerId || '');
-  const [serviceUserId, setServiceUserId] = useState('');
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [time, setTime] = useState(format(new Date(), 'HH:mm'));
-  const [location, setLocation] = useState('');
-  const [answers, setAnswers] = useState<Answers>(emptyAnswers);
-  const [generalComments, setGeneralComments] = useState('');
-  const [observerName, setObserverName] = useState(user ? `${user.firstName} ${user.lastName}` : '');
-  const [observerSignature, setObserverSignature] = useState('');
+  // One draft per spot check being written: a new one, or the record being
+  // edited. Viewing never keeps a draft.
+  const draft = useFormDraft<SpotCheckForm>(`spotcheck:${editId ?? 'new'}`, !readOnly);
+  const d = draft.restored;
+  const [discarded, setDiscarded] = useState(false);
+
+  const [carerId, setCarerId] = useState(d?.carerId ?? (initialCarerId || ''));
+  const [serviceUserId, setServiceUserId] = useState(d?.serviceUserId ?? '');
+  const [date, setDate] = useState(d?.date ?? format(new Date(), 'yyyy-MM-dd'));
+  const [time, setTime] = useState(d?.time ?? format(new Date(), 'HH:mm'));
+  const [location, setLocation] = useState(d?.location ?? '');
+  const [answers, setAnswers] = useState<Answers>(() => d?.answers ?? emptyAnswers());
+  const [generalComments, setGeneralComments] = useState(d?.generalComments ?? '');
+  const [observerName, setObserverName] = useState(
+    d?.observerName ?? (user ? `${user.firstName} ${user.lastName}` : ''),
+  );
+  const [observerSignature, setObserverSignature] = useState(d?.observerSignature ?? '');
+
+  const current = (): SpotCheckForm => ({
+    carerId, serviceUserId, date, time, location, answers, generalComments, observerName, observerSignature,
+  });
+
+  // Not on the first run: opening a form and closing it without typing is not
+  // a draft, and storing one would greet them with "picked up where you left
+  // off" every time.
+  const touched = useRef(false);
+  useEffect(() => {
+    if (!touched.current) {
+      touched.current = true;
+      return;
+    }
+    if (!readOnly) draft.keep(current());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carerId, serviceUserId, date, time, location, answers, generalComments, observerName, observerSignature, readOnly]);
 
   const setAnswer = (id: string, patch: Partial<{ answer: YesNoNa; comment: string }>) =>
     setAnswers((a) => ({ ...a, [id]: { ...a[id], ...patch } }));
@@ -48,7 +86,9 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
   // Seed the editable form once from the existing record when editing.
   const seededRef = useRef(false);
   useEffect(() => {
-    if (!isEdit || seededRef.current || !existing) return;
+    // A restored draft is newer than the stored record and is the work in
+    // progress, so seeding over it would undo exactly what was rescued.
+    if (!isEdit || seededRef.current || !existing || (d && !discarded)) return;
     seededRef.current = true;
     setCarerId(existing.carerId);
     setServiceUserId(existing.serviceUserId || '');
@@ -67,6 +107,7 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
       return editId ? supervisionApi.updateSpotCheck(editId, payload) : supervisionApi.createSpotCheck(payload);
     },
     onSuccess: () => {
+      draft.clear();
       qc.invalidateQueries({ queryKey: ['supervision-summary'] });
       qc.invalidateQueries({ queryKey: ['spot-checks'] });
       onClose();
@@ -87,6 +128,35 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
         </div>
 
         <div className="overflow-y-auto px-5 py-4 space-y-5">
+          {/* Said out loud. Text reappearing with no explanation is unnerving,
+              and somebody who meant to start again needs a way to do it. */}
+          {d && !discarded && draft.restoredAt && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 flex flex-wrap items-center gap-2 text-sm text-blue-900">
+              <span>Picked up where you left off — unsaved from {format(draft.restoredAt, 'd MMM, HH:mm')}.</span>
+              <div className="flex-1" />
+              <button
+                type="button"
+                className="text-xs underline hover:no-underline"
+                onClick={() => {
+                  draft.clear();
+                  setDiscarded(true);
+                  setCarerId(initialCarerId || '');
+                  setServiceUserId('');
+                  setDate(format(new Date(), 'yyyy-MM-dd'));
+                  setTime(format(new Date(), 'HH:mm'));
+                  setLocation('');
+                  setAnswers(emptyAnswers());
+                  setGeneralComments('');
+                  setObserverName(user ? `${user.firstName} ${user.lastName}` : '');
+                  setObserverSignature('');
+                  // Let the stored record seed the form again when editing.
+                  seededRef.current = false;
+                }}
+              >
+                Start again
+              </button>
+            </div>
+          )}
           {/* Header fields */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
