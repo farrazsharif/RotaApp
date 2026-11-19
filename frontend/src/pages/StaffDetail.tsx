@@ -18,6 +18,7 @@ import StaffFormModal from '../components/StaffFormModal';
 import Avatar from '../components/Avatar';
 import SignatureField from '../components/SignatureField';
 import DocumentsTab from '../components/DocumentsTab';
+import EmploymentHistoryTab from '../components/EmploymentHistoryTab';
 import AutoGrowTextarea from '../components/AutoGrowTextarea';
 import { resolveTrainingCourses } from '../lib/trainingCourses';
 import { statusInfo } from './Users';
@@ -29,7 +30,7 @@ const roleBadge: Record<Role, string> = {
   FAMILY_MEMBER: 'badge-green',
 };
 
-const TABS = ['Details', 'Compliance', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Right to Work', 'Fit for Work', 'DBS', 'Supervision', 'Documents'] as const;
+const TABS = ['Details', 'Compliance', 'Permissions', 'Rota', 'Training', 'Important Dates', 'Right to Work', 'Fit for Work', 'Employment History', 'DBS', 'Supervision', 'Documents'] as const;
 type Tab = typeof TABS[number];
 
 // The health-declaration checklist from the paper "Fit for Work Declaration".
@@ -261,6 +262,7 @@ export default function StaffDetail() {
       {tab === 'Important Dates' && <ImportantDatesTab userId={user.id} isManager={isManager} />}
       {tab === 'Right to Work' && <RightToWorkTab userId={user.id} isManager={isManager} initial={user} checkerName={me ? `${me.firstName} ${me.lastName}`.trim() : ''} />}
       {tab === 'Fit for Work' && <FitForWorkTab userId={user.id} isManager={isManager} initial={user} />}
+      {tab === 'Employment History' && <EmploymentHistoryTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'DBS' && can('manage_dbs') && <DbsTab userId={user.id} initial={user} />}
       {tab === 'Supervision' && <SupervisionTab userId={user.id} staffName={`${user.firstName} ${user.lastName}`} isManager={isManager} />}
       {tab === 'Documents' && <DocumentsTab ownerType="USER" ownerId={user.id} canManage={isManager} />}

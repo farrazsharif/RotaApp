@@ -112,6 +112,7 @@ export interface User {
   emergencyContactRelation?: string;
   emergencyContactAddress?: string;
   fitForWork?: FitForWork | null;
+  employmentHistory?: unknown | null;
   // DBS record (admin-only) — mirrors the office DBS register.
   dbsCertificateNo?: string | null;
   dbsPositionApplied?: string | null;

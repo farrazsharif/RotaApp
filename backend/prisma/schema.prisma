@@ -82,6 +82,11 @@ model User {
   // Fit for Work Declaration (staff health questionnaire + signature),
   // stored as one JSON blob. See FitForWork type on the frontend.
   fitForWork               Json?
+  // Employment Gap History Form (recruitment / vetting). The jobs are stored;
+  // the gaps between them are worked out from the dates rather than typed a
+  // second time, so a gap nobody wrote down cannot go unasked. See
+  // lib/employmentHistory on the frontend.
+  employmentHistory        Json?
   // DBS record (one current certificate per staff member) — mirrors the office
   // "DBS Database and Risk Assessment" register. All optional; blank until set.
   dbsCertificateNo         String?

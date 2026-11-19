@@ -441,6 +441,9 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "rightToWorkNote" TEXT`);
   // Per-person "not required" waivers on staff-file checks (JSON).
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "complianceWaivers" TEXT`);
+  // Employment Gap History Form. JSONB to match fitForWork, which Prisma maps
+  // Json to on Postgres - TEXT here would read back as a quoted string.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "employmentHistory" JSONB`);
   // DBS record fields (one current certificate per staff member) — mirrors the
   // office DBS Database & Risk Assessment register.
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsCertificateNo" TEXT`);
