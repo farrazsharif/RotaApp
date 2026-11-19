@@ -205,6 +205,33 @@ export async function apiPut<T>(path: string, body: unknown, signal: AbortSignal
   return (await res.json()) as T;
 }
 
+/**
+ * DELETE a Caremid endpoint. Same 401 retry as the rest.
+ *
+ * Used by exactly one tool, which removes a document the agent itself filed
+ * and refuses to touch anything a person uploaded.
+ */
+export async function apiDelete<T>(path: string, signal: AbortSignal): Promise<T> {
+  const attempt = async (bearer: string): Promise<Response> =>
+    fetch(`${API_BASE_URL}/${path.replace(/^\//, '')}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${bearer}`, Accept: 'application/json' },
+      signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
+    });
+
+  let res = await attempt(await currentToken(signal));
+  if (res.status === 401) {
+    token = null;
+    res = await attempt(await currentToken(signal));
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(res.status, httpErrorMessage(res.status, text));
+  }
+  return (await res.json()) as T;
+}
+
 /** PATCH a Caremid endpoint. Same 401 retry as the rest. */
 export async function apiPatch<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   const attempt = async (bearer: string): Promise<Response> =>

@@ -45,6 +45,7 @@ assert.deepEqual(
     'caremid_list_staff',
     'caremid_record_training',
     'caremid_refresh_training',
+    'caremid_remove_staff_document',
     'caremid_set_policy_reviews',
     'caremid_staff_compliance',
     'caremid_staff_file',
@@ -54,11 +55,12 @@ assert.deepEqual(
   'unexpected tool list',
 );
 
-// The tools on this server that write. All but one only ADD; the exception is
-// caremid_correct_training_date, which amends a date recorded against the
-// wrong day and is marked destructive for it. None delete. If this list grows
-// it should grow because somebody decided to widen it - not because a write
-// tool slipped in among the reporting ones.
+// The tools on this server that write. Most only ADD. Two do not, and both
+// are marked destructive: caremid_correct_training_date amends a date
+// recorded against the wrong day, and caremid_remove_staff_document deletes a
+// document - but only one the agent itself uploaded. If this list grows it
+// should grow because somebody decided to widen it, not because a write tool
+// slipped in among the reporting ones.
 const MAY_WRITE = new Set([
   'caremid_create_policy',
   'caremid_attach_policy_pdf',
@@ -66,6 +68,7 @@ const MAY_WRITE = new Set([
   'caremid_file_staff_documents',
   'caremid_correct_training_date',
   'caremid_record_training',
+  'caremid_remove_staff_document',
   'caremid_refresh_training',
 ]);
 
@@ -81,12 +84,13 @@ for (const t of tools) {
   // tool cannot arrive quietly: it would fail here until somebody added it to
   // this line on purpose.
   if (MAY_WRITE.has(t.name)) {
-    const amends = t.name === 'caremid_correct_training_date';
+    const changesWhatIsThere =
+      t.name === 'caremid_correct_training_date' || t.name === 'caremid_remove_staff_document';
     assert.equal(
       t.annotations?.destructiveHint,
-      amends,
-      amends
-        ? `${t.name} amends records and must be marked destructive`
+      changesWhatIsThere,
+      changesWhatIsThere
+        ? `${t.name} changes a record that is already there and must be marked destructive`
         : `${t.name} must not be marked destructive`,
     );
   }

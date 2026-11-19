@@ -2,7 +2,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { apiGet, apiPost, apiPut, apiPostFile } from '../api.js';
+import { apiGet, apiPost, apiPut, apiDelete, apiPostFile } from '../api.js';
 import { Format, ResponseFormat, fitToLimit, fmtDate, isoDate, result } from '../shared.js';
 
 /**
@@ -16,7 +16,13 @@ import { Format, ResponseFormat, fitToLimit, fmtDate, isoDate, result } from '..
  * design: one named person, one exact date moved to another, recomputing the
  * expiry. It exists because recording a corrected date as a NEW session would
  * leave the wrong one underneath, and a training record showing two sessions
- * where there was one is worse than the wrong date. Nothing here deletes.
+ * where there was one is worse than the wrong date.
+ *
+ * caremid_remove_staff_document is the one that deletes, and it can only
+ * remove a document the AGENT uploaded. Anything a person filed is refused
+ * outright, however exactly the name matches - that restriction is what makes
+ * a deleting tool safe to hand over at all. The copy in Dropbox is untouched,
+ * so a mistake means filing it again rather than losing it.
  *
  * What is deliberately not here: supervisions and spot checks. Caremid lets
  * only an ADMIN record a supervision that was held on paper, because
@@ -122,6 +128,7 @@ interface DocumentRow {
   size: number;
   expiresAt: string | null;
   createdAt: string;
+  uploadedById: string | null;
 }
 
 interface TrainingRow {
@@ -464,6 +471,88 @@ export function registerStaffFileTools(server: McpServer) {
         to_date: args.to_date,
         expires_at: expiresAt,
       });
+    },
+  );
+
+  server.registerTool(
+    'caremid_remove_staff_document',
+    {
+      title: 'Remove a document the agent filed',
+      description:
+        'Deletes one document from a staff file, by exact file name. For superseded paperwork: a certificate filed against a date that later turned out to be wrong, where leaving both would show two certificates and no way to tell which counts. ' +
+        'It will only remove a document the AGENT uploaded. Anything a person put there is refused outright, whatever the name matches - that is the guarantee that makes a deleting tool safe to hand over at all. ' +
+        'The file is gone for good: there is no undo, and the stored copy goes with the record. The file in Dropbox is untouched, so a mistake means filing it again rather than losing it. ' +
+        'A name matching more than one document is reported rather than guessed between. ' +
+        'Runs as a dry run unless apply is true. ' +
+        'Example: { staff: "Shazia Zafar", file_name: "Refresher Training Shazia Zafar 15-07-2026.pdf" }',
+      inputSchema: z.strictObject({
+        staff: z.string().min(2).max(120).describe('Full name, email, or Caremid id'),
+        file_name: z.string().min(1).max(260).describe('Exactly as caremid_staff_file shows it'),
+        apply: z
+          .boolean()
+          .default(false)
+          .describe('false says what would be removed and removes nothing; true removes it'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Deletes. The only tool here that does.
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      const [me, user] = await Promise.all([
+        apiGet<{ id: string }>('auth/me', {}, ctx.mcpReq.signal),
+        resolveStaff(args.staff, ctx.mcpReq.signal),
+      ]);
+      const name = fullName(user);
+
+      const docs = await apiGet<DocumentRow[]>(
+        'documents',
+        { ownerType: 'USER', ownerId: user.id },
+        ctx.mcpReq.signal,
+      );
+      const hits = docs.filter((d) => d.fileName === args.file_name);
+
+      if (hits.length === 0) {
+        throw new Error(
+          `**${name}** has no document called "${args.file_name}". caremid_staff_file shows the exact names.`,
+        );
+      }
+      if (hits.length > 1) {
+        throw new Error(
+          `${hits.length} of ${name}'s documents are called "${args.file_name}". Remove them in Caremid, where they can be told apart.`,
+        );
+      }
+
+      const doc = hits[0];
+      // The guarantee. Anything a person filed is not this tool's business,
+      // however exactly the name matches.
+      if (doc.uploadedById !== me.id) {
+        throw new Error(
+          `"${doc.fileName}" on ${name} was filed by somebody else, so this will not remove it. ` +
+            'Only documents the agent uploaded can be removed here; anything else goes through Caremid, by a person who can see what they are deleting.',
+        );
+      }
+
+      if (!args.apply) {
+        return result(
+          args.response_format as Format,
+          `Would remove **${doc.fileName}** (${Math.round(doc.size / 1024)} KB` +
+            `${doc.category ? `, filed under ${doc.category}` : ''}) from **${name}**.` +
+            `\n\n_Nothing changed. Call again with apply: true._`,
+          { staff: name, document: doc, removed: false },
+        );
+      }
+
+      await apiDelete(`documents/${doc.id}`, ctx.mcpReq.signal);
+      return result(
+        args.response_format as Format,
+        `Removed **${doc.fileName}** from **${name}**. The copy in Dropbox is untouched.`,
+        { staff: name, document: doc, removed: true },
+      );
     },
   );
 
