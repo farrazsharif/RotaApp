@@ -36,6 +36,7 @@ assert.deepEqual(
   tools.map((t) => t.name).sort(),
   [
     'caremid_attach_policy_pdf',
+    'caremid_correct_training_date',
     'caremid_cqc_readiness',
     'caremid_create_policy',
     'caremid_expiring_training',
@@ -53,15 +54,17 @@ assert.deepEqual(
   'unexpected tool list',
 );
 
-// The tools on this server that write. Every one only ADDS: none can replace,
-// amend or delete a record. If this list grows it should grow because somebody
-// decided to widen it - not because a write tool slipped in among the
-// reporting ones.
+// The tools on this server that write. All but one only ADD; the exception is
+// caremid_correct_training_date, which amends a date recorded against the
+// wrong day and is marked destructive for it. None delete. If this list grows
+// it should grow because somebody decided to widen it - not because a write
+// tool slipped in among the reporting ones.
 const MAY_WRITE = new Set([
   'caremid_create_policy',
   'caremid_attach_policy_pdf',
   'caremid_set_policy_reviews',
   'caremid_file_staff_documents',
+  'caremid_correct_training_date',
   'caremid_record_training',
   'caremid_refresh_training',
 ]);
@@ -73,8 +76,19 @@ for (const t of tools) {
     !MAY_WRITE.has(t.name),
     `${t.name}: readOnlyHint must match whether the tool writes`,
   );
+  // Adding is not destructive and amending is, and each has to say so. The
+  // exception is named rather than the rule loosened, so a second amending
+  // tool cannot arrive quietly: it would fail here until somebody added it to
+  // this line on purpose.
   if (MAY_WRITE.has(t.name)) {
-    assert.equal(t.annotations?.destructiveHint, false, `${t.name} must not be marked destructive`);
+    const amends = t.name === 'caremid_correct_training_date';
+    assert.equal(
+      t.annotations?.destructiveHint,
+      amends,
+      amends
+        ? `${t.name} amends records and must be marked destructive`
+        : `${t.name} must not be marked destructive`,
+    );
   }
 }
 

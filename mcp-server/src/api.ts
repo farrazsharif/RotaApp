@@ -138,15 +138,51 @@ export async function apiGet<T>(
  * POST to a Caremid endpoint. Same 401 retry as apiGet.
  *
  * Writes are deliberately narrow. The rule the write tools follow: they ADD
- * a record that was missing, and never replace, amend or delete one. Filling
- * the policy register and filling a staff file are both that shape; signing a
- * policy off, or recording a supervision held on paper, are not, and have no
- * tool here.
+ * a record that was missing. Filling the policy register and filling a staff
+ * file are that shape; signing a policy off, or recording a supervision held
+ * on paper, are not, and have no tool here.
+ *
+ * One exception, added knowingly: correcting the date on training recorded
+ * against the wrong day. Adding the right date instead would leave the wrong
+ * one underneath as history and the record would show two sessions where
+ * there was one. Nothing else amends, and nothing deletes.
  */
 export async function apiPost<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   const attempt = async (bearer: string): Promise<Response> =>
     fetch(`${API_BASE_URL}/${path.replace(/^\//, '')}`, {
       method: 'POST',
+      headers: {
+        Authorization: `Bearer ${bearer}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
+    });
+
+  let res = await attempt(await currentToken(signal));
+  if (res.status === 401) {
+    token = null;
+    res = await attempt(await currentToken(signal));
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(res.status, httpErrorMessage(res.status, text));
+  }
+  return (await res.json()) as T;
+}
+
+/**
+ * PUT a Caremid endpoint. Same 401 retry as the rest.
+ *
+ * Used by exactly one tool, which corrects a date recorded against the wrong
+ * day. Everything else here adds.
+ */
+export async function apiPut<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
+  const attempt = async (bearer: string): Promise<Response> =>
+    fetch(`${API_BASE_URL}/${path.replace(/^\//, '')}`, {
+      method: 'PUT',
       headers: {
         Authorization: `Bearer ${bearer}`,
         Accept: 'application/json',

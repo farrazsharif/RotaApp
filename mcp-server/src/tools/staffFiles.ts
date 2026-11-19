@@ -2,16 +2,21 @@ import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, isAbsolute } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { apiGet, apiPost, apiPostFile } from '../api.js';
+import { apiGet, apiPost, apiPut, apiPostFile } from '../api.js';
 import { Format, ResponseFormat, fitToLimit, fmtDate, isoDate, result } from '../shared.js';
 
 /**
  * The staff file (Reg 19).
  *
- * Two write tools: one files a document against a requirement, one records a
- * training certificate. Both are additive. Neither can replace or delete
- * anything, and both skip what is already on file, so running an import twice
- * leaves the file exactly as the first run left it.
+ * The write tools here add: a document filed against a requirement, a
+ * training certificate, a refresher. They skip what is already on file, so
+ * running an import twice leaves the file as the first run left it.
+ *
+ * caremid_correct_training_date is the one that amends, and it is narrow by
+ * design: one named person, one exact date moved to another, recomputing the
+ * expiry. It exists because recording a corrected date as a NEW session would
+ * leave the wrong one underneath, and a training record showing two sessions
+ * where there was one is worse than the wrong date. Nothing here deletes.
  *
  * What is deliberately not here: supervisions and spot checks. Caremid lets
  * only an ADMIN record a supervision that was held on paper, because
@@ -367,6 +372,97 @@ export function registerStaffFileTools(server: McpServer) {
         filed,
         skipped,
         failed,
+      });
+    },
+  );
+
+  server.registerTool(
+    'caremid_correct_training_date',
+    {
+      title: 'Correct the date on training already recorded',
+      description:
+        'Moves the training records of ONE staff member from one date to another, in place, and recomputes the expiry a year on. ' +
+        'For one case only: training recorded against the wrong day. Recording the right day as a NEW refresher instead would leave the wrong one underneath as history, so the record would show two sessions when there was one - which on a training record an inspector reads is worse than the wrong date. ' +
+        'Every tool beside this one only adds. This one amends, so it is deliberately narrow: one named person, one exact date moved to one other date, nothing else touched. It cannot delete a record, change a course, or set a date on anything it was not pointed at. ' +
+        'Runs as a dry run unless apply is true, so what would change can be read before it does. ' +
+        'Only use it to correct a date that is demonstrably wrong - moving training later because it has expired is falsifying a compliance record. ' +
+        'Example: { staff: "Nasim Malik", from_date: "2026-07-15", to_date: "2026-07-21" }',
+      inputSchema: z.strictObject({
+        staff: z.string().min(2).max(120).describe('Full name, email, or Caremid id'),
+        from_date: isoDate.describe('The date currently recorded, which must match exactly'),
+        to_date: isoDate.describe('The date it should read'),
+        apply: z
+          .boolean()
+          .default(false)
+          .describe('false lists what would change and changes nothing; true makes the change'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Amends existing records. The only tool here that does.
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      const user = await resolveStaff(args.staff, ctx.mcpReq.signal);
+      const name = fullName(user);
+
+      const all = await apiGet<TrainingRow[]>('training', { userId: user.id }, ctx.mcpReq.signal);
+      const hits = all.filter((t) => t.date.slice(0, 10) === args.from_date);
+      if (hits.length === 0) {
+        return result(
+          args.response_format as Format,
+          `**${name}** has no training recorded on ${fmtDate(args.from_date)}, so there is nothing to correct.`,
+          { staff: name, matched: 0, changed: 0 },
+        );
+      }
+
+      const expires = new Date(`${args.to_date}T00:00:00.000Z`);
+      expires.setUTCFullYear(expires.getUTCFullYear() + 1);
+      const expiresAt = expires.toISOString().slice(0, 10);
+
+      if (!args.apply) {
+        return result(
+          args.response_format as Format,
+          [
+            `**${name}** — ${hits.length} record${hits.length === 1 ? '' : 's'} would move from ` +
+              `${fmtDate(args.from_date)} to ${fmtDate(args.to_date)}, expiring ${fmtDate(expiresAt)}.`,
+            '',
+            ...hits.map((t) => `- ${t.course}`),
+            '',
+            '_Nothing changed. Call again with apply: true._',
+          ].join('\n'),
+          { staff: name, matched: hits.length, changed: 0, courses: hits.map((t) => t.course), to_date: args.to_date, expires_at: expiresAt },
+        );
+      }
+
+      const changed: string[] = [];
+      const failed: { course: string; why: string }[] = [];
+      for (const t of hits) {
+        try {
+          await apiPut(`training/${t.id}`, { date: args.to_date, expiresAt }, ctx.mcpReq.signal);
+          changed.push(t.course);
+        } catch (e) {
+          failed.push({ course: t.course, why: (e as Error).message });
+        }
+      }
+
+      const lines = [
+        `**${name}** — ${changed.length} record${changed.length === 1 ? '' : 's'} moved to ` +
+          `${fmtDate(args.to_date)}, expiring ${fmtDate(expiresAt)}.`,
+      ];
+      if (failed.length) lines.push('', '**Failed**', ...failed.map((f) => `- ${f.course} — ${f.why}`));
+
+      return result(args.response_format as Format, lines.join('\n'), {
+        staff: name,
+        matched: hits.length,
+        changed: changed.length,
+        courses: changed,
+        failed,
+        to_date: args.to_date,
+        expires_at: expiresAt,
       });
     },
   );
