@@ -43,7 +43,15 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
     su.serviceStartDate ? addWeeks(new Date(su.serviceStartDate), 6) : null;
   const rowDueDate = (su: ServiceUser, review: Review | null): Date | null =>
     review ? (review.nextReviewDate ? new Date(review.nextReviewDate) : null) : firstReviewDue(su);
+  // A paused package: in hospital, or on hold. A service review is a
+  // conversation about care being delivered, so it cannot be held while
+  // nobody is delivering any - and showing it in red says the office has
+  // failed to do something it could not do. The row stays on the list with
+  // the reason on it, so nobody is quietly dropped, and the due date is
+  // untouched: the day they come back it reads overdue again.
+  const servicePaused = (su: ServiceUser) => su.status === 'HOSPITALISED' || su.status === 'ON_HOLD';
   const rowOverdue = (su: ServiceUser, review: Review | null): boolean => {
+    if (servicePaused(su)) return false;
     const d = rowDueDate(su, review);
     return !!d && d < new Date();
   };
@@ -103,13 +111,14 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
 
 
   // Review coverage across ACTIVE service users (discharged/deceased excluded —
-  // same rule as the CQC report; on-hold/hospitalised keep their open package):
-  // up to date (has a review not yet due), due/overdue (past its next-review
-  // date), or no record at all.
+  // same rule as the CQC report). A paused package is counted on its own:
+  // calling it due would be asking for a review nobody can hold, and calling
+  // it up to date would be saying one happened.
   const reviewStats = (() => {
     const activeSUs = serviceUsers.filter((su) => su.status !== 'DISCHARGED' && su.status !== 'DECEASED');
-    let upToDate = 0, due = 0, noRecord = 0;
+    let upToDate = 0, due = 0, noRecord = 0, paused = 0;
     for (const su of activeSUs) {
+      if (servicePaused(su)) { paused += 1; continue; }
       const latest = latestPerUser.get(su.id) ?? null;
       if (latest) {
         if (isOverdue(latest)) due += 1;
@@ -121,7 +130,7 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
         noRecord += 1;
       }
     }
-    return { active: activeSUs.length, upToDate, due, noRecord };
+    return { active: activeSUs.length, upToDate, due, noRecord, paused };
   })();
 
   // Only a user's most recent review row offers "Review now" — older, superseded
@@ -197,6 +206,13 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
         <div className="card p-4">
           <div className="text-2xl font-bold text-gray-900 tabular-nums">{reviewStats.active}</div>
           <div className="text-xs text-gray-500 mt-0.5">Active service users</div>
+          {/* Said out loud, because otherwise the three counts beside this one
+              stop adding up to it and the difference looks like a fault. */}
+          {reviewStats.paused > 0 && (
+            <div className="text-xs text-gray-400 mt-1">
+              {reviewStats.paused} in hospital / on hold — not counted as due
+            </div>
+          )}
         </div>
         <div className="card p-4">
           <div className="text-2xl font-bold text-green-600 tabular-nums">{reviewStats.upToDate}</div>
@@ -247,11 +263,13 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                   <tr key={su.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{su.firstName} {su.lastName}</td>
                     <td className="px-4 py-3">
-                      {overdue
-                        ? <span className="badge-red badge">Overdue</span>
-                        : review
-                          ? <span className="badge-green badge">Up to date</span>
-                          : <span className="badge-yellow badge">No review yet</span>}
+                      {servicePaused(su)
+                        ? <span className="badge-gray badge">{su.status === 'HOSPITALISED' ? 'In hospital' : 'On hold'}</span>
+                        : overdue
+                          ? <span className="badge-red badge">Overdue</span>
+                          : review
+                            ? <span className="badge-green badge">Up to date</span>
+                            : <span className="badge-yellow badge">No review yet</span>}
                     </td>
                     <td className="hidden lg:table-cell px-4 py-3">
                       {review

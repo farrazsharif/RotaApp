@@ -47,7 +47,7 @@ export async function computeReadiness() {
   // Active caseload (exclude discharged/deceased/inactive) and active care staff.
   const clients = await prisma.serviceUser.findMany({
     where: { active: true, status: { notIn: ['DISCHARGED', 'DECEASED'] } },
-    select: { id: true, firstName: true, lastName: true, careType: true, allergies: true, dnacprStatus: true },
+    select: { id: true, firstName: true, lastName: true, careType: true, allergies: true, dnacprStatus: true, status: true },
     orderBy: [{ lastName: 'asc' }],
   });
   const staff = await prisma.user.findMany({
@@ -285,6 +285,16 @@ export async function computeReadiness() {
   };
 
   const slClients = clients.filter((c) => c.careType === 'SUPPORTED_LIVING');
+
+  // Clients whose package is paused rather than running. A service review is
+  // a conversation about care being delivered, so one cannot be held while
+  // somebody is in hospital or their package is on hold - and counting it as
+  // overdue reports a pause as a governance failure. They stay in every other
+  // check: an allergy or a resuscitation status is wanted whatever is
+  // happening, and matters more in hospital, not less. The clock restarts the
+  // day they come back, because the due date itself has not moved.
+  const servicePaused = (c: { status: string }) => c.status === 'HOSPITALISED' || c.status === 'ON_HOLD';
+  const receivingCare = clients.filter((c) => !servicePaused(c));
   const missedMedClients = new Set(missedMedRows.map((m) => m.serviceUserId));
 
   const safe: Check[] = [
@@ -374,7 +384,13 @@ export async function computeReadiness() {
     clientCheck('consent_contract', 'Consent / contract of care', 'Consent to care and treatment · Reg 11',
       (c) => !hasType(c.id, 'CONTRACT_OF_CARE'), false, (n) => n ? `${n} active client(s) have no contract of care on file.` : 'Every active client has a contract of care.'),
     clientCheck('review_overdue', 'Service reviews up to date', 'Monitoring and improving outcomes · Reg 17',
-      (c) => { const d = latestReview.get(c.id); return !!d && d < now(); }, false, (n) => n ? `${n} service review(s) are overdue.` : 'No overdue service reviews.'),
+      (c) => { const d = latestReview.get(c.id); return !!d && d < now(); }, false,
+      (n) => {
+        const paused = clients.length - receivingCare.length;
+        const note = paused ? ` ${paused} client(s) in hospital or on hold are not counted.` : '';
+        return (n ? `${n} service review(s) are overdue.` : 'No overdue service reviews.') + note;
+      },
+      receivingCare),
   ];
 
   const caring: Check[] = [
