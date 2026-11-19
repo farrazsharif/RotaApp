@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { incidentsApi, IncidentSummary, IncidentPatch } from '../api/incidents';
@@ -156,6 +156,11 @@ function IncidentDetail({
 
   const [values, setValues] = useState<Record<string, unknown> | null>(null);
   const [saved, setSaved] = useState(false);
+  // Edited since the last write. This form is twenty-one questions long and
+  // somebody filling it in will go and look at the rota half way through;
+  // losing it at that point means typing the whole thing again.
+  const [dirty, setDirty] = useState(false);
+  const [autoSavedAt, setAutoSavedAt] = useState<Date | null>(null);
 
   // Duty of candour lives in real columns rather than the investigation blob,
   // because the dashboard has to be able to ask which incidents are still
@@ -163,6 +168,7 @@ function IncidentDetail({
   const [candour, setCandour] = useState<IncidentPatch>({});
   const setC = <K extends keyof IncidentPatch>(key: K, val: IncidentPatch[K]) => {
     setSaved(false);
+    setDirty(true);
     setCandour((c) => ({ ...c, [key]: val }));
   };
   const cv = <K extends keyof IncidentPatch>(key: K, fallback: IncidentPatch[K]): IncidentPatch[K] =>
@@ -181,6 +187,7 @@ function IncidentDetail({
 
   const set = (key: string, val: unknown) => {
     setSaved(false);
+    setDirty(true);
     setValues({ ...v, [key]: val });
   };
   const answer = (key: string): IncidentAnswer => (v[key] as IncidentAnswer) || { v: '', notes: '' };
@@ -189,10 +196,63 @@ function IncidentDetail({
     mutationFn: (patch: Parameters<typeof incidentsApi.update>[1]) => incidentsApi.update(id, patch),
     onSuccess: () => {
       setSaved(true);
+      setDirty(false);
       qc.invalidateQueries({ queryKey: ['incident', id] });
       onChanged();
     },
   });
+
+  // A draft write: the same patch Save sends, minus the closing. It moves a
+  // REPORTED incident to INVESTIGATING exactly as Save does, because somebody
+  // typing into the investigation IS investigating, and having the two paths
+  // disagree would be the surprise.
+  const editable = canManage && !!inc && inc.status !== 'CLOSED';
+  const draftPatch = (): IncidentPatch => ({
+    ...candour,
+    investigation: v,
+    status: inc?.status === 'REPORTED' ? 'INVESTIGATING' : undefined,
+  });
+
+  const autosave = useMutation({
+    mutationFn: (patch: IncidentPatch) => incidentsApi.update(id, patch),
+    onSuccess: () => {
+      setAutoSavedAt(new Date());
+      setDirty(false);
+      onChanged();
+    },
+  });
+
+  // Typing resets the timer, so the write happens in the pause after a
+  // thought rather than on every keystroke.
+  useEffect(() => {
+    if (!dirty || !editable) return;
+    const t = setTimeout(() => autosave.mutate(draftPatch()), 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty, values, candour, editable]);
+
+  // The case the debounce cannot cover: the modal going away inside that
+  // pause, whether by the Close button or by navigating to the rota. Sent
+  // straight through the API rather than the mutation, because the component
+  // is already unmounting and a mutation tied to it would not fire.
+  const unsaved = useRef<{ dirty: boolean; editable: boolean; patch: IncidentPatch }>({
+    dirty: false,
+    editable: false,
+    patch: {},
+  });
+  // Updated after each render rather than during one: a ref written while
+  // rendering is a side effect in the render pass, and React is explicit that
+  // it should not happen.
+  useEffect(() => {
+    unsaved.current = { dirty, editable, patch: draftPatch() };
+  });
+  useEffect(
+    () => () => {
+      const u = unsaved.current;
+      if (u.dirty && u.editable) incidentsApi.update(id, u.patch).catch(() => { /* nothing left to tell */ });
+    },
+    [id],
+  );
 
   const done = answeredCount(v);
 
@@ -447,7 +507,18 @@ function IncidentDetail({
 
         {canManage && inc && (
           <div className="flex flex-wrap items-center gap-2 p-4 border-t shrink-0">
-            {saved && <span className="text-sm text-green-600">Saved ✓</span>}
+            {saved ? (
+              <span className="text-sm text-green-600">Saved ✓</span>
+            ) : autosave.isPending ? (
+              <span className="text-sm text-gray-400">Saving…</span>
+            ) : dirty ? (
+              <span className="text-sm text-gray-400">Unsaved changes</span>
+            ) : autoSavedAt ? (
+              <span className="text-sm text-gray-500">Draft saved {format(autoSavedAt, 'HH:mm')}</span>
+            ) : null}
+            {autosave.isError && (
+              <span className="text-sm text-amber-700">Could not save the draft — use Save before leaving.</span>
+            )}
             {save.isError && (
               <span className="text-sm text-red-600 font-medium">
                 {(save.error as { response?: { data?: { error?: string } } })?.response?.data?.error
