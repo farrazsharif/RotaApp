@@ -81,7 +81,7 @@ export default function Dashboard() {
   });
 
   const todayShifts = myShifts.filter((s) => format(new Date(s.date), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd'));
-  const alertTotal = stats ? stats.lateCheckins + stats.unassignedToday + stats.missedMeds + stats.expiringCompliance : 0;
+  const alertTotal = stats ? stats.lateCheckins + stats.unassignedToday + stats.missedMeds + stats.openIncidents + stats.expiringCompliance : 0;
   const visitsPct = stats && stats.visitsToday.total ? Math.round((stats.visitsToday.completed / stats.visitsToday.total) * 100) : 0;
 
   return (
@@ -125,12 +125,13 @@ export default function Dashboard() {
               {stats.lateCheckins > 0 && <AlertTile count={stats.lateCheckins} label="Late / missed check-ins" tone="danger" to="/late-checkins" />}
               {stats.unassignedToday > 0 && <AlertTile count={stats.unassignedToday} label="Unassigned visits today" tone="danger" to="/schedule" />}
               {stats.missedMeds > 0 && <AlertTile count={stats.missedMeds} label="Meds missed today" tone="warning" to="/missed-meds" />}
+              {stats.openIncidents > 0 && <AlertTile count={stats.openIncidents} label={`Open incident${stats.openIncidents === 1 ? '' : 's'}`} tone="warning" to="/incidents" />}
               {stats.expiringCompliance > 0 && <AlertTile count={stats.expiringCompliance} label="DBS / training expiring" tone="warning" to="/users" />}
             </div>
           </div>
         ) : (
           <div className="bg-green-50 border border-green-100 rounded-xl p-3.5 flex items-center gap-2 text-sm text-green-800">
-            <span>✓</span> All clear — no unassigned visits, late check-ins, missed meds or expiring compliance.
+            <span>✓</span> All clear — no unassigned visits, late check-ins, missed meds, open incidents or expiring compliance.
           </div>
         )
       )}

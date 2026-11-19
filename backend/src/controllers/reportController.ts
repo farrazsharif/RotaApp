@@ -615,7 +615,7 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
   const staffScope = relatedStaffScopeWhere(req.user);
   const employeeSiteFilter = isScoped(req.user) ? { OR: staffScopeOr(req.user) } : {};
 
-  const [totalEmployees, pendingTimeOff, weekShifts, todayShifts, todayClock, missedMeds, trainingRecords, importantSoon] = await Promise.all([
+  const [totalEmployees, pendingTimeOff, weekShifts, todayShifts, todayClock, missedMeds, trainingRecords, importantSoon, openIncidents] = await Promise.all([
     prisma.user.count({ where: { active: true, role: 'EMPLOYEE', ...employeeSiteFilter } }),
     prisma.timeOffRequest.count({ where: { status: 'PENDING', ...staffScope } }),
     prisma.shift.findMany({ where: { date: { gte: weekStart, lt: weekEndExcl }, status: { not: 'CANCELLED' }, ...suScope }, select: { date: true, userId: true } }),
@@ -628,6 +628,18 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
       orderBy: { date: 'desc' },
     }),
     prisma.importantDate.count({ where: { date: { gte: todayStart, lte: in30 }, ...staffScope } }),
+    // Anything not closed, scoped exactly as the Incidents list scopes it -
+    // a scoped manager sees their own clients' incidents plus the ones with
+    // no client that they filed themselves, so the number on the dashboard
+    // matches the number on the page they land on.
+    prisma.incident.count({
+      where: {
+        status: { not: 'CLOSED' },
+        ...(isScoped(req.user)
+          ? { OR: [relatedServiceUserScopeWhere(req.user), { serviceUserId: null, reportedById: req.user!.id }] }
+          : {}),
+      },
+    }),
   ]);
 
   // Training expiring/expired = the LATEST record per (staff, course) whose
@@ -676,6 +688,7 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
     unassignedToday,
     lateCheckins,
     missedMeds,
+    openIncidents,
     expiringCompliance: trainingExpiring + importantSoon,
     coverage,
   });

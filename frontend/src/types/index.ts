@@ -682,6 +682,7 @@ export interface DashboardStats {
   unassignedToday: number;
   lateCheckins: number;
   missedMeds: number;
+  openIncidents: number;
   expiringCompliance: number;
   coverage: CoverageDay[];
 }
