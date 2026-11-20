@@ -5,6 +5,8 @@ import { format, differenceInCalendarDays } from 'date-fns';
 import { supervisionApi } from '../api/supervision';
 import { useAuth } from '../contexts/AuthContext';
 import SpotCheckModal from '../components/SpotCheckModal';
+import SpotCheckHistoryRows from '../components/SpotCheckHistoryRows';
+import Icon from '../components/Icon';
 import PaperSeedModal from '../components/PaperSeedModal';
 import Reviews from './Reviews';
 import StaffSupervisions from './StaffSupervisions';
@@ -83,10 +85,12 @@ function SpotChecks() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [paperFor, setPaperFor] = useState<{ carerId: string; carerName: string } | null>(null);
   const [search, setSearch] = useState('');
+  // Which carers have their earlier spot checks showing.
+  const [openHistory, setOpenHistory] = useState<Record<string, boolean>>({});
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => supervisionApi.deleteSpotCheck(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['supervision-summary'] }); setConfirmDelete(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['supervision-summary'] }); qc.invalidateQueries({ queryKey: ['spot-checks'] }); setConfirmDelete(null); },
   });
 
   if (isLoading || !data) return <Loading />;
@@ -167,9 +171,27 @@ function SpotChecks() {
               )}
               {visibleRows.map((r) => {
                 const overdays = r.nextDue ? differenceInCalendarDays(new Date(), new Date(r.nextDue)) : null;
-                return (
+                return [
                   <tr key={r.carerId} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{r.carerName}</td>
+                    <td className="px-4 py-3">
+                      {r.lastCheckId ? (
+                        <button
+                          className="flex items-center gap-2 font-medium text-gray-900 hover:text-blue-700"
+                          onClick={() => setOpenHistory((o) => ({ ...o, [r.carerId]: !o[r.carerId] }))}
+                          title="Show earlier spot checks"
+                        >
+                          <Icon
+                            name="chevron"
+                            size={14}
+                            className={`text-gray-400 shrink-0 transition-transform duration-150 ${openHistory[r.carerId] ? 'rotate-90' : ''}`}
+                          />
+                          {r.carerName}
+                        </button>
+                      ) : (
+                        // Indented to line up with the names that do expand.
+                        <span className="flex items-center gap-2 font-medium text-gray-900"><span className="w-[14px] shrink-0" />{r.carerName}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       {!r.lastCheck
                         ? <span className="badge-yellow badge">No spot check yet</span>
@@ -208,8 +230,21 @@ function SpotChecks() {
                         </span>
                       )}
                     </td>
-                  </tr>
-                );
+                  </tr>,
+                  // Fetched only when opened, so fifty carers' histories are
+                  // not pulled on every page load to show none of them.
+                  ...(openHistory[r.carerId] && r.lastCheckId
+                    ? [
+                        <SpotCheckHistoryRows
+                          key={`history-${r.carerId}`}
+                          carerId={r.carerId}
+                          latestId={r.lastCheckId}
+                          onView={setViewId}
+                          onEdit={setEditId}
+                        />,
+                      ]
+                    : []),
+                ];
               })}
             </tbody>
           </table>
