@@ -6,6 +6,7 @@ import AutoGrowTextarea from './AutoGrowTextarea';
 import { staffSupervisionApi, Supervision, SupervisionData } from '../api/staffSupervision';
 import { SUPERVISION_QUESTIONS, SUPERVISION_OBSERVATIONS, parseMap } from '../lib/staffSupervision';
 import { useFormDraft } from '../lib/useFormDraft';
+import { printSupervision } from '../lib/supervisionPrint';
 
 interface SupervisionForm {
   date: string;
@@ -33,6 +34,29 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
   // One draft per supervision being written: a new one for this staff member,
   // or the particular record being edited.
   const draft = useFormDraft<SupervisionForm>(`supervision:${userId}:${s?.id ?? 'new'}`, !readOnly);
+
+  // Built from the live form rather than the saved record, so Print shows what
+  // is on screen now.
+  const printThis = () =>
+    printSupervision(
+      {
+        id: s?.id || '',
+        userId,
+        date: form.date,
+        nextReviewDate: form.date ? addMonths(new Date(form.date), 3).toISOString() : null,
+        position: form.position,
+        answers: JSON.stringify(form.answers),
+        serviceUsers: form.serviceUsers,
+        observations: JSON.stringify(form.observations),
+        assessorName: form.assessorName,
+        assessorSignature: form.assessorSignature,
+        staffSignature: form.staffSignature,
+        source: s?.source || 'form',
+        note: s?.note || null,
+        createdAt: s?.createdAt || new Date().toISOString(),
+      },
+      { staffName },
+    );
 
   const [form, setForm] = useState<SupervisionForm>(() => ({
     date: s ? format(new Date(s.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
@@ -197,6 +221,10 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
         </fieldset>
 
         <div className="flex gap-3 p-6 border-t shrink-0">
+          {/* Prints what is on screen, not what was last saved - so a form
+              part-filled at the desk prints with the rest as ruled lines to
+              finish in the room. */}
+          <button className="btn-secondary btn gap-1.5" onClick={printThis}>🖨 Print</button>
           <div className="flex-1" />
           <button className="btn-secondary btn" onClick={onClose}>{readOnly ? 'Close' : 'Cancel'}</button>
           {!readOnly && (

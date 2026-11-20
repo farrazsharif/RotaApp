@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import SupervisionFormModal from '../components/SupervisionFormModal';
 import PaperSupervisionModal from '../components/PaperSupervisionModal';
 import BulkPaperSupervisionModal from '../components/BulkPaperSupervisionModal';
+import { printSupervision, printBlankSupervision } from '../lib/supervisionPrint';
 import SearchableSelect from '../components/SearchableSelect';
 
 const staffName = (s: Supervision) => (s.user ? `${s.user.firstName} ${s.user.lastName}` : '—');
@@ -71,6 +72,16 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                 className="w-56 shrink-0"
               />
               <button className="btn-secondary btn whitespace-nowrap" disabled={!newForUserId} onClick={startNew}>+ New Supervision</button>
+              {/* The same document with nothing in it, for a supervision about
+                  to be held away from a screen. */}
+              <button
+                className="btn-secondary btn whitespace-nowrap"
+                disabled={!newForUserId}
+                title="Print the blank form to fill in by hand"
+                onClick={() => { const u = staff.find((x) => x.id === newForUserId); if (u) printBlankSupervision(`${u.firstName} ${u.lastName}`); }}
+              >
+                🖨 Blank form
+              </button>
               {/* Recording a supervision held on paper is an administrator-only action. */}
               {isAdmin && (
                 <button
@@ -163,6 +174,7 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                         <button className="btn-secondary btn btn-sm" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: s })}>
                           {isManager ? 'Open / Edit' : 'View'}
                         </button>
+                        <button className="text-xs text-blue-600 hover:underline" onClick={() => printSupervision(s, { staffName: staffName(s) })}>Print</button>
                         {isManager && <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(s.id)}>Delete</button>}
                       </span>
                     )}
