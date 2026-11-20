@@ -7,7 +7,7 @@ import { getTenant } from '../lib/tenantContext';
 export type PermissionKey =
   | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access' | 'manage_dbs'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
-  | 'manage_supervision'
+  | 'manage_supervision' | 'record_paper_supervision'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
   | 'manage_cqc' | 'manage_safeguarding' | 'manage_complaints' | 'manage_policies'
   | 'manage_billing'
@@ -36,6 +36,12 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'manage_reviews',        label: 'Create & edit reviews',            group: 'Care',      default: AM },
   { key: 'manage_medications',    label: 'Manage medications (eMAR)',        group: 'Care',      default: AM },
   { key: 'manage_supervision',    label: 'Spot checks & supervision dashboard', group: 'Care',   default: AM },
+  // Backdating a supervision says a conversation happened, which is why an
+  // administrator can do it and a manager cannot. This grants the same thing
+  // on a tighter rule instead of a looser one: whoever holds it must name the
+  // signed form already on the carer's file, and the server checks it is
+  // there. Default is Admin only, so granting it is a deliberate act.
+  { key: 'record_paper_supervision', label: 'Record a paper supervision (signed form required)', group: 'Care', default: A },
   { key: 'edit_call_logs',        label: 'Edit & delete call logs',          group: 'Care',      default: A },
 
   { key: 'manage_schedule',       label: 'Create & edit shifts, edit clock records', group: 'Scheduling', default: AM },
@@ -140,6 +146,22 @@ export async function userHasPermission(req: AuthRequest, key: PermissionKey): P
   if (req.user.customPermissions) return req.user.customPermissions.includes(key);
   const map = await getEffectivePermissions();
   return (map[key] || []).includes(req.user.role);
+}
+
+// For a route reachable by more than one capability — where the controller
+// then decides what each of them is actually allowed to do. Holding the
+// narrower capability gets you through the door, not to everything behind it.
+export function requireAnyPermission(...keys: PermissionKey[]) {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+    if (req.user.customPermissions) {
+      if (keys.some((k) => req.user!.customPermissions!.includes(k))) return next();
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    const map = await getEffectivePermissions();
+    if (keys.some((k) => (map[k] || []).includes(req.user!.role))) return next();
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  };
 }
 
 export function requirePermission(key: PermissionKey) {

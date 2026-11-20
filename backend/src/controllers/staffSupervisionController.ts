@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { isScoped, staffScopeOr } from '../lib/scope';
+import { userHasPermission } from '../middleware/permissions';
 
 // answers / observations are stored as JSON strings. Accept either a string or
 // an object from the client and always persist a valid JSON string.
@@ -56,13 +57,54 @@ export async function getSupervision(req: AuthRequest, res: Response) {
 export async function createSupervision(req: AuthRequest, res: Response) {
   const { userId, date } = req.body;
   if (!userId || !date) return res.status(400).json({ error: 'userId and date are required' });
-  // Recording a supervision held on paper is an administrator-only action.
+
+  // Recording a supervision held on paper says a conversation took place on a
+  // day nobody here witnessed, which is why it is an administrator's call.
+  //
+  // Anyone else needs `record_paper_supervision`, and then on a stricter rule
+  // than the administrator works to: they must name the signed form, and it
+  // must already be on that carer's file. An administrator reading a folder in
+  // front of them is exercising judgement; a caller that cannot produce the
+  // form is guessing, and a supervision nobody held reads to an inspector as
+  // one that was.
+  let evidenceFileName: string | null = null;
   if (req.body.source === 'paper' && req.user!.role !== 'ADMIN') {
-    return res.status(403).json({ error: 'Only an administrator can record a previous (paper) supervision.' });
+    if (!(await userHasPermission(req, 'record_paper_supervision'))) {
+      return res.status(403).json({ error: 'Only an administrator can record a previous (paper) supervision.' });
+    }
+    const named = typeof req.body.evidenceFileName === 'string' ? req.body.evidenceFileName.trim() : '';
+    if (!named) {
+      return res.status(400).json({
+        error: 'evidenceFileName is required: name the signed supervision form already on this staff file.',
+      });
+    }
+    const form = await prisma.document.findFirst({
+      where: { ownerType: 'USER', ownerId: userId, fileName: named },
+      select: { id: true },
+    });
+    if (!form) {
+      return res.status(422).json({
+        error: `No document named "${named}" on that staff file. File the signed supervision form first, then record it.`,
+      });
+    }
+    evidenceFileName = named;
+  } else if (req.user!.role !== 'ADMIN' && !(await userHasPermission(req, 'manage_supervision'))) {
+    // Got through the route on `record_paper_supervision` alone. That grants
+    // backdating a form somebody signed - not writing a supervision from
+    // scratch, which has answers, observations and two signatures on it.
+    return res.status(403).json({
+      error: 'That capability only covers recording a paper supervision already on file (source: "paper").',
+    });
   }
+
   const data = buildData(req.body);
   data.userId = userId;
   data.date = new Date(date);
+  // Keep the record pointing at its evidence, whatever note the caller sent.
+  if (evidenceFileName) {
+    const note = typeof data.note === 'string' ? data.note : '';
+    data.note = note.includes(evidenceFileName) ? note : `${note ? `${note} ` : ''}[form: ${evidenceFileName}]`;
+  }
   const item = await prisma.supervision.create({ data: data as never });
   res.status(201).json(item);
 }

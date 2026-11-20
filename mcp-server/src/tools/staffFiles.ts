@@ -24,12 +24,16 @@ import { Format, ResponseFormat, fitToLimit, fmtDate, isoDate, result } from '..
  * a deleting tool safe to hand over at all. The copy in Dropbox is untouched,
  * so a mistake means filing it again rather than losing it.
  *
- * What is deliberately not here: supervisions and spot checks. Caremid lets
- * only an ADMIN record a supervision that was held on paper, because
- * backdating one is how a supervision dashboard comes to show a conversation
- * that nobody had. The service account is not an admin and this does not work
- * around that - a supervision PDF can be filed as a document, which is
- * evidence of the meeting without being a claim that it was logged.
+ * caremid_record_paper_supervision backdates a supervision, which is how a
+ * supervision dashboard comes to show a conversation nobody had - so it is
+ * the one tool that cannot act on what it is told. The date is read from the
+ * signed form's own file name, the form is filed on the staff record first,
+ * and the server refuses the entry unless that document is there. The
+ * evidence is the argument; the tool only transcribes it.
+ *
+ * What is still not here: spot checks, and writing a supervision from
+ * scratch. A full supervision has answers, observations and two signatures on
+ * it, and nothing in a folder can stand in for those.
  */
 
 // The categories the Documents tab offers for a staff member. This mirrors
@@ -58,6 +62,7 @@ const CATEGORIES = [
   'DBS ID Form',
   'Lone Working Hazard Checklist',
   'Confidentiality Form',
+  'Supervision Record',
   'Passport',
   'Visa / BRP',
   'Certificate of Sponsorship',
@@ -148,8 +153,15 @@ const fullName = (u: StaffUser) => `${u.firstName} ${u.lastName}`.replace(/\s+/g
  * somebody else's staff record.
  */
 async function resolveStaff(who: string, signal: AbortSignal): Promise<StaffUser> {
-  const users = (await apiGet<StaffUser[]>('users', { active: 'true' }, signal)).filter((u) => u.active);
+  return matchStaff(who, await activeStaff(signal));
+}
 
+async function activeStaff(signal: AbortSignal): Promise<StaffUser[]> {
+  return (await apiGet<StaffUser[]>('users', { active: 'true' }, signal)).filter((u) => u.active);
+}
+
+/** The matching half of resolveStaff, against a list already in hand. */
+function matchStaff(who: string, users: StaffUser[]): StaffUser {
   const byId = users.find((u) => u.id === who);
   if (byId) return byId;
 
@@ -170,6 +182,46 @@ async function resolveStaff(who: string, signal: AbortSignal): Promise<StaffUser
   throw new Error(
     `No active staff member called "${who}".` + (near.length ? ` Did you mean: ${near.join(', ')}?` : ''),
   );
+}
+
+/**
+ * The day a supervision was held, taken from the name of the signed form.
+ *
+ * Day first - "03.11.2025" is the third of November, which is how every form
+ * in the staff files and every row of the office tracker is written.
+ *
+ * The date comes from the document rather than from whoever is calling, so
+ * the record and the evidence cannot drift apart. That only works if the name
+ * says one thing: no date, or two different ones, is refused rather than
+ * picked between.
+ */
+function dateFromFormName(fileName: string): string {
+  const found = new Set<string>();
+  for (const m of fileName.matchAll(/(\d{1,2})[-._](\d{1,2})[-._](\d{4})/g)) {
+    const [d, mo, y] = [+m[1], +m[2], +m[3]];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) continue;
+    const dt = new Date(Date.UTC(y, mo - 1, d));
+    if (dt.getUTCDate() !== d || dt.getUTCMonth() !== mo - 1) continue; // 31 February
+    found.add(dt.toISOString().slice(0, 10));
+  }
+  if (found.size === 1) return [...found][0];
+  if (found.size > 1) {
+    throw new Error(
+      `"${fileName}" has more than one date in its name (${[...found].map(fmtDate).join(', ')}), so which day it ` +
+        'was held is not clear. Rename it, or record this one by hand.',
+    );
+  }
+  throw new Error(
+    `"${fileName}" has no date in its name, and the date is read from the form rather than supplied. ` +
+      'Rename it to include the day it was held, or record this one by hand.',
+  );
+}
+
+/** Three months on, for the next-due date. Matches what the server works out. */
+function plusMonths(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 10);
 }
 
 async function readLocalFile(path: string): Promise<{ bytes: Uint8Array; fileName: string; contentType: string }> {
@@ -717,6 +769,193 @@ export function registerStaffFileTools(server: McpServer) {
       return result(args.response_format as Format, lines.join('\n'), {
         staff: name,
         recorded,
+        skipped,
+        failed,
+      });
+    },
+  );
+
+  server.registerTool(
+    'caremid_record_paper_supervision',
+    {
+      title: 'Record a supervision that was held on paper',
+      description:
+        'Puts a supervision held on paper onto the carer record, from the signed form itself. The date is read ' +
+        'FROM THE FILE NAME rather than supplied, so the record cannot claim a different day from the document ' +
+        'behind it, and a form whose name carries no date (or two) is refused rather than guessed at. The form is ' +
+        'filed under Supervision Record first and the entry points at it; Caremid refuses the entry outright if ' +
+        'that document is not on the file, so a supervision cannot be logged without the evidence for it. The ' +
+        'next one falls due three months later, which for a historic form is a date already past - that is the ' +
+        'true position, not a failure. A date already on the record is skipped, so running it twice changes ' +
+        'nothing. Runs as a dry run unless apply is true. Example: { supervisions: [{ staff: "Shama Aslam", ' +
+        'file: "C:/Users/me/Dropbox/Staff Files/Shama Aslam/Staff Supervision 03-11-2025.pdf" }], apply: true }',
+      inputSchema: z.strictObject({
+        supervisions: z
+          .array(
+            z.strictObject({
+              staff: z.string().min(2).max(120).describe('Full name, email, or Caremid id'),
+              file: z
+                .string()
+                .min(3)
+                .max(400)
+                .describe('Absolute path to the signed supervision form (PDF). Its name must carry the date held.'),
+            }),
+          )
+          .min(1)
+          .max(50)
+          .describe('One row per carer; several carers in one call is fine'),
+        assessor: z
+          .string()
+          .max(120)
+          .optional()
+          .describe('Who carried them out, if it is the same person for all of them'),
+        apply: z.boolean().default(false).describe('false says what would be recorded and records nothing'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Adds a record and the document behind it. Amends nothing, removes
+        // nothing, and the same date twice is skipped.
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      const signal = ctx.mcpReq.signal;
+      const today = new Date().toISOString().slice(0, 10);
+
+      // Read both lists once for the whole batch. Thirty-seven carers is one
+      // call, not thirty-seven.
+      const [users, already] = await Promise.all([
+        activeStaff(signal),
+        apiGet<{ userId: string; date: string }[]>('staff-supervision', {}, signal),
+      ]);
+      const held = new Set(already.map((s) => `${s.userId}@${String(s.date).slice(0, 10)}`));
+
+      type Planned = { user: StaffUser; file: Awaited<ReturnType<typeof readLocalFile>>; date: string };
+      const planned: Planned[] = [];
+      const skipped: { who: string; why: string }[] = [];
+      const failed: { who: string; why: string }[] = [];
+
+      for (const row of args.supervisions) {
+        let user: StaffUser;
+        try {
+          user = matchStaff(row.staff, users);
+        } catch (e) {
+          failed.push({ who: row.staff, why: (e as Error).message });
+          continue;
+        }
+        const who = fullName(user);
+
+        try {
+          const file = await readLocalFile(row.file);
+          if (file.contentType !== 'application/pdf') {
+            throw new Error(`${file.fileName} is not a PDF; a signed supervision form has to be the scan itself.`);
+          }
+          const date = dateFromFormName(file.fileName);
+          if (date > today) throw new Error(`${file.fileName} is dated ${fmtDate(date)}, which is in the future.`);
+          if (held.has(`${user.id}@${date}`)) {
+            skipped.push({ who, why: `a supervision on ${fmtDate(date)} is already on the record` });
+            continue;
+          }
+          // Two rows in one batch for the same carer and day.
+          if (planned.some((p) => p.user.id === user.id && p.date === date)) {
+            skipped.push({ who, why: `${fmtDate(date)} appears twice in this batch` });
+            continue;
+          }
+          planned.push({ user, file, date });
+        } catch (e) {
+          failed.push({ who, why: (e as Error).message });
+        }
+      }
+
+      const table = (rows: Planned[]) => [
+        '| Carer | Held | Next due | Signed form |',
+        '| --- | --- | --- | --- |',
+        ...rows.map(
+          (p) => `| ${fullName(p.user)} | ${fmtDate(p.date)} | ${fmtDate(plusMonths(p.date, 3))} | ${p.file.fileName} |`,
+        ),
+      ];
+
+      if (!args.apply) {
+        const lines = [
+          `**${planned.length}** supervision${planned.length === 1 ? '' : 's'} would be recorded` +
+            `${skipped.length ? `, ${skipped.length} skipped` : ''}${failed.length ? `, ${failed.length} refused` : ''}.`,
+        ];
+        if (planned.length) lines.push('', ...table(planned));
+        if (skipped.length) lines.push('', '**Skipped**', ...skipped.map((s) => `- ${s.who} — ${s.why}`));
+        if (failed.length) lines.push('', '**Refused**', ...failed.map((s) => `- ${s.who} — ${s.why}`));
+        lines.push('', '_Nothing changed. Call again with apply: true._');
+        return result(args.response_format as Format, lines.join('\n'), {
+          applied: false,
+          would_record: planned.map((p) => ({ staff: fullName(p.user), date: p.date, form: p.file.fileName })),
+          skipped,
+          failed,
+        });
+      }
+
+      const docsByUser = new Map<string, DocumentRow[]>();
+      const recorded: Planned[] = [];
+
+      for (const p of planned) {
+        const who = fullName(p.user);
+        try {
+          let docs = docsByUser.get(p.user.id);
+          if (!docs) {
+            docs = await apiGet<DocumentRow[]>('documents', { ownerType: 'USER', ownerId: p.user.id }, signal);
+            docsByUser.set(p.user.id, docs);
+          }
+
+          // The form has to be on the file before the entry can name it. An
+          // exact name match means a previous run already filed it - matching
+          // on size instead could point the record at an unrelated document
+          // of the same length, which is the one mistake worth avoiding here.
+          let form = docs.find((d) => d.fileName === p.file.fileName);
+          if (!form) {
+            form = await apiPostFile<DocumentRow>('documents', p.file, signal, {
+              ownerType: 'USER',
+              ownerId: p.user.id,
+              category: 'Supervision Record',
+            });
+            docs.push(form);
+          }
+
+          await apiPost(
+            'staff-supervision',
+            {
+              userId: p.user.id,
+              date: p.date,
+              source: 'paper',
+              evidenceFileName: form.fileName,
+              assessorName: args.assessor,
+              note: 'Supervision held on paper; the signed form is filed on this record.',
+            },
+            signal,
+          );
+          held.add(`${p.user.id}@${p.date}`);
+          recorded.push(p);
+        } catch (e) {
+          failed.push({ who, why: (e as Error).message });
+        }
+      }
+
+      const lines = [
+        `**${recorded.length}** supervision${recorded.length === 1 ? '' : 's'} recorded` +
+          `${skipped.length ? `, ${skipped.length} skipped` : ''}${failed.length ? `, ${failed.length} failed` : ''}.`,
+      ];
+      if (recorded.length) lines.push('', ...table(recorded));
+      if (skipped.length) lines.push('', '**Skipped**', ...skipped.map((s) => `- ${s.who} — ${s.why}`));
+      if (failed.length) lines.push('', '**Failed**', ...failed.map((s) => `- ${s.who} — ${s.why}`));
+
+      return result(args.response_format as Format, lines.join('\n'), {
+        applied: true,
+        recorded: recorded.map((p) => ({
+          staff: fullName(p.user),
+          date: p.date,
+          next_due: plusMonths(p.date, 3),
+          form: p.file.fileName,
+        })),
         skipped,
         failed,
       });

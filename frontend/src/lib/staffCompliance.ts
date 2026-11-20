@@ -71,7 +71,7 @@ export const TYPE_USES_COUNT: Record<RequirementType, boolean> = {
 export const USER_DOC_CATEGORIES = [
   'DBS Certificate', 'Offer Letter', 'Contract', 'Reference', 'Right to Work',
   'Training Certificate', 'ID', 'Driving Licence', 'Fit for Work',
-  'Proof of Address', 'Emergency Contact', 'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form',
+  'Proof of Address', 'Emergency Contact', 'Interview Questionnaire', 'Payroll Form', 'Staff Induction Confirmation', 'Consent to Hold DBS', 'Application Form', 'Shadowing Form', 'Induction Training', 'DBS ID Form', 'Lone Working Hazard Checklist', 'Confidentiality Form', 'Supervision Record',
   'Passport', 'Visa / BRP', 'Certificate of Sponsorship', 'English Language Test', 'TB Test Certificate', 'Overseas Police Check',
   'Other',
 ];
