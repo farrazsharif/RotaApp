@@ -5,6 +5,7 @@ import { User } from '../types';
 import SignatureField from './SignatureField';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import { useFormDraft } from '../lib/useFormDraft';
+import DraftSavedHint from './DraftSavedHint';
 import {
   EmploymentEntry,
   EmploymentHistory,
@@ -364,6 +365,7 @@ export default function EmploymentHistoryTab({
         <div className="flex items-center gap-2 border-t pt-4">
           {saveMut.isSuccess && <span className="text-sm text-green-600">Saved ✓</span>}
           {saveMut.isError && <span className="text-sm text-red-600">That did not save. Please try again.</span>}
+          {!saveMut.isSuccess && <DraftSavedHint at={draft.savedAt} />}
           <div className="flex-1" />
           <button className="btn-primary btn" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
             {saveMut.isPending ? 'Saving…' : 'Save'}

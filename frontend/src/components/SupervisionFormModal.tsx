@@ -8,6 +8,7 @@ import { SUPERVISION_QUESTIONS, SUPERVISION_OBSERVATIONS, parseMap, isSupervisio
 import { useAuth } from '../contexts/AuthContext';
 import { useFormDraft } from '../lib/useFormDraft';
 import { printSupervision } from '../lib/supervisionPrint';
+import DraftSavedHint from './DraftSavedHint';
 
 interface SupervisionForm {
   date: string;
@@ -258,6 +259,7 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
               part-filled at the desk prints with the rest as ruled lines to
               finish in the room. */}
           <button className="btn-secondary btn gap-1.5" onClick={printThis}>🖨 Print</button>
+          {!readOnly && <DraftSavedHint at={draft.savedAt} />}
           <div className="flex-1" />
           <button className="btn-secondary btn" onClick={onClose}>{readOnly ? 'Close' : 'Cancel'}</button>
           {!readOnly && (

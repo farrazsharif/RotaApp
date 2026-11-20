@@ -10,6 +10,7 @@ import SearchableSelect from './SearchableSelect';
 import SignatureField from './SignatureField';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import { useFormDraft } from '../lib/useFormDraft';
+import DraftSavedHint from './DraftSavedHint';
 
 interface SpotCheckForm {
   carerId: string;
@@ -265,7 +266,9 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 px-5 py-3 border-t">
+        <div className="flex items-center gap-3 px-5 py-3 border-t">
+          {!readOnly && <DraftSavedHint at={draft.savedAt} />}
+          <div className="flex-1" />
           <button className="btn-secondary btn" onClick={onClose}>{readOnly ? 'Close' : 'Cancel'}</button>
           {!readOnly && (
             <button className="btn-primary btn" disabled={!carerId || saveMut.isPending} onClick={() => saveMut.mutate()}>
