@@ -22,6 +22,8 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
   const [paperFor, setPaperFor] = useState<{ userId: string; staffName: string } | null>(null);
   const [bulkPaper, setBulkPaper] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // Which carers have their earlier supervisions showing.
+  const [openHistory, setOpenHistory] = useState<Record<string, boolean>>({});
 
   const { data: supervisions = [], isLoading } = useQuery({ queryKey: ['supervisions'], queryFn: () => staffSupervisionApi.list() });
   const { data: staff = [] } = useQuery({ queryKey: ['users', 'active'], queryFn: () => usersApi.list({ active: true }) });
@@ -42,13 +44,94 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
     if (!existing || new Date(s.date) > new Date(existing.date)) latestPerUser.set(s.userId, s);
   }
   const overdue = [...latestPerUser.values()].filter(isOverdue);
-  const latestIds = new Set([...latestPerUser.values()].map((s) => s.id));
+
+  // One line per carer, not per supervision. Quarterly for 52 people is 200
+  // rows a year, and a register that long stops being a list of who is due
+  // and becomes something you scroll. The history hangs off the name.
+  const people = (() => {
+    const by = new Map<string, Supervision[]>();
+    for (const s of filtered) {
+      const list = by.get(s.userId) ?? [];
+      list.push(s);
+      by.set(s.userId, list);
+    }
+    return [...by.values()]
+      .map((records) => {
+        const sorted = [...records].sort((a, b) => +new Date(b.date) - +new Date(a.date));
+        return { userId: sorted[0].userId, name: staffName(sorted[0]), latest: sorted[0], older: sorted.slice(1), count: sorted.length };
+      })
+      // Soonest due first, so the ones needing a supervision are at the top.
+      .sort((a, b) => {
+        const da = a.latest.nextReviewDate ? +new Date(a.latest.nextReviewDate) : Infinity;
+        const db = b.latest.nextReviewDate ? +new Date(b.latest.nextReviewDate) : Infinity;
+        return da - db || a.name.localeCompare(b.name);
+      });
+  })();
 
   const startNew = () => {
     const u = staff.find((x) => x.id === newForUserId);
     if (!u) return;
     setModal({ userId: u.id, staffName: `${u.firstName} ${u.lastName}`, edit: null });
   };
+
+  // Every cell after the name, shared by the carer's row and the earlier ones
+  // revealed under it, so the two never drift apart.
+  const renderRest = (s: Supervision, isLatest: boolean) => (
+    <>
+      <td className="hidden lg:table-cell px-4 py-3 text-gray-600">
+        {format(new Date(s.date), 'dd MMM yyyy')}
+        {s.source === 'paper' && (
+          <span
+            className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded"
+            title={s.note || 'Recorded from a paper supervision'}
+          >
+            Paper
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        {/* Only the newest decides whether somebody is due. An earlier one is
+            history, and flagging it red says a supervision is outstanding when
+            it was held and followed. */}
+        {s.nextReviewDate ? (
+          isLatest && isOverdue(s)
+            ? <span className="badge-red badge">⚠ {format(new Date(s.nextReviewDate), 'dd MMM yyyy')}</span>
+            : <span className="text-gray-500">{format(new Date(s.nextReviewDate), 'dd MMM yyyy')}</span>
+        ) : <span className="text-gray-300">—</span>}
+      </td>
+      <td className="hidden xl:table-cell px-4 py-3 text-gray-600">
+        {s.assessorName || '—'}
+        {isSupervisionClosed(s) && (
+          <span className="ml-2 text-xs text-gray-400" title="Signed and closed — record the next one as a new supervision">🔒</span>
+        )}
+      </td>
+      <td className="hidden xl:table-cell px-4 py-3 text-gray-500">{format(new Date(s.updatedAt || s.createdAt), 'dd MMM yyyy')}</td>
+      <td className="px-4 py-3 text-right">
+        {confirmDelete === s.id ? (
+          <span className="flex items-center gap-2 justify-end">
+            <span className="text-xs text-red-700">Delete?</span>
+            <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(s.id)}>Yes</button>
+            <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
+          </span>
+        ) : (
+          <span className="flex gap-2 justify-end">
+            {isManager && isLatest && isOverdue(s) && (
+              <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: null })}>Review now</button>
+            )}
+            <button className="btn-secondary btn btn-sm" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: s })}>
+              {isManager && !isSupervisionClosed(s) ? 'Open / Edit' : 'View'}
+            </button>
+            <button className="text-xs text-blue-600 hover:underline" onClick={() => printSupervision(s, { staffName: staffName(s) })}>Print</button>
+            {/* Closed records answer to the administrator only, and amending
+                one is written to the audit log. */}
+            {isManager && (!isSupervisionClosed(s) || isAdmin) && (
+              <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(s.id)}>Delete</button>
+            )}
+          </span>
+        )}
+      </td>
+    </>
+  );
 
   if (isLoading) return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 
@@ -142,55 +225,34 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filtered.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{staffName(s)}</td>
-                  <td className="hidden lg:table-cell px-4 py-3 text-gray-600">
-                    {format(new Date(s.date), 'dd MMM yyyy')}
-                    {s.source === 'paper' && (
-                      <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded" title={s.note || 'Recorded from a paper supervision'}>Paper</span>
-                    )}
-                  </td>
+              {people.map((p) => [
+                <tr key={p.userId} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    {s.nextReviewDate ? (
-                      isOverdue(s)
-                        ? <span className="badge-red badge">⚠ {format(new Date(s.nextReviewDate), 'dd MMM yyyy')}</span>
-                        : <span className="text-gray-600">{format(new Date(s.nextReviewDate), 'dd MMM yyyy')}</span>
-                    ) : <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="hidden xl:table-cell px-4 py-3 text-gray-600">
-                    {s.assessorName || '—'}
-                    {isSupervisionClosed(s) && (
-                      <span className="ml-2 text-xs text-gray-400" title="Signed and closed — record the next one as a new supervision">🔒</span>
-                    )}
-                  </td>
-                  <td className="hidden xl:table-cell px-4 py-3 text-gray-500">{format(new Date(s.updatedAt || s.createdAt), 'dd MMM yyyy')}</td>
-                  <td className="px-4 py-3 text-right">
-                    {confirmDelete === s.id ? (
-                      <span className="flex items-center gap-2 justify-end">
-                        <span className="text-xs text-red-700">Delete?</span>
-                        <button className="btn-danger btn btn-sm" disabled={deleteMut.isPending} onClick={() => deleteMut.mutate(s.id)}>Yes</button>
-                        <button className="btn-secondary btn btn-sm" onClick={() => setConfirmDelete(null)}>No</button>
-                      </span>
+                    {p.count > 1 ? (
+                      <button
+                        className="flex items-center gap-2 font-medium text-gray-900 hover:text-blue-700"
+                        onClick={() => setOpenHistory((o) => ({ ...o, [p.userId]: !o[p.userId] }))}
+                        title={`${p.count} supervisions on record`}
+                      >
+                        <span className={`text-gray-400 transition-transform ${openHistory[p.userId] ? 'rotate-90' : ''}`}>▶</span>
+                        {p.name}
+                        <span className="text-xs font-normal text-gray-400">{p.count}</span>
+                      </button>
                     ) : (
-                      <span className="flex gap-2 justify-end">
-                        {isManager && isOverdue(s) && latestIds.has(s.id) && (
-                          <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: null })}>Review now</button>
-                        )}
-                        <button className="btn-secondary btn btn-sm" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: s })}>
-                          {isManager && !isSupervisionClosed(s) ? 'Open / Edit' : 'View'}
-                        </button>
-                        <button className="text-xs text-blue-600 hover:underline" onClick={() => printSupervision(s, { staffName: staffName(s) })}>Print</button>
-                        {/* Closed records answer to the administrator only, and
-                            amending one is written to the audit log. */}
-                        {isManager && (!isSupervisionClosed(s) || isAdmin) && (
-                          <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(s.id)}>Delete</button>
-                        )}
-                      </span>
+                      <span className="flex items-center gap-2 font-medium text-gray-900"><span className="w-[0.7rem]" />{p.name}</span>
                     )}
                   </td>
-                </tr>
-              ))}
+                  {renderRest(p.latest, true)}
+                </tr>,
+                ...(openHistory[p.userId]
+                  ? p.older.map((s) => (
+                      <tr key={s.id} className="bg-gray-50/60 text-gray-600">
+                        <td className="px-4 py-2 pl-12 text-xs text-gray-500">earlier supervision</td>
+                        {renderRest(s, false)}
+                      </tr>
+                    ))
+                  : []),
+              ])}
             </tbody>
           </table>
         </div>
