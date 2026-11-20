@@ -79,22 +79,86 @@ export function registerClientTools(server: McpServer) {
       description:
         'Everything filed against one client: their documents with the category each is under, and what is ' +
         'currently recorded for allergies and resuscitation status. Use it to find a support plan before reading ' +
-        'it, or to see what a client record already holds. For the whole company rather than one person, call ' +
-        'caremid_cqc_readiness. Example: { client: "Najib Rahman" }',
+        'it, or to see what a client record already holds. Leave out client to SWEEP every active client at once, ' +
+        'which is how to answer "who has a discharge letter" without asking fifty times; add matching to list only ' +
+        'the documents whose name contains it, several separated by |. Examples: { client: "Najib Rahman" } for ' +
+        'one person, or { matching: "discharge|D2A|support plan" } across everybody.',
       inputSchema: z.strictObject({
-        client: z.string().min(2).max(120).describe('Full name or Caremid id'),
+        client: z
+          .string()
+          .min(2)
+          .max(120)
+          .optional()
+          .describe('Full name or Caremid id. Leave it out to sweep every active client.'),
+        matching: z
+          .string()
+          .min(2)
+          .max(120)
+          .optional()
+          .describe('Only list documents whose name contains this (case-insensitive). Several, separated by |.'),
         response_format: ResponseFormat,
       }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async (args, ctx) => {
       const signal = ctx.mcpReq.signal;
-      const client = matchClient(args.client, await activeClients(signal));
-      const docs = await apiGet<ClientDoc[]>(
-        'documents',
-        { ownerType: 'SERVICE_USER', ownerId: client.id },
-        signal,
-      );
+      const all = await activeClients(signal);
+      const want = args.matching
+        ? args.matching.split('|').map((w) => w.trim().toLowerCase()).filter(Boolean)
+        : null;
+      const keep = (d: ClientDoc) => !want || want.some((w) => d.fileName.toLowerCase().includes(w));
+
+      // Sweep: every active client at once, which is the only way to answer
+      // "who has a discharge letter" without asking fifty times.
+      if (!args.client) {
+        const rows: { client: Client; docs: ClientDoc[] }[] = [];
+        // A few at a time: fifty sequential round trips is a slow tool call,
+        // and fifty at once is a thundering herd at the API.
+        for (let i = 0; i < all.length; i += 6) {
+          const batch = await Promise.all(
+            all.slice(i, i + 6).map(async (c) => ({
+              client: c,
+              docs: (
+                await apiGet<ClientDoc[]>('documents', { ownerType: 'SERVICE_USER', ownerId: c.id }, signal)
+              ).filter(keep),
+            })),
+          );
+          rows.push(...batch);
+        }
+
+        const withDocs = rows.filter((r) => r.docs.length);
+        const lines = [
+          `**${withDocs.length}** of ${rows.length} active clients have a document` +
+            `${args.matching ? ` matching "${args.matching}"` : ''}.`,
+          '',
+          '| Client | Resuscitation | Allergies | Documents |',
+          '| --- | --- | --- | --- |',
+          ...withDocs.map(
+            (r) =>
+              `| ${fullName(r.client)} | ${r.client.dnacprStatus || '—'} | ${r.client.allergies ? 'yes' : '—'} | ` +
+              r.docs.map((d) => `${d.fileName} \`${d.id}\``).join('<br>') +
+              ' |',
+          ),
+        ];
+        const none = rows.filter((r) => !r.docs.length).map((r) => fullName(r.client));
+        if (none.length) lines.push('', `**Nothing matching (${none.length}):** ${none.join(', ')}`);
+
+        return result(args.response_format as Format, lines.join('\n'), {
+          matched: withDocs.map((r) => ({
+            client: fullName(r.client),
+            client_id: r.client.id,
+            dnacpr_status: r.client.dnacprStatus,
+            allergies: r.client.allergies,
+            documents: r.docs.map((d) => ({ id: d.id, file_name: d.fileName, category: d.category })),
+          })),
+          without: none,
+        });
+      }
+
+      const client = matchClient(args.client, all);
+      const docs = (
+        await apiGet<ClientDoc[]>('documents', { ownerType: 'SERVICE_USER', ownerId: client.id }, signal)
+      ).filter(keep);
 
       const lines = [
         `# ${fullName(client)}`,
