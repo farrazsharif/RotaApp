@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import SupervisionFormModal from '../components/SupervisionFormModal';
 import PaperSupervisionModal from '../components/PaperSupervisionModal';
+import BulkPaperSupervisionModal from '../components/BulkPaperSupervisionModal';
 import SearchableSelect from '../components/SearchableSelect';
 
 const staffName = (s: Supervision) => (s.user ? `${s.user.firstName} ${s.user.lastName}` : '—');
@@ -17,6 +18,7 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
   const [newForUserId, setNewForUserId] = useState('');
   const [modal, setModal] = useState<{ userId: string; staffName: string; edit: Supervision | null } | null>(null);
   const [paperFor, setPaperFor] = useState<{ userId: string; staffName: string } | null>(null);
+  const [bulkPaper, setBulkPaper] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const { data: supervisions = [], isLoading } = useQuery({ queryKey: ['supervisions'], queryFn: () => staffSupervisionApi.list() });
@@ -78,6 +80,17 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                   onClick={() => { const u = staff.find((x) => x.id === newForUserId); if (u) setPaperFor({ userId: u.id, staffName: `${u.firstName} ${u.lastName}` }); }}
                 >
                   📄 Record previous (paper)
+                </button>
+              )}
+              {/* Seeding the whole group from the paper files - same admin-only
+                  rule, without doing it one carer at a time. */}
+              {isAdmin && (
+                <button
+                  className="btn-secondary btn whitespace-nowrap"
+                  title="Paste a list of carers and the dates their last paper supervision was held"
+                  onClick={() => setBulkPaper(true)}
+                >
+                  📋 Record previous in bulk
                 </button>
               )}
             </>
@@ -176,6 +189,14 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
           userId={paperFor.userId}
           staffName={paperFor.staffName}
           onClose={() => setPaperFor(null)}
+        />
+      )}
+
+      {bulkPaper && (
+        <BulkPaperSupervisionModal
+          staff={staff}
+          supervisions={supervisions}
+          onClose={() => setBulkPaper(false)}
         />
       )}
     </div>
