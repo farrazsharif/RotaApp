@@ -27,9 +27,12 @@ interface Props {
   editSupervision?: Supervision | null;
   readOnly?: boolean;
   onClose: () => void;
+  /** Start a fresh supervision for the same person. Offered from a closed
+   *  record, where it is almost always what was actually wanted. */
+  onStartNew?: () => void;
 }
 
-export default function SupervisionFormModal({ userId, staffName, editSupervision, readOnly: locked = false, onClose }: Props) {
+export default function SupervisionFormModal({ userId, staffName, editSupervision, readOnly: locked = false, onClose, onStartNew }: Props) {
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
   const s = editSupervision;
@@ -134,26 +137,47 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
         </div>
 
         <fieldset disabled={readOnly} className="p-6 space-y-5 overflow-y-auto border-0 m-0">
+          {/* The way out of a closed record has to be the NEW one, loudly.
+              This banner used to lead with "Amend anyway", which reads as the
+              way in - and a supervision typed into last quarter's record
+              replaces it instead of following it. */}
           {closed && !amending && (
-            <div className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 flex flex-wrap items-center gap-2 text-sm text-gray-700">
-              <span>
+            <div className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-3 space-y-2.5 text-sm text-gray-700">
+              <p>
                 🔒 {s?.source === 'paper'
                   ? 'Held on paper and filed — this is the record of it.'
-                  : `Signed and closed${s ? ` on ${format(new Date(s.date), 'd MMM yyyy')}` : ''}.`}{' '}
-                Record the next supervision as a new one.
-              </span>
-              <div className="flex-1" />
-              {isAdmin && (
-                <button type="button" className="text-xs underline hover:no-underline" onClick={() => setAmending(true)}>
-                  Amend anyway
-                </button>
-              )}
+                  : `Signed and closed${s ? ` on ${format(new Date(s.date), 'd MMM yyyy')}` : ''}.`}
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                {onStartNew && (
+                  <button type="button" className="btn-primary btn btn-sm" onClick={onStartNew}>
+                    Record a new supervision
+                  </button>
+                )}
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="text-xs text-gray-500 underline hover:no-underline"
+                    onClick={() => setAmending(true)}
+                  >
+                    Correct a mistake in this record
+                  </button>
+                )}
+              </div>
             </div>
           )}
           {closed && amending && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              Amending a signed record. This is written to the audit log — if this is a new conversation rather than a
-              correction, close this and add a new supervision instead.
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 space-y-2.5 text-sm text-amber-900">
+              <p>
+                <strong>Correcting a signed record.</strong> This overwrites what is here and is written to the audit
+                log. It is for a typo — a wrong date, a misspelled name.
+              </p>
+              <p>A supervision you have just held is a new record, not a correction to the last one.</p>
+              {onStartNew && (
+                <button type="button" className="btn-primary btn btn-sm" onClick={onStartNew}>
+                  Record a new supervision instead
+                </button>
+              )}
             </div>
           )}
           {/* Said out loud. Text reappearing with no explanation is unnerving,

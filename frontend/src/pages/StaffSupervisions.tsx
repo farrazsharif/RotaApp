@@ -197,12 +197,16 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
       )}
 
       {modal && (
+        // Keyed, so switching from a closed record to a new one remounts the
+        // form instead of leaving last quarter's answers in the boxes.
         <SupervisionFormModal
+          key={modal.edit?.id ?? 'new'}
           userId={modal.userId}
           staffName={modal.staffName}
           editSupervision={modal.edit}
           readOnly={!isManager}
           onClose={() => setModal(null)}
+          onStartNew={isManager ? () => setModal({ ...modal, edit: null }) : undefined}
         />
       )}
 

@@ -955,7 +955,15 @@ function SupervisionTab({ userId, staffName, isManager }: { userId: string; staf
       )}
 
       {modal && (
-        <SupervisionFormModal userId={userId} staffName={staffName} editSupervision={modal.edit} readOnly={!isManager} onClose={() => setModal(null)} />
+        <SupervisionFormModal
+          key={modal.edit?.id ?? 'new'}
+          userId={userId}
+          staffName={staffName}
+          editSupervision={modal.edit}
+          readOnly={!isManager}
+          onClose={() => setModal(null)}
+          onStartNew={isManager ? () => setModal({ edit: null }) : undefined}
+        />
       )}
     </div>
   );
