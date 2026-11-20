@@ -36,10 +36,12 @@ assert.deepEqual(
   tools.map((t) => t.name).sort(),
   [
     'caremid_attach_policy_pdf',
+    'caremid_client_file',
     'caremid_correct_training_date',
     'caremid_cqc_readiness',
     'caremid_create_policy',
     'caremid_expiring_training',
+    'caremid_fetch_document',
     'caremid_file_staff_documents',
     'caremid_list_policies',
     'caremid_list_staff',

@@ -1,7 +1,9 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
 import { apiGet, apiPatch } from '../api.js';
-import { Format, ResponseFormat, result } from '../shared.js';
+import { Format, ResponseFormat, fmtDate, result } from '../shared.js';
 
 /**
  * Two fields on a client record: allergies, and resuscitation status.
@@ -24,6 +26,16 @@ import { Format, ResponseFormat, result } from '../shared.js';
 
 // What Caremid stores. NONE means asked and there is no DNACPR or ReSPECT.
 const DNACPR = ['NONE', 'DNACPR', 'RESPECT'] as const;
+
+interface ClientDoc {
+  id: string;
+  category: string | null;
+  fileName: string;
+  size: number;
+  contentType: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
 
 interface Client {
   id: string;
@@ -60,6 +72,116 @@ function matchClient(who: string, clients: Client[]): Client {
 }
 
 export function registerClientTools(server: McpServer) {
+  server.registerTool(
+    'caremid_client_file',
+    {
+      title: "What is on a client's record",
+      description:
+        'Everything filed against one client: their documents with the category each is under, and what is ' +
+        'currently recorded for allergies and resuscitation status. Use it to find a support plan before reading ' +
+        'it, or to see what a client record already holds. For the whole company rather than one person, call ' +
+        'caremid_cqc_readiness. Example: { client: "Najib Rahman" }',
+      inputSchema: z.strictObject({
+        client: z.string().min(2).max(120).describe('Full name or Caremid id'),
+        response_format: ResponseFormat,
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async (args, ctx) => {
+      const signal = ctx.mcpReq.signal;
+      const client = matchClient(args.client, await activeClients(signal));
+      const docs = await apiGet<ClientDoc[]>(
+        'documents',
+        { ownerType: 'SERVICE_USER', ownerId: client.id },
+        signal,
+      );
+
+      const lines = [
+        `# ${fullName(client)}`,
+        '',
+        `**Allergies:** ${client.allergies || '_not recorded_'}`,
+        `**Resuscitation:** ${client.dnacprStatus || '_not recorded_'}` +
+          (client.dnacprLocation ? ` — ${client.dnacprLocation}` : ''),
+        '',
+        `**Documents (${docs.length})**`,
+      ];
+      if (docs.length) {
+        lines.push(
+          '',
+          '| Category | File | Added | Id |',
+          '| --- | --- | --- | --- |',
+          ...docs.map(
+            (d) => `| ${d.category || '—'} | ${d.fileName} | ${fmtDate(d.createdAt)} | ${d.id} |`,
+          ),
+        );
+      } else {
+        lines.push('', '_Nothing filed._');
+      }
+
+      return result(args.response_format as Format, lines.join('\n'), {
+        client: fullName(client),
+        client_id: client.id,
+        allergies: client.allergies,
+        dnacpr_status: client.dnacprStatus,
+        dnacpr_location: client.dnacprLocation,
+        documents: docs,
+      });
+    },
+  );
+
+  server.registerTool(
+    'caremid_fetch_document',
+    {
+      title: 'Download a filed document so it can be read',
+      description:
+        'Downloads one document already filed in Caremid - a client support plan, a staff certificate - and ' +
+        'saves it to a folder on this machine so its contents can be read. Changes nothing in Caremid. Give the ' +
+        'document id from caremid_client_file or caremid_staff_file. Example: { document_id: "cmabc123", into: ' +
+        '"C:/temp/plans" }',
+      inputSchema: z.strictObject({
+        document_id: z.string().min(6).max(60).describe('From caremid_client_file or caremid_staff_file'),
+        into: z.string().min(3).max(400).describe('Absolute path to an existing or creatable folder'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        // Reads from Caremid. It writes a file on this machine, which is the
+        // point, but nothing in the record changes.
+        readOnlyHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      const signal = ctx.mcpReq.signal;
+      if (!isAbsolute(args.into)) throw new Error('into must be an absolute folder path.');
+
+      const { url } = await apiGet<{ url: string }>(`documents/${args.document_id}/download`, {}, signal);
+      const res = await fetch(url, { signal });
+      if (!res.ok) throw new Error(`The storage link returned ${res.status}.`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+
+      // The signed URL carries the original name; fall back to the id.
+      let name = args.document_id;
+      const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(res.headers.get('content-disposition') || '');
+      if (m) name = decodeURIComponent(m[1]);
+      else {
+        const last = new URL(url).pathname.split('/').pop();
+        if (last) name = decodeURIComponent(last);
+      }
+      name = name.replace(/[\\/:*?"<>|]/g, '_');
+
+      await mkdir(args.into, { recursive: true });
+      const path = join(args.into, name);
+      await writeFile(path, bytes);
+
+      const kb = Math.round(bytes.byteLength / 1024);
+      return result(
+        args.response_format as Format,
+        `Saved **${name}** (${kb} KB) to \`${path}\`. Nothing in Caremid changed.`,
+        { saved_to: path, file_name: name, bytes: bytes.byteLength },
+      );
+    },
+  );
+
   server.registerTool(
     'caremid_record_client_safety_info',
     {
