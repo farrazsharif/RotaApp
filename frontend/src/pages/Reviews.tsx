@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Review, ReviewType, ServiceUser } from '../types';
 import { format, addWeeks } from 'date-fns';
 import ReviewFormModal from '../components/ReviewFormModal';
+import Icon from '../components/Icon';
 import PaperSeedModal from '../components/PaperSeedModal';
 import SearchableSelect from '../components/SearchableSelect';
 
@@ -17,6 +18,8 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
   const [newType, setNewType] = useState<ReviewType>('SIX_WEEK');
   const [modal, setModal] = useState<{ serviceUserId: string; serviceUserName: string; reviewType: ReviewType; editReview: Review | null; locked?: boolean } | null>(null);
   const [paperFor, setPaperFor] = useState<{ serviceUserId: string; serviceUserName: string } | null>(null);
+  // Which clients have their earlier reviews showing.
+  const [openHistory, setOpenHistory] = useState<Record<string, boolean>>({});
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const { data: reviews = [], isLoading } = useQuery({ queryKey: ['reviews'], queryFn: () => reviewsApi.list() });
@@ -259,9 +262,28 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                 const dueDate = rowDueDate(su, review);
                 // The client's earlier reviews (everything except the latest shown here).
                 const pastRevs = (reviewsByUser.get(su.id) ?? []).filter((x) => x.id !== review?.id);
-                return (
+                return [
                   <tr key={su.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{su.firstName} {su.lastName}</td>
+                    <td className="px-4 py-3">
+                      {pastRevs.length > 0 ? (
+                        <button
+                          className="flex items-center gap-2 font-medium text-gray-900 hover:text-blue-700"
+                          onClick={() => setOpenHistory((o) => ({ ...o, [su.id]: !o[su.id] }))}
+                          title={`${pastRevs.length + 1} reviews on record`}
+                        >
+                          <Icon
+                            name="chevron"
+                            size={14}
+                            className={`text-gray-400 shrink-0 transition-transform duration-150 ${openHistory[su.id] ? 'rotate-90' : ''}`}
+                          />
+                          {su.firstName} {su.lastName}
+                          <span className="text-xs font-normal text-gray-400">{pastRevs.length + 1}</span>
+                        </button>
+                      ) : (
+                        // Indented to line up with the names that do expand.
+                        <span className="flex items-center gap-2 font-medium text-gray-900"><span className="w-[14px] shrink-0" />{su.firstName} {su.lastName}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       {servicePaused(su)
                         ? <span className="badge-gray badge">{su.status === 'HOSPITALISED' ? 'In hospital' : 'On hold'}</span>
@@ -314,25 +336,6 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                         </span>
                       ) : (
                         <span className="flex gap-2 justify-end items-center">
-                          {pastRevs.length > 0 && (
-                            <select
-                              value=""
-                              className="input w-auto text-xs py-1"
-                              title="View an earlier review (read-only)"
-                              onChange={(e) => {
-                                const old = pastRevs.find((x) => x.id === e.target.value);
-                                if (old) setModal({ serviceUserId: old.serviceUserId, serviceUserName: `${su.firstName} ${su.lastName}`, reviewType: old.type, editReview: old, locked: true });
-                                e.target.value = '';
-                              }}
-                            >
-                              <option value="">Past ({pastRevs.length})</option>
-                              {pastRevs.map((x) => (
-                                <option key={x.id} value={x.id}>
-                                  {format(new Date(x.reviewDate), 'dd MMM yyyy')} · {x.type === 'QUARTERLY' ? 'Quarterly' : '6-Week'}
-                                </option>
-                              ))}
-                            </select>
-                          )}
                           {isManager && overdue && latestReviewIds.has(review.id) && (
                             <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => startFollowUp(review)}>Review now</button>
                           )}
@@ -353,8 +356,49 @@ export default function Reviews({ embedded = false }: { embedded?: boolean }) {
                         </span>
                       )}
                     </td>
-                  </tr>
-                );
+                  </tr>,
+                  // Earlier reviews, superseded by the one above. They open
+                  // read-only: the current review is the one that gets edited,
+                  // and a past one is the record of what was agreed then.
+                  ...(openHistory[su.id]
+                    ? pastRevs.map((x) => (
+                        <tr key={x.id} className="bg-gray-50/60 text-gray-600">
+                          <td className="px-4 py-2 pl-12 text-xs text-gray-500">earlier review</td>
+                          <td className="px-4 py-2" />
+                          <td className="hidden lg:table-cell px-4 py-2">
+                            <span className={x.type === 'QUARTERLY' ? 'badge-purple badge' : 'badge-blue badge'}>
+                              {x.type === 'QUARTERLY' ? 'Quarterly' : '6-Week'}
+                            </span>
+                          </td>
+                          <td className="hidden lg:table-cell px-4 py-2 text-gray-600">
+                            {format(new Date(x.reviewDate), 'dd MMM yyyy')}
+                            {x.source === 'paper' && (
+                              <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Paper</span>
+                            )}
+                          </td>
+                          {/* Its next-review date was superseded by the review
+                              above, so showing it reads as something still due. */}
+                          <td className="px-4 py-2 text-gray-300">—</td>
+                          <td className="hidden xl:table-cell px-4 py-2 text-gray-600">{x.assessorName || '—'}</td>
+                          <td className="hidden xl:table-cell px-4 py-2 text-gray-500">{format(new Date(x.updatedAt), 'dd MMM yyyy')}</td>
+                          <td className="px-4 py-2 text-right">
+                            <button
+                              className="btn-secondary btn btn-sm"
+                              onClick={() => setModal({
+                                serviceUserId: x.serviceUserId,
+                                serviceUserName: `${su.firstName} ${su.lastName}`,
+                                reviewType: x.type,
+                                editReview: x,
+                                locked: true,
+                              })}
+                            >
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    : []),
+                ];
               })}
             </tbody>
           </table>
