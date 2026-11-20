@@ -7,7 +7,7 @@ import { getTenant } from '../lib/tenantContext';
 export type PermissionKey =
   | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access' | 'manage_dbs'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
-  | 'manage_supervision' | 'record_paper_supervision'
+  | 'manage_supervision' | 'record_paper_supervision' | 'record_client_safety_info'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
   | 'manage_cqc' | 'manage_safeguarding' | 'manage_complaints' | 'manage_policies'
   | 'manage_billing'
@@ -42,6 +42,10 @@ export const PERMISSIONS: PermissionDef[] = [
   // signed form already on the carer's file, and the server checks it is
   // there. Default is Admin only, so granting it is a deliberate act.
   { key: 'record_paper_supervision', label: 'Record a paper supervision (signed form required)', group: 'Care', default: A },
+  // Allergies and resuscitation status only, on a route that reads nothing
+  // else and will not overwrite a value already recorded. Default Admin, so
+  // granting it is deliberate.
+  { key: 'record_client_safety_info', label: 'Record allergies & resuscitation status (fills blanks only)', group: 'Care', default: A },
   { key: 'edit_call_logs',        label: 'Edit & delete call logs',          group: 'Care',      default: A },
 
   { key: 'manage_schedule',       label: 'Create & edit shifts, edit clock records', group: 'Scheduling', default: AM },

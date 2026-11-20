@@ -253,6 +253,79 @@ export async function createServiceUser(req: AuthRequest, res: Response) {
   res.status(201).json(user);
 }
 
+/**
+ * Allergies and resuscitation status, and nothing else.
+ *
+ * These two sit behind their own route rather than the general update because
+ * the capability that opens them is meant to be narrow: a route that reads
+ * three fields cannot touch a care plan, however the payload is shaped. There
+ * is nothing to restrict, because there is nothing else here.
+ *
+ * It FILLS BLANKS. An allergy already on record is never replaced by this
+ * route - the conflict comes back and somebody looks at it. Silently
+ * overwriting "penicillin" with something read off an older document is the
+ * one outcome worth designing the whole thing around, and a refusal costs a
+ * phone call where the alternative costs more than that.
+ */
+const DNACPR_VALUES = ['NONE', 'DNACPR', 'RESPECT'];
+
+export async function updateServiceUserSafetyInfo(req: AuthRequest, res: Response) {
+  if (!(await serviceUserInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'Service user not found' });
+  }
+  const existing = await prisma.serviceUser.findUnique({
+    where: { id: req.params.id },
+    select: { firstName: true, lastName: true, allergies: true, dnacprStatus: true, dnacprLocation: true },
+  });
+  if (!existing) return res.status(404).json({ error: 'Service user not found' });
+
+  const { allergies, dnacprStatus, dnacprLocation, source } = req.body as Record<string, unknown>;
+  const data: Record<string, unknown> = {};
+  const conflicts: string[] = [];
+
+  const want = (field: 'allergies' | 'dnacprStatus' | 'dnacprLocation', value: unknown, label: string) => {
+    if (value === undefined || value === null) return;
+    const next = String(value).trim();
+    if (!next) return;
+    const held = (existing[field] || '').trim();
+    if (held && held.toLowerCase() !== next.toLowerCase()) {
+      conflicts.push(`${label} already reads "${held}" and this would change it to "${next}"`);
+      return;
+    }
+    if (held) return; // identical, nothing to do
+    data[field] = next;
+  };
+
+  if (dnacprStatus !== undefined && dnacprStatus !== null && String(dnacprStatus).trim()) {
+    const v = String(dnacprStatus).trim().toUpperCase();
+    if (!DNACPR_VALUES.includes(v)) {
+      return res.status(400).json({ error: `dnacprStatus must be one of ${DNACPR_VALUES.join(', ')}.` });
+    }
+    want('dnacprStatus', v, 'Resuscitation status');
+  }
+  want('allergies', allergies, 'Allergies');
+  want('dnacprLocation', dnacprLocation, 'DNACPR location');
+
+  if (conflicts.length) {
+    return res.status(409).json({
+      error: `Already recorded for ${existing.firstName} ${existing.lastName}: ${conflicts.join('; ')}. ` +
+        'This route only fills blanks - change it on the client record if the new value is right.',
+    });
+  }
+  if (!Object.keys(data).length) {
+    return res.json({ changed: [], message: 'Nothing to fill - already recorded, or nothing supplied.' });
+  }
+
+  const updated = await prisma.serviceUser.update({ where: { id: req.params.id }, data });
+  await logAudit(
+    req,
+    'CLIENT_SAFETY_INFO_RECORDED',
+    `${existing.firstName} ${existing.lastName}`,
+    `${Object.keys(data).join(', ')}${source ? ` (from ${String(source).slice(0, 120)})` : ''}`,
+  );
+  res.json({ changed: Object.keys(data), serviceUser: updated });
+}
+
 export async function updateServiceUser(req: AuthRequest, res: Response) {
   if (!(await serviceUserInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'Service user not found' });

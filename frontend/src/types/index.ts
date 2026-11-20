@@ -12,7 +12,7 @@ export type NotificationType =
 export type PermissionKey =
   | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access' | 'manage_dbs'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
-  | 'manage_supervision' | 'record_paper_supervision'
+  | 'manage_supervision' | 'record_paper_supervision' | 'record_client_safety_info'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
   | 'manage_cqc'
   | 'manage_safeguarding'
