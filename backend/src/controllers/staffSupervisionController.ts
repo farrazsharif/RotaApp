@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { isScoped, staffScopeOr } from '../lib/scope';
 import { userHasPermission } from '../middleware/permissions';
+import { logAudit } from '../lib/audit';
 
 // answers / observations are stored as JSON strings. Accept either a string or
 // an object from the client and always persist a valid JSON string.
@@ -109,14 +110,76 @@ export async function createSupervision(req: AuthRequest, res: Response) {
   res.status(201).json(item);
 }
 
+/**
+ * A supervision is CLOSED once it is a record of something that happened:
+ * signed by both people, or seeded from a signed form held on paper.
+ *
+ * Up to that point it is a draft - typed at the desk, finished in the room -
+ * and editing it is just finishing it. After it, editing is rewriting what two
+ * people put their name to, and the next conversation belongs in a new record
+ * rather than on top of the last one.
+ *
+ * Not a hard lock: an administrator can still correct a typo, because a record
+ * nobody can fix is its own kind of wrong. That amendment is written to the
+ * audit log, which is the difference between correcting a record and quietly
+ * changing one.
+ */
+function isClosed(s: { source: string | null; assessorSignature: string | null; staffSignature: string | null }): boolean {
+  if (s.source === 'paper') return true;
+  return !!(s.assessorSignature && s.staffSignature);
+}
+
+const whoFor = (u?: { firstName: string; lastName: string } | null) =>
+  u ? `${u.firstName} ${u.lastName}` : undefined;
+
 export async function updateSupervision(req: AuthRequest, res: Response) {
-  const existing = await prisma.supervision.findUnique({ where: { id: req.params.id } });
+  const existing = await prisma.supervision.findUnique({
+    where: { id: req.params.id },
+    include: { user: { select: { firstName: true, lastName: true } } },
+  });
   if (!existing) return res.status(404).json({ error: 'Supervision not found' });
+
+  const closed = isClosed(existing);
+  if (closed && req.user!.role !== 'ADMIN') {
+    return res.status(403).json({
+      error: 'This supervision is signed and closed. Record the next one as a new supervision, or ask an administrator to amend it.',
+    });
+  }
+
   const item = await prisma.supervision.update({ where: { id: req.params.id }, data: buildData(req.body) as never });
+  if (closed) {
+    await logAudit(
+      req,
+      'SUPERVISION_AMENDED',
+      whoFor(existing.user),
+      `signed supervision of ${existing.date.toISOString().slice(0, 10)} amended`,
+    );
+  }
   res.json(item);
 }
 
 export async function deleteSupervision(req: AuthRequest, res: Response) {
+  const existing = await prisma.supervision.findUnique({
+    where: { id: req.params.id },
+    include: { user: { select: { firstName: true, lastName: true } } },
+  });
+  if (!existing) return res.status(404).json({ error: 'Supervision not found' });
+
+  const closed = isClosed(existing);
+  if (closed && req.user!.role !== 'ADMIN') {
+    return res.status(403).json({
+      error: 'This supervision is signed and closed, so it cannot be deleted. Ask an administrator if it was recorded in error.',
+    });
+  }
+
   await prisma.supervision.delete({ where: { id: req.params.id } });
+  if (closed) {
+    await logAudit(
+      req,
+      'SUPERVISION_DELETED',
+      whoFor(existing.user),
+      `signed supervision of ${existing.date.toISOString().slice(0, 10)} deleted`,
+    );
+  }
   res.json({ message: 'Deleted' });
 }

@@ -8,6 +8,7 @@ import SupervisionFormModal from '../components/SupervisionFormModal';
 import PaperSupervisionModal from '../components/PaperSupervisionModal';
 import BulkPaperSupervisionModal from '../components/BulkPaperSupervisionModal';
 import { printSupervision, printBlankSupervision } from '../lib/supervisionPrint';
+import { isSupervisionClosed } from '../lib/staffSupervision';
 import SearchableSelect from '../components/SearchableSelect';
 
 const staffName = (s: Supervision) => (s.user ? `${s.user.firstName} ${s.user.lastName}` : '—');
@@ -157,7 +158,12 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                         : <span className="text-gray-600">{format(new Date(s.nextReviewDate), 'dd MMM yyyy')}</span>
                     ) : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="hidden xl:table-cell px-4 py-3 text-gray-600">{s.assessorName || '—'}</td>
+                  <td className="hidden xl:table-cell px-4 py-3 text-gray-600">
+                    {s.assessorName || '—'}
+                    {isSupervisionClosed(s) && (
+                      <span className="ml-2 text-xs text-gray-400" title="Signed and closed — record the next one as a new supervision">🔒</span>
+                    )}
+                  </td>
                   <td className="hidden xl:table-cell px-4 py-3 text-gray-500">{format(new Date(s.updatedAt || s.createdAt), 'dd MMM yyyy')}</td>
                   <td className="px-4 py-3 text-right">
                     {confirmDelete === s.id ? (
@@ -172,10 +178,14 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                           <button className="btn-primary btn btn-sm whitespace-nowrap" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: null })}>Review now</button>
                         )}
                         <button className="btn-secondary btn btn-sm" onClick={() => setModal({ userId: s.userId, staffName: staffName(s), edit: s })}>
-                          {isManager ? 'Open / Edit' : 'View'}
+                          {isManager && !isSupervisionClosed(s) ? 'Open / Edit' : 'View'}
                         </button>
                         <button className="text-xs text-blue-600 hover:underline" onClick={() => printSupervision(s, { staffName: staffName(s) })}>Print</button>
-                        {isManager && <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(s.id)}>Delete</button>}
+                        {/* Closed records answer to the administrator only, and
+                            amending one is written to the audit log. */}
+                        {isManager && (!isSupervisionClosed(s) || isAdmin) && (
+                          <button className="text-xs text-red-600 hover:underline" onClick={() => setConfirmDelete(s.id)}>Delete</button>
+                        )}
                       </span>
                     )}
                   </td>

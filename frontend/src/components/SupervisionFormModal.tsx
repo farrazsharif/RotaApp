@@ -4,7 +4,8 @@ import { format, addMonths } from 'date-fns';
 import SignatureField from './SignatureField';
 import AutoGrowTextarea from './AutoGrowTextarea';
 import { staffSupervisionApi, Supervision, SupervisionData } from '../api/staffSupervision';
-import { SUPERVISION_QUESTIONS, SUPERVISION_OBSERVATIONS, parseMap } from '../lib/staffSupervision';
+import { SUPERVISION_QUESTIONS, SUPERVISION_OBSERVATIONS, parseMap, isSupervisionClosed } from '../lib/staffSupervision';
+import { useAuth } from '../contexts/AuthContext';
 import { useFormDraft } from '../lib/useFormDraft';
 import { printSupervision } from '../lib/supervisionPrint';
 
@@ -27,9 +28,19 @@ interface Props {
   onClose: () => void;
 }
 
-export default function SupervisionFormModal({ userId, staffName, editSupervision, readOnly = false, onClose }: Props) {
+export default function SupervisionFormModal({ userId, staffName, editSupervision, readOnly: locked = false, onClose }: Props) {
   const qc = useQueryClient();
+  const { isAdmin } = useAuth();
   const s = editSupervision;
+
+  // Signed by both people, or seeded from a signed paper form: a record of
+  // something that happened, so it opens to be read rather than rewritten.
+  // The next conversation belongs in a new supervision. An administrator can
+  // still amend one, but has to choose to, and the server writes that to the
+  // audit log.
+  const closed = !!s && isSupervisionClosed(s);
+  const [amending, setAmending] = useState(false);
+  const readOnly = locked || (closed && !amending);
 
   // One draft per supervision being written: a new one for this staff member,
   // or the particular record being edited.
@@ -122,6 +133,28 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
         </div>
 
         <fieldset disabled={readOnly} className="p-6 space-y-5 overflow-y-auto border-0 m-0">
+          {closed && !amending && (
+            <div className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 flex flex-wrap items-center gap-2 text-sm text-gray-700">
+              <span>
+                🔒 {s?.source === 'paper'
+                  ? 'Held on paper and filed — this is the record of it.'
+                  : `Signed and closed${s ? ` on ${format(new Date(s.date), 'd MMM yyyy')}` : ''}.`}{' '}
+                Record the next supervision as a new one.
+              </span>
+              <div className="flex-1" />
+              {isAdmin && (
+                <button type="button" className="text-xs underline hover:no-underline" onClick={() => setAmending(true)}>
+                  Amend anyway
+                </button>
+              )}
+            </div>
+          )}
+          {closed && amending && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Amending a signed record. This is written to the audit log — if this is a new conversation rather than a
+              correction, close this and add a new supervision instead.
+            </div>
+          )}
           {/* Said out loud. Text reappearing with no explanation is unnerving,
               and somebody who meant to start again needs a way to do it. */}
           {draft.restored && !discarded && draft.restoredAt && (
