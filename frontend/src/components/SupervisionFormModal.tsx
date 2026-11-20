@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, addMonths } from 'date-fns';
 import SignatureField from './SignatureField';
 import AutoGrowTextarea from './AutoGrowTextarea';
@@ -30,9 +30,11 @@ interface Props {
   /** Start a fresh supervision for the same person. Offered from a closed
    *  record, where it is almost always what was actually wanted. */
   onStartNew?: () => void;
+  /** Open another of this person's supervisions, from the history picker. */
+  onOpenRecord?: (record: Supervision) => void;
 }
 
-export default function SupervisionFormModal({ userId, staffName, editSupervision, readOnly: locked = false, onClose, onStartNew }: Props) {
+export default function SupervisionFormModal({ userId, staffName, editSupervision, readOnly: locked = false, onClose, onStartNew, onOpenRecord }: Props) {
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
   const s = editSupervision;
@@ -49,6 +51,15 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
   // One draft per supervision being written: a new one for this staff member,
   // or the particular record being edited.
   const draft = useFormDraft<SupervisionForm>(`supervision:${userId}:${s?.id ?? 'new'}`, !readOnly);
+
+  // This person's supervisions, for the history picker. The register is sorted
+  // by date across the whole company, so one carer's records are scattered
+  // through it and never sit together - which is how an earlier one looks
+  // missing when it is simply forty rows further down.
+  const { data: history = [] } = useQuery({
+    queryKey: ['supervisions', userId],
+    queryFn: () => staffSupervisionApi.list(userId),
+  });
 
   // Built from the live form rather than the saved record, so Print shows what
   // is on screen now.
@@ -131,9 +142,38 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-6 sm:my-0 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b shrink-0">
-          <h2 className="text-lg font-semibold">{readOnly ? 'Supervision' : s ? 'Edit Supervision' : 'New Supervision'} — {staffName}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+        <div className="flex items-start justify-between gap-4 p-6 border-b shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold">{readOnly ? 'Supervision' : s ? 'Edit Supervision' : 'New Supervision'} — {staffName}</h2>
+            {onOpenRecord && history.length > 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-xs text-gray-500 whitespace-nowrap" htmlFor="sup-history">
+                  Their supervisions
+                </label>
+                <select
+                  id="sup-history"
+                  className="input py-1 text-sm max-w-[16rem]"
+                  value={s?.id ?? 'new'}
+                  onChange={(e) => {
+                    const pick = history.find((h) => h.id === e.target.value);
+                    if (pick) onOpenRecord(pick);
+                    else onStartNew?.();
+                  }}
+                >
+                  {!s && <option value="new">New supervision (not saved)</option>}
+                  {history.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {format(new Date(h.date), 'dd MMM yyyy')}
+                      {isSupervisionClosed(h) ? ' · signed' : ' · draft'}
+                      {h.assessorName ? ` · ${h.assessorName}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-gray-400 whitespace-nowrap">{history.length} on record</span>
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
 
         <fieldset disabled={readOnly} className="p-6 space-y-5 overflow-y-auto border-0 m-0">

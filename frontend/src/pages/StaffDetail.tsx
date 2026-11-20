@@ -963,6 +963,7 @@ function SupervisionTab({ userId, staffName, isManager }: { userId: string; staf
           readOnly={!isManager}
           onClose={() => setModal(null)}
           onStartNew={isManager ? () => setModal({ edit: null }) : undefined}
+          onOpenRecord={(rec) => setModal({ edit: rec })}
         />
       )}
     </div>

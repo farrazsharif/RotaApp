@@ -207,6 +207,7 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
           readOnly={!isManager}
           onClose={() => setModal(null)}
           onStartNew={isManager ? () => setModal({ ...modal, edit: null }) : undefined}
+          onOpenRecord={(rec) => setModal({ ...modal, edit: rec })}
         />
       )}
 
