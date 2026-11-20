@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 // Small dependency-free line-icon set (Feather-style stroke paths) for compact
 // toolbar buttons. Inherits colour from the parent (stroke: currentColor) and
 // sizes to 16px by default. Decorative — always aria-hidden.
-export type IconName = 'clock' | 'edit' | 'renew' | 'print' | 'plus' | 'eye' | 'close';
+export type IconName = 'clock' | 'edit' | 'renew' | 'print' | 'plus' | 'eye' | 'close' | 'chevron';
 
 const PATHS: Record<IconName, ReactNode> = {
   clock: <><circle cx="12" cy="12" r="9" /><polyline points="12 8 12 12 15 14" /></>,
@@ -13,6 +13,9 @@ const PATHS: Record<IconName, ReactNode> = {
   plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
   eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><circle cx="12" cy="12" r="3" /></>,
   close: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
+  // Points right. Rotate it 90 degrees for open, which animates where a
+  // swapped-out glyph would jump.
+  chevron: <polyline points="9 6 15 12 9 18" />,
 };
 
 export default function Icon({ name, size = 16, className }: { name: IconName; size?: number; className?: string }) {

@@ -10,6 +10,7 @@ import BulkPaperSupervisionModal from '../components/BulkPaperSupervisionModal';
 import { printSupervision, printBlankSupervision } from '../lib/supervisionPrint';
 import { isSupervisionClosed } from '../lib/staffSupervision';
 import SearchableSelect from '../components/SearchableSelect';
+import Icon from '../components/Icon';
 
 const staffName = (s: Supervision) => (s.user ? `${s.user.firstName} ${s.user.lastName}` : '—');
 
@@ -234,12 +235,17 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
                         onClick={() => setOpenHistory((o) => ({ ...o, [p.userId]: !o[p.userId] }))}
                         title={`${p.count} supervisions on record`}
                       >
-                        <span className={`text-gray-400 transition-transform ${openHistory[p.userId] ? 'rotate-90' : ''}`}>▶</span>
+                        <Icon
+                          name="chevron"
+                          size={14}
+                          className={`text-gray-400 shrink-0 transition-transform duration-150 ${openHistory[p.userId] ? 'rotate-90' : ''}`}
+                        />
                         {p.name}
                         <span className="text-xs font-normal text-gray-400">{p.count}</span>
                       </button>
                     ) : (
-                      <span className="flex items-center gap-2 font-medium text-gray-900"><span className="w-[0.7rem]" />{p.name}</span>
+                      // Indented to line up with the names that do have one.
+                      <span className="flex items-center gap-2 font-medium text-gray-900"><span className="w-[14px] shrink-0" />{p.name}</span>
                     )}
                   </td>
                   {renderRest(p.latest, true)}
