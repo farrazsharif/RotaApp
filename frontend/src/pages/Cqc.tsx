@@ -1,73 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { cqcApi, CqcCheck, KeyQuestionBlock } from '../api/cqc';
+import CqcStatements from '../components/CqcStatements';
 import { brandingHeaderHtml, BRANDING_PRINT_CSS } from '../lib/printBranding';
 import { format } from 'date-fns';
 import { viewHtml } from '../lib/printHtml';
-
-// The quality statements the system can't auto-check — set manually so the
-// readiness picture is complete. Grouped by key question.
-const SELF_STATEMENTS: { kq: string; label: string; items: { key: string; label: string }[] }[] = [
-  { kq: 'Safe', label: 'Safe', items: [
-    { key: 'safe_learning', label: 'Learning culture' },
-    { key: 'safe_systems', label: 'Safe systems, pathways and transitions' },
-    { key: 'safe_ipc', label: 'Infection prevention and control' },
-  ] },
-  { kq: 'Effective', label: 'Effective', items: [
-    { key: 'eff_evidence', label: 'Delivering evidence-based care and treatment' },
-    { key: 'eff_teams', label: 'How staff and teams work together' },
-    { key: 'eff_healthier', label: 'Supporting people to live healthier lives' },
-  ] },
-  { kq: 'Caring', label: 'Caring', items: [
-    { key: 'car_dignity', label: 'Kindness, compassion and dignity' },
-    { key: 'car_immediate', label: "Responding to people's immediate needs" },
-    { key: 'car_workforce', label: 'Workforce wellbeing and enablement' },
-  ] },
-  { kq: 'Responsive', label: 'Responsive', items: [
-    { key: 'res_info', label: 'Providing information' },
-    { key: 'res_listening', label: 'Listening to and involving people' },
-    { key: 'res_access', label: 'Equity in access' },
-    { key: 'res_outcomes', label: 'Equity in experiences and outcomes' },
-    { key: 'res_future', label: 'Planning for the future' },
-  ] },
-  { kq: 'Well-led', label: 'Well-led', items: [
-    { key: 'wl_direction', label: 'Shared direction and culture' },
-    { key: 'wl_leaders', label: 'Capable, compassionate and inclusive leaders' },
-    { key: 'wl_speakup', label: 'Freedom to speak up' },
-    { key: 'wl_edi', label: 'Workforce equality, diversity and inclusion' },
-    { key: 'wl_partnerships', label: 'Partnerships and communities' },
-    { key: 'wl_learning', label: 'Learning, improvement and innovation' },
-    { key: 'wl_environment', label: 'Environmental sustainability' },
-  ] },
-];
-
-const RATINGS: { v: string; label: string; on: string }[] = [
-  { v: 'MET', label: 'Met', on: 'bg-green-600 text-white border-green-600' },
-  { v: 'PARTIAL', label: 'Partial', on: 'bg-amber-500 text-white border-amber-500' },
-  { v: 'NOT_MET', label: 'Not met', on: 'bg-red-600 text-white border-red-600' },
-];
 
 const dot = (s: CqcCheck['status']) =>
   s === 'red' ? 'bg-red-500' : s === 'amber' ? 'bg-amber-500' : s === 'green' ? 'bg-green-500' : 'bg-gray-300';
 const scoreColour = (n: number) => (n >= 85 ? 'text-green-600' : n >= 60 ? 'text-amber-600' : 'text-red-600');
 
 export default function Cqc() {
-  const qc = useQueryClient();
   const navigate = useNavigate();
   const { data, isLoading } = useQuery({ queryKey: ['cqc-readiness'], queryFn: cqcApi.readiness });
-  const [sa, setSa] = useState<Record<string, { rating?: string; note?: string }>>({});
+  // Same engine the statements section renders, so the report agrees with it.
+  const { data: statements } = useQuery({ queryKey: ['cqc-statements'], queryFn: cqcApi.statements });
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
-  useEffect(() => { if (data?.selfAssessment) setSa(data.selfAssessment); }, [data]);
-
-  const saveMut = useMutation({
-    mutationFn: () => cqcApi.saveSelfAssessment(sa),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['cqc-readiness'] }),
-  });
-
-  const setRating = (key: string, rating: string) => setSa((p) => ({ ...p, [key]: { ...p[key], rating: p[key]?.rating === rating ? '' : rating } }));
-  const setNote = (key: string, note: string) => setSa((p) => ({ ...p, [key]: { ...p[key], note } }));
 
   function printReport() {
     if (!data) return;
@@ -77,9 +26,17 @@ export default function Cqc() {
       if (!flagged.length) return `<tr><td>${esc(kq.label)}</td><td class="ok">No issues</td></tr>`;
       return flagged.map((c) => `<tr><td>${esc(kq.label)}</td><td><span class="${c.status}">${c.status.toUpperCase()}</span> ${esc(c.title)} — ${esc(c.detail)} <span class="qs">(${esc(c.statement)})</span></td></tr>`).join('');
     }).join('');
-    const saRows = SELF_STATEMENTS.flatMap((g) => g.items
-      .filter((it) => sa[it.key]?.rating && sa[it.key]?.rating !== 'MET')
-      .map((it) => `<tr><td>${esc(g.label)}</td><td><span class="${sa[it.key]?.rating === 'NOT_MET' ? 'red' : 'amber'}">${esc(sa[it.key]!.rating!.replace('_', ' '))}</span> ${esc(it.label)}${sa[it.key]?.note ? ` — ${esc(sa[it.key]!.note!)}` : ''}</td></tr>`)).join('');
+    // Statements come from the SAME engine the page renders, so the report
+    // cannot show a status the screen disagrees with.
+    const pill = (st: string) => (st === 'NOT_MET' ? 'red' : st === 'PARTIALLY_MET' ? 'amber' : st === 'MET' ? 'ok' : 'qs');
+    const stRows = (statements?.statements ?? [])
+      .filter((x) => x.systemStatus !== 'MET' || x.review || x.divergent)
+      .map((x) => `<tr><td>${esc(x.label)}</td>`
+        + `<td><span class="${pill(x.systemStatus)}">${esc(x.systemStatusLabel)}</span> ${esc(x.reason)}`
+        + (x.review ? ` <em>Manager: ${esc(x.review.status.replace('_', ' ').toLowerCase())} — ${esc(x.review.rationale)} (${esc(x.review.reviewedBy)}, ${esc(format(new Date(x.review.reviewedAt), 'dd MMM yyyy'))})</em>` : '')
+        + (x.divergent ? ' <span class="red">DIFFERS FROM RECORDS</span>' : '')
+        + '</td></tr>').join('');
+    const methodRows = (statements?.methodology.notes ?? []).map((n) => `<li>${esc(n)}</li>`).join('');
 
     const html = `<!DOCTYPE html><html><head><title>CQC Readiness Report</title>
       <style>
@@ -109,8 +66,10 @@ export default function Cqc() {
       </tbody></table>
       <h2>Items to correct (automated checks)</h2>
       <table><thead><tr><th style="width:110px">Key question</th><th>Finding</th></tr></thead><tbody>${flagRows || '<tr><td colspan="2" class="ok">No issues found.</td></tr>'}</tbody></table>
-      <h2>Self-assessment gaps</h2>
-      <table><thead><tr><th style="width:110px">Key question</th><th>Statement</th></tr></thead><tbody>${saRows || '<tr><td colspan="2" class="ok">Nothing flagged.</td></tr>'}</tbody></table>
+      <h2>Quality statements</h2>
+      <table><thead><tr><th style="width:170px">Statement</th><th>Assessment</th></tr></thead><tbody>${stRows || '<tr><td colspan="2" class="ok">Every statement met.</td></tr>'}</tbody></table>
+      <h2>How these figures are worked out</h2>
+      <ul>${methodRows}</ul>
       </body></html>`;
 
     viewHtml(html, 'CQC');
@@ -185,39 +144,7 @@ export default function Cqc() {
         </div>
       ))}
 
-      {/* Manual self-assessment */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="font-semibold text-gray-900">Self-assessment</h2>
-          <button className="btn-primary btn btn-sm" disabled={saveMut.isPending} onClick={() => saveMut.mutate()}>
-            {saveMut.isPending ? 'Saving…' : saveMut.isSuccess ? 'Saved ✓' : 'Save'}
-          </button>
-        </div>
-        <p className="text-sm text-gray-500 mb-4">The quality statements the system can't measure from data — rate them yourself so the picture is complete.</p>
-        <div className="space-y-5">
-          {SELF_STATEMENTS.map((g) => (
-            <div key={g.kq}>
-              <p className="text-sm font-semibold text-gray-700 mb-2">{g.label}</p>
-              <div className="space-y-2">
-                {g.items.map((it) => (
-                  <div key={it.key} className="flex flex-wrap items-center gap-2 border-b last:border-0 pb-2 last:pb-0">
-                    <span className="text-sm text-gray-800 flex-1 min-w-[200px]">{it.label}</span>
-                    <div className="flex gap-1">
-                      {RATINGS.map((r) => (
-                        <button key={r.v} onClick={() => setRating(it.key, r.v)}
-                          className={`px-2.5 py-1 rounded-md text-xs font-medium border ${sa[it.key]?.rating === r.v ? r.on : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-                          {r.label}
-                        </button>
-                      ))}
-                    </div>
-                    <input value={sa[it.key]?.note || ''} onChange={(e) => setNote(it.key, e.target.value)} placeholder="Note (optional)" className="input py-1 text-sm w-full sm:w-56" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <CqcStatements />
 
       <p className="text-xs text-gray-400">Readiness reflects your records — it supports, but doesn't replace, CQC's judgement of people's experience and on-site observation.</p>
     </div>
