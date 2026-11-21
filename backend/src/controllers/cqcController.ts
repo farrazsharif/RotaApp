@@ -2,6 +2,10 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { getTenant } from '../lib/tenantContext';
+import { logAudit } from '../lib/audit';
+import { userHasPermission } from '../middleware/permissions';
+import { assessStatements, methodology } from '../lib/statementEngine';
+import { STATEMENTS_BY_KEY, REVIEWABLE_STATUSES } from '../lib/qualityStatements';
 
 // Each automated check maps to a CQC key question and a quality statement /
 // regulation, so a red/amber flag is defensible in an inspection.
@@ -548,6 +552,76 @@ export async function computeReadiness() {
 
 export async function getReadiness(_req: AuthRequest, res: Response) {
   res.json(await computeReadiness());
+}
+
+/**
+ * GET /api/cqc/statements - every CQC quality statement, its automated
+ * result, the evidence behind it and any management review.
+ *
+ * The same readiness object the dashboard renders, grouped by statement, so
+ * the dashboard, this view and the exported report cannot show different
+ * answers to the same question.
+ */
+export async function getStatements(req: AuthRequest, res: Response) {
+  const readiness = await computeReadiness();
+  // Named clients and staff only for those who may already see them.
+  const maySeeRecords = await userHasPermission(req, 'manage_cqc');
+  const statements = await assessStatements(readiness, maySeeRecords);
+  res.json({
+    generatedAt: readiness.generatedAt,
+    overallScore: readiness.overallScore,
+    keyQuestions: readiness.keyQuestions.map((k) => ({ key: k.key, label: k.label, score: k.score })),
+    statements,
+    methodology: methodology(statements),
+    evidenceVisible: maySeeRecords,
+  });
+}
+
+/**
+ * POST /api/cqc/statements/:key/review - record a manager's judgement.
+ *
+ * Always an INSERT. The previous review is not overwritten, because "what did
+ * we say last quarter, and who changed it" is the question Reg 17 asks and a
+ * mutable row cannot answer it.
+ */
+export async function reviewStatement(req: AuthRequest, res: Response) {
+  const statement = STATEMENTS_BY_KEY.get(req.params.key);
+  if (!statement) return res.status(404).json({ error: 'No such quality statement.' });
+
+  const b = req.body as Record<string, unknown>;
+  const status = String(b.status ?? '').trim().toUpperCase();
+  if (!REVIEWABLE_STATUSES.includes(status as never)) {
+    return res.status(400).json({ error: `status must be one of ${REVIEWABLE_STATUSES.join(', ')}.` });
+  }
+  const rationale = String(b.rationale ?? '').trim();
+  if (!rationale) {
+    return res.status(400).json({ error: 'Say why. A rating with no reasoning is not an assessment.' });
+  }
+
+  // Keep what the data said at the moment of the decision, so a later
+  // divergence is attributable rather than mysterious.
+  const readiness = await computeReadiness();
+  const assessed = await assessStatements(readiness, false);
+  const systemNow = assessed.find((a) => a.key === statement.key)?.systemStatus ?? null;
+
+  const review = await prisma.statementReview.create({
+    data: {
+      statementKey: statement.key,
+      status,
+      rationale: rationale.slice(0, 4000),
+      evidence: (String(b.evidence ?? '').trim() || null)?.slice(0, 4000) ?? null,
+      systemStatusAtReview: systemNow,
+      reviewedById: req.user!.id,
+    },
+  });
+
+  await logAudit(
+    req,
+    'CQC_STATEMENT_REVIEWED',
+    statement.label,
+    `assessed as ${status}${systemNow && systemNow !== status ? ` (system says ${systemNow})` : ''}`,
+  );
+  res.status(201).json(review);
 }
 
 export async function saveSelfAssessment(req: AuthRequest, res: Response) {

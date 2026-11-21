@@ -111,6 +111,25 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // A service account is a machine's login. It must not be counted as staff.
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "serviceAccount" BOOLEAN NOT NULL DEFAULT false`);
 
+  // A manager's judgement on a CQC quality statement. One row per review,
+  // never updated, so the table is the audit trail.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "StatementReview" (
+      "companyId" TEXT,
+      "id" TEXT NOT NULL,
+      "statementKey" TEXT NOT NULL,
+      "status" TEXT NOT NULL,
+      "rationale" TEXT NOT NULL,
+      "evidence" TEXT,
+      "systemStatusAtReview" TEXT,
+      "reviewedById" TEXT NOT NULL,
+      "reviewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "StatementReview_pkey" PRIMARY KEY ("id")
+    )
+  `);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "StatementReview_companyId_statementKey_idx" ON "StatementReview"("companyId", "statementKey")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "StatementReview_companyId_reviewedAt_idx" ON "StatementReview"("companyId", "reviewedAt")`);
+
   // Care audits and the service improvement plan (Reg 17).
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "Audit" (

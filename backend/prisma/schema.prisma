@@ -133,6 +133,7 @@ model User {
   policiesOwned      Policy[]              @relation("PolicyOwner")
   policySignatures   PolicyAcknowledgement[]
   auditsCarriedOut   Audit[]               @relation("Auditor")
+  statementReviews   StatementReview[]     @relation("StatementReviewer")
   actionsOwned       ImprovementAction[]   @relation("ActionOwner")
   actionsRaised      ImprovementAction[]   @relation("ActionRaiser")
   actionsCompleted   ImprovementAction[]   @relation("ActionCompleter")
@@ -1930,6 +1931,38 @@ model Audit {
 // or somebody noticing something. Keeping them together is the point - an
 // improvement plan split by origin is five lists nobody reads as one, and
 // "what are you doing about it" is a single question.
+/// A manager's judgement on one CQC quality statement.
+///
+/// Every review is a NEW ROW, never an update. The latest row per statement
+/// is the current position and the rest are the audit trail, which is what
+/// Reg 17 actually asks for: who decided, when, and what changed. A single
+/// mutable row would answer none of that.
+model StatementReview {
+  companyId String? // tenant scope (app-enforced via Prisma extension)
+  id        String  @id @default(cuid())
+
+  /// Key from lib/qualityStatements.ts, e.g. "safe_ipc".
+  statementKey String
+  /// MET | PARTIALLY_MET | NOT_MET. A manager cannot record "no evidence".
+  status       String
+  /// Why. Required - a rating with no reasoning is not an assessment.
+  rationale    String
+  /// Where the evidence lives: a document, a meeting, a survey.
+  evidence     String?
+
+  /// What the engine proposed at the time, kept so a divergence stays visible
+  /// even after the data moves on.
+  systemStatusAtReview String?
+
+  reviewedById String
+  reviewedAt   DateTime @default(now())
+
+  reviewedBy User @relation("StatementReviewer", fields: [reviewedById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, statementKey])
+  @@index([companyId, reviewedAt])
+}
+
 model ImprovementAction {
   companyId String? // tenant scope (app-enforced via Prisma extension)
   id        String  @id @default(cuid())
