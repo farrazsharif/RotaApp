@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { logAudit } from '../lib/audit';
+import { buildAudit, RUNNABLE_AUDITS } from '../lib/auditRunner';
 
 // Care audits and the service improvement plan (Reg 17).
 //
@@ -167,6 +168,78 @@ export async function createAudit(req: AuthRequest, res: Response) {
 
   await logAudit(req, 'AUDIT_RECORDED', audit.id, `${type.replace(/_/g, ' ').toLowerCase()} audit recorded`);
   res.status(201).json(audit);
+}
+
+/**
+ * POST /api/governance/audits/run - the counting half of an audit, done for you.
+ *
+ * Reads the figures Caremid already holds, writes them up as an audit with
+ * every failing record named, and raises an improvement action for each
+ * finding so the loop starts closed-ended rather than as a note somebody
+ * meant to action.
+ *
+ * It always saves OPEN. The sample that needs a person reading records is
+ * written into the findings, and closing the audit is their decision to make -
+ * a run that marked itself COMPLETE would be asserting that the part it cannot
+ * do had been done.
+ */
+export async function runAudit(req: AuthRequest, res: Response) {
+  const b = req.body as Record<string, unknown>;
+  const type = oneOf(b.type, RUNNABLE_AUDITS, '');
+  if (!type) {
+    return res.status(400).json({
+      error: `That audit cannot be run from data. Runnable: ${RUNNABLE_AUDITS.join(', ')}.`,
+    });
+  }
+
+  const built = await buildAudit(type);
+  const now = new Date();
+  const periodStart = new Date(now);
+  periodStart.setMonth(periodStart.getMonth() - 12);
+  const nextDue = new Date(now);
+  nextDue.setMonth(nextDue.getMonth() + 3);
+
+  const audit = await prisma.audit.create({
+    data: {
+      type,
+      title: built.title,
+      scope: built.scope,
+      periodStart,
+      periodEnd: now,
+      auditedById: req.user!.id,
+      auditedAt: now,
+      score: built.score,
+      maxScore: built.maxScore,
+      findings: built.findings,
+      nextDueDate: nextDue,
+      status: 'OPEN',
+    },
+    select: auditSelect,
+  });
+
+  for (const a of built.actions) {
+    const due = new Date(now);
+    due.setDate(due.getDate() + a.dueInDays);
+    await prisma.improvementAction.create({
+      data: {
+        title: a.title,
+        detail: a.detail,
+        source: 'AUDIT',
+        auditId: audit.id,
+        dueDate: due,
+        priority: a.priority,
+        createdById: req.user!.id,
+      },
+    });
+  }
+
+  await logAudit(
+    req,
+    'AUDIT_RUN',
+    audit.id,
+    `${type.replace(/_/g, ' ').toLowerCase()} audit run, ${built.actions.length} action(s) raised`,
+  );
+  res.status(201).json({ audit, actionsCreated: built.actions.length });
 }
 
 // PATCH /api/governance/audits/:id

@@ -9,6 +9,7 @@ import {
   ActionInput,
   ActionStatus,
   AUDIT_TYPES,
+  RUNNABLE_AUDITS,
   ACTION_SOURCES,
   PRIORITIES,
   auditTypeLabel,
@@ -358,6 +359,20 @@ function AuditsTab() {
 
   // The schedule: what is due, and what has no next date at all. The second
   // is the quieter failure — an audit that happened once.
+  const qc = useQueryClient();
+  const [running, setRunning] = useState<string | null>(null);
+  const [ranResult, setRanResult] = useState<{ title: string; actions: number } | null>(null);
+  const runMut = useMutation({
+    mutationFn: (type: string) => { setRunning(type); setRanResult(null); return governanceApi.runAudit(type); },
+    onSuccess: (r) => {
+      setRanResult({ title: auditTypeLabel(r.audit.type), actions: r.actionsCreated });
+      qc.invalidateQueries({ queryKey: ['audits'] });
+      qc.invalidateQueries({ queryKey: ['actions'] });
+      qc.invalidateQueries({ queryKey: ['cqc-readiness'] });
+    },
+    onSettled: () => setRunning(null),
+  });
+
   const { due, unscheduled } = useMemo(() => {
     const latest = new Map<string, Audit>();
     for (const a of audits) if (!latest.has(a.type)) latest.set(a.type, a);
@@ -370,9 +385,33 @@ function AuditsTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {/* The counting half, done from data Caremid already holds. Saved OPEN
+            with the sample a person still has to read written into it. */}
+        {RUNNABLE_AUDITS.map((t) => (
+          <button
+            key={t}
+            className="btn-secondary btn btn-sm whitespace-nowrap"
+            disabled={running !== null}
+            title={`Build a ${auditTypeLabel(t).toLowerCase()} audit from current records`}
+            onClick={() => runMut.mutate(t)}
+          >
+            {running === t ? 'Running…' : `Run: ${auditTypeLabel(t)}`}
+          </button>
+        ))}
         <button className="btn-primary btn" onClick={() => setAdding(true)}>Record an audit</button>
       </div>
+      {ranResult && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
+          <strong>{ranResult.title}</strong> audit saved with <strong>{ranResult.actions}</strong> improvement
+          action{ranResult.actions === 1 ? '' : 's'} raised. It is open until the sample in its findings has been read.
+        </div>
+      )}
+      {runMut.isError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+          That audit did not run. Please try again.
+        </div>
+      )}
 
       {(due.length > 0 || unscheduled.length > 0) && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">

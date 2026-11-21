@@ -1,5 +1,8 @@
 import api from '../lib/axios';
 
+// The areas the runner can build from data. The rest are recorded by hand.
+export const RUNNABLE_AUDITS = ['CARE_PLAN', 'MAR', 'RECRUITMENT_FILE', 'CALL_MONITORING'];
+
 export const AUDIT_TYPES: { key: string; label: string }[] = [
   { key: 'CARE_PLAN', label: 'Care plans' },
   { key: 'MAR', label: 'MAR charts' },
@@ -111,6 +114,10 @@ export const governanceApi = {
     api.get<Audit[]>('/governance/audits', { params }).then((r) => r.data),
   audit: (id: string) => api.get<AuditDetail>(`/governance/audits/${id}`).then((r) => r.data),
   createAudit: (body: AuditInput) => api.post<Audit>('/governance/audits', body).then((r) => r.data),
+  // The counting half of an audit, built from data Caremid already holds.
+  // Comes back OPEN with its improvement actions already raised.
+  runAudit: (type: string) =>
+    api.post<{ audit: Audit; actionsCreated: number }>('/governance/audits/run', { type }).then((r) => r.data),
   updateAudit: (id: string, body: AuditInput) =>
     api.patch<Audit>(`/governance/audits/${id}`, body).then((r) => r.data),
   removeAudit: (id: string) => api.delete(`/governance/audits/${id}`).then((r) => r.data),

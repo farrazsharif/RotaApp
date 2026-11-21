@@ -155,19 +155,37 @@ export async function docCountsByUser(userIds: string[]): Promise<Map<string, Re
 
 // GET /api/users/compliance — staff-file completeness for every in-scope active
 // staff member, so the Staff list can flag anyone with missing documents.
-export async function staffComplianceSummary(req: AuthRequest, res: Response) {
-  const where: Record<string, unknown> = {
-    role: { not: Role.FAMILY_MEMBER },
-    active: true,
-    // A service account has no staff file to be incomplete.
-    serviceAccount: false,
-  };
-  if (isScoped(req.user)) {
-    where.OR = staffScopeOr(req.user);
-  }
+export interface StaffFileRow {
+  userId: string;
+  name: string;
+  complete: boolean;
+  present: number;
+  total: number;
+  missing: string[];
+}
+
+/**
+ * Every staff file scored against the configured Reg 19 checklist.
+ *
+ * Shared by the Compliance screen and the recruitment-file audit, so the two
+ * cannot drift: an audit that scores a file differently from the page the
+ * manager is reading is worse than no audit at all.
+ */
+export async function staffFileCompliance(extraWhere: Record<string, unknown> = {}): Promise<StaffFileRow[]> {
   const users = await prisma.user.findMany({
-    where,
-    select: { id: true, photo: true, fitForWork: true, emergencyContactName: true, staffType: true, staffRole: true, rightToWorkCheckedAt: true, complianceWaivers: true },
+    where: {
+      role: { not: Role.FAMILY_MEMBER },
+      active: true,
+      // A service account has no staff file to be incomplete.
+      serviceAccount: false,
+      ...extraWhere,
+    },
+    select: {
+      id: true, firstName: true, lastName: true, photo: true, fitForWork: true,
+      emergencyContactName: true, staffType: true, staffRole: true,
+      rightToWorkCheckedAt: true, complianceWaivers: true,
+    },
+    orderBy: [{ lastName: 'asc' }],
   });
   const ids = users.map((u) => u.id);
   const [counts, training, settings] = await Promise.all([
@@ -177,7 +195,8 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
   ]);
   const requirements = parseRequirements(settings.staffFileRequirements);
   const trainCount = new Map(training.map((t) => [t.userId, t._count._all]));
-  const result = users.map((u) => {
+
+  return users.map((u) => {
     const input: ComplianceInput = {
       photo: u.photo,
       fitForWork: u.fitForWork,
@@ -190,9 +209,22 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
       waivers: parseWaivers(u.complianceWaivers),
     };
     const r = evaluateCompliance(input, requirements);
-    return { userId: u.id, complete: r.complete, present: r.present, total: r.total, missing: r.missing };
+    return {
+      userId: u.id,
+      name: `${u.firstName} ${u.lastName}`.replace(/\s+/g, ' ').trim(),
+      complete: r.complete,
+      present: r.present,
+      total: r.total,
+      missing: r.missing,
+    };
   });
-  res.json(result);
+}
+
+export async function staffComplianceSummary(req: AuthRequest, res: Response) {
+  const extra: Record<string, unknown> = {};
+  if (isScoped(req.user)) extra.OR = staffScopeOr(req.user);
+  const rows = await staffFileCompliance(extra);
+  res.json(rows.map(({ userId, complete, present, total, missing }) => ({ userId, complete, present, total, missing })));
 }
 
 // GET /api/users/:id/compliance — the full checklist breakdown for one staff

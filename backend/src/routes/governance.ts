@@ -5,6 +5,7 @@ import {
   listAudits,
   getAudit,
   createAudit,
+  runAudit,
   updateAudit,
   deleteAudit,
   listActions,
@@ -22,6 +23,9 @@ router.use(authenticate);
 // adding another one to configure.
 router.use(requirePermission('manage_cqc'));
 
+// The counting half of an audit, built from data Caremid already holds.
+// Always saved OPEN: the sample a person has to read is in the findings.
+router.post('/audits/run', runAudit);
 router.get('/audits', listAudits);
 router.post('/audits', createAudit);
 router.get('/audits/:id', getAudit);
