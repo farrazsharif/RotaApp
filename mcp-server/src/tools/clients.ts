@@ -42,15 +42,29 @@ interface Client {
   firstName: string;
   lastName: string;
   active: boolean;
+  status: string;
   allergies: string | null;
   dnacprStatus: string | null;
   dnacprLocation: string | null;
 }
 
+/**
+ * Off the caseload. `active` is a separate flag from `status`, and the two
+ * drift: thirteen people were still flagged active with a status of
+ * DISCHARGED or DECEASED. Filtering on `active` alone put them in the list,
+ * which overstated the caseload and - the part that matters - would have let
+ * a resuscitation status be written onto the record of somebody who has died.
+ *
+ * Matches the rule the CQC sweep already used in computeReadiness().
+ */
+const OFF_CASELOAD = new Set(['DISCHARGED', 'DECEASED']);
+
 const fullName = (c: Client) => `${c.firstName} ${c.lastName}`.replace(/\s+/g, ' ').trim();
 
 async function activeClients(signal: AbortSignal): Promise<Client[]> {
-  return (await apiGet<Client[]>('service-users', { active: 'true' }, signal)).filter((c) => c.active);
+  return (await apiGet<Client[]>('service-users', { active: 'true' }, signal)).filter(
+    (c) => c.active && !OFF_CASELOAD.has(c.status),
+  );
 }
 
 /** Exact, case-insensitive on the full name. Two matches are reported. */
@@ -68,7 +82,10 @@ function matchClient(who: string, clients: Client[]): Client {
     .filter((c) => fullName(c).toLowerCase().includes(want.split(' ')[0] ?? ''))
     .slice(0, 5)
     .map(fullName);
-  throw new Error(`No active client called "${who}".` + (near.length ? ` Did you mean: ${near.join(', ')}?` : ''));
+  throw new Error(
+    `No client called "${who}" on the active caseload (discharged and deceased are not listed).` +
+      (near.length ? ` Did you mean: ${near.join(', ')}?` : ''),
+  );
 }
 
 export function registerClientTools(server: McpServer) {
@@ -163,6 +180,7 @@ export function registerClientTools(server: McpServer) {
       const lines = [
         `# ${fullName(client)}`,
         '',
+        `**Status:** ${client.status}`,
         `**Allergies:** ${client.allergies || '_not recorded_'}`,
         `**Resuscitation:** ${client.dnacprStatus || '_not recorded_'}` +
           (client.dnacprLocation ? ` — ${client.dnacprLocation}` : ''),
