@@ -12,10 +12,14 @@ const STATUSES: { v: MedStatus; label: string }[] = [
   { v: 'GIVEN', label: 'Administered' },
   { v: 'SELF_ADMIN', label: 'Self-administered' },
   { v: 'REFUSED', label: 'Refused' },
-  { v: 'MISSED', label: 'Absent' },
   { v: 'NOT_NEEDED', label: 'Not Required' },
-  { v: 'CANCELLED', label: 'Cancelled (visit not made)' },
+  { v: 'NOT_AT_HOME', label: 'Not at home' },
   { v: 'HOSPITAL', label: 'In hospital' },
+  { v: 'CANCELLED', label: 'Cancelled (visit not made)' },
+  // Last, and named for what it is. This is the only status counted as a
+  // missed medication, so it should be chosen on purpose rather than
+  // because it was the nearest thing to hand.
+  { v: 'MISSED', label: 'Missed (dose not given)' },
 ];
 
 function toLocalInput(d: Date): string {

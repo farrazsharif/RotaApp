@@ -17,7 +17,7 @@ export default function MissedMeds() {
         <button onClick={() => navigate('/')} className="text-sm text-blue-600 hover:underline mb-2">← Dashboard</button>
         <h1 className="text-2xl font-bold text-gray-900">Meds missed today</h1>
         <p className="text-sm text-gray-500">
-          Medication doses marked as Absent / missed today — which client, which carer, and the visit it was due on.
+          Medication doses marked as Missed today — which client, which carer, and the visit it was due on.
         </p>
       </div>
 

@@ -20,9 +20,12 @@ export type RequestStatus = (typeof RequestStatus)[keyof typeof RequestStatus];
 
 export const MedStatus = {
   GIVEN: 'GIVEN', REFUSED: 'REFUSED', MISSED: 'MISSED', NOT_NEEDED: 'NOT_NEEDED', SELF_ADMIN: 'SELF_ADMIN', CANCELLED: 'CANCELLED',
-  // The client was on a hospital ward when the dose fell due. Its own code
-  // because it is not an absence: nobody here failed to give it.
-  HOSPITAL: 'HOSPITAL',
+  // The client was on a hospital ward when the dose fell due, or was out
+  // when the carer attended. Each has its own code because neither is a
+  // missed dose: MISSED means the dose was due, somebody should have given
+  // it, and it was not. MISSED is the only status counted as missed
+  // medication, so everything that is not that needs somewhere else to go.
+  HOSPITAL: 'HOSPITAL', NOT_AT_HOME: 'NOT_AT_HOME',
 } as const;
 export type MedStatus = (typeof MedStatus)[keyof typeof MedStatus];
 

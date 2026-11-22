@@ -12,9 +12,10 @@ const MED_OPTS: { value: MedStatus | ''; label: string }[] = [
   { value: '', label: '— mark dose' },
   { value: 'GIVEN', label: 'Administered' },
   { value: 'REFUSED', label: 'Refused' },
-  { value: 'MISSED', label: 'Absent' },
   { value: 'NOT_NEEDED', label: 'Not Required' },
   { value: 'SELF_ADMIN', label: 'Self-admin' },
+  { value: 'NOT_AT_HOME', label: 'Not at home' },
+  { value: 'MISSED', label: 'Missed' },
 ];
 
 export default function ClockWidget() {

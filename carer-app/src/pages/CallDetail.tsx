@@ -292,7 +292,11 @@ const STATUS_OPTIONS: { value: MedAdminStatus; label: string; color: string }[] 
   { value: 'REFUSED', label: 'Refused', color: 'bg-orange-500' },
   { value: 'NOT_NEEDED', label: 'Not Required', color: 'bg-gray-400' },
   { value: 'SELF_ADMIN', label: 'Self-Administered', color: 'bg-blue-500' },
-  { value: 'MISSED', label: 'Absent', color: 'bg-red-600' },
+  // The carer is the one who finds the door unanswered, so this choice has
+  // to be here. Without it, Missed is the nearest thing to hand and the
+  // service is marked down for a dose it turned up to give.
+  { value: 'NOT_AT_HOME', label: 'Not at Home', color: 'bg-amber-500' },
+  { value: 'MISSED', label: 'Missed', color: 'bg-red-600' },
 ];
 
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));

@@ -10,11 +10,13 @@ import EmarModal from '../components/EmarModal';
 import RecordMedModal from '../components/RecordMedModal';
 
 const STATUS_LABEL: Record<MedStatus, string> = {
-  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-admin', CANCELLED: 'Cancelled',
+  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-admin', CANCELLED: 'Cancelled',
+  NOT_AT_HOME: 'Not at home',
   HOSPITAL: 'In hospital',
 };
 const STATUS_BADGE: Record<MedStatus, string> = {
   GIVEN: 'badge-green', REFUSED: 'badge-yellow', MISSED: 'badge-red', NOT_NEEDED: 'badge-gray', SELF_ADMIN: 'badge-blue', CANCELLED: 'badge-gray',
+  NOT_AT_HOME: 'badge-yellow',
   HOSPITAL: 'badge-gray',
 };
 
@@ -96,7 +98,7 @@ export default function Emar() {
         </div>
       </div>
 
-      {/* Filters: status (e.g. Absent/missed) across a date range */}
+      {/* Filters: status (e.g. missed, not at home) across a date range */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
           {([['recent', 'Recent'], ['today', 'Today'], ['week', 'This week'], ['lastweek', 'Last week'], ['last30', 'Last 30 days']] as const).map(([v, label]) => (
@@ -111,7 +113,9 @@ export default function Emar() {
         </div>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'ALL' | MedStatus)} className="input w-44">
           <option value="ALL">All statuses</option>
-          <option value="MISSED">Absent (missed)</option>
+          <option value="MISSED">Missed (dose not given)</option>
+          <option value="NOT_AT_HOME">Not at home</option>
+          <option value="HOSPITAL">In hospital</option>
           <option value="REFUSED">Refused</option>
           <option value="NOT_NEEDED">Not Required</option>
           <option value="GIVEN">Administered</option>

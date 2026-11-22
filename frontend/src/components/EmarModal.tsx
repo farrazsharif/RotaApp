@@ -19,16 +19,20 @@ const STATUS_OPTS: { value: MedStatus | ''; label: string }[] = [
   { value: '', label: '—' },
   { value: 'GIVEN', label: 'Administered' },
   { value: 'REFUSED', label: 'Refused' },
-  { value: 'MISSED', label: 'Absent' },
   { value: 'NOT_NEEDED', label: 'Not Required' },
   { value: 'SELF_ADMIN', label: 'Self-admin' },
+  { value: 'NOT_AT_HOME', label: 'Not at home' },
+  { value: 'HOSPITAL', label: 'In hospital' },
   { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'MISSED', label: 'Missed (dose not given)' },
 ];
 
 const statusClass: Record<string, string> = {
   GIVEN: 'bg-green-100 text-green-800 border-green-300',
   REFUSED: 'bg-amber-100 text-amber-800 border-amber-300',
   MISSED: 'bg-red-100 text-red-800 border-red-300',
+  NOT_AT_HOME: 'bg-amber-100 text-amber-800 border-amber-300',
+  HOSPITAL: 'bg-gray-100 text-gray-600 border-gray-300',
   NOT_NEEDED: 'bg-gray-100 text-gray-600 border-gray-300',
   SELF_ADMIN: 'bg-blue-100 text-blue-800 border-blue-300',
   CANCELLED: 'bg-gray-100 text-gray-600 border-gray-300',

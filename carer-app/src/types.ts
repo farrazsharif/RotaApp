@@ -236,7 +236,7 @@ export interface FinanceLedger {
   transactions: FinancialTransaction[];
 }
 
-export type MedAdminStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN' | 'CANCELLED' | 'HOSPITAL';
+export type MedAdminStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN' | 'CANCELLED' | 'HOSPITAL' | 'NOT_AT_HOME';
 
 export interface DueDose {
   medicationId: string;
