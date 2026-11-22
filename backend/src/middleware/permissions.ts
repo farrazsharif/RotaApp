@@ -8,6 +8,7 @@ export type PermissionKey =
   | 'manage_staff' | 'delete_staff' | 'reset_staff_passwords' | 'manage_family_access' | 'manage_dbs'
   | 'manage_service_users' | 'manage_reviews' | 'manage_medications' | 'edit_call_logs'
   | 'manage_supervision' | 'record_paper_supervision' | 'record_client_safety_info'
+  | 'record_paper_risk_assessment'
   | 'manage_schedule' | 'manage_time_off' | 'view_reports'
   | 'manage_cqc' | 'manage_safeguarding' | 'manage_complaints' | 'manage_policies'
   | 'manage_billing'
@@ -46,6 +47,11 @@ export const PERMISSIONS: PermissionDef[] = [
   // else and will not overwrite a value already recorded. Default Admin, so
   // granting it is deliberate.
   { key: 'record_client_safety_info', label: 'Record allergies & resuscitation status (fills blanks only)', group: 'Care', default: A },
+  // Typing up a risk assessment that already exists on paper. It can only
+  // create one that is not there yet - an assessment already in Caremid is
+  // never touched - so the worst it can do is add a record somebody then has
+  // to read, not quietly rewrite one a carer is relying on. Default Admin.
+  { key: 'record_paper_risk_assessment', label: 'Type up a paper risk assessment (new records only)', group: 'Care', default: A },
   { key: 'edit_call_logs',        label: 'Edit & delete call logs',          group: 'Care',      default: A },
 
   { key: 'manage_schedule',       label: 'Create & edit shifts, edit clock records', group: 'Scheduling', default: AM },

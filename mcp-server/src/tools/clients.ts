@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { apiGet, apiPatch } from '../api.js';
+import { apiGet, apiPatch, apiPost } from '../api.js';
 import { Format, ResponseFormat, fmtDate, result } from '../shared.js';
 
 /**
@@ -26,6 +26,15 @@ import { Format, ResponseFormat, fmtDate, result } from '../shared.js';
 
 // What Caremid stores. NONE means asked and there is no DNACPR or ReSPECT.
 const DNACPR = ['NONE', 'DNACPR', 'RESPECT'] as const;
+
+// The risk assessment forms Caremid holds, as the apps name them.
+const RA_TYPES = [
+  'ENVIRONMENT', 'FIRE_SAFETY', 'FALLS', 'MOVING_HANDLING', 'MEDICATION', 'PRESSURE_ULCER',
+  'MALNUTRITION', 'CHOKING', 'SELF_NEGLECT', 'BEHAVIOUR', 'LONE_WORKING', 'SMOKING', 'BATHING',
+] as const;
+
+// Answers are filed under the form schema's own key for each question.
+const ITEM_KEY = /^[a-z][a-z0-9_]*__\d{1,3}$/;
 
 interface ClientDoc {
   id: string;
@@ -427,6 +436,170 @@ export function registerClientTools(server: McpServer) {
         skipped,
         failed,
       });
+    },
+  );
+
+  server.registerTool(
+    'caremid_record_paper_risk_assessment',
+    {
+      title: 'Type up a risk assessment that exists on paper',
+      description:
+        'Copies a risk assessment from a signed paper form into Caremid, so the office works from the software ' +
+        'rather than the filing cabinet. It ONLY CREATES: if the client already has an assessment of this type ' +
+        'the call is refused, so an assessment a carer is working to is never overwritten. Answers are filed ' +
+        'under the form schema\'s own item keys - item "sec3__9" is section 3 question 10, counting from zero - ' +
+        'so read the form schema first and check the dry run names the right number of answers per section, ' +
+        'because an answer filed one row out is a wrong answer against a safety question. completed_date is the ' +
+        'date ON THE PAPER FORM, never today: a transcribed assessment dated today silences the review-overdue ' +
+        'check on a document that may be years old. Runs as a dry run unless apply is true. Example: { client: ' +
+        '"Nasim Sheikh", type: "ENVIRONMENT", assessor: "Yasmin Malik", completed_date: "2017-07-25", source: ' +
+        '"Risk Assessment Environmental.pdf", answers: [{ item: "sec1__0", level: "LOW", comment: "No" }], ' +
+        'apply: true }',
+      inputSchema: z.strictObject({
+        client: z.string().min(2).max(120).describe('Full name or Caremid id'),
+        type: z.enum(RA_TYPES).describe('Which risk assessment form'),
+        assessor: z.string().min(2).max(120).describe('Who signed the paper form'),
+        completed_date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .describe('The date on the paper form, yyyy-mm-dd - not today'),
+        review_date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional()
+          .describe('Next review, if the form states one'),
+        source: z.string().min(3).max(200).describe('The paper form this came from, named so it can be checked'),
+        answers: z
+          .array(
+            z.strictObject({
+              item: z.string().regex(ITEM_KEY).describe('Form schema key, e.g. "sec3__9"'),
+              level: z
+                .enum(['LOW', 'MED', 'HIGH'])
+                .optional()
+                .describe('The risk level ticked. Omit where the form has no tick - do not invent one.'),
+              comment: z.string().max(1000).optional().describe('The comment as written on the form'),
+              action: z.string().max(1000).optional().describe('The action column, where one is written'),
+              text: z
+                .string()
+                .max(2000)
+                .optional()
+                .describe('For a text or date question (details, sign-off) instead of level/comment'),
+            }),
+          )
+          .min(1)
+          .max(400)
+          .describe('One per question answered on the paper form'),
+        apply: z.boolean().default(false).describe('false shows what would be filed and changes nothing'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Creates a record that is not there. Refuses outright where one is,
+        // so it cannot overwrite or delete anything.
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      const signal = ctx.mcpReq.signal;
+      const client = matchClient(args.client, await activeClients(signal));
+      const who = fullName(client);
+
+      const seen = new Set<string>();
+      for (const a of args.answers) {
+        if (seen.has(a.item)) throw new Error(`${a.item} appears twice. Each question is answered once.`);
+        seen.add(a.item);
+        if (a.text !== undefined && (a.level !== undefined || a.comment !== undefined || a.action !== undefined)) {
+          throw new Error(`${a.item} has both text and level/comment - a question is one or the other.`);
+        }
+      }
+
+      // Per section, so a missing or duplicated row shows up as a count that
+      // does not match the paper form rather than as a silent shift.
+      const bySection = new Map<string, number>();
+      for (const a of args.answers) {
+        const sec = a.item.split('__')[0];
+        bySection.set(sec, (bySection.get(sec) ?? 0) + 1);
+      }
+
+      const held = await apiGet<{ updatedAt?: string } | null>(
+        `risk-assessments/${client.id}/${args.type}`,
+        {},
+        signal,
+      );
+      if (held) {
+        throw new Error(
+          `${who} already has a ${args.type} risk assessment in Caremid (last updated ` +
+            `${(held.updatedAt || '').slice(0, 10)}). This tool only creates one that is not there yet.`,
+        );
+      }
+
+      const header = [
+        `**${who}** — ${args.type} risk assessment, from paper.`,
+        '',
+        `Completed **${args.completed_date}** by **${args.assessor}**` +
+          `${args.review_date ? `, next review ${args.review_date}` : ''}. Source: ${args.source}.`,
+        '',
+        `**${args.answers.length}** answers across ${bySection.size} sections:`,
+        '',
+        '| Section | Answers | Highest level |',
+        '| --- | --- | --- |',
+        ...[...bySection.entries()].map(([sec, n]) => {
+          const levels = args.answers.filter((a) => a.item.startsWith(`${sec}__`)).map((a) => a.level);
+          const top = levels.includes('HIGH') ? 'HIGH' : levels.includes('MED') ? 'MED' : levels.includes('LOW') ? 'LOW' : '—';
+          return `| ${sec} | ${n} | ${top} |`;
+        }),
+      ];
+
+      if (!args.apply) {
+        const blank = args.answers.filter((a) => a.text === undefined && !a.level).map((a) => a.item);
+        const lines = [...header];
+        if (blank.length) {
+          lines.push('', `**No level ticked on the form (${blank.length}):** ${blank.join(', ')}`);
+        }
+        lines.push('', '_Nothing filed. Call again with apply: true._');
+        return result(args.response_format as Format, lines.join('\n'), {
+          applied: false,
+          client: who,
+          client_id: client.id,
+          type: args.type,
+          answers: args.answers.length,
+          sections: Object.fromEntries(bySection),
+          no_level: blank,
+        });
+      }
+
+      const answers: Record<string, unknown> = {};
+      for (const a of args.answers) {
+        answers[a.item] =
+          a.text !== undefined
+            ? a.text
+            : { level: a.level ?? '', comment: a.comment ?? '', action: a.action ?? '' };
+      }
+
+      const saved = await apiPost<{ id: string; answers: number }>(
+        `risk-assessments/${client.id}/${args.type}/from-paper`,
+        {
+          assessor: args.assessor,
+          completedDate: args.completed_date,
+          reviewDate: args.review_date,
+          source: args.source,
+          answers,
+        },
+        signal,
+      );
+
+      return result(
+        args.response_format as Format,
+        [
+          ...header,
+          '',
+          `Filed as \`${saved.id}\`. It is dated ${args.completed_date}, so Caremid will show it as due for ` +
+            'review on that cycle - read it against the paper form before relying on it.',
+        ].join('\n'),
+        { applied: true, client: who, client_id: client.id, type: args.type, id: saved.id, answers: saved.answers },
+      );
     },
   );
 }
