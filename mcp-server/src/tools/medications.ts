@@ -311,4 +311,125 @@ export function registerMedicationTools(server: McpServer) {
       return result(args.response_format as Format, lines.join('\n'), res);
     },
   );
+
+  server.registerTool(
+    'caremid_mar_exceptions_with_notes',
+    {
+      title: 'Missed doses with the carer\'s own account of the visit',
+      description:
+        'Every dose recorded as missed in a date range, each one shown with the CALL LOG of the visit it ' +
+        'belonged to - which is where a carer actually writes what happened. A dose almost never carries a note ' +
+        'of its own, but the visit it sat on often says "no answer", "gone to her appointment", "already taken ' +
+        'by family". That is the evidence for reclassifying it, and this is how to read it. Also says whether ' +
+        'the client was in hospital or on respite at the time. Read-only. Pass the ids it returns to ' +
+        'caremid_reclassify_doses. Example: { from: "2026-07-01", to: "2026-11-22" }',
+      inputSchema: z.strictObject({
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('First date, yyyy-mm-dd'),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Last date, yyyy-mm-dd'),
+        client: z.string().min(2).max(120).optional().describe('Limit to one client, by Caremid id'),
+        with_notes_only: z
+          .boolean()
+          .default(false)
+          .describe('Only the doses whose visit has a call log — the ones there is something to read'),
+        response_format: ResponseFormat,
+      }),
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async (args, ctx) => {
+      const rows = await apiGet<{
+        id: string; scheduledFor: string; status: string; note: string | null; medication: string | null;
+        serviceUserId: string; serviceUser: string | null; recordedBy: string | null;
+        awayAtTheTime: string | null; visitName: string | null; visitStatus: string | null; callLog: string | null;
+      }[]>(
+        'medications/mar-exceptions',
+        { from: args.from, to: args.to, status: 'MISSED', serviceUserId: args.client },
+        ctx.mcpReq.signal,
+      );
+
+      const kept = args.with_notes_only ? rows.filter((r) => r.callLog) : rows;
+      const withLog = rows.filter((r) => r.callLog).length;
+
+      const lines = [
+        `**${rows.length}** missed dose${rows.length === 1 ? '' : 's'} between ${args.from} and ${args.to}. ` +
+          `**${withLog}** sit on a visit whose call log says something.`,
+        '',
+        '| Id | Due | Client | Medication | Away? | Call log |',
+        '| --- | --- | --- | --- | --- | --- |',
+        ...kept.slice(0, 200).map(
+          (r) =>
+            `| \`${r.id}\` | ${fmtDate(r.scheduledFor)} ${r.scheduledFor.slice(11, 16)} | ${r.serviceUser ?? '—'} | ` +
+            `${(r.medication ?? '—').slice(0, 44)} | ${r.awayAtTheTime ?? '—'} | ` +
+            `${(r.callLog ?? '').replace(/\s+/g, ' ').replace(/\|/g, '/').slice(0, 140) || '—'} |`,
+        ),
+      ];
+      if (kept.length > 200) lines.push('', `_Showing 200 of ${kept.length}. Narrow the range for the rest._`);
+
+      return result(args.response_format as Format, lines.join('\n'), { total: rows.length, withCallLog: withLog, doses: kept });
+    },
+  );
+
+  server.registerTool(
+    'caremid_reclassify_doses',
+    {
+      title: 'Change a missed dose to in hospital or not at home',
+      description:
+        'Changes doses recorded as MISSED to NOT_AT_HOME or HOSPITAL, by id. Only from missed, and only to ' +
+        'those two: it cannot turn a missed dose into a given one, which is a different claim and not this ' +
+        'tool\'s to make. Use caremid_mar_exceptions_with_notes first and read the call log - "she went to her ' +
+        'appointment" is a reason to change one, an empty log is not. Every change is audited with the status ' +
+        'it replaced, and the dose keeps a note saying it was changed, so the original reading is recoverable. ' +
+        'Runs as a dry run unless apply is true. Example: { ids: ["cmabc123"], to: "NOT_AT_HOME", note: "Call ' +
+        'log: she went to the appointment, not back", apply: true }',
+      inputSchema: z.strictObject({
+        ids: z.array(z.string().min(6).max(60)).min(1).max(500).describe('Dose record ids from the exceptions tool'),
+        to: z.enum(['NOT_AT_HOME', 'HOSPITAL']).describe('What the record should say instead'),
+        note: z
+          .string()
+          .max(300)
+          .optional()
+          .describe('Added to each dose. Quote the call log where that is what settled it.'),
+        apply: z.boolean().default(false).describe('false says what would change and changes nothing'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Changes a record that is already there, which is exactly what the
+        // destructive hint is for - even though the old status is kept in the
+        // audit log and named in the dose's own note.
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      if (!args.apply) {
+        return result(
+          args.response_format as Format,
+          `**${args.ids.length}** dose${args.ids.length === 1 ? '' : 's'} would change from Missed to ` +
+            `**${args.to === 'HOSPITAL' ? 'In hospital' : 'Not at home'}**` +
+            `${args.note ? `, noted "${args.note}"` : ''}.\n\n_Nothing changed. Call again with apply: true._`,
+          { applied: false, would_change: args.ids.length, to: args.to },
+        );
+      }
+
+      const res = await apiPost<{ changed: number; to: string; notMissed: { id: string; status: string }[] }>(
+        'medications/administrations/reclassify',
+        { ids: args.ids, to: args.to, note: args.note },
+        ctx.mcpReq.signal,
+      );
+
+      const lines = [
+        `**${res.changed}** dose${res.changed === 1 ? '' : 's'} changed from Missed to ` +
+          `**${args.to === 'HOSPITAL' ? 'In hospital' : 'Not at home'}**.`,
+      ];
+      if (res.notMissed.length) {
+        lines.push(
+          '',
+          `**Left alone (${res.notMissed.length})** — not recorded as missed:`,
+          ...res.notMissed.map((n) => `- \`${n.id}\` is ${n.status}`),
+        );
+      }
+      return result(args.response_format as Format, lines.join('\n'), { applied: true, ...res });
+    },
+  );
 }

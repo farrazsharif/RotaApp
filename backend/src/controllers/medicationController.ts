@@ -8,6 +8,7 @@ import { logAudit } from '../lib/audit';
 import { ownerShiftIdForDose } from '../lib/doseOwnership';
 import { clampIntervalDays, isMedDueOn } from '../lib/medSchedule';
 import { planBackfill } from '../lib/marBackfill';
+import { awayWindows, awayTypeAt } from '../lib/awayDoses';
 
 // Human-readable status words for audit details (matches the portal labels).
 const STATUS_WORD: Record<string, string> = {
@@ -242,6 +243,146 @@ export async function cancelledDoses(req: AuthRequest, res: Response) {
     }
   }
   res.json(out);
+}
+
+/**
+ * The exceptions on a MAR, with the evidence that sits next to them.
+ *
+ * A dose recorded as missed almost never carries a note of its own — but the
+ * carer usually wrote what happened in the visit's call log, which until now
+ * lived on a different screen. "She went to the appointment, not back" is the
+ * answer to why a dose was not given, and it was there all along.
+ *
+ * So this returns each exception with the call log of the visit that owned it,
+ * and whether the client was away. That turns reclassifying a dose from a
+ * guess into reading what the carer wrote.
+ */
+export async function marExceptions(req: AuthRequest, res: Response) {
+  const { from, to, status, serviceUserId } = req.query as Record<string, string | undefined>;
+  const ok = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const fromYmd = ok(from);
+  const toYmd = ok(to);
+  if (!fromYmd || !toYmd) return res.status(400).json({ error: 'from and to are required, as yyyy-mm-dd.' });
+
+  const want = status && Object.values(MedStatus).includes(status as never) ? status : 'MISSED';
+  const [fy, fm, fd] = fromYmd.split('-').map(Number);
+  const [ty, tm, td] = toYmd.split('-').map(Number);
+  const start = new Date(Date.UTC(fy, fm - 1, fd, 0, 0, 0));
+  const end = new Date(Date.UTC(ty, tm - 1, td, 23, 59, 59));
+
+  const rows = await prisma.medAdministration.findMany({
+    where: {
+      status: want,
+      scheduledFor: { gte: start, lte: end },
+      ...(serviceUserId ? { serviceUserId } : {}),
+      ...relatedServiceUserScopeWhere(req.user),
+    },
+    include: {
+      medication: { select: { name: true, dose: true } },
+      serviceUser: { select: { id: true, firstName: true, lastName: true } },
+      user: { select: { firstName: true, lastName: true } },
+    },
+    orderBy: { scheduledFor: 'asc' },
+  });
+  if (!rows.length) return res.json([]);
+
+  const clientIds = [...new Set(rows.map((r) => r.serviceUserId))];
+  const [shifts, logs, away] = await Promise.all([
+    prisma.shift.findMany({
+      where: { serviceUserId: { in: clientIds }, date: { gte: start, lte: end } },
+      select: { id: true, serviceUserId: true, date: true, startTime: true, endTime: true, status: true, givesMedication: true, visitName: true },
+    }),
+    prisma.callLog.findMany({
+      where: { serviceUserId: { in: clientIds }, createdAt: { gte: start, lte: new Date(end.getTime() + 36e5 * 36) } },
+      select: { shiftId: true, note: true },
+    }),
+    awayWindows(clientIds, start, end),
+  ]);
+
+  const logByShift = new Map<string, string>();
+  for (const l of logs) if (l.shiftId && l.note?.trim() && !logByShift.has(l.shiftId)) logByShift.set(l.shiftId, l.note.trim());
+
+  const byDay = new Map<string, typeof shifts>();
+  for (const s of shifts) {
+    const k = `${s.serviceUserId}__${s.date.toISOString().slice(0, 10)}`;
+    (byDay.get(k) ?? byDay.set(k, []).get(k)!).push(s);
+  }
+
+  res.json(rows.map((r) => {
+    const dayKey = `${r.serviceUserId}__${r.scheduledFor.toISOString().slice(0, 10)}`;
+    const hh = String(r.scheduledFor.getUTCHours()).padStart(2, '0');
+    const mm = String(r.scheduledFor.getUTCMinutes()).padStart(2, '0');
+    const dayShifts = byDay.get(dayKey) ?? [];
+    const ownerId = ownerShiftIdForDose(dayShifts, `${hh}:${mm}`);
+    const owner = ownerId ? dayShifts.find((s) => s.id === ownerId) : null;
+    return {
+      id: r.id,
+      scheduledFor: r.scheduledFor.toISOString(),
+      status: r.status,
+      note: r.note,
+      medication: r.medication ? `${r.medication.name}${r.medication.dose ? ` ${r.medication.dose}` : ''}` : null,
+      serviceUserId: r.serviceUserId,
+      serviceUser: r.serviceUser ? `${r.serviceUser.firstName} ${r.serviceUser.lastName}`.trim() : null,
+      recordedBy: r.user ? `${r.user.firstName} ${r.user.lastName}`.trim() : null,
+      awayAtTheTime: awayTypeAt(away, r.serviceUserId, r.scheduledFor),
+      visitName: owner?.visitName ?? null,
+      visitStatus: owner?.status ?? null,
+      callLog: owner ? logByShift.get(owner.id) ?? null : null,
+    };
+  }));
+}
+
+/**
+ * Change what a recorded exception says it was.
+ *
+ * Only from MISSED, and only to a status that means the dose was not the
+ * service's to give — in hospital, or not at home. It cannot turn a missed
+ * dose into a given one: that is a different claim entirely and this is not
+ * the route for it.
+ *
+ * Each change is audited with the status it replaced, so the original reading
+ * of the record is recoverable.
+ */
+const RECLASSIFY_TO = ['NOT_AT_HOME', 'HOSPITAL'];
+
+export async function reclassifyDoses(req: AuthRequest, res: Response) {
+  const { ids, to, note } = req.body as { ids?: unknown; to?: unknown; note?: unknown };
+  const list = Array.isArray(ids) ? ids.filter((i): i is string => typeof i === 'string').slice(0, 500) : [];
+  if (!list.length) return res.status(400).json({ error: 'ids is required.' });
+  const next = String(to || '').toUpperCase();
+  if (!RECLASSIFY_TO.includes(next)) {
+    return res.status(400).json({ error: `to must be one of ${RECLASSIFY_TO.join(', ')}.` });
+  }
+
+  const rows = await prisma.medAdministration.findMany({
+    where: { id: { in: list }, ...relatedServiceUserScopeWhere(req.user) },
+    include: { serviceUser: { select: { firstName: true, lastName: true } } },
+  });
+  const changeable = rows.filter((r) => r.status === 'MISSED');
+  const refused = rows.filter((r) => r.status !== 'MISSED').map((r) => ({ id: r.id, status: r.status }));
+
+  const extra = typeof note === 'string' ? note.trim().slice(0, 300) : '';
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  for (const r of changeable) {
+    await prisma.medAdministration.update({
+      where: { id: r.id },
+      data: {
+        status: next,
+        note: [r.note, `Changed from Missed ${stamp}.${extra ? ` ${extra}` : ''}`].filter(Boolean).join(' — ').slice(0, 1000),
+      },
+    });
+  }
+  if (changeable.length) {
+    await logAudit(
+      req,
+      'MAR_DOSES_RECLASSIFIED',
+      `${changeable.length} dose(s)`,
+      `Missed → ${next} for ${[...new Set(changeable.map((r) => `${r.serviceUser?.firstName} ${r.serviceUser?.lastName}`.trim()))].join(', ')}.${extra ? ` ${extra}` : ''}`,
+    );
+  }
+
+  res.json({ changed: changeable.length, to: next, notMissed: refused });
 }
 
 /**

@@ -46,7 +46,9 @@ assert.deepEqual(
     'caremid_file_staff_documents',
     'caremid_list_policies',
     'caremid_list_staff',
+    'caremid_mar_exceptions_with_notes',
     'caremid_medication_exceptions',
+    'caremid_reclassify_doses',
     'caremid_record_client_safety_info',
     'caremid_record_paper_risk_assessment',
     'caremid_record_paper_supervision',
@@ -62,14 +64,16 @@ assert.deepEqual(
   'unexpected tool list',
 );
 
-// The tools on this server that write. Most only ADD. Two do not, and both
-// are marked destructive: caremid_correct_training_date amends a date
-// recorded against the wrong day, and caremid_remove_staff_document deletes a
-// document - but only one the agent itself uploaded. If this list grows it
-// should grow because somebody decided to widen it, not because a write tool
-// slipped in among the reporting ones.
+// The tools on this server that write. Most only ADD. Three do not, and all
+// three are marked destructive: caremid_correct_training_date amends a date
+// recorded against the wrong day, caremid_remove_staff_document deletes a
+// document - but only one the agent itself uploaded - and
+// caremid_reclassify_doses changes what a recorded dose says happened. If
+// this list grows it should grow because somebody decided to widen it, not
+// because a write tool slipped in among the reporting ones.
 const MAY_WRITE = new Set([
   'caremid_backfill_mar',
+  'caremid_reclassify_doses',
   'caremid_create_policy',
   'caremid_attach_policy_pdf',
   'caremid_set_policy_reviews',
@@ -96,7 +100,8 @@ for (const t of tools) {
   // this line on purpose.
   if (MAY_WRITE.has(t.name)) {
     const changesWhatIsThere =
-      t.name === 'caremid_correct_training_date' || t.name === 'caremid_remove_staff_document';
+      t.name === 'caremid_correct_training_date' || t.name === 'caremid_remove_staff_document'
+      || t.name === 'caremid_reclassify_doses';
     assert.equal(
       t.annotations?.destructiveHint,
       changesWhatIsThere,
