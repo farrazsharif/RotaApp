@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
   listMedications, createMedication, createMedicationByCarer, updateMedication, deleteMedication,
   listAdministrations, recordAdministration, recordAdministrationByManager, cancelledDoses, backfillMar,
-  marExceptions, reclassifyDoses,
+  marExceptions, reclassifyDoses, medicationSchedule, clearMedicationTimes,
 } from '../controllers/medicationController';
 import { authenticate } from '../middleware/auth';
 import { requireAnyPermission, requirePermission } from '../middleware/permissions';
@@ -32,6 +32,12 @@ router.post('/administrations/backfill', requireAnyPermission('manage_medication
 // Exceptions with the call log of the visit that owned each dose — the carer
 // usually wrote what happened there, not in the dose's own note.
 router.get('/mar-exceptions', marExceptions);
+// Which medications carry dose times, flagging the ones whose wording says
+// they are when-required — a scheduled PRN is scored missed every day it was
+// not needed.
+router.get('/schedule-review', requirePermission('manage_medications'), medicationSchedule);
+// Clear a medication's dose times, making it as-required. By explicit id only.
+router.post('/clear-times', requirePermission('manage_medications'), clearMedicationTimes);
 // Missed → in hospital / not at home, audited with the status it replaced.
 router.post('/administrations/reclassify', requireAnyPermission('manage_medications', 'backfill_mar'), reclassifyDoses);
 

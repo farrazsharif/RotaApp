@@ -48,6 +48,7 @@ assert.deepEqual(
     'caremid_list_staff',
     'caremid_mar_exceptions_with_notes',
     'caremid_medication_exceptions',
+    'caremid_medication_schedule',
     'caremid_reclassify_doses',
     'caremid_record_client_safety_info',
     'caremid_record_paper_risk_assessment',
@@ -74,6 +75,7 @@ assert.deepEqual(
 const MAY_WRITE = new Set([
   'caremid_backfill_mar',
   'caremid_reclassify_doses',
+  'caremid_medication_schedule',
   'caremid_create_policy',
   'caremid_attach_policy_pdf',
   'caremid_set_policy_reviews',
@@ -101,7 +103,7 @@ for (const t of tools) {
   if (MAY_WRITE.has(t.name)) {
     const changesWhatIsThere =
       t.name === 'caremid_correct_training_date' || t.name === 'caremid_remove_staff_document'
-      || t.name === 'caremid_reclassify_doses';
+      || t.name === 'caremid_reclassify_doses' || t.name === 'caremid_medication_schedule';
     assert.equal(
       t.annotations?.destructiveHint,
       changesWhatIsThere,

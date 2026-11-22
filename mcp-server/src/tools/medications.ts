@@ -432,4 +432,104 @@ export function registerMedicationTools(server: McpServer) {
       return result(args.response_format as Format, lines.join('\n'), { applied: true, ...res });
     },
   );
+
+  server.registerTool(
+    'caremid_medication_schedule',
+    {
+      title: 'Scheduled medications, and which are really as-required',
+      description:
+        'Lists every active medication that carries dose times, flagging the ones whose wording says they are ' +
+        'WHEN REQUIRED - "when required", "as required", "prn". A when-required medicine set up with dose times ' +
+        'is scored every day it was not needed: the carer has to put something in the box, picks Missed, and a ' +
+        'GTN spray for chest pain becomes a Regulation 12 finding. Caremid treats a medication with NO dose ' +
+        'times as as-required, so clearing the times is the fix. Pass clear_ids with apply to do that - by id ' +
+        'only, never by the wording, because clearing the times on something a person genuinely needs daily ' +
+        'stops the carer being prompted for it. Doses already recorded are untouched. Example: { } to list, ' +
+        'then { clear_ids: ["cmabc123"], apply: true }',
+      inputSchema: z.strictObject({
+        clear_ids: z
+          .array(z.string().min(6).max(60))
+          .max(200)
+          .optional()
+          .describe('Medication ids whose dose times should be cleared, making them as-required'),
+        as_required_only: z.boolean().default(false).describe('List only the ones whose wording flags them'),
+        apply: z.boolean().default(false).describe('false says what would change and changes nothing'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Changes a medication that is already set up, which is what the
+        // destructive hint is for. Nothing recorded is deleted - the doses
+        // already given stay on the chart - but the regimen itself changes.
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      const signal = ctx.mcpReq.signal;
+
+      if (args.clear_ids?.length && args.apply) {
+        const res = await apiPost<{ changed: number; medications: { name: string; client: string; wasTimes: string }[] }>(
+          'medications/clear-times',
+          { ids: args.clear_ids },
+          signal,
+        );
+        return result(
+          args.response_format as Format,
+          [
+            `**${res.changed}** medication${res.changed === 1 ? '' : 's'} are now as-required.`,
+            '',
+            '| Client | Medication | Times cleared |',
+            '| --- | --- | --- |',
+            ...res.medications.map((m) => `| ${m.client} | ${m.name} | ${m.wasTimes} |`),
+            '',
+            '_Doses already recorded are unchanged. No new slot falls due._',
+          ].join('\n'),
+          { applied: true, ...res },
+        );
+      }
+
+      const rows = await apiGet<{
+        id: string; name: string; dose: string | null; instructions: string | null; times: string[];
+        asRequired: boolean; serviceUser: string | null;
+      }[]>('medications/schedule-review', {}, signal);
+
+      if (args.clear_ids?.length) {
+        const picked = rows.filter((r) => args.clear_ids!.includes(r.id));
+        return result(
+          args.response_format as Format,
+          [
+            `**${picked.length}** medication${picked.length === 1 ? '' : 's'} would become as-required.`,
+            '',
+            '| Client | Medication | Times now |',
+            '| --- | --- | --- |',
+            ...picked.map((m) => `| ${m.serviceUser ?? '—'} | ${m.name} | ${m.times.join(', ')} |`),
+            '',
+            '_Nothing changed. Call again with apply: true._',
+          ].join('\n'),
+          { applied: false, would_clear: picked },
+        );
+      }
+
+      const kept = args.as_required_only ? rows.filter((r) => r.asRequired) : rows;
+      const flagged = rows.filter((r) => r.asRequired).length;
+      return result(
+        args.response_format as Format,
+        [
+          `**${rows.length}** active medication${rows.length === 1 ? '' : 's'} carry dose times. ` +
+            `**${flagged}** are worded as when-required.`,
+          '',
+          '| Id | Client | Medication | Times | When required? |',
+          '| --- | --- | --- | --- | --- |',
+          ...kept.slice(0, 150).map(
+            (m) =>
+              `| \`${m.id}\` | ${m.serviceUser ?? '—'} | ${`${m.name}${m.dose ? ` ${m.dose}` : ''}`.slice(0, 70)} | ` +
+              `${m.times.join(', ')} | ${m.asRequired ? '**yes**' : '—'} |`,
+          ),
+        ].join('\n'),
+        { total: rows.length, flagged, medications: kept },
+      );
+    },
+  );
 }

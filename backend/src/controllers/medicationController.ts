@@ -246,6 +246,93 @@ export async function cancelledDoses(req: AuthRequest, res: Response) {
 }
 
 /**
+ * Medications that are scheduled, so they can be checked against what they
+ * actually are.
+ *
+ * A when-required medicine set up with dose times is scored every day it was
+ * not needed. The carer has to put something in the box and "Missed" is what
+ * they reach for, so a GTN spray for chest pain — which cannot be missed, only
+ * unneeded — turns into a Regulation 12 finding. Caremid already handles these
+ * properly: a medication with NO dose times is an as-required one, recorded
+ * when it is given and never scored.
+ *
+ * `asRequired` here is a hint from the wording, not a verdict. The difference
+ * between a when-required medicine and a regular one is a clinical fact, and
+ * clearing the times on something a person actually needs every day would stop
+ * the carer being prompted for it. So this lists and flags; a person decides.
+ */
+const PRN_WORDING = /\b(when|as|if)\s+(required|needed)\b|\bp\.?r\.?n\b|\bwhen\s+necessary\b/i;
+
+export async function medicationSchedule(req: AuthRequest, res: Response) {
+  const rows = await prisma.medication.findMany({
+    where: { active: true, ...relatedServiceUserScopeWhere(req.user) },
+    select: {
+      id: true, name: true, dose: true, instructions: true, times: true,
+      serviceUser: { select: { id: true, firstName: true, lastName: true } },
+    },
+  });
+
+  const out = rows
+    .map((m) => {
+      let times: string[] = [];
+      try { times = JSON.parse(m.times || '[]'); } catch { times = []; }
+      const text = `${m.name} ${m.dose ?? ''} ${m.instructions ?? ''}`;
+      return {
+        id: m.id,
+        name: m.name,
+        dose: m.dose,
+        instructions: m.instructions,
+        times,
+        scheduled: times.length > 0,
+        asRequired: PRN_WORDING.test(text),
+        serviceUser: m.serviceUser ? `${m.serviceUser.firstName} ${m.serviceUser.lastName}`.trim() : null,
+        serviceUserId: m.serviceUser?.id ?? null,
+      };
+    })
+    .filter((m) => m.scheduled)
+    .sort((a, b) => Number(b.asRequired) - Number(a.asRequired) || (a.serviceUser ?? '').localeCompare(b.serviceUser ?? ''));
+
+  res.json(out);
+}
+
+/**
+ * Turn scheduled medications into as-required ones by clearing their dose
+ * times. By explicit id only — never by a wording match, because a wrong match
+ * stops a carer being prompted for something a person needs.
+ *
+ * Nothing recorded is touched: the doses already given stay on the chart
+ * exactly as they are. What changes is that no NEW slot falls due.
+ */
+export async function clearMedicationTimes(req: AuthRequest, res: Response) {
+  const { ids } = req.body as { ids?: unknown };
+  const list = Array.isArray(ids) ? ids.filter((i): i is string => typeof i === 'string').slice(0, 200) : [];
+  if (!list.length) return res.status(400).json({ error: 'ids is required.' });
+
+  const rows = await prisma.medication.findMany({
+    where: { id: { in: list }, ...relatedServiceUserScopeWhere(req.user) },
+    select: { id: true, name: true, times: true, serviceUser: { select: { firstName: true, lastName: true } } },
+  });
+
+  const changed: { id: string; name: string; client: string; wasTimes: string }[] = [];
+  for (const m of rows) {
+    if (!m.times || m.times === '[]') continue;
+    await prisma.medication.update({ where: { id: m.id }, data: { times: '[]' } });
+    changed.push({
+      id: m.id,
+      name: m.name,
+      client: m.serviceUser ? `${m.serviceUser.firstName} ${m.serviceUser.lastName}`.trim() : 'Unknown',
+      wasTimes: m.times,
+    });
+  }
+
+  for (const c of changed) {
+    await logAudit(req, 'MEDICATION_SET_AS_REQUIRED', `${c.client} — ${c.name}`, `Dose times cleared (were ${c.wasTimes}). Recorded when given; no longer scored as a scheduled dose.`);
+  }
+
+  res.json({ changed: changed.length, medications: changed });
+}
+
+/**
  * The exceptions on a MAR, with the evidence that sits next to them.
  *
  * A dose recorded as missed almost never carries a note of its own — but the
