@@ -41,6 +41,7 @@ export interface DbsFields {
   dbsOffenceDisclosed?: string | null;
   dbsOffenceDate?: string | null;
   dbsNotes?: string | null;
+  employmentStartDate?: string | null;
   supervisionExempt?: boolean;
   supervisionExemptReason?: string | null;
 }

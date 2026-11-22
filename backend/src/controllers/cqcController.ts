@@ -58,7 +58,7 @@ export async function computeReadiness() {
   const staff = await prisma.user.findMany({
     where: { active: true, role: { not: 'FAMILY_MEMBER' }, platformAdmin: false, serviceAccount: false },
     // role is needed to work out which policies apply to whom.
-    select: { id: true, firstName: true, lastName: true, role: true, supervisionExempt: true },
+    select: { id: true, firstName: true, lastName: true, role: true, supervisionExempt: true, employmentStartDate: true },
     orderBy: [{ lastName: 'asc' }],
   });
   const clientLink = (c: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: c.id, label: `${c.firstName} ${c.lastName}`, link: `/service-users/${c.id}` });
@@ -304,6 +304,32 @@ export async function computeReadiness() {
   const scopeNote = outOfScope
     ? ` ${outOfScope} staff member(s) are not in scope for supervision (owner, registered manager).`
     : '';
+
+  /**
+   * A first supervision is due three months after somebody starts, so a new
+   * carer is not overdue on their first day — they are new.
+   *
+   * It only applies to somebody who has never had one. Once a supervision
+   * exists, its own next-review date governs, and a recent start date cannot
+   * excuse a review that has already come and gone.
+   *
+   * And only from a RECORDED start date. createdAt is when the record was
+   * made, which for anybody added in a bulk import is long after they
+   * actually joined — using it would hand three months' grace to people who
+   * have been here for years, which is the one direction this must not fail
+   * in. No start date on file, no grace.
+   */
+  const SUPERVISION_GRACE_MONTHS = 3;
+  const withinFirstMonths = (start: Date | null): boolean => {
+    if (!start) return false;
+    const due = new Date(start);
+    due.setMonth(due.getMonth() + SUPERVISION_GRACE_MONTHS);
+    return due > now();
+  };
+  const newStarters = inScope.filter((s) => !latestSup.get(s.id) && withinFirstMonths(s.employmentStartDate)).length;
+  const newStarterNote = newStarters
+    ? ` ${newStarters} in their first ${SUPERVISION_GRACE_MONTHS} months, so not yet due.`
+    : '';
   const supervisedCheck = (id: string, title: string, statement: string, fail: (s: typeof staff[number]) => boolean, redIfAny: boolean, detail: (n: number) => string): Check => {
     const failing = inScope.filter(fail);
     const status: CheckStatus = failing.length === 0 ? 'green' : redIfAny ? 'red' : 'amber';
@@ -489,8 +515,13 @@ export async function computeReadiness() {
       items: unassigned > 0 ? [{ id: 'schedule', label: `${unassigned} unassigned visit(s) — open the schedule`, link: '/schedule' }] : [],
     },
     supervisedCheck('supervision_overdue', 'Staff supervisions up to date', 'Safe and effective staffing · Reg 18',
-      (s) => { const d = latestSup.get(s.id); return d === undefined || d === null || d < now(); }, true,
-      (n) => n ? `${n} staff member(s) are overdue (or have no) supervision.` : 'All staff supervisions are up to date.'),
+      (s) => {
+        const d = latestSup.get(s.id);
+        // Had one: its own next-review date decides, whenever they started.
+        if (d !== undefined && d !== null) return d < now();
+        return !withinFirstMonths(s.employmentStartDate);
+      }, true,
+      (n) => (n ? `${n} staff member(s) are overdue (or have no) supervision.` : 'All staff supervisions are up to date.') + newStarterNote),
     {
       id: 'audit_programme', title: 'Care audits carried out', statement: 'Governance · Reg 17',
       status: audits.length === 0 ? 'red' : 'green', count: audits.length, total: audits.length,

@@ -30,7 +30,7 @@ const userSelect = {
   employmentHistory: true,
   dbsCertificateNo: true, dbsPositionApplied: true, dbsDateOfIssue: true, dbsRiskLevel: true, dbsIssuedBy: true,
   dbsAppointingManager: true, dbsOffenceDisclosed: true, dbsOffenceDate: true, dbsNotes: true,
-  supervisionExempt: true, supervisionExemptReason: true,
+  employmentStartDate: true, supervisionExempt: true, supervisionExemptReason: true,
 };
 
 // DBS fields carried on userSelect. They're sensitive (criminal-record data),
@@ -343,7 +343,7 @@ export async function staffCompliance(req: AuthRequest, res: Response) {
 }
 
 export async function createUser(req: AuthRequest, res: Response) {
-  const { email, password, firstName, lastName, role, hourlyRate, phone, photo, sendInvite, customRoleId, siteIds, staffType, staffRole } = req.body;
+  const { email, password, firstName, lastName, role, hourlyRate, phone, photo, sendInvite, customRoleId, siteIds, staffType, staffRole, employmentStartDate } = req.body;
   if (!email || !firstName || !lastName) {
     return res.status(400).json({ error: 'email, firstName, lastName required' });
   }
@@ -377,6 +377,10 @@ export async function createUser(req: AuthRequest, res: Response) {
       photo: photo || null,
       staffType: staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL',
       staffRole: staffRole === 'OFFICE' ? 'OFFICE' : 'CARE',
+      employmentStartDate: (() => {
+        const d = employmentStartDate ? new Date(String(employmentStartDate)) : null;
+        return d && !Number.isNaN(d.getTime()) ? d : null;
+      })(),
       // Invited users stay inactive (and can't log in) until they set their
       // own password via the emailed link; setPassword flips them active.
       active: sendInvite ? false : true,
@@ -399,7 +403,7 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (!(await staffInScope(req.user, req.params.id))) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, emergencyContactAddress, fitForWork, employmentHistory, staffType, staffRole, rightToWorkCheckedAt, rightToWorkCheckedBy, rightToWorkMethod, rightToWorkDocument, rightToWorkNote, serviceAccount } = req.body;
+  const { email, firstName, lastName, role, hourlyRate, phone, photo, active, customRoleId, siteIds, emergencyContactName, emergencyContactPhone, emergencyContactRelation, emergencyContactAddress, fitForWork, employmentHistory, staffType, staffRole, rightToWorkCheckedAt, rightToWorkCheckedBy, rightToWorkMethod, rightToWorkDocument, rightToWorkNote, serviceAccount, employmentStartDate } = req.body;
   const data: Record<string, unknown> = {};
   // Changing the login email — must stay unique. Only admins may change the
   // email of another admin account.
@@ -429,6 +433,12 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (photo !== undefined) data.photo = photo || null;
   if (staffType !== undefined) data.staffType = staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL';
   if (staffRole !== undefined) data.staffRole = staffRole === 'OFFICE' ? 'OFFICE' : 'CARE';
+  // The day they started, which the supervision grace period reads. Blank
+  // clears it, and no date means no grace - see cqcController.
+  if (employmentStartDate !== undefined) {
+    const d = employmentStartDate ? new Date(String(employmentStartDate)) : null;
+    data.employmentStartDate = d && !Number.isNaN(d.getTime()) ? d : null;
+  }
   // Right to work check. Clearing the date clears the record, so a check
   // entered by mistake can be undone rather than silently standing.
   if (rightToWorkCheckedAt !== undefined) {

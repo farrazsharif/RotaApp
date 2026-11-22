@@ -51,6 +51,19 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
   // replaced.
   const exempt = staff.filter((u) => u.supervisionExempt);
   const exemptIds = new Set(exempt.map((u) => u.id));
+
+  // A first supervision is due three months after somebody starts, so a new
+  // carer is not overdue on their first day. Only from a RECORDED start date:
+  // createdAt is when the record was made, and for anybody added in a bulk
+  // import that is long after they joined. Matches the CQC check exactly.
+  const SUPERVISION_GRACE_MONTHS = 3;
+  const newStarters = staff.filter((u) => {
+    if (u.supervisionExempt || !u.employmentStartDate) return false;
+    if (latestPerUser.has(u.id)) return false; // had one — its review date governs
+    const due = new Date(u.employmentStartDate);
+    due.setMonth(due.getMonth() + SUPERVISION_GRACE_MONTHS);
+    return due > new Date();
+  });
   const overdue = [...latestPerUser.values()].filter((s) => isOverdue(s) && !exemptIds.has(s.userId));
 
   // One line per carer, not per supervision. Quarterly for 52 people is 200
@@ -210,6 +223,19 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
             ))}
           </ul>
           {overdue.length > 6 && <p className="mt-1 font-medium text-red-600">…and {overdue.length - 6} more — see the list below.</p>}
+        </div>
+      )}
+
+      {newStarters.length > 0 && (
+        <div className="bg-blue-50 border border-blue-100 text-blue-800 px-4 py-2.5 rounded-lg text-sm">
+          <span className="font-medium">In their first {SUPERVISION_GRACE_MONTHS} months, so not yet due:</span>{' '}
+          {newStarters.map((u, i) => (
+            <span key={u.id}>
+              {i > 0 && ' · '}
+              {u.firstName} {u.lastName}
+              <span className="text-blue-600"> (started {format(new Date(u.employmentStartDate!), 'd MMM yyyy')})</span>
+            </span>
+          ))}
         </div>
       )}
 

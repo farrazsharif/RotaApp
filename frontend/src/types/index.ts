@@ -124,6 +124,8 @@ export interface User {
   dbsOffenceDisclosed?: string | null;
   dbsOffenceDate?: string | null;
   dbsNotes?: string | null;
+  // The day they started. A first supervision is due three months after it.
+  employmentStartDate?: string | null;
   // Out of scope for supervision and spot checks (owner, registered
   // manager), with the reason it was decided.
   supervisionExempt?: boolean;

@@ -28,17 +28,18 @@ interface FormState {
   photo: string;
   staffType: 'LOCAL' | 'OVERSEAS';
   staffRole: 'CARE' | 'OFFICE';
+  employmentStartDate: string;
   sendInvite: boolean;
 }
 
 const emptyForm: FormState = {
   email: '', password: '', firstName: '', lastName: '',
-  role: 'EMPLOYEE', customRoleId: '', siteIds: [], hourlyRate: '', phone: '', photo: '', staffType: 'LOCAL', staffRole: 'CARE', sendInvite: true, serviceAccount: false,
+  role: 'EMPLOYEE', customRoleId: '', siteIds: [], hourlyRate: '', phone: '', photo: '', staffType: 'LOCAL', staffRole: 'CARE', employmentStartDate: '', sendInvite: true, serviceAccount: false,
 };
 
 function initialForm(u: User | null): FormState {
   if (!u) return emptyForm;
-  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', siteIds: (u.sites || []).map((s) => s.id), hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', staffType: u.staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL', staffRole: u.staffRole === 'OFFICE' ? 'OFFICE' : 'CARE', sendInvite: false, serviceAccount: !!u.serviceAccount };
+  return { email: u.email, password: '', firstName: u.firstName, lastName: u.lastName, role: u.role, customRoleId: u.customRoleId || '', siteIds: (u.sites || []).map((s) => s.id), hourlyRate: String(u.hourlyRate), phone: u.phone || '', photo: u.photo || '', staffType: u.staffType === 'OVERSEAS' ? 'OVERSEAS' : 'LOCAL', staffRole: u.staffRole === 'OFFICE' ? 'OFFICE' : 'CARE', employmentStartDate: u.employmentStartDate ? u.employmentStartDate.slice(0, 10) : '', sendInvite: false, serviceAccount: !!u.serviceAccount };
 }
 
 export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
@@ -202,6 +203,16 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
               </p>
             </div>
           )}
+          <div>
+            <label className="label">Start date</label>
+            <input
+              type="date"
+              value={form.employmentStartDate}
+              onChange={(e) => setForm({ ...form, employmentStartDate: e.target.value })}
+              className="input"
+            />
+            <p className="text-xs text-gray-400 mt-1">The day they actually started, not the day they were added here. A first supervision is due three months after it, and without a date they count as due straight away.</p>
+          </div>
           <div>
             <label className="label">Recruitment</label>
             <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm">

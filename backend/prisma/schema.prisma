@@ -80,6 +80,11 @@ model User {
   // flag with a STATED reason, and reported as "out of scope" rather than
   // silently dropped, because a smaller number nobody can explain is worse
   // than a bigger one that is right.
+  // The day they started. Supervision is not chased in somebody's first
+  // three months, and that window can only be worked out from a real start
+  // date - createdAt is when the record was made, which for anybody added
+  // in a bulk import is long after they actually joined.
+  employmentStartDate      DateTime?
   supervisionExempt        Boolean   @default(false)
   supervisionExemptReason  String?
   emergencyContactName     String?
