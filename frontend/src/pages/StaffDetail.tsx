@@ -266,7 +266,7 @@ export default function StaffDetail() {
       {tab === 'Fit for Work' && <FitForWorkTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'Employment History' && <EmploymentHistoryTab userId={user.id} isManager={isManager} initial={user} />}
       {tab === 'DBS' && can('manage_dbs') && <DbsTab userId={user.id} initial={user} />}
-      {tab === 'Supervision' && <SupervisionTab userId={user.id} staffName={`${user.firstName} ${user.lastName}`} isManager={isManager} />}
+      {tab === 'Supervision' && <SupervisionTab userId={user.id} staffName={`${user.firstName} ${user.lastName}`} isManager={isManager} user={user} />}
       {tab === 'Documents' && <DocumentsTab ownerType="USER" ownerId={user.id} canManage={isManager} />}
 
       {editOpen && <StaffFormModal editUser={user} onClose={() => setEditOpen(false)} />}
@@ -893,11 +893,27 @@ function YesNoRow({ label, value, ro, onChange }: { label: string; value: YesNo;
   );
 }
 
-function SupervisionTab({ userId, staffName, isManager }: { userId: string; staffName: string; isManager: boolean }) {
+function SupervisionTab({ userId, staffName, isManager, user }: { userId: string; staffName: string; isManager: boolean; user: User }) {
   const qc = useQueryClient();
   const { data: records = [], isLoading } = useQuery({ queryKey: ['supervisions', userId], queryFn: () => staffSupervisionApi.list(userId) });
   const [modal, setModal] = useState<{ edit: Supervision | null } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // Taking somebody out of scope needs a reason; putting them back does not.
+  // Widening a compliance check is never the risky direction.
+  const [scopeReason, setScopeReason] = useState('');
+  const [askScope, setAskScope] = useState(false);
+
+  const scopeMut = useMutation({
+    mutationFn: ({ exempt, reason }: { exempt: boolean; reason?: string }) =>
+      usersApi.supervisionScope(userId, exempt, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['user', userId] });
+      qc.invalidateQueries({ queryKey: ['users'] });
+      qc.invalidateQueries({ queryKey: ['cqc-readiness'] });
+      setAskScope(false);
+      setScopeReason('');
+    },
+  });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => staffSupervisionApi.delete(id),
@@ -906,6 +922,51 @@ function SupervisionTab({ userId, staffName, isManager }: { userId: string; staf
 
   return (
     <div className="card space-y-4">
+      {user.supervisionExempt ? (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+          <p className="font-medium text-gray-700">Not in scope for supervision or spot checks</p>
+          {user.supervisionExemptReason && <p className="text-gray-500 mt-0.5">{user.supervisionExemptReason}</p>}
+          {isManager && (
+            <button
+              className="text-blue-600 text-xs hover:underline mt-1.5"
+              disabled={scopeMut.isPending}
+              onClick={() => scopeMut.mutate({ exempt: false })}
+            >
+              Put back in scope
+            </button>
+          )}
+        </div>
+      ) : isManager && (
+        askScope ? (
+          <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+            <label className="label">Why is {staffName} not in scope for supervision?</label>
+            <input
+              className="input text-sm"
+              value={scopeReason}
+              onChange={(e) => setScopeReason(e.target.value)}
+              placeholder="e.g. Owner — delivers no care"
+              autoFocus
+            />
+            <p className="text-xs text-gray-500">
+              They stay off the overdue list and out of the CQC count, and this reason is shown wherever that happens.
+            </p>
+            <div className="flex gap-2">
+              <button
+                className="btn-primary btn btn-sm"
+                disabled={scopeMut.isPending || scopeReason.trim().length < 3}
+                onClick={() => scopeMut.mutate({ exempt: true, reason: scopeReason.trim() })}
+              >
+                Take out of scope
+              </button>
+              <button className="btn-secondary btn btn-sm" onClick={() => { setAskScope(false); setScopeReason(''); }}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button className="text-gray-500 text-xs hover:underline self-start" onClick={() => setAskScope(true)}>
+            Not in scope for supervision?
+          </button>
+        )
+      )}
       {isLoading ? (
         <div className="flex justify-center p-6"><div className="animate-spin h-6 w-6 border-b-2 border-blue-600 rounded-full" /></div>
       ) : records.length === 0 ? (

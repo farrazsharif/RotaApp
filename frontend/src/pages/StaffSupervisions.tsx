@@ -44,7 +44,14 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
     const existing = latestPerUser.get(s.userId);
     if (!existing || new Date(s.date) > new Date(existing.date)) latestPerUser.set(s.userId, s);
   }
-  const overdue = [...latestPerUser.values()].filter(isOverdue);
+  // Staff the office has taken out of scope - an owner who delivers no care,
+  // a registered manager supervised by the provider. They are excluded from
+  // "overdue" and named underneath, which is the same thing the CQC check
+  // does: a smaller number nobody can explain is worse than the one it
+  // replaced.
+  const exempt = staff.filter((u) => u.supervisionExempt);
+  const exemptIds = new Set(exempt.map((u) => u.id));
+  const overdue = [...latestPerUser.values()].filter((s) => isOverdue(s) && !exemptIds.has(s.userId));
 
   // One line per carer, not per supervision. Quarterly for 52 people is 200
   // rows a year, and a register that long stops being a list of who is due
@@ -203,6 +210,19 @@ export default function StaffSupervisions({ embedded = false }: { embedded?: boo
             ))}
           </ul>
           {overdue.length > 6 && <p className="mt-1 font-medium text-red-600">…and {overdue.length - 6} more — see the list below.</p>}
+        </div>
+      )}
+
+      {exempt.length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 text-gray-600 px-4 py-2.5 rounded-lg text-sm">
+          <span className="font-medium text-gray-700">Not in scope for supervision:</span>{' '}
+          {exempt.map((u, i) => (
+            <span key={u.id}>
+              {i > 0 && ' · '}
+              {u.firstName} {u.lastName}
+              {u.supervisionExemptReason && <span className="text-gray-500"> ({u.supervisionExemptReason})</span>}
+            </span>
+          ))}
         </div>
       )}
 

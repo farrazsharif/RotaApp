@@ -41,6 +41,8 @@ export interface DbsFields {
   dbsOffenceDisclosed?: string | null;
   dbsOffenceDate?: string | null;
   dbsNotes?: string | null;
+  supervisionExempt?: boolean;
+  supervisionExemptReason?: string | null;
 }
 
 export const usersApi = {
@@ -52,6 +54,10 @@ export const usersApi = {
   // reason clears the waiver so the check applies again.
   complianceWaiver: (id: string, requirementId: string, reason: string) =>
     api.post(`/users/${id}/compliance-waiver`, { requirementId, reason }).then((r) => r.data),
+  // Take somebody out of scope for supervision and spot checks, with the
+  // reason, or put them back (exempt false).
+  supervisionScope: (id: string, exempt: boolean, reason?: string) =>
+    api.post(`/users/${id}/supervision-scope`, { exempt, reason }).then((r) => r.data),
   // Set (array) or clear (null) a person's per-person permission override.
   setPermissions: (id: string, permissions: PermissionKey[] | null) =>
     api.put<{ permissionsOverride: PermissionKey[] | null; capabilities: PermissionKey[] }>(`/users/${id}/permissions`, { permissions }).then((r) => r.data),

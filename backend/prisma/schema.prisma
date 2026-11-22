@@ -75,6 +75,13 @@ model User {
   // JSON array of { requirementId, reason, by, at }. Kept as a waiver with a
   // stated reason rather than hiding the item, so the decision is auditable.
   complianceWaivers        String?
+  // Not in scope for supervision or spot checks — an owner who delivers no
+  // care, a registered manager supervised by the provider instead. Kept as a
+  // flag with a STATED reason, and reported as "out of scope" rather than
+  // silently dropped, because a smaller number nobody can explain is worse
+  // than a bigger one that is right.
+  supervisionExempt        Boolean   @default(false)
+  supervisionExemptReason  String?
   emergencyContactName     String?
   emergencyContactPhone    String?
   emergencyContactRelation String?

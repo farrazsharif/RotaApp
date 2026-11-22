@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { listUsers, getUser, createUser, updateUser, deleteUser, reactivateUser, permanentDeleteUser, resendInvite, setUserPermissions, staffComplianceSummary, staffCompliance, setComplianceWaiver, updateUserDbs, importDbs } from '../controllers/userController';
+import { listUsers, getUser, createUser, updateUser, deleteUser, reactivateUser, permanentDeleteUser, resendInvite, setUserPermissions, staffComplianceSummary, staffCompliance, setComplianceWaiver, setSupervisionScope, updateUserDbs, importDbs } from '../controllers/userController';
 import { adminResetPassword, impersonateUser } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
-import { requirePermission } from '../middleware/permissions';
+import { requireAnyPermission, requirePermission } from '../middleware/permissions';
 
 const router = Router();
 
@@ -18,6 +18,9 @@ router.get('/:id', getUser);
 router.get('/:id/compliance', staffCompliance);
 // Marking a check not required for one person is an office decision.
 router.post('/:id/compliance-waiver', requirePermission('manage_staff'), setComplianceWaiver);
+// Who is in scope for supervision and spot checks. An owner who delivers no
+// care is not, and counting them reports a structure as a failure.
+router.post('/:id/supervision-scope', requireAnyPermission('manage_staff', 'manage_supervision'), setSupervisionScope);
 router.post('/', requirePermission('manage_staff'), createUser);
 router.put('/:id', requirePermission('manage_staff'), updateUser);
 router.put('/:id/dbs', requirePermission('manage_dbs'), updateUserDbs);

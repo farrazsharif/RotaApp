@@ -58,7 +58,7 @@ export async function computeReadiness() {
   const staff = await prisma.user.findMany({
     where: { active: true, role: { not: 'FAMILY_MEMBER' }, platformAdmin: false, serviceAccount: false },
     // role is needed to work out which policies apply to whom.
-    select: { id: true, firstName: true, lastName: true, role: true },
+    select: { id: true, firstName: true, lastName: true, role: true, supervisionExempt: true },
     orderBy: [{ lastName: 'asc' }],
   });
   const clientLink = (c: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: c.id, label: `${c.firstName} ${c.lastName}`, link: `/service-users/${c.id}` });
@@ -289,6 +289,32 @@ export async function computeReadiness() {
     return { id, title, statement, status, count: failing.length, total: staff.length, detail: detail(failing.length), items: failing.slice(0, CAP).map(staffLink) };
   };
 
+  /**
+   * Supervision and spot checks measure the supervision of people who deliver
+   * care. An owner who delivers none, or a registered manager supervised by
+   * the provider rather than by the service, is not in that population — and
+   * counting them reports a structure as a failure.
+   *
+   * They are excluded from the count and SAID so in the detail, the same way
+   * clients in hospital are named in the service-review check. A number that
+   * went down for a reason nobody can see is worse than the one it replaced.
+   */
+  const inScope = staff.filter((s) => !s.supervisionExempt);
+  const outOfScope = staff.length - inScope.length;
+  const scopeNote = outOfScope
+    ? ` ${outOfScope} staff member(s) are not in scope for supervision (owner, registered manager).`
+    : '';
+  const supervisedCheck = (id: string, title: string, statement: string, fail: (s: typeof staff[number]) => boolean, redIfAny: boolean, detail: (n: number) => string): Check => {
+    const failing = inScope.filter(fail);
+    const status: CheckStatus = failing.length === 0 ? 'green' : redIfAny ? 'red' : 'amber';
+    return {
+      id, title, statement, status,
+      count: failing.length, total: inScope.length,
+      detail: detail(failing.length) + scopeNote,
+      items: failing.slice(0, CAP).map(staffLink),
+    };
+  };
+
   const slClients = clients.filter((c) => c.careType === 'SUPPORTED_LIVING');
 
   // Clients whose package is paused rather than running. A service review is
@@ -462,7 +488,7 @@ export async function computeReadiness() {
       detail: unassigned > 0 ? `${unassigned} visit(s) in the next 7 days have no carer assigned.` : 'All visits in the next 7 days are covered.',
       items: unassigned > 0 ? [{ id: 'schedule', label: `${unassigned} unassigned visit(s) — open the schedule`, link: '/schedule' }] : [],
     },
-    staffCheck('supervision_overdue', 'Staff supervisions up to date', 'Safe and effective staffing · Reg 18',
+    supervisedCheck('supervision_overdue', 'Staff supervisions up to date', 'Safe and effective staffing · Reg 18',
       (s) => { const d = latestSup.get(s.id); return d === undefined || d === null || d < now(); }, true,
       (n) => n ? `${n} staff member(s) are overdue (or have no) supervision.` : 'All staff supervisions are up to date.'),
     {
@@ -509,7 +535,7 @@ export async function computeReadiness() {
         : 'Every policy has been reviewed within the last year.',
       items: stalePolicies.slice(0, CAP).map(policyLink),
     },
-    staffCheck('spot_check_overdue', 'Spot checks up to date', 'Governance · Reg 17',
+    supervisedCheck('spot_check_overdue', 'Spot checks up to date', 'Governance · Reg 17',
       (s) => { const d = latestSpot.get(s.id); return !d || d < daysAgo(180); }, false,
       (n) => n ? `${n} staff member(s) have had no spot check in the last 6 months.` : 'All staff have a recent spot check.'),
     {

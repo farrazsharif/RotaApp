@@ -124,6 +124,10 @@ export interface User {
   dbsOffenceDisclosed?: string | null;
   dbsOffenceDate?: string | null;
   dbsNotes?: string | null;
+  // Out of scope for supervision and spot checks (owner, registered
+  // manager), with the reason it was decided.
+  supervisionExempt?: boolean;
+  supervisionExemptReason?: string | null;
   createdAt: string;
 }
 

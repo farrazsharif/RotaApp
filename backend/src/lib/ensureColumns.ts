@@ -474,6 +474,9 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsOffenceDisclosed" TEXT`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsOffenceDate" TIMESTAMP(3)`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "dbsNotes" TEXT`);
+  // Out of scope for supervision and spot checks, with the reason recorded.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "supervisionExempt" BOOLEAN NOT NULL DEFAULT false`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "supervisionExemptReason" TEXT`);
   // Training: month-only display flag (day is a placeholder), set on import.
   await prisma.$executeRawUnsafe(`ALTER TABLE "Training" ADD COLUMN IF NOT EXISTS "monthOnly" BOOLEAN NOT NULL DEFAULT false`);
   // Care plan: extra named calls beyond the four standard slots (JSON array of

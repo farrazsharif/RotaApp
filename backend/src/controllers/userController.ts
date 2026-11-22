@@ -30,6 +30,7 @@ const userSelect = {
   employmentHistory: true,
   dbsCertificateNo: true, dbsPositionApplied: true, dbsDateOfIssue: true, dbsRiskLevel: true, dbsIssuedBy: true,
   dbsAppointingManager: true, dbsOffenceDisclosed: true, dbsOffenceDate: true, dbsNotes: true,
+  supervisionExempt: true, supervisionExemptReason: true,
 };
 
 // DBS fields carried on userSelect. They're sensitive (criminal-record data),
@@ -233,6 +234,48 @@ export async function staffComplianceSummary(req: AuthRequest, res: Response) {
 // A reason is mandatory: an unexplained waiver is just a hidden gap, and the
 // point of recording it is that an inspector can see the decision and who made
 // it. Posting with no reason removes the waiver.
+/**
+ * Mark a staff member in or out of scope for supervision and spot checks.
+ *
+ * An owner who delivers no care, or a registered manager supervised by the
+ * provider rather than by the service, is not in the population those checks
+ * measure — and counting them reports a structure as a failure.
+ *
+ * A reason is required to take somebody out, because this is the kind of
+ * exemption that should be explainable years later. Putting them back needs
+ * nothing: widening a compliance check is never the risky direction.
+ */
+export async function setSupervisionScope(req: AuthRequest, res: Response) {
+  const { exempt, reason } = req.body ?? {};
+  if (!(await staffInScope(req.user, req.params.id))) {
+    return res.status(404).json({ error: 'Staff member not found' });
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  if (!user) return res.status(404).json({ error: 'Staff member not found' });
+
+  const out = exempt === true;
+  const text = String(reason || '').trim().slice(0, 300);
+  if (out && text.length < 3) {
+    return res.status(400).json({ error: 'A reason is required to take somebody out of scope for supervision.' });
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { supervisionExempt: out, supervisionExemptReason: out ? text : null },
+    select: { id: true, supervisionExempt: true, supervisionExemptReason: true },
+  });
+  await logAudit(
+    req,
+    out ? 'SUPERVISION_SCOPE_REMOVED' : 'SUPERVISION_SCOPE_RESTORED',
+    `${user.firstName} ${user.lastName}`.trim(),
+    out ? `Not in scope for supervision or spot checks: ${text}` : 'Back in scope for supervision and spot checks.',
+  );
+  res.json(updated);
+}
+
 export async function setComplianceWaiver(req: AuthRequest, res: Response) {
   const { requirementId, reason } = req.body ?? {};
   const id = String(requirementId || '').trim();
