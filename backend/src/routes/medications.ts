@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import {
   listMedications, createMedication, createMedicationByCarer, updateMedication, deleteMedication,
-  listAdministrations, recordAdministration, recordAdministrationByManager, cancelledDoses,
+  listAdministrations, recordAdministration, recordAdministrationByManager, cancelledDoses, backfillMar,
 } from '../controllers/medicationController';
 import { authenticate } from '../middleware/auth';
-import { requirePermission } from '../middleware/permissions';
+import { requireAnyPermission, requirePermission } from '../middleware/permissions';
 import { scopeServiceUserRef, scopeRecordById } from '../middleware/scope';
 import { prisma } from '../lib/prisma';
 
@@ -25,6 +25,9 @@ router.post('/administrations', recordAdministration);
 // Office record/correction from the portal — attributes to a carer, sets the
 // real time, and is audited. Managers only.
 router.post('/administrations/manage', requirePermission('manage_medications'), recordAdministrationByManager);
+// Fill blanks a change of recording method left behind. Adds only, and only
+// where a visit was clocked into — see lib/marBackfill.ts.
+router.post('/administrations/backfill', requireAnyPermission('manage_medications', 'backfill_mar'), backfillMar);
 
 // Medications (managers/admin manage the regimen)
 router.get('/', listMedications);

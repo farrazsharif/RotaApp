@@ -7,6 +7,7 @@ import { relatedServiceUserScopeWhere } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { ownerShiftIdForDose } from '../lib/doseOwnership';
 import { clampIntervalDays, isMedDueOn } from '../lib/medSchedule';
+import { planBackfill } from '../lib/marBackfill';
 
 // Human-readable status words for audit details (matches the portal labels).
 const STATUS_WORD: Record<string, string> = {
@@ -241,6 +242,101 @@ export async function cancelledDoses(req: AuthRequest, res: Response) {
     }
   }
   res.json(out);
+}
+
+/**
+ * Fill the blanks a change of recording method left on the MAR.
+ *
+ * Dry run unless apply is true, and the dry run is the point: it reports what
+ * WOULD be written and, just as usefully, what would not and why. If the
+ * blanks really are an artefact of electronic recording not being enforced,
+ * the month-by-month figures show it — they stop when the method changed.
+ *
+ * See lib/marBackfill.ts for the evidence rule. In short: a dose is only
+ * filled where the visit that owned it was attended, by a named carer, on a
+ * call that administers medication, with the client at home.
+ */
+export async function backfillMar(req: AuthRequest, res: Response) {
+  const { from, to, serviceUserId, reason, apply } = req.body as Record<string, unknown>;
+  const parse = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  const fromYmd = parse(from);
+  const toYmd = parse(to);
+  if (!fromYmd || !toYmd) return res.status(400).json({ error: 'from and to are required, as yyyy-mm-dd.' });
+  if (toYmd < fromYmd) return res.status(400).json({ error: 'to must not be before from.' });
+
+  const why = typeof reason === 'string' ? reason.trim().slice(0, 300) : '';
+  if (why.length < 10) {
+    return res.status(400).json({ error: 'reason is required - it is written onto every row, so it has to say something.' });
+  }
+
+  const [fy, fm, fd] = fromYmd.split('-').map(Number);
+  const [ty, tm, td] = toYmd.split('-').map(Number);
+  const plan = await planBackfill({
+    from: new Date(Date.UTC(fy, fm - 1, fd, 0, 0, 0)),
+    to: new Date(Date.UTC(ty, tm - 1, td, 23, 59, 59)),
+    serviceUserId: typeof serviceUserId === 'string' && serviceUserId ? serviceUserId : undefined,
+    reason: why,
+    apply: apply === true,
+    limit: 5000,
+  });
+
+  // Names for the breakdown, so the caller is not reading cuids.
+  const ids = Object.keys(plan.byClient);
+  const clients = ids.length
+    ? await prisma.serviceUser.findMany({ where: { id: { in: ids } }, select: { id: true, firstName: true, lastName: true } })
+    : [];
+  const named = clients
+    .map((c) => ({ name: `${c.firstName} ${c.lastName}`.trim(), count: plan.byClient[c.id] ?? 0 }))
+    .sort((a, b) => b.count - a.count);
+
+  const body = {
+    applied: false,
+    from: fromYmd,
+    to: toYmd,
+    dosesDue: plan.dueTotal,
+    wouldFill: plan.fillable.length,
+    capped: plan.capped,
+    byMonth: plan.byMonth,
+    byClient: named,
+    leftBlank: plan.skips,
+  };
+
+  if (apply !== true) return res.json(body);
+
+  // The note is what makes each row honest on its own: a reader sees it was
+  // entered by the office afterwards from the attendance record, not signed
+  // by the carer at the time.
+  const stamp = new Date();
+  const note = `Backfilled by the office ${stamp.toISOString().slice(0, 10)}: ${why}`;
+
+  let created = 0;
+  for (let i = 0; i < plan.fillable.length; i += 200) {
+    const batch = plan.fillable.slice(i, i + 200);
+    const result = await prisma.medAdministration.createMany({
+      data: batch.map((f) => ({
+        medicationId: f.medicationId,
+        serviceUserId: f.serviceUserId,
+        scheduledFor: f.scheduledFor,
+        status: 'GIVEN',
+        userId: f.carerId,
+        // The dose time, not now: recordedAt is "when it was given", and the
+        // note carries when it was typed.
+        recordedAt: f.scheduledFor,
+        note,
+      })),
+      skipDuplicates: true,
+    });
+    created += result.count;
+  }
+
+  await logAudit(
+    req,
+    'MAR_BACKFILLED',
+    serviceUserId ? String(serviceUserId) : 'All clients',
+    `${created} dose(s) marked given from attendance records, ${fromYmd} to ${toYmd}. ${why}`,
+  );
+
+  res.json({ ...body, applied: true, created });
 }
 
 export async function recordAdministration(req: AuthRequest, res: Response) {

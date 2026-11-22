@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
-import { apiGet } from '../api.js';
+import { apiGet, apiPost } from '../api.js';
 import { Format, ResponseFormat, fmtDate, result } from '../shared.js';
 
 /**
@@ -216,6 +216,99 @@ export function registerMedicationTools(server: McpServer) {
         clients: ranked,
         doses: args.detail ? detail : undefined,
       });
+    },
+  );
+
+  server.registerTool(
+    'caremid_backfill_mar',
+    {
+      title: 'Fill MAR blanks left by a change of recording method',
+      description:
+        'Marks as given the doses that have NO record at all, where the visit that owned them was actually ' +
+        'clocked into. For an office that enforced electronic recording partway through, those blanks are a ' +
+        'recording gap rather than a care gap - but only where there is attendance behind them, which is what ' +
+        'this checks. A dose is left blank where the visit was cancelled, was a personal-care-only call, was ' +
+        'never clocked into, or the client was in hospital, and the dry run reports each of those counts ' +
+        'separately. Run it WITHOUT apply first: the month-by-month figures are the test of whether the gap ' +
+        'really does stop when the method changed. Every row it writes carries a note saying the office entered ' +
+        'it afterwards and why, so nothing reads as a signature given at the time. Example: { from: ' +
+        '"2026-01-01", to: "2026-06-30", reason: "Clock-out and dose recording became compulsory 1 July 2026" }',
+      inputSchema: z.strictObject({
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('First date to fill, yyyy-mm-dd'),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Last date to fill, yyyy-mm-dd'),
+        reason: z
+          .string()
+          .min(10)
+          .max(300)
+          .describe('Why these are blank. Written onto every row, so write it for whoever reads the chart next.'),
+        client: z.string().min(2).max(120).optional().describe('Limit to one client, by Caremid id'),
+        apply: z.boolean().default(false).describe('false reports what would be filled and changes nothing'),
+        response_format: ResponseFormat,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        // Only ever adds a record where none exists. It cannot change or
+        // remove one: an existing record, of any status, is left alone.
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args, ctx) => {
+      const res = await apiPost<{
+        applied: boolean; from: string; to: string; dosesDue: number; wouldFill: number; created?: number;
+        capped: boolean; byMonth: Record<string, number>; byClient: { name: string; count: number }[];
+        leftBlank: Record<string, number>;
+      }>(
+        'medications/administrations/backfill',
+        { from: args.from, to: args.to, serviceUserId: args.client, reason: args.reason, apply: args.apply },
+        ctx.mcpReq.signal,
+      );
+
+      const months = Object.entries(res.byMonth).sort(([a], [b]) => a.localeCompare(b));
+      const blankWords: Record<string, string> = {
+        noVisit: 'no visit on the rota owned the dose',
+        visitCancelled: 'the visit was cancelled',
+        visitNoMeds: 'a personal-care-only call',
+        notAttended: 'on the rota, but nobody clocked in',
+        away: 'in hospital or away on respite',
+        alreadyRecorded: 'already has a record',
+      };
+
+      const lines = [
+        res.applied
+          ? `**${res.created}** dose${res.created === 1 ? '' : 's'} marked given, ${res.from} to ${res.to}.`
+          : `**${res.wouldFill}** of ${res.dosesDue} doses due between ${res.from} and ${res.to} would be marked given.`,
+        '',
+        '**Left blank**',
+        ...Object.entries(res.leftBlank)
+          .filter(([, n]) => n > 0)
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, n]) => `- ${n} — ${blankWords[k] ?? k}`),
+      ];
+
+      if (months.length) {
+        lines.push(
+          '',
+          `**By month** — the shape that shows whether this is a recording gap or a care gap`,
+          '',
+          '| Month | Doses |',
+          '| --- | --- |',
+          ...months.map(([m, n]) => `| ${m} | ${n} |`),
+        );
+      }
+      if (res.byClient.length) {
+        lines.push(
+          '',
+          '| Client | Doses |',
+          '| --- | --- |',
+          ...res.byClient.slice(0, 40).map((c) => `| ${c.name} | ${c.count} |`),
+        );
+      }
+      if (res.capped) lines.push('', '_Capped at 5000 doses for this call. Narrow the range and run it again._');
+      if (!res.applied) lines.push('', '_Nothing written. Call again with apply: true._');
+
+      return result(args.response_format as Format, lines.join('\n'), res);
     },
   );
 }

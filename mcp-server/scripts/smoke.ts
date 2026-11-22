@@ -36,6 +36,7 @@ assert.deepEqual(
   tools.map((t) => t.name).sort(),
   [
     'caremid_attach_policy_pdf',
+    'caremid_backfill_mar',
     'caremid_client_file',
     'caremid_correct_training_date',
     'caremid_cqc_readiness',
@@ -68,6 +69,7 @@ assert.deepEqual(
 // should grow because somebody decided to widen it, not because a write tool
 // slipped in among the reporting ones.
 const MAY_WRITE = new Set([
+  'caremid_backfill_mar',
   'caremid_create_policy',
   'caremid_attach_policy_pdf',
   'caremid_set_policy_reviews',
