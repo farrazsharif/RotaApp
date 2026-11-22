@@ -11,9 +11,11 @@ import RecordMedModal from '../components/RecordMedModal';
 
 const STATUS_LABEL: Record<MedStatus, string> = {
   GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-admin', CANCELLED: 'Cancelled',
+  HOSPITAL: 'In hospital',
 };
 const STATUS_BADGE: Record<MedStatus, string> = {
   GIVEN: 'badge-green', REFUSED: 'badge-yellow', MISSED: 'badge-red', NOT_NEEDED: 'badge-gray', SELF_ADMIN: 'badge-blue', CANCELLED: 'badge-gray',
+  HOSPITAL: 'badge-gray',
 };
 
 export default function Emar() {

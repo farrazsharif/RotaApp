@@ -10,7 +10,7 @@ import { clampIntervalDays, isMedDueOn } from '../lib/medSchedule';
 
 // Human-readable status words for audit details (matches the portal labels).
 const STATUS_WORD: Record<string, string> = {
-  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled',
+  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled', HOSPITAL: 'In hospital',
 };
 
 // "for <patient name>" suffix for a medication audit entry, or undefined.

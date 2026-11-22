@@ -19,13 +19,13 @@ interface Props {
 // Single-letter codes for anything other than "given" — given doses are
 // signed with the carer's initials, same convention as a paper MAR chart.
 const STATUS_CODE: Record<MedStatus, string> = {
-  GIVEN: '', REFUSED: 'R', MISSED: 'A', NOT_NEEDED: 'N', SELF_ADMIN: 'S', CANCELLED: 'C',
+  GIVEN: '', REFUSED: 'R', MISSED: 'A', NOT_NEEDED: 'N', SELF_ADMIN: 'S', CANCELLED: 'C', HOSPITAL: 'H',
 };
 const STATUS_LABEL: Record<MedStatus, string> = {
-  GIVEN: 'Administered (carer initials)', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled visit',
+  GIVEN: 'Administered (carer initials)', REFUSED: 'Refused', MISSED: 'Absent', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled visit', HOSPITAL: 'In hospital',
 };
 const STATUS_COLOR: Record<MedStatus, string> = {
-  GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8', CANCELLED: '#6b7280',
+  GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8', CANCELLED: '#6b7280', HOSPITAL: '#6b7280',
 };
 
 // Dose slots are stored as UK wall-clock times encoded as if they were UTC

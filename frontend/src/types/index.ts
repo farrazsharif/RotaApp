@@ -281,7 +281,7 @@ export interface CallLog {
   };
 }
 
-export type MedStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN' | 'CANCELLED';
+export type MedStatus = 'GIVEN' | 'REFUSED' | 'MISSED' | 'NOT_NEEDED' | 'SELF_ADMIN' | 'CANCELLED' | 'HOSPITAL';
 export type BodyMapView = 'front' | 'back';
 export interface BodyMapPoint {
   view: BodyMapView;

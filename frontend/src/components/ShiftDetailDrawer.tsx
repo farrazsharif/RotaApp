@@ -25,12 +25,14 @@ const STATUS_LABEL: Record<MedStatus, string> = {
   NOT_NEEDED: 'Not required',
   SELF_ADMIN: 'Self-administered',
   CANCELLED: 'Cancelled',
+  HOSPITAL: 'In hospital',
 };
 const STATUS_CLASS: Record<MedStatus, string> = {
   GIVEN: 'text-green-700 bg-green-50',
   REFUSED: 'text-amber-700 bg-amber-50',
   MISSED: 'text-red-700 bg-red-50',
   NOT_NEEDED: 'text-gray-600 bg-gray-50',
+  HOSPITAL: 'text-gray-600 bg-gray-50',
   SELF_ADMIN: 'text-blue-700 bg-blue-50',
   CANCELLED: 'text-gray-600 bg-gray-50',
 };

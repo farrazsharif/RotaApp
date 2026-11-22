@@ -20,6 +20,9 @@ export type RequestStatus = (typeof RequestStatus)[keyof typeof RequestStatus];
 
 export const MedStatus = {
   GIVEN: 'GIVEN', REFUSED: 'REFUSED', MISSED: 'MISSED', NOT_NEEDED: 'NOT_NEEDED', SELF_ADMIN: 'SELF_ADMIN', CANCELLED: 'CANCELLED',
+  // The client was on a hospital ward when the dose fell due. Its own code
+  // because it is not an absence: nobody here failed to give it.
+  HOSPITAL: 'HOSPITAL',
 } as const;
 export type MedStatus = (typeof MedStatus)[keyof typeof MedStatus];
 
