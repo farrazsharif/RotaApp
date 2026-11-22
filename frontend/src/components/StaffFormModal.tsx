@@ -4,6 +4,7 @@ import { usersApi } from '../api/users';
 import { settingsApi } from '../api/settings';
 import { rolesApi } from '../api/roles';
 import { sitesApi } from '../api/sites';
+import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Role } from '../types';
 import PhotoUpload from './PhotoUpload';
@@ -211,6 +212,15 @@ export default function StaffFormModal({ editUser, onClose, onSaved }: Props) {
               onChange={(e) => setForm({ ...form, employmentStartDate: e.target.value })}
               className="input"
             />
+            {editUser && !form.employmentStartDate && (
+              <button
+                type="button"
+                className="text-blue-600 text-xs hover:underline mt-1"
+                onClick={() => setForm({ ...form, employmentStartDate: editUser.createdAt.slice(0, 10) })}
+              >
+                Use the day they were added to Caremid ({format(new Date(editUser.createdAt), 'd MMM yyyy')})
+              </button>
+            )}
             <p className="text-xs text-gray-400 mt-1">The day they actually started, not the day they were added here. A first supervision is due three months after it, and without a date they count as due straight away.</p>
           </div>
           <div>

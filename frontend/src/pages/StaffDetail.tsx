@@ -248,7 +248,12 @@ export default function StaffDetail() {
               <div><p className="text-xs text-gray-400">Role</p><p className="text-sm text-gray-800">{user.customRole?.name || roleLabel(user.role)}</p></div>
               <div><p className="text-xs text-gray-400">Hourly Rate</p><p className="text-sm text-gray-800">£{user.hourlyRate.toFixed(2)}</p></div>
               <div><p className="text-xs text-gray-400">Status</p><p className="text-sm text-gray-800">{statusInfo(user).label}</p></div>
-              <div><p className="text-xs text-gray-400">Joined</p><p className="text-sm text-gray-800">{format(new Date(user.createdAt), 'dd MMM yyyy')}</p></div>
+              <div>
+                <p className="text-xs text-gray-400">{user.employmentStartDate ? 'Started' : 'Added to Caremid'}</p>
+                <p className="text-sm text-gray-800">
+                  {format(new Date(user.employmentStartDate || user.createdAt), 'dd MMM yyyy')}
+                </p>
+              </div>
             </div>
           </div>
           {isAdmin && <PasswordCard userId={user.id} email={user.email} />}
