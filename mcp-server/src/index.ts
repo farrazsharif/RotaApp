@@ -29,6 +29,7 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { API_BASE_URL, credentialsConfigured } from './api.js';
 import { registerClientTools } from './tools/clients.js';
 import { registerCqcTools } from './tools/cqc.js';
+import { registerMedicationTools } from './tools/medications.js';
 import { registerPolicyTools } from './tools/policies.js';
 import { registerShiftTools } from './tools/shifts.js';
 import { registerStaffFileTools } from './tools/staffFiles.js';
@@ -38,6 +39,7 @@ function createServer(): McpServer {
   const server = new McpServer({ name: 'caremid-mcp-server', version: '1.0.0' });
   registerCqcTools(server);
   registerClientTools(server);
+  registerMedicationTools(server);
   registerStaffTools(server);
   registerStaffFileTools(server);
   registerShiftTools(server);

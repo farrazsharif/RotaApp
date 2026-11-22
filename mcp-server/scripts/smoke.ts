@@ -45,6 +45,7 @@ assert.deepEqual(
     'caremid_file_staff_documents',
     'caremid_list_policies',
     'caremid_list_staff',
+    'caremid_medication_exceptions',
     'caremid_record_client_safety_info',
     'caremid_record_paper_risk_assessment',
     'caremid_record_paper_supervision',
