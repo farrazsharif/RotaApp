@@ -264,10 +264,10 @@ export async function backfillMar(req: AuthRequest, res: Response) {
   if (!fromYmd || !toYmd) return res.status(400).json({ error: 'from and to are required, as yyyy-mm-dd.' });
   if (toYmd < fromYmd) return res.status(400).json({ error: 'to must not be before from.' });
 
+  // Optional. Where none is given the row still says where it came from -
+  // that marker is not an explanation anybody has to compose, it is just the
+  // row being honest about being an office entry rather than a carer's.
   const why = typeof reason === 'string' ? reason.trim().slice(0, 300) : '';
-  if (why.length < 10) {
-    return res.status(400).json({ error: 'reason is required - it is written onto every row, so it has to say something.' });
-  }
 
   const [fy, fm, fd] = fromYmd.split('-').map(Number);
   const [ty, tm, td] = toYmd.split('-').map(Number);
@@ -306,8 +306,10 @@ export async function backfillMar(req: AuthRequest, res: Response) {
   // The note is what makes each row honest on its own: a reader sees it was
   // entered by the office afterwards from the attendance record, not signed
   // by the carer at the time.
-  const stamp = new Date();
-  const note = `Backfilled by the office ${stamp.toISOString().slice(0, 10)}: ${why}`;
+  const stamp = new Date().toISOString().slice(0, 10);
+  const note = why
+    ? `Office entry ${stamp} from the attendance record: ${why}`
+    : `Office entry ${stamp} from the attendance record.`;
 
   let created = 0;
   for (let i = 0; i < plan.fillable.length; i += 200) {
@@ -333,7 +335,7 @@ export async function backfillMar(req: AuthRequest, res: Response) {
     req,
     'MAR_BACKFILLED',
     serviceUserId ? String(serviceUserId) : 'All clients',
-    `${created} dose(s) marked given from attendance records, ${fromYmd} to ${toYmd}. ${why}`,
+    `${created} dose(s) marked given from attendance records, ${fromYmd} to ${toYmd}.${why ? ` ${why}` : ''}`,
   );
 
   res.json({ ...body, applied: true, created });

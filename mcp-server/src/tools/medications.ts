@@ -230,17 +230,17 @@ export function registerMedicationTools(server: McpServer) {
         'this checks. A dose is left blank where the visit was cancelled, was a personal-care-only call, was ' +
         'never clocked into, or the client was in hospital, and the dry run reports each of those counts ' +
         'separately. Run it WITHOUT apply first: the month-by-month figures are the test of whether the gap ' +
-        'really does stop when the method changed. Every row it writes carries a note saying the office entered ' +
-        'it afterwards and why, so nothing reads as a signature given at the time. Example: { from: ' +
-        '"2026-01-01", to: "2026-06-30", reason: "Clock-out and dose recording became compulsory 1 July 2026" }',
+        'really does stop when the method changed. Every row it writes is marked as an office entry from the ' +
+        'attendance record, so nothing reads as a signature given at the time. Example: { from: "2026-01-01", ' +
+        'to: "2026-06-30" }',
       inputSchema: z.strictObject({
         from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('First date to fill, yyyy-mm-dd'),
         to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Last date to fill, yyyy-mm-dd'),
         reason: z
           .string()
-          .min(10)
           .max(300)
-          .describe('Why these are blank. Written onto every row, so write it for whoever reads the chart next.'),
+          .optional()
+          .describe('Optional. Added to the note on every row, after the office-entry marker.'),
         client: z.string().min(2).max(120).optional().describe('Limit to one client, by Caremid id'),
         apply: z.boolean().default(false).describe('false reports what would be filled and changes nothing'),
         response_format: ResponseFormat,
