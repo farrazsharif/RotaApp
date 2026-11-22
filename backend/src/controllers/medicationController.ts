@@ -430,7 +430,7 @@ export async function marExceptions(req: AuthRequest, res: Response) {
  * Each change is audited with the status it replaced, so the original reading
  * of the record is recoverable.
  */
-const RECLASSIFY_TO = ['NOT_AT_HOME', 'HOSPITAL'];
+const RECLASSIFY_TO = ['NOT_AT_HOME', 'HOSPITAL', 'NOT_NEEDED'];
 
 export async function reclassifyDoses(req: AuthRequest, res: Response) {
   const { ids, to, note } = req.body as { ids?: unknown; to?: unknown; note?: unknown };
@@ -443,10 +443,23 @@ export async function reclassifyDoses(req: AuthRequest, res: Response) {
 
   const rows = await prisma.medAdministration.findMany({
     where: { id: { in: list }, ...relatedServiceUserScopeWhere(req.user) },
-    include: { serviceUser: { select: { firstName: true, lastName: true } } },
+    include: {
+      serviceUser: { select: { firstName: true, lastName: true } },
+      medication: { select: { times: true } },
+    },
   });
-  const changeable = rows.filter((r) => r.status === 'MISSED');
+  let eligible = rows.filter((r) => r.status === 'MISSED');
   const refused = rows.filter((r) => r.status !== 'MISSED').map((r) => ({ id: r.id, status: r.status }));
+
+  // NOT_NEEDED only on a when-required medicine. On a scheduled one it would
+  // say a dose that WAS due did not need giving, which is a clinical judgement
+  // and not one to make in bulk from a list of ids.
+  if (next === 'NOT_NEEDED') {
+    const scheduled = eligible.filter((r) => !!r.medication?.times && r.medication.times !== '[]');
+    for (const r of scheduled) refused.push({ id: r.id, status: 'MISSED (scheduled dose, not as-required)' });
+    eligible = eligible.filter((r) => !r.medication?.times || r.medication.times === '[]');
+  }
+  const changeable = eligible;
 
   const extra = typeof note === 'string' ? note.trim().slice(0, 300) : '';
   const stamp = new Date().toISOString().slice(0, 10);

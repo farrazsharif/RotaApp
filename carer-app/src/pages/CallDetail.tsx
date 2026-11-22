@@ -753,7 +753,11 @@ export default function CallDetail() {
         const picked = picks[key]?.status;
         return (
           <div className="mt-2 grid grid-cols-2 gap-2">
-            {STATUS_OPTIONS.map((opt) => {
+            {/* A when-required medicine cannot be MISSED. It is given when it
+                is needed, and "not required" the rest of the time — but when
+                Missed is on screen that is what gets picked, and a GTN spray
+                for chest pain ends up counted as a medicines failure. */}
+            {STATUS_OPTIONS.filter((opt) => !(dose.prn && opt.value === 'MISSED')).map((opt) => {
               const sel = picked === opt.value;
               return (
                 <button

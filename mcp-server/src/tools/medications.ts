@@ -14,6 +14,10 @@ import { Format, ResponseFormat, fmtDate, result } from '../shared.js';
  * difference between those two is the whole point of looking.
  */
 
+const TO_LABEL: Record<string, string> = {
+  NOT_AT_HOME: 'Not at home', HOSPITAL: 'In hospital', NOT_NEEDED: 'Not Required',
+};
+
 const EXCEPTION_STATUSES = ['MISSED', 'REFUSED', 'NOT_NEEDED', 'CANCELLED', 'NOT_AT_HOME', 'HOSPITAL'] as const;
 
 interface Administration {
@@ -382,7 +386,9 @@ export function registerMedicationTools(server: McpServer) {
         'log: she went to the appointment, not back", apply: true }',
       inputSchema: z.strictObject({
         ids: z.array(z.string().min(6).max(60)).min(1).max(500).describe('Dose record ids from the exceptions tool'),
-        to: z.enum(['NOT_AT_HOME', 'HOSPITAL']).describe('What the record should say instead'),
+        to: z
+          .enum(['NOT_AT_HOME', 'HOSPITAL', 'NOT_NEEDED'])
+          .describe('What the record should say instead. NOT_NEEDED only applies to as-required medicines.'),
         note: z
           .string()
           .max(300)
@@ -406,7 +412,7 @@ export function registerMedicationTools(server: McpServer) {
         return result(
           args.response_format as Format,
           `**${args.ids.length}** dose${args.ids.length === 1 ? '' : 's'} would change from Missed to ` +
-            `**${args.to === 'HOSPITAL' ? 'In hospital' : 'Not at home'}**` +
+            `**${TO_LABEL[args.to]}**` +
             `${args.note ? `, noted "${args.note}"` : ''}.\n\n_Nothing changed. Call again with apply: true._`,
           { applied: false, would_change: args.ids.length, to: args.to },
         );
@@ -420,7 +426,7 @@ export function registerMedicationTools(server: McpServer) {
 
       const lines = [
         `**${res.changed}** dose${res.changed === 1 ? '' : 's'} changed from Missed to ` +
-          `**${args.to === 'HOSPITAL' ? 'In hospital' : 'Not at home'}**.`,
+          `**${TO_LABEL[args.to]}**.`,
       ];
       if (res.notMissed.length) {
         lines.push(
