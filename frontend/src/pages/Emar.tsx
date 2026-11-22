@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { medicationsApi } from '../api/medications';
 import { serviceUsersApi } from '../api/serviceUsers';
@@ -90,6 +91,7 @@ export default function Emar() {
             placeholder="Search client, medication or carer…"
             className="input w-72"
           />
+          <Link to="/not-at-home" className="btn-secondary btn">Not at home</Link>
           {isManager && (
             <button className="btn-primary btn" onClick={() => { setPickerOpen(true); setPickerSearch(''); }}>
               + Add Medication

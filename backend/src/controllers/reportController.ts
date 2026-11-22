@@ -526,6 +526,73 @@ export async function lateCheckinsList(req: AuthRequest, res: Response) {
   res.json(rows);
 }
 
+// Clients who were out when their carer arrived, grouped by person.
+//
+// Not at home is deliberately not counted as missed medication - the service
+// turned up - but it is not nothing either. Once is a hair appointment. Four
+// times in a month is a question: has the call time stopped suiting them, is
+// somebody else taking them out, are they going out and not coming back? That
+// question only exists when you look at one person over weeks, which is why
+// this groups by client and ranks by how often rather than listing doses by
+// date like the missed-medication report does.
+export async function notAtHomeList(req: AuthRequest, res: Response) {
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 180);
+  const now = new Date();
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (days - 1)));
+
+  // Away periods are dropped for the same reason they are dropped from the
+  // missed count: somebody recorded as out while they were on a ward is
+  // explained by the ward, and a welfare list full of explained rows is a
+  // welfare list nobody reads.
+  const rows = await dropAwayDoses(
+    await prisma.medAdministration.findMany({
+      where: { status: 'NOT_AT_HOME', scheduledFor: { gte: from }, ...relatedServiceUserScopeWhere(req.user) },
+      include: {
+        medication: { select: { name: true, dose: true } },
+        serviceUser: { select: { id: true, firstName: true, lastName: true } },
+        user: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { scheduledFor: 'desc' },
+    }),
+  );
+
+  type Occurrence = { id: string; at: string; doseTime: string; medName: string; medDose: string | null; carerName: string | null; note: string | null };
+  const byClient = new Map<string, { serviceUserId: string; serviceUserName: string; count: number; lastAt: string; occurrences: Occurrence[] }>();
+
+  for (const r of rows) {
+    const hh = String(r.scheduledFor.getUTCHours()).padStart(2, '0');
+    const mm = String(r.scheduledFor.getUTCMinutes()).padStart(2, '0');
+    const occurrence: Occurrence = {
+      id: r.id,
+      at: r.scheduledFor.toISOString(),
+      doseTime: `${hh}:${mm}`,
+      medName: r.medication.name,
+      medDose: r.medication.dose,
+      carerName: r.user ? `${r.user.firstName} ${r.user.lastName}` : null,
+      note: r.note ?? null,
+    };
+    const key = r.serviceUserId;
+    const held = byClient.get(key);
+    if (held) {
+      held.count += 1;
+      held.occurrences.push(occurrence);
+    } else {
+      byClient.set(key, {
+        serviceUserId: key,
+        serviceUserName: `${r.serviceUser.firstName} ${r.serviceUser.lastName}`,
+        count: 1,
+        // Rows arrive newest first, so the first one seen is the latest.
+        lastAt: occurrence.at,
+        occurrences: [occurrence],
+      });
+    }
+  }
+
+  // Most often first, then most recent - the order somebody would work down.
+  const out = [...byClient.values()].sort((a, b) => b.count - a.count || b.lastAt.localeCompare(a.lastAt));
+  res.json(out);
+}
+
 // The missed medications behind the dashboard's "Meds missed today" count —
 // which client, which carer, and which visit each missed dose was on.
 export async function missedMedsList(req: AuthRequest, res: Response) {

@@ -15,6 +15,7 @@ import Reports from './pages/Reports';
 import Cqc from './pages/Cqc';
 import LateCheckins from './pages/LateCheckins';
 import MissedMeds from './pages/MissedMeds';
+import NotAtHome from './pages/NotAtHome';
 import Users from './pages/Users';
 import StaffDetail from './pages/StaffDetail';
 import DbsRegister from './pages/DbsRegister';
@@ -135,6 +136,7 @@ function AppRoutes() {
         <Route path="cqc" element={<CapabilityRoute cap="manage_cqc"><Cqc /></CapabilityRoute>} />
         <Route path="late-checkins" element={<CapabilityRoute cap="manage_schedule"><LateCheckins /></CapabilityRoute>} />
         <Route path="missed-meds" element={<CapabilityRoute cap="manage_medications"><MissedMeds /></CapabilityRoute>} />
+        <Route path="not-at-home" element={<CapabilityRoute cap="manage_medications"><NotAtHome /></CapabilityRoute>} />
         <Route path="finances" element={<Finances />} />
         <Route path="users" element={<CapabilityRoute cap="manage_staff"><Users /></CapabilityRoute>} />
         <Route path="users/:id" element={<CapabilityRoute cap="manage_staff"><StaffDetail /></CapabilityRoute>} />

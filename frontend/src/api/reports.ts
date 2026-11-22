@@ -27,6 +27,14 @@ export interface MissedMedRow {
   serviceUserName: string; carerName: string | null;
   visitName: string | null; visitStart: string | null; visitEnd: string | null; note: string | null;
 }
+export interface NotAtHomeOccurrence {
+  id: string; at: string; doseTime: string; medName: string; medDose: string | null;
+  carerName: string | null; note: string | null;
+}
+export interface NotAtHomeRow {
+  serviceUserId: string; serviceUserName: string; count: number; lastAt: string;
+  occurrences: NotAtHomeOccurrence[];
+}
 export interface EcmRow {
   shiftId: string; date: string; serviceUser: string; site: string; carer: string; visitName: string | null;
   scheduledStart: string; scheduledEnd: string; scheduledMins: number;
@@ -38,6 +46,8 @@ export const reportsApi = {
   dashboard: () => api.get<DashboardStats>('/reports/dashboard').then((r) => r.data),
   lateCheckins: () => api.get<LateCheckinRow[]>('/reports/late-checkins').then((r) => r.data),
   missedMeds: () => api.get<MissedMedRow[]>('/reports/missed-meds').then((r) => r.data),
+  notAtHome: (days: number) =>
+    api.get<NotAtHomeRow[]>('/reports/not-at-home', { params: { days } }).then((r) => r.data),
   hours: (params: { startDate: string; endDate: string; userId?: string }) =>
     api.get<HoursRow[]>('/reports/hours', { params }).then((r) => r.data),
   overtime: (params: { startDate: string; endDate: string }) =>
