@@ -4,6 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { loadOrgSettings } from './settingsController';
 import { isScoped, relatedServiceUserScopeWhere, relatedStaffScopeWhere, staffScopeOr } from '../lib/scope';
 import { londonDayStart, londonDayEnd } from '../lib/londonTime';
+import { dropAwayDoses } from '../lib/awayDoses';
 
 function hoursWorked(clockIn: Date, clockOut: Date | null) {
   if (!clockOut) return 0;
@@ -533,7 +534,9 @@ export async function missedMedsList(req: AuthRequest, res: Response) {
   const todayEnd = new Date(todayStart);
   todayEnd.setUTCDate(todayEnd.getUTCDate() + 1);
 
-  const missed = await prisma.medAdministration.findMany({
+  // Doses that fell due while the client was in hospital or away on respite
+  // are not missed medication - see lib/awayDoses.ts.
+  const missed = await dropAwayDoses(await prisma.medAdministration.findMany({
     where: { status: 'MISSED', scheduledFor: { gte: todayStart, lt: todayEnd }, ...relatedServiceUserScopeWhere(req.user) },
     include: {
       medication: { select: { name: true, dose: true, isBlisterPack: true } },
@@ -541,7 +544,7 @@ export async function missedMedsList(req: AuthRequest, res: Response) {
       user: { select: { firstName: true, lastName: true } },
     },
     orderBy: { scheduledFor: 'asc' },
-  });
+  }));
   if (missed.length === 0) return res.json([]);
 
   // Pull today's visits for the affected clients so we can name the visit each
@@ -615,13 +618,13 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
   const staffScope = relatedStaffScopeWhere(req.user);
   const employeeSiteFilter = isScoped(req.user) ? { OR: staffScopeOr(req.user) } : {};
 
-  const [totalEmployees, pendingTimeOff, weekShifts, todayShifts, todayClock, missedMeds, trainingRecords, importantSoon, openIncidents] = await Promise.all([
+  const [totalEmployees, pendingTimeOff, weekShifts, todayShifts, todayClock, missedMedRows, trainingRecords, importantSoon, openIncidents] = await Promise.all([
     prisma.user.count({ where: { active: true, role: 'EMPLOYEE', ...employeeSiteFilter } }),
     prisma.timeOffRequest.count({ where: { status: 'PENDING', ...staffScope } }),
     prisma.shift.findMany({ where: { date: { gte: weekStart, lt: weekEndExcl }, status: { not: 'CANCELLED' }, ...suScope }, select: { date: true, userId: true } }),
     prisma.shift.findMany({ where: { date: { gte: todayStart, lt: todayEnd }, status: { not: 'CANCELLED' }, ...suScope }, select: { id: true, startTime: true, userId: true, status: true } }),
     prisma.clockRecord.findMany({ where: { clockIn: { gte: todayStart } }, select: { shiftId: true } }),
-    prisma.medAdministration.count({ where: { status: 'MISSED', scheduledFor: { gte: todayStart, lt: todayEnd }, ...suScope } }),
+    prisma.medAdministration.findMany({ where: { status: 'MISSED', scheduledFor: { gte: todayStart, lt: todayEnd }, ...suScope }, select: { serviceUserId: true, scheduledFor: true } }),
     prisma.training.findMany({
       where: { expiresAt: { not: null }, user: isScoped(req.user) ? { active: true, OR: staffScopeOr(req.user) } : { active: true } },
       select: { userId: true, course: true, expiresAt: true },
@@ -641,6 +644,10 @@ export async function dashboardStats(req: AuthRequest, res: Response) {
       },
     }),
   ]);
+
+  // Doses that fell due while the client was in hospital or away on respite
+  // are not missed medication - see lib/awayDoses.ts.
+  const missedMeds = (await dropAwayDoses(missedMedRows)).length;
 
   // Training expiring/expired = the LATEST record per (staff, course) whose
   // expiry has passed or falls within 30 days. Dedupe so superseded history

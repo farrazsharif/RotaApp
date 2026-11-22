@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { medicationsApi } from '../api/medications';
+import { respiteApi } from '../api/respite';
 import { ServiceUser, Medication, MedAdministration, MedStatus } from '../types';
 import { format, getDaysInMonth, parse } from 'date-fns';
 import { formatTime12h } from '../lib/time';
@@ -26,6 +27,20 @@ const STATUS_LABEL: Record<MedStatus, string> = {
 const STATUS_COLOR: Record<MedStatus, string> = {
   GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8', CANCELLED: '#6b7280',
 };
+
+// Dose slots are stored as UK wall-clock times encoded as if they were UTC
+// (a dose due at 08:00 is due at 08:00 whatever the season). An away period's
+// start and end are real instants. This puts an instant into the slot encoding
+// so the two can be compared — without it every boundary sits an hour out for
+// the seven months the UK is on BST.
+function londonSlot(iso: string): number {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(new Date(iso));
+  const get = (t: string) => Number(parts.find((x) => x.type === t)?.value ?? 0);
+  return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), 0);
+}
 
 function parseTimes(times: string): string[] {
   try {
@@ -71,6 +86,37 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
     queryKey: ['med-admin-range', serviceUser.id, month],
     queryFn: () => medicationsApi.administrationsRange(serviceUser.id, startDate, endDate),
   });
+
+  // Hospital admissions and respite. A dose that fell due while the client was
+  // on a ward was not the service's to give, so it is coded H (or L for
+  // planned leave) rather than counted as an absence — see the backend's
+  // lib/awayDoses.ts, which drops the same doses from the missed-medication
+  // counts. Nothing recorded is overwritten: the tooltip still names what the
+  // carer entered at the time.
+  const { data: awayPeriods = [] } = useQuery({
+    queryKey: ['respite', serviceUser.id],
+    queryFn: () => respiteApi.list(serviceUser.id),
+  });
+  // Dose slots are keyed as UK wall-clock encoded as UTC; away boundaries are
+  // real instants. Put the boundaries into the same encoding so the two can be
+  // compared without slipping an hour during British Summer Time.
+  const awayRanges = useMemo(
+    () => awayPeriods.map((p) => ({
+      type: p.type === 'HOSPITAL' ? 'HOSPITAL' : 'RESPITE',
+      from: londonSlot(p.startAt),
+      to: londonSlot(p.endAt),
+    })),
+    [awayPeriods],
+  );
+  const awayAt = (day: number, time: string): 'HOSPITAL' | 'RESPITE' | null => {
+    if (day > daysInMonth) return null;
+    const [h, m] = time.split(':').map(Number);
+    const at = Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), day, h, m, 0);
+    const hit = awayRanges.find((r) => at >= r.from && at < r.to);
+    return hit ? (hit.type as 'HOSPITAL' | 'RESPITE') : null;
+  };
+  const AWAY_CODE = { HOSPITAL: 'H', RESPITE: 'L' } as const;
+  const AWAY_LABEL = { HOSPITAL: 'In hospital', RESPITE: 'Away (respite)' } as const;
 
   // Dose slots whose visit was cancelled — shown as "C" where there's no record.
   const { data: cancelledSlots = [] } = useQuery({
@@ -188,6 +234,11 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                   if (outsideActiveWindow(med, d)) return '<td class="invalid-day" title="Not active on this date"></td>';
                   if (!dueOn(med, d)) return '<td style="background:#eef2f7"></td>';
                   const rec = recordFor(med.id, d, t);
+                  const away = (!rec || rec.status === 'MISSED') ? awayAt(d, t) : null;
+                  if (away) {
+                    const was = rec ? ` (recorded as ${esc(STATUS_LABEL[rec.status])})` : '';
+                    return `<td style="color:#6b7280;font-weight:bold;" title="${esc(AWAY_LABEL[away])}${was}">${AWAY_CODE[away]}</td>`;
+                  }
                   if (!rec) return isCancelled(med.id, d, t) ? '<td style="color:#6b7280;font-weight:bold;" title="Visit cancelled">C</td>' : '<td></td>';
                   const code = esc(initialsFor(rec));
                   const color = STATUS_COLOR[rec.status];
@@ -238,6 +289,8 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         <div><span>N</span> = Not required</div>
         <div><span>S</span> = Self-administered</div>
         <div><span>C</span> = Cancelled visit</div>
+        <div><span>H</span> = In hospital</div>
+        <div><span>L</span> = Away (respite)</div>
       </div>
       </body></html>`;
 
@@ -322,24 +375,30 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                             if (outsideActiveWindow(med, d)) return <td key={d} className="border border-gray-300 bg-gray-200" title="Not active on this date" />;
                             if (!dueOn(med, d)) return <td key={d} className="border border-gray-300 bg-blue-50" />;
                             const rec = recordFor(med.id, d, t);
-                            const cancelled = !rec && isCancelled(med.id, d, t);
+                            // Only an absence is relabelled. If a dose was
+                            // actually given during a stay, that is worth
+                            // seeing, not hiding behind an H.
+                            const away = (!rec || rec.status === 'MISSED') ? awayAt(d, t) : null;
+                            const cancelled = !rec && !away && isCancelled(med.id, d, t);
                             const [hh, mm] = t.split(':').map(Number);
                             const scheduledFor = new Date(Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), d, hh, mm, 0)).toISOString();
                             return (
                               <td
                                 key={d}
-                                className={`border border-gray-300 text-center font-bold ${cancelled ? 'bg-gray-50' : ''} ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
-                                style={rec ? { color: STATUS_COLOR[rec.status] } : cancelled ? { color: '#6b7280' } : undefined}
+                                className={`border border-gray-300 text-center font-bold ${cancelled || away ? 'bg-gray-50' : ''} ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                style={away ? { color: '#6b7280' } : rec ? { color: STATUS_COLOR[rec.status] } : cancelled ? { color: '#6b7280' } : undefined}
                                 title={
-                                  rec
-                                    ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${canEdit ? ' · click to edit' : ''}`
-                                    : cancelled
-                                      ? `Visit cancelled${canEdit ? ' · click to record' : ''}`
-                                      : canEdit ? 'Click to record this dose' : undefined
+                                  away
+                                    ? `${AWAY_LABEL[away]}${rec ? ` · recorded as ${STATUS_LABEL[rec.status]}${rec.user ? ` by ${rec.user.firstName} ${rec.user.lastName}` : ''}` : ''}${canEdit ? ' · click to edit' : ''}`
+                                    : rec
+                                      ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${canEdit ? ' · click to edit' : ''}`
+                                      : cancelled
+                                        ? `Visit cancelled${canEdit ? ' · click to record' : ''}`
+                                        : canEdit ? 'Click to record this dose' : undefined
                                 }
                                 onClick={canEdit ? () => setCell({ med, time: t, scheduledFor, existing: rec ?? null }) : undefined}
                               >
-                                {rec ? initialsFor(rec) : cancelled ? 'C' : ''}
+                                {away ? AWAY_CODE[away] : rec ? initialsFor(rec) : cancelled ? 'C' : ''}
                               </td>
                             );
                           })}
@@ -364,6 +423,8 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
               <span><strong className="text-gray-600">N</strong> = Not required</span>
               <span><strong className="text-blue-700">S</strong> = Self-administered</span>
               <span><strong className="text-gray-500">C</strong> = Cancelled visit</span>
+              <span><strong className="text-gray-500">H</strong> = In hospital</span>
+              <span><strong className="text-gray-500">L</strong> = Away (respite)</span>
             </div>
           )}
         </div>

@@ -11,7 +11,7 @@ import { sendPushToUser } from './push';
 // the boundary and escaped cancellation. Convert the UK wall-clock components to
 // the correct UTC instant so both sides of the comparison are the same kind of
 // value. DST is handled automatically via Intl.
-function ukWallClockToUtc(y: number, mon: number, day: number, h: number, min: number): Date {
+export function ukWallClockToUtc(y: number, mon: number, day: number, h: number, min: number): Date {
   const guess = Date.UTC(y, mon, day, h, min, 0);
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/London', hour12: false,

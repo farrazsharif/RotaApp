@@ -6,6 +6,7 @@ import { logAudit } from '../lib/audit';
 import { userHasPermission } from '../middleware/permissions';
 import { assessStatements, methodology } from '../lib/statementEngine';
 import { STATEMENTS_BY_KEY, REVIEWABLE_STATUSES } from '../lib/qualityStatements';
+import { dropAwayDoses } from '../lib/awayDoses';
 
 // Each automated check maps to a CQC key question and a quality statement /
 // regulation, so a red/amber flag is defensible in an inspection.
@@ -72,7 +73,7 @@ export async function computeReadiness() {
     prisma.supervision.findMany({ select: { userId: true, nextReviewDate: true } }),
     prisma.spotCheck.findMany({ select: { carerId: true, date: true } }),
     prisma.training.findMany({ select: { userId: true, course: true, date: true, expiresAt: true } }),
-    prisma.medAdministration.findMany({ where: { status: 'MISSED', scheduledFor: { gte: daysAgo(30) } }, select: { serviceUserId: true } }),
+    prisma.medAdministration.findMany({ where: { status: 'MISSED', scheduledFor: { gte: daysAgo(30) } }, select: { serviceUserId: true, scheduledFor: true } }),
     prisma.shift.count({ where: { userId: null, status: 'SCHEDULED', date: { gte: now(), lte: daysAhead(7) } } }),
     prisma.safeguardingConcern.findMany({
       where: { status: { not: 'CLOSED' } },
@@ -299,7 +300,10 @@ export async function computeReadiness() {
   // day they come back, because the due date itself has not moved.
   const servicePaused = (c: { status: string }) => c.status === 'HOSPITALISED' || c.status === 'ON_HOLD';
   const receivingCare = clients.filter((c) => !servicePaused(c));
-  const missedMedClients = new Set(missedMedRows.map((m) => m.serviceUserId));
+  // Doses that fell due while the client was in hospital or away on respite
+  // are not missed medication - the service was not giving them. See
+  // lib/awayDoses.ts.
+  const missedMedClients = new Set((await dropAwayDoses(missedMedRows)).map((m) => m.serviceUserId));
 
   const safe: Check[] = [
     {
