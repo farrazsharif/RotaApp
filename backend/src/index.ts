@@ -71,6 +71,7 @@ import { backfillAllCompanyRoles } from './lib/defaultRoles';
 import { normalizeVisitNames } from './lib/normalizeVisitNames';
 import { ensureServiceUserColumns } from './lib/ensureColumns';
 import { topUpPermanentSeries } from './lib/topUpPermanentSeries';
+import { rebuildReviewDueAt } from './lib/reviewDue';
 import { handleWebhook } from './controllers/billingController';
 import { startShiftReminders } from './lib/shiftReminders';
 
@@ -236,6 +237,9 @@ server.listen(PORT, () => {
   normalizeVisitNames(prisma).catch((e) => console.error('Visit-name normalisation failed:', e));
   // Ensure the new columns exist first, then top up permanent recurring visits.
   ensureServiceUserColumns(prisma)
+    // Fill in the cached review dates from the blobs they come from. Batched,
+    // idempotent, and a no-op once every row already agrees.
+    .then(() => rebuildReviewDueAt(prisma))
     .then(() => topUpPermanentSeries(prisma))
     .catch((e) => console.error('Column guard / permanent top-up failed:', e));
   // Keep permanent visits rolling forward while the server stays up.

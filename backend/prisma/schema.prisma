@@ -457,6 +457,13 @@ model PersonalServicePlan {
   id            String   @id @default(cuid())
   serviceUserId String   @unique
   data          String   @default("{}") // JSON: all assessment field values keyed by item id
+  // The review date derived from this record's own content, cached as a column.
+  // The dashboard used to read it out of `data`, which meant loading every
+  // client's whole assessment - signature images and all, since drawn
+  // signatures are base64 inside the blob - to find out when a review was due.
+  // Maintained on every write and rebuilt at boot from the same helper, so it
+  // cannot drift from the blob it is derived from. See lib/reviewDue.ts.
+  reviewDueAt   DateTime?
   updatedById   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -475,6 +482,13 @@ model RiskAssessment {
   serviceUserId String
   type          String // e.g. 'ENVIRONMENT'
   data          String   @default("{}")
+  // The review date derived from this record's own content, cached as a column.
+  // The dashboard used to read it out of `data`, which meant loading every
+  // client's whole assessment - signature images and all, since drawn
+  // signatures are base64 inside the blob - to find out when a review was due.
+  // Maintained on every write and rebuilt at boot from the same helper, so it
+  // cannot drift from the blob it is derived from. See lib/reviewDue.ts.
+  reviewDueAt   DateTime?
   updatedById   String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -646,6 +660,13 @@ model LikesDislikes {
   goodDay        String? // "What makes a good day for me"
   badDay         String? // "What makes a bad day for me"
   paperMeta      String? // JSON PaperMeta when the form is held on paper (scan in Documents)
+  // The review date derived from this record's own content, cached as a column.
+  // The dashboard used to read it out of `data`, which meant loading every
+  // client's whole assessment - signature images and all, since drawn
+  // signatures are base64 inside the blob - to find out when a review was due.
+  // Maintained on every write and rebuilt at boot from the same helper, so it
+  // cannot drift from the blob it is derived from. See lib/reviewDue.ts.
+  reviewDueAt    DateTime?
   updatedById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

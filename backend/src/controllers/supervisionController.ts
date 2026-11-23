@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { isScoped, relatedServiceUserScopeWhere, staffScopeOr } from '../lib/scope';
-import { assessmentDateKey, planReviewDate, reviewedReviewDate } from '../lib/planReview';
+import { reviewedReviewDate } from '../lib/planReview';
 
 // How often each active carer should be spot-checked. Constant for Phase 1;
 // can move to an org setting later.
@@ -45,7 +45,7 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   const staffScope = isScoped(req.user) ? { OR: staffScopeOr(req.user) } : {};
 
   const suName = { select: { firstName: true, lastName: true } };
-  const [allReviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes, ldVersions, planTemplate, raVersions] = await Promise.all([
+  const [allReviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes, ldVersions, raVersions] = await Promise.all([
     // EVERY review, not just the ones that look due. A client reviewed in
     // January and again in September has two rows, and January's next-review
     // date is still in the past — filtering in the query made the superseded
@@ -70,17 +70,17 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
     // Assessments/plans stored in the generic blob (risk assessments, one-page
     // profile, contract, support plan) — their review date lives in __paper when
     // held on paper.
-    prisma.riskAssessment.findMany({ where: { ...suScope }, select: { serviceUserId: true, type: true, data: true, serviceUser: suName } }),
-    prisma.personalServicePlan.findMany({ where: { ...suScope }, select: { serviceUserId: true, data: true, serviceUser: suName } }),
-    prisma.likesDislikes.findMany({ where: { ...suScope }, select: { serviceUserId: true, paperMeta: true, serviceUser: suName } }),
+    // reviewDueAt, NOT data. Reading the date out of the blob meant loading
+    // every client's whole assessment - base64 signature images included -
+    // on every load of this page, which is what ran the API out of memory.
+    prisma.riskAssessment.findMany({ where: { ...suScope }, select: { serviceUserId: true, type: true, reviewDueAt: true, serviceUser: suName } }),
+    prisma.personalServicePlan.findMany({ where: { ...suScope }, select: { serviceUserId: true, reviewDueAt: true, serviceUser: suName } }),
+    prisma.likesDislikes.findMany({ where: { ...suScope }, select: { serviceUserId: true, reviewDueAt: true, serviceUser: suName } }),
     prisma.likesDislikesVersion.findMany({
       where: { ...suScope },
       select: { serviceUserId: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     }),
-    // The company's own plan template, so the assessment-date field is found
-    // by label even where somebody has reordered the questions.
-    prisma.servicePlanTemplate.findFirst({ select: { sections: true } }),
     // When each assessment was last actually reviewed. See planReview.ts: a
     // version is archived at the moment a review is completed, so it is the
     // one date here that cannot go stale.
@@ -144,17 +144,8 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
     if (!date || isNaN(date.getTime()) || date > soon) return;
     renewals.push({ serviceUserId, serviceUserName: nm(su), docType, dueDate: date, overdue: date < now });
   };
-  // Parse a review date out of a stored JSON blob's paper metadata (only counts
-  // when actually flagged as held on paper).
-  const paperReview = (raw: string | null, nested: boolean): Date | null => {
-    if (!raw) return null;
-    try {
-      const o = JSON.parse(raw);
-      const p = nested ? o.__paper : o;
-      if (p && typeof p === 'object' && p.onFile && p.reviewDate) return new Date(p.reviewDate);
-    } catch { /* ignore */ }
-    return null;
-  };
+  // The cached review date, which is all this page needs. It used to be parsed
+  // out of each record's JSON blob — see lib/reviewDue.ts for why that stopped.
   const RA_LABEL: Record<string, string> = {
     ENVIRONMENT: 'Risk Assessment — Environment',
     FIRE_SAFETY: 'Risk Assessment — Fire Safety',
@@ -185,19 +176,16 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
     if (ra.type === 'CONTRACT_OF_CARE') continue;
     // The later of the seeded paper date and a year from the last completed
     // review, so a reviewed assessment stops counting as overdue.
-    const due = reviewedReviewDate(paperReview(ra.data, true), lastReviewed.get(`${ra.serviceUserId}__${ra.type}`) ?? null);
+    const due = reviewedReviewDate(ra.reviewDueAt, lastReviewed.get(`${ra.serviceUserId}__${ra.type}`) ?? null);
     add(ra.serviceUserId, ra.serviceUser, RA_LABEL[ra.type] || 'Assessment', due);
   }
-  const psKey = assessmentDateKey(planTemplate?.sections ?? null);
   for (const sp of servicePlans) {
-    let parsed: Record<string, unknown> | null = null;
-    try { parsed = sp.data ? (JSON.parse(sp.data) as Record<string, unknown>) : null; } catch { parsed = null; }
-    add(sp.serviceUserId, sp.serviceUser, 'Personal Service Plan', planReviewDate(parsed, psKey, paperReview(sp.data, true)));
+    add(sp.serviceUserId, sp.serviceUser, 'Personal Service Plan', sp.reviewDueAt);
   }
   const lastLd = new Map<string, Date>();
   for (const v of ldVersions) if (!lastLd.has(v.serviceUserId)) lastLd.set(v.serviceUserId, v.createdAt);
   for (const ld of likesDislikes) {
-    const due = reviewedReviewDate(paperReview(ld.paperMeta, false), lastLd.get(ld.serviceUserId) ?? null);
+    const due = reviewedReviewDate(ld.reviewDueAt, lastLd.get(ld.serviceUserId) ?? null);
     add(ld.serviceUserId, ld.serviceUser, 'Likes & Dislikes', due);
   }
   renewals.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());

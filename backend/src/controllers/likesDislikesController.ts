@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { reviewedReviewDate } from '../lib/planReview';
+import { likesDislikesReviewDue } from '../lib/reviewDue';
 
 const TEXT_FIELDS = [
   'likes', 'dislikes', 'lifeHistory', 'health', 'whatPeopleLike', 'relationships', 'goodDay', 'badDay',
@@ -58,10 +59,16 @@ export async function upsertLikesDislikes(req: AuthRequest, res: Response) {
     }
   }
 
+  // Cache the review date alongside the record. paperMeta is only present on
+  // the request when it was sent, so the cache is only touched then - leaving
+  // a plain text-field save from overwriting it with null.
+  const withDue = 'paperMeta' in data
+    ? { ...data, reviewDueAt: likesDislikesReviewDue(data.paperMeta as string | null) }
+    : data;
   const record = await prisma.likesDislikes.upsert({
     where: { serviceUserId },
-    create: { serviceUserId, ...data },
-    update: data,
+    create: { serviceUserId, ...withDue },
+    update: withDue,
   });
   res.json(record);
 }

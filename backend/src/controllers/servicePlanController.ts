@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
+import { servicePlanReviewDue } from '../lib/reviewDue';
 
 // Lightweight index for the Service Plans list page: which clients already have
 // a saved plan and when it was last updated. Site-scoped for scoped users.
@@ -45,10 +46,14 @@ export async function upsertServicePlan(req: AuthRequest, res: Response) {
     }
   }
 
+  // Cache the review date alongside the blob so the dashboard never has to
+  // open the blob to find it. See lib/reviewDue.ts.
+  const tpl = await prisma.servicePlanTemplate.findFirst({ select: { sections: true } });
+  const reviewDueAt = servicePlanReviewDue(dataStr, tpl?.sections ?? null);
   const plan = await prisma.personalServicePlan.upsert({
     where: { serviceUserId },
-    create: { serviceUserId, data: dataStr, updatedById: req.user!.id },
-    update: { data: dataStr, updatedById: req.user!.id },
+    create: { serviceUserId, data: dataStr, reviewDueAt, updatedById: req.user!.id },
+    update: { data: dataStr, reviewDueAt, updatedById: req.user!.id },
   });
   res.json(plan);
 }

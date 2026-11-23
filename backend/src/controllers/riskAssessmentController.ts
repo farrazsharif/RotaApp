@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
 import { reviewedReviewDate } from '../lib/planReview';
+import { riskAssessmentReviewDue } from '../lib/reviewDue';
 import { logAudit } from '../lib/audit';
 
 // Index for a client's risk assessments: which types exist and when each was
@@ -78,10 +79,13 @@ export async function upsertRiskAssessment(req: AuthRequest, res: Response) {
     }
   }
 
+  // Cache the review date alongside the blob so the dashboard never has to
+  // open the blob to find it. See lib/reviewDue.ts.
+  const reviewDueAt = riskAssessmentReviewDue(dataStr);
   const ra = await prisma.riskAssessment.upsert({
     where: { serviceUserId_type: { serviceUserId, type } },
-    create: { serviceUserId, type, data: dataStr, updatedById: req.user!.id },
-    update: { data: dataStr, updatedById: req.user!.id },
+    create: { serviceUserId, type, data: dataStr, reviewDueAt, updatedById: req.user!.id },
+    update: { data: dataStr, reviewDueAt, updatedById: req.user!.id },
   });
   res.json(ra);
 }
@@ -187,8 +191,9 @@ export async function recordPaperRiskAssessment(req: AuthRequest, res: Response)
   // worse record than none.
   data.__paper = { onFile: false, assessor: who, completedDate: completed, ...(review ? { reviewDate: review } : {}) };
 
+  const paperJson = JSON.stringify(data);
   const ra = await prisma.riskAssessment.create({
-    data: { serviceUserId, type, data: JSON.stringify(data), updatedById: req.user!.id },
+    data: { serviceUserId, type, data: paperJson, reviewDueAt: riskAssessmentReviewDue(paperJson), updatedById: req.user!.id },
   });
   await logAudit(
     req,

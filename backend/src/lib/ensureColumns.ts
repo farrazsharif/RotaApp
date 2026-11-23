@@ -822,6 +822,12 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   // restoring exactly those visits).
   await prisma.$executeRawUnsafe(`ALTER TABLE "RespitePeriod" ADD COLUMN IF NOT EXISTS "type" TEXT NOT NULL DEFAULT 'RESPITE'`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "RespitePeriod" ADD COLUMN IF NOT EXISTS "cancelledShiftIds" TEXT NOT NULL DEFAULT '[]'`);
+  // Cached review-due date on the three documents that carry one inside their
+  // JSON blob. Nullable because plenty of records legitimately have no review
+  // date; rebuildReviewDueAt() fills it in. See lib/reviewDue.ts.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "RiskAssessment" ADD COLUMN IF NOT EXISTS "reviewDueAt" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "PersonalServicePlan" ADD COLUMN IF NOT EXISTS "reviewDueAt" TIMESTAMP(3)`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "LikesDislikes" ADD COLUMN IF NOT EXISTS "reviewDueAt" TIMESTAMP(3)`);
 
   // Performance indexes for large Shift tables. Series-wide carer changes and
   // series deletes match a visit by (company, serviceUser, date); series ops
