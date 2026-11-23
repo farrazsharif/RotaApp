@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import ResidentSwitcher from '../components/ResidentSwitcher';
 import { serviceUsersApi } from '../api/serviceUsers';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { isToday, format } from 'date-fns';
 import Layout from '../components/Layout';
@@ -348,6 +348,8 @@ export default function CallDetail() {
   const [entryText, setEntryText] = useState('');
   const [entryDomains, setEntryDomains] = useState<string[]>([]);
   const [clockOutError, setClockOutError] = useState<{ message: string; pendingMeds: string[] } | null>(null);
+  // Doses left unanswered on a previous visit that this clock-in auto-closed.
+  const [autoClosed, setAutoClosed] = useState<{ shiftId: string | null; pendingMeds: string[] } | null>(null);
   const [clockInError, setClockInError] = useState<string | null>(null);
   const [shortFix, setShortFix] = useState(false);
   const [logSent, setLogSent] = useState(false);
@@ -653,8 +655,12 @@ export default function CallDetail() {
   const clockInMut = useMutation({
     mutationFn: () => clockApi.clockIn(id),
     onError: (err: any) => setClockInError(err?.response?.data?.error || 'Could not clock in. Please try again.'),
-    onSuccess: async () => {
+    onSuccess: async (rec: any) => {
       setClockInError(null);
+      // A visit left clocked in has just been closed for them. Its doses were
+      // never answered, and they are the only one who knows — so say so here
+      // rather than letting it vanish.
+      setAutoClosed(rec?.autoClosed?.pendingMeds?.length ? rec.autoClosed : null);
       // Live timer on the Lock Screen / Dynamic Island while on this visit.
       if (shift) {
         const su = shift.serviceUser;
@@ -1191,6 +1197,24 @@ export default function CallDetail() {
             {clockInError && (
               <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-700 font-medium">{clockInError}</p>
+              </div>
+            )}
+            {autoClosed && (
+              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm text-amber-800 font-medium">
+                  Your last visit was still clocked in, so we closed it. Its medication was never recorded:
+                </p>
+                <ul className="text-sm text-amber-700 mt-1 list-disc list-inside">
+                  {autoClosed.pendingMeds.map((m) => <li key={m}>{m}</li>)}
+                </ul>
+                <div className="flex items-center gap-3 mt-2">
+                  {autoClosed.shiftId && (
+                    <Link to={`/call/${autoClosed.shiftId}`} className="text-sm font-semibold text-amber-800 underline">
+                      Open that visit
+                    </Link>
+                  )}
+                  <button className="text-sm text-amber-700" onClick={() => setAutoClosed(null)}>Dismiss</button>
+                </div>
               </div>
             )}
             {clockOutError && (

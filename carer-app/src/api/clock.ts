@@ -18,7 +18,7 @@ export const clockApi = {
   // Offline-capable: queued with the real tap time if there is no signal.
   clockIn: (shiftId?: string) =>
     sendOrQueue('clock.in', shiftId ? { shiftId } : {}, () =>
-      api.post<ClockRecord>('/clock/in', shiftId ? { shiftId } : {}).then((r) => r.data)),
+      api.post<ClockRecord & { autoClosed?: AutoClosedVisit | null }>('/clock/in', shiftId ? { shiftId } : {}).then((r) => r.data)),
   clockOut: () =>
     sendOrQueue('clock.out', {}, () => api.post<ClockRecord>('/clock/out').then((r) => r.data)),
   // Correct the actual start and/or end time on your own record (forgot to
@@ -30,6 +30,14 @@ export const clockApi = {
   recordMissed: (shiftId: string, body: { clockIn: string; clockOut: string }) =>
     api.post<ClockRecord>('/clock/records/self', { shiftId, ...body }).then((r) => r.data),
 };
+
+// A previous visit this clock-in had to auto-close, with the doses nobody
+// answered on it. The carer is the only person who knows what happened, so it
+// comes back to them rather than disappearing into the audit log.
+export interface AutoClosedVisit {
+  shiftId: string | null;
+  pendingMeds: string[];
+}
 
 export interface ClockOutBlockedError {
   error: string;

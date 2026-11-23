@@ -184,6 +184,10 @@ async function dueDosesForShift(shiftId: string | null, residentId?: string | nu
   return out;
 }
 
+/** How an unrecorded dose is named back to the carer. A PRN has no time. */
+const pendingLabel = (d: { name: string; time: string; prn: boolean }): string =>
+  d.prn || !d.time ? `${d.name} (as required)` : `${d.name} (${d.time})`;
+
 // GET /clock/due-meds — meds due for the carer's active clock-in
 export async function dueMeds(req: AuthRequest, res: Response) {
   const record = await prisma.clockRecord.findFirst({
@@ -231,6 +235,9 @@ const CLOCK_IN_INCLUDE = { shift: { include: { serviceUser: { select: { id: true
 export async function clockIn(req: AuthRequest, res: Response) {
   const { shiftId, at } = req.body;
   const userId = req.user!.id;
+  // Doses left unanswered on a visit this clock-in had to auto-close, handed
+  // back to the carer with the new record.
+  let autoClosed: { shiftId: string | null; pendingMeds: string[] } | null = null;
 
   // Don't let a stale open record permanently block clocking in. A record is
   // "stale" when it has no call, was left open from a previous day, or its call
@@ -266,8 +273,33 @@ export async function clockIn(req: AuthRequest, res: Response) {
     }
     let autoOut = existing.clockIn; // no call → zero duration, no phantom hours
     if (shiftEnd) autoOut = shiftEnd < existing.clockIn ? existing.clockIn : shiftEnd;
+
+    // The hole in compulsory eMAR. Clocking out runs the medication check;
+    // this path closed the record without it, so a carer who never clocked
+    // out of a finished visit and then clocked into the next one left its
+    // doses unanswered, with the visit reading as clocked in AND out.
+    //
+    // It does not block the new clock-in. The stale visit ended hours ago and
+    // the carer is now at somebody else's door — holding them there punishes
+    // the wrong client. Instead the unanswered doses are named in the audit
+    // entry and handed back to the carer in the clock-in response, because
+    // they are the only person who knows what happened, and the visit's doses
+    // stay recordable after clock-out.
+    const stale = existing.shiftId ? await dueDosesForShift(existing.shiftId) : [];
+    const unanswered = stale.filter((d) => !d.status);
     await prisma.clockRecord.update({ where: { id: existing.id }, data: { clockOut: autoOut } });
-    await logAudit(req, 'CLOCK_RECORD_AUTO_CLOSED', 'Own clock record', 'Stale open clock-in auto-closed on next clock-in');
+    await logAudit(
+      req,
+      'CLOCK_RECORD_AUTO_CLOSED',
+      'Own clock record',
+      'Stale open clock-in auto-closed on next clock-in.' +
+        (unanswered.length
+          ? ` ${unanswered.length} dose(s) left unrecorded on that visit: ${unanswered.map(pendingLabel).join(', ')}.`
+          : ''),
+    );
+    if (unanswered.length) {
+      autoClosed = { shiftId: existing.shiftId, pendingMeds: unanswered.map(pendingLabel) };
+    }
   }
 
   // Carers can only clock in to today's calls — not future or past ones.
@@ -298,7 +330,7 @@ export async function clockIn(req: AuthRequest, res: Response) {
       data: { userId, shiftId: shiftId || null, clockIn: clientTime(at) },
       include: CLOCK_IN_INCLUDE,
     });
-    return res.status(201).json(record);
+    return res.status(201).json({ ...record, autoClosed });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002' && shiftId) {
       const dup = await prisma.clockRecord.findFirst({
@@ -306,7 +338,7 @@ export async function clockIn(req: AuthRequest, res: Response) {
         orderBy: { clockIn: 'desc' },
         include: CLOCK_IN_INCLUDE,
       });
-      if (dup) return res.status(200).json(dup);
+      if (dup) return res.status(200).json({ ...dup, autoClosed });
     }
     throw e;
   }
@@ -319,15 +351,19 @@ export async function clockOut(req: AuthRequest, res: Response) {
   });
   if (!record) return res.status(400).json({ error: 'Not clocked in' });
 
-  // Compulsory eMAR: cannot clock out while scheduled medication doses due for
-  // this call are unrecorded. PRN / as-required meds are given only if needed,
-  // so they never block clock-out.
+  // Compulsory eMAR: cannot clock out while any dose due for this call is
+  // unrecorded — as-required ones included.
+  //
+  // A PRN used to be exempt, on the reasoning that it is given only if needed.
+  // But that left a blank, and a blank cannot tell a reader whether nobody
+  // needed it or nobody asked. "Not Required" is an answer and takes one tap;
+  // nothing is not an answer.
   const doses = await dueDosesForShift(record.shiftId);
-  const pending = doses.filter((d) => !d.status && !d.prn);
+  const pending = doses.filter((d) => !d.status);
   if (pending.length > 0) {
     return res.status(400).json({
       error: 'Record medication before clocking out',
-      pendingMeds: pending.map((d) => `${d.name} (${d.time})`),
+      pendingMeds: pending.map(pendingLabel),
     });
   }
 
