@@ -13,6 +13,7 @@ import {
   emptyEmploymentHistory,
   findGaps,
   formatMonth,
+  overseasStays,
   unexplainedGaps,
 } from '../lib/employmentHistory';
 
@@ -29,7 +30,7 @@ import {
  * what they were doing the rest of the time.
  */
 
-const blankEntry = (): EmploymentEntry => ({ employer: '', jobTitle: '', from: '', to: '', reason: '' });
+const blankEntry = (): EmploymentEntry => ({ employer: '', jobTitle: '', from: '', to: '', reason: '', country: '' });
 
 export default function EmploymentHistoryTab({
   userId,
@@ -71,6 +72,8 @@ export default function EmploymentHistoryTab({
 
   const gaps = useMemo(() => findGaps(form), [form]);
   const missing = useMemo(() => unexplainedGaps(form), [form]);
+  // Six months or more in one country, derived from the jobs and the gaps.
+  const overseas = useMemo(() => overseasStays(form), [form]);
 
   const saveMut = useMutation({
     mutationFn: () =>
@@ -160,7 +163,7 @@ export default function EmploymentHistoryTab({
                 )}
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label className="label">From</label>
                 {ro ? (
@@ -200,6 +203,22 @@ export default function EmploymentHistoryTab({
                     value={e.reason}
                     onChange={(ev) => setEntry(i, { reason: ev.target.value })}
                   />
+                )}
+              </div>
+              <div>
+                <label className="label">Country</label>
+                {ro ? (
+                  <p className="text-sm text-gray-800">{e.country?.trim() || 'United Kingdom'}</p>
+                ) : (
+                  <>
+                    <input
+                      className="input"
+                      value={e.country || ''}
+                      onChange={(ev) => setEntry(i, { country: ev.target.value })}
+                      placeholder="United Kingdom"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Leave blank for the UK.</p>
+                  </>
                 )}
               </div>
             </div>
@@ -257,7 +276,7 @@ export default function EmploymentHistoryTab({
                   {formatMonth(g.from)} – {formatMonth(g.to)}{' '}
                   <span className="font-normal text-gray-500">· {months(g.months)}</span>
                 </p>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
                   <div>
                     <label className="label">Reason</label>
                     {ro ? (
@@ -282,6 +301,22 @@ export default function EmploymentHistoryTab({
                       />
                     )}
                   </div>
+                  <div>
+                    <label className="label">Country</label>
+                    {ro ? (
+                      <p className="text-sm text-gray-800">{said.country?.trim() || 'United Kingdom'}</p>
+                    ) : (
+                      <>
+                        <input
+                          className="input"
+                          value={said.country || ''}
+                          onChange={(ev) => setGap(g.key, { country: ev.target.value })}
+                          placeholder="United Kingdom"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">Leave blank for the UK.</p>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -294,6 +329,37 @@ export default function EmploymentHistoryTab({
           </p>
         )}
       </div>
+
+      {/* Not a question - an answer, read off the dates above. Six months in a
+          country is the point at which that country's police check belongs on
+          the file, and nobody should have to add the months up by hand. */}
+      {overseas.length > 0 && (
+        <div className="border-t pt-4 space-y-3">
+          <div>
+            <h3 className="font-semibold text-gray-900">Time spent outside the UK</h3>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Worked out from the countries above. Six months or more in one country means a police check or
+              certificate of good conduct from that country belongs on the file, alongside the DBS.
+            </p>
+          </div>
+          <ul className="space-y-2 list-none p-0 m-0">
+            {overseas.map((o) => (
+              <li
+                key={o.country}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3"
+              >
+                <span className="text-sm font-medium text-gray-900">{o.country}</span>
+                <span className="text-sm text-gray-700">
+                  {months(o.months)} &middot; {o.worked ? 'employed there' : 'not employed, accounted for in a gap'}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-gray-500">
+            Upload each one on the Documents tab as "Overseas Police Check".
+          </p>
+        </div>
+      )}
 
       <div className="border-t pt-4 space-y-3">
         <h3 className="font-semibold text-gray-900">Declaration</h3>

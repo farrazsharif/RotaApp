@@ -15,6 +15,14 @@
 export interface EmploymentEntry {
   employer: string;
   jobTitle: string;
+  /**
+   * Where the job was. Blank means the UK, which is the overwhelming case and
+   * not worth making everyone type. It matters because a post abroad is not
+   * just a line on a form: six months or more in a country means that
+   * country's police check is wanted on the file, and an employer in Lahore
+   * read exactly like one in Manchester before this field existed.
+   */
+  country?: string;
   /** YYYY-MM */
   from: string;
   /** YYYY-MM. Blank means still there. */
@@ -25,6 +33,9 @@ export interface EmploymentEntry {
 export interface GapExplanation {
   reason: string;
   activity: string;
+  /** Where they were. Blank = the UK. A year travelling counts the same as a
+   *  year working as far as an overseas check is concerned. */
+  country?: string;
 }
 
 export interface EmploymentHistory {
@@ -136,4 +147,61 @@ export function unexplainedGaps(history: EmploymentHistory, now = thisMonth()): 
     const said = history.gaps?.[g.key];
     return !said || !said.reason.trim();
   });
+}
+
+/** Blank, "uk", "united kingdom", "england" and so on all mean the same place. */
+const UK = /^(uk|u\.k\.|gb|britain|great britain|united kingdom|england|scotland|wales|northern ireland)$/i;
+export function isUk(country?: string): boolean {
+  const c = (country || '').trim();
+  return c === '' || UK.test(c);
+}
+
+export interface OverseasStay {
+  country: string;
+  months: number;
+  /** Whether any of it was a job, as opposed to only a gap spent there. */
+  worked: boolean;
+}
+
+/**
+ * Countries outside the UK where this person spent SIX MONTHS OR MORE.
+ *
+ * That is the threshold at which a certificate of good conduct from that
+ * country is wanted alongside the DBS, so this list IS the list of overseas
+ * police checks the file needs — derived from what they already typed rather
+ * than asked for again in a box somebody would leave blank.
+ *
+ * Time in a country is counted across every job and every explained gap, so
+ * two four-month postings to the same place add up to eight and surface,
+ * where neither would on its own.
+ */
+export function overseasStays(history: EmploymentHistory, now = thisMonth()): OverseasStay[] {
+  const end = toIndex(now);
+  const totals = new Map<string, { months: number; worked: boolean; label: string }>();
+
+  const add = (countryRaw: string | undefined, months: number, worked: boolean) => {
+    if (months <= 0 || isUk(countryRaw)) return;
+    const label = (countryRaw || '').trim();
+    const key = label.toLowerCase();
+    const cur = totals.get(key) || { months: 0, worked: false, label };
+    cur.months += months;
+    cur.worked = cur.worked || worked;
+    totals.set(key, cur);
+  };
+
+  for (const e of history.entries) {
+    const from = toIndex(e.from);
+    if (from === null || end === null) continue;
+    const to = e.to ? toIndex(e.to) : end;
+    if (to === null || to < from) continue;
+    add(e.country, Math.min(to, end) - from + 1, true);
+  }
+  for (const g of findGaps(history, now)) {
+    add(history.gaps?.[g.key]?.country, g.months, false);
+  }
+
+  return [...totals.values()]
+    .filter((t) => t.months >= 6)
+    .map((t) => ({ country: t.label, months: t.months, worked: t.worked }))
+    .sort((a, b) => b.months - a.months);
 }
