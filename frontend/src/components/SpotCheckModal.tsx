@@ -84,6 +84,21 @@ export default function SpotCheckModal({ onClose, carerId: initialCarerId, viewI
   const setAnswer = (id: string, patch: Partial<{ answer: YesNoNa; comment: string }>) =>
     setAnswers((a) => ({ ...a, [id]: { ...a[id], ...patch } }));
 
+  // The record arrives after mount, so the draft cannot be judged in the hook.
+  // Judge it here instead: a draft older than the record's last save belongs to
+  // somebody who wandered off before a colleague saved properly, and showing it
+  // would mask their work.
+  const staleRef = useRef(false);
+  useEffect(() => {
+    if (!isEdit || staleRef.current || !existing || !draft.restoredAt) return;
+    const savedAt = new Date(existing.createdAt).getTime();
+    if (Number.isFinite(savedAt) && draft.restoredAt.getTime() <= savedAt) {
+      staleRef.current = true;
+      draft.clear();
+      setDiscarded(true); // lets the seed below run, and drops the banner
+    }
+  }, [isEdit, existing, draft]);
+
   // Seed the editable form once from the existing record when editing.
   const seededRef = useRef(false);
   useEffect(() => {

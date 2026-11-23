@@ -59,9 +59,34 @@ export interface FormDraft<T> {
   savedAt: Date | null;
 }
 
-export function useFormDraft<T>(key: string | null, enabled = true): FormDraft<T> {
+/**
+ * `recordSavedAt` is when the SERVER record this form edits was last written.
+ *
+ * Without it a draft always won, on the assumption that a draft must be newer
+ * than the saved record. It need not be. Somebody opens a blank form, types a
+ * character, wanders off; a colleague then fills the record in properly and
+ * saves it. The first person's stale draft — possibly empty — then masks the
+ * colleague's work every time they open the form, and nothing on screen says
+ * the record underneath is fine. That is how an administrator came to see a
+ * blank employment history that a manager had already completed.
+ *
+ * So a draft older than the last save is discarded, not shown. Leave it out
+ * only for a form with no saved record behind it yet.
+ */
+export function useFormDraft<T>(key: string | null, enabled = true, recordSavedAt?: string | Date | null): FormDraft<T> {
   // Read once. Re-reading later would fight whatever is being typed.
-  const [initial] = useState(() => (key && enabled ? readDraft<T>(key) : null));
+  const [initial] = useState(() => {
+    if (!key || !enabled) return null;
+    const found = readDraft<T>(key);
+    if (!found) return null;
+    const saved = recordSavedAt ? new Date(recordSavedAt).getTime() : 0;
+    if (saved && Number.isFinite(saved) && found.at <= saved) {
+      // Superseded by a real save. Drop it so it cannot come back.
+      try { localStorage.removeItem(PREFIX + key); } catch { /* nothing to clear */ }
+      return null;
+    }
+    return found;
+  });
   const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   const latest = useRef<T | null>(null);

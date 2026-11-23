@@ -43,7 +43,10 @@ export default function EmploymentHistoryTab({
   const qc = useQueryClient();
   const ro = !isManager;
 
-  const draft = useFormDraft<EmploymentHistory>(`employment:${userId}`, !ro);
+  const saved = (initial.employmentHistory as EmploymentHistory | null) || null;
+  // A draft written before the last save is somebody's abandoned keystroke,
+  // not work in progress — see useFormDraft.
+  const draft = useFormDraft<EmploymentHistory>(`employment:${userId}`, !ro, saved?.updatedAt ?? null);
   const [form, setForm] = useState<EmploymentHistory>(() => ({
     ...emptyEmploymentHistory(),
     ...((initial.employmentHistory as EmploymentHistory | null) || {}),

@@ -50,7 +50,9 @@ export default function SupervisionFormModal({ userId, staffName, editSupervisio
 
   // One draft per supervision being written: a new one for this staff member,
   // or the particular record being edited.
-  const draft = useFormDraft<SupervisionForm>(`supervision:${userId}:${s?.id ?? 'new'}`, !readOnly);
+  // The record's own last-saved time, so a draft that predates it is dropped
+  // rather than shown over somebody else's save — see useFormDraft.
+  const draft = useFormDraft<SupervisionForm>(`supervision:${userId}:${s?.id ?? 'new'}`, !readOnly, s?.updatedAt ?? s?.createdAt ?? null);
 
   // This person's supervisions, for the history picker. The register is sorted
   // by date across the whole company, so one carer's records are scattered
