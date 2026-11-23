@@ -233,11 +233,13 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                   if (d > daysInMonth || outsideActiveWindow(med, d)) return '<td class="invalid-day"></td>';
                   const rec = t ? recordFor(med.id, d, t) : undefined;
                   // An as-required row's times come from the doses themselves,
-                  // so a day with no dose at that time had none DUE. Shaded,
-                  // not blank: a blank on a MAR reads as a dose nobody
-                  // accounted for, and this is the opposite — there was
-                  // nothing to account for.
-                  if (!rec) return '<td class="no-dose"></td>';
+                  // so a day with no dose at that time had none DUE — and for a
+                  // when-required medicine "no dose given" and "not required"
+                  // are the same statement. So it reads N, derived, the way a
+                  // hospital stay reads H: the chart says what is true without
+                  // writing a judgement into 150 slots that were never doses.
+                  // Nothing yet to say about a slot still to come.
+                  if (!rec) return notYetDue(d, t ?? '12:00') ? '<td class="no-dose"></td>' : '<td class="no-dose" title="Not required - no dose given at this time">N</td>';
                   return `<td style="color:${STATUS_COLOR[rec.status]}">${esc(initialsFor(rec))}</td>`;
                 }).join('')}
               </tr>
@@ -309,7 +311,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         <div><span>N</span> = Not required</div>
         <div><span>S</span> = Self-administered</div>
         <div><span>F</span> = Family administered</div>
-        <div><span style="background:#f4f4f5;padding:0 6px">&nbsp;</span> = none given / not due yet</div>
+        <div><span style="background:#f4f4f5;padding:0 6px">&nbsp;</span> = not due yet</div>
         <div><span>C</span> = Cancelled visit</div>
         <div><span>O</span> = Not at home</div>
         <div><span>H</span> = In hospital</div>
@@ -385,19 +387,24 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                             // carries the real one.
                             const [hh, mm] = (t ?? '12:00').split(':').map(Number);
                             const scheduledFor = new Date(Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), d, hh, mm, 0)).toISOString();
+                            // For a when-required medicine, no dose at this
+                            // time means none was required. Shown, not stored.
+                            const noneRequired = !rec && !notYetDue(d, t ?? '12:00');
                             return (
                               <td
                                 key={d}
                                 className={`border border-gray-300 text-center font-bold ${!rec ? 'bg-gray-100' : ''} ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
-                                style={rec ? { color: STATUS_COLOR[rec.status] } : undefined}
+                                style={rec ? { color: STATUS_COLOR[rec.status] } : noneRequired ? { color: '#9ca3af' } : undefined}
                                 title={
                                   rec
                                     ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${canEdit ? ' · click to edit' : ''}`
-                                    : `No dose given at this time${canEdit ? ' · click to record one' : ''}`
+                                    : noneRequired
+                                      ? `Not required - no dose given at this time${canEdit ? ' · click to record one' : ''}`
+                                      : `Not due yet${canEdit ? ' · click to record one' : ''}`
                                 }
                                 onClick={canEdit ? () => setCell({ med, time: t ?? '12:00', scheduledFor, existing: rec ?? null }) : undefined}
                               >
-                                {rec ? initialsFor(rec) : ''}
+                                {rec ? initialsFor(rec) : noneRequired ? 'N' : ''}
                               </td>
                             );
                           })}
@@ -463,7 +470,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
               <span><strong className="text-gray-600">N</strong> = Not required</span>
               <span><strong className="text-blue-700">S</strong> = Self-administered</span>
               <span><strong className="text-teal-700">F</strong> = Family administered</span>
-              <span><span className="inline-block w-4 h-3 align-middle bg-gray-100 border border-gray-300" /> = none given / not due yet</span>
+              <span><span className="inline-block w-4 h-3 align-middle bg-gray-100 border border-gray-300" /> = not due yet</span>
               <span><strong className="text-gray-500">C</strong> = Cancelled visit</span>
               <span><strong className="text-amber-700">O</strong> = Not at home</span>
               <span><strong className="text-gray-500">H</strong> = In hospital</span>
