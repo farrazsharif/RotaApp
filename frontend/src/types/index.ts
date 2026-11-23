@@ -636,6 +636,10 @@ export interface LikesDislikes {
   goodDay?: string;
   badDay?: string;
   paperMeta?: string | null; // JSON PaperMeta when held on paper
+  // Derived by the server: the date this record's review is really due - a
+  // year from the last completed review, or the seeded paper date until there
+  // is one. Not stored. See backend lib/planReview.ts.
+  reviewDate?: string | null;
   updatedById?: string;
   createdAt: string;
   updatedAt: string;

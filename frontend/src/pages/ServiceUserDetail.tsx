@@ -736,12 +736,16 @@ export default function ServiceUserDetail() {
       {(() => {
         let paper: { onFile?: boolean; reviewDate?: string } | null = null;
         if (likesDislikes?.paperMeta) { try { const p = JSON.parse(likesDislikes.paperMeta); if (p && typeof p === 'object') paper = p; } catch { /* ignore */ } }
-        const overdue = !!paper?.onFile && !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
+        // The server derives the date this record is really on - a year from
+        // the last completed review, or the seeded paper date until there is
+        // one. See backend lib/planReview.ts.
+        const ldDue = likesDislikes?.reviewDate || paper?.reviewDate || null;
+        const overdue = !!paper?.onFile && !!ldDue && new Date(ldDue) < new Date();
         if (paper?.onFile) {
           return (
             <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
               <span className="badge-gray badge mr-2">📄 On file</span>
-              Held on paper{paper.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(paper.reviewDate), 'dd MMM yyyy')}` : ''}
+              Held on paper{ldDue ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(ldDue), 'dd MMM yyyy')}` : ''}
             </p>
           );
         }

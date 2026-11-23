@@ -45,11 +45,16 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   const staffScope = isScoped(req.user) ? { OR: staffScopeOr(req.user) } : {};
 
   const suName = { select: { firstName: true, lastName: true } };
-  const [reviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes, planTemplate, raVersions] = await Promise.all([
+  const [allReviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes, ldVersions, planTemplate, raVersions] = await Promise.all([
+    // EVERY review, not just the ones that look due. A client reviewed in
+    // January and again in September has two rows, and January's next-review
+    // date is still in the past — filtering in the query made the superseded
+    // row show as overdue forever. Only the latest review counts, so the
+    // latest has to be found before anything is filtered.
     prisma.review.findMany({
-      where: { nextReviewDate: { not: null, lte: soon }, ...suScope },
-      select: { id: true, serviceUserId: true, nextReviewDate: true, serviceUser: suName },
-      orderBy: { nextReviewDate: 'asc' },
+      where: { nextReviewDate: { not: null }, ...suScope },
+      select: { id: true, serviceUserId: true, reviewDate: true, nextReviewDate: true, serviceUser: suName },
+      orderBy: { reviewDate: 'desc' },
     }),
     prisma.carePlan.findMany({
       where: { reviewDate: { not: null, lte: soon }, ...suScope },
@@ -68,6 +73,11 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
     prisma.riskAssessment.findMany({ where: { ...suScope }, select: { serviceUserId: true, type: true, data: true, serviceUser: suName } }),
     prisma.personalServicePlan.findMany({ where: { ...suScope }, select: { serviceUserId: true, data: true, serviceUser: suName } }),
     prisma.likesDislikes.findMany({ where: { ...suScope }, select: { serviceUserId: true, paperMeta: true, serviceUser: suName } }),
+    prisma.likesDislikesVersion.findMany({
+      where: { ...suScope },
+      select: { serviceUserId: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    }),
     // The company's own plan template, so the assessment-date field is found
     // by label even where somebody has reordered the questions.
     prisma.servicePlanTemplate.findFirst({ select: { sections: true } }),
@@ -80,6 +90,14 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
       orderBy: { createdAt: 'desc' },
     }),
   ]);
+
+  // One row per client: their most recent review, which is the only one whose
+  // next-review date still means anything.
+  const latestReviewByClient = new Map<string, typeof allReviews[number]>();
+  for (const r of allReviews) if (!latestReviewByClient.has(r.serviceUserId)) latestReviewByClient.set(r.serviceUserId, r);
+  const reviews = [...latestReviewByClient.values()]
+    .filter((r) => !!r.nextReviewDate && r.nextReviewDate <= soon)
+    .sort((a, b) => (a.nextReviewDate!.getTime()) - (b.nextReviewDate!.getTime()));
 
   // A staff member's supervision is "due" once their latest one's next-review
   // date (auto-set to +3 months) has passed.
@@ -176,7 +194,12 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
     try { parsed = sp.data ? (JSON.parse(sp.data) as Record<string, unknown>) : null; } catch { parsed = null; }
     add(sp.serviceUserId, sp.serviceUser, 'Personal Service Plan', planReviewDate(parsed, psKey, paperReview(sp.data, true)));
   }
-  for (const ld of likesDislikes) add(ld.serviceUserId, ld.serviceUser, 'Likes & Dislikes', paperReview(ld.paperMeta, false));
+  const lastLd = new Map<string, Date>();
+  for (const v of ldVersions) if (!lastLd.has(v.serviceUserId)) lastLd.set(v.serviceUserId, v.createdAt);
+  for (const ld of likesDislikes) {
+    const due = reviewedReviewDate(paperReview(ld.paperMeta, false), lastLd.get(ld.serviceUserId) ?? null);
+    add(ld.serviceUserId, ld.serviceUser, 'Likes & Dislikes', due);
+  }
   renewals.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 
   // --- The worklist: one flat list of everything outstanding ---------------

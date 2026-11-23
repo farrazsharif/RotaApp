@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import { reviewedReviewDate } from '../lib/planReview';
 
 const TEXT_FIELDS = [
   'likes', 'dislikes', 'lifeHistory', 'health', 'whatPeopleLike', 'relationships', 'goodDay', 'badDay',
@@ -12,7 +13,27 @@ export async function getLikesDislikes(req: AuthRequest, res: Response) {
   if (!serviceUser) return res.status(404).json({ error: 'Service user not found' });
 
   const record = await prisma.likesDislikes.findUnique({ where: { serviceUserId } });
-  res.json(record); // null if nothing recorded yet
+  if (!record) return res.json(null); // nothing recorded yet
+
+  // The review date this record is really on. The seeded paperMeta date was
+  // never moved by the review flow, so a record reviewed in Caremid stayed
+  // pinned on red; a version is archived the moment a review is completed, so
+  // its date is the one that cannot go stale. See lib/planReview.ts.
+  const latest = await prisma.likesDislikesVersion.findFirst({
+    where: { serviceUserId },
+    select: { createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  let paperDue: Date | null = null;
+  try {
+    const pm = record.paperMeta ? (JSON.parse(record.paperMeta) as { reviewDate?: string }) : null;
+    if (pm?.reviewDate) {
+      const d = new Date(pm.reviewDate);
+      if (!isNaN(d.getTime())) paperDue = d;
+    }
+  } catch { /* ignore */ }
+  const due = reviewedReviewDate(paperDue, latest?.createdAt ?? null);
+  res.json({ ...record, reviewDate: due ? due.toISOString() : null });
 }
 
 export async function upsertLikesDislikes(req: AuthRequest, res: Response) {
