@@ -145,7 +145,8 @@ async function dueDosesForShift(shiftId: string | null, residentId?: string | nu
 
     // PRN / as-required meds have no set time. Surface one entry per visit
     // (anchored to the visit start for a stable record key) so the carer can
-    // record it when actually given — but it never blocks clock-out.
+    // record it when actually given. These DO block clock-out: "Not Required"
+    // is an answer and takes one tap, a blank tells a reader nothing.
     if (times.length === 0) {
       const [h, mi] = (shift.startTime || '12:00').split(':').map(Number);
       const scheduledFor = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, mi, 0);
@@ -184,9 +185,51 @@ async function dueDosesForShift(shiftId: string | null, residentId?: string | nu
   return out;
 }
 
+/**
+ * Every dose this carer is answerable for on one visit.
+ *
+ * On a 1:1 call that is simply the client's. A HOUSE visit has no client of
+ * its own — the people live there and a carer covers one or more of them
+ * through resident slots — so dueDosesForShift returns NOTHING unless it is
+ * told which resident to look at. Clock-out was calling it without one, so
+ * every supported-living visit cleared the medication gate with an empty list:
+ * the carer could see the doses on the visit screen and still clock out
+ * without touching them.
+ *
+ * The slots are read from the shift and filtered to this carer, never taken
+ * from the request — this is the check that decides whether a clock-out is
+ * allowed, so it must not be something the app can talk its way out of.
+ */
+type DueDose = Awaited<ReturnType<typeof dueDosesForShift>>[number] & { who: string | null };
+async function dosesAnsweredFor(shiftId: string | null, userId: string): Promise<DueDose[]> {
+  if (!shiftId) return [];
+  const shift = await prisma.shift.findUnique({
+    where: { id: shiftId },
+    select: {
+      siteId: true,
+      residentSlots: { select: { userId: true, serviceUserId: true, serviceUser: { select: { firstName: true, lastName: true } } } },
+    },
+  });
+  if (!shift) return [];
+  if (!shift.siteId) return (await dueDosesForShift(shiftId)).map((d) => ({ ...d, who: null }));
+
+  // A carer can hold more than one slot on a house shift, so this is every
+  // resident they are covering — named, because "Paracetamol (08:00)" on its
+  // own is no use in a house of four.
+  const out: DueDose[] = [];
+  for (const slot of shift.residentSlots.filter((sl) => sl.userId === userId)) {
+    for (const d of await dueDosesForShift(shiftId, slot.serviceUserId)) {
+      out.push({ ...d, who: `${slot.serviceUser.firstName} ${slot.serviceUser.lastName}` });
+    }
+  }
+  return out;
+}
+
 /** How an unrecorded dose is named back to the carer. A PRN has no time. */
-const pendingLabel = (d: { name: string; time: string; prn: boolean }): string =>
-  d.prn || !d.time ? `${d.name} (as required)` : `${d.name} (${d.time})`;
+const pendingLabel = (d: { name: string; time: string; prn: boolean; who?: string | null }): string => {
+  const what = d.prn || !d.time ? `${d.name} (as required)` : `${d.name} (${d.time})`;
+  return d.who ? `${d.who} — ${what}` : what;
+};
 
 // GET /clock/due-meds — meds due for the carer's active clock-in
 export async function dueMeds(req: AuthRequest, res: Response) {
@@ -285,7 +328,7 @@ export async function clockIn(req: AuthRequest, res: Response) {
     // entry and handed back to the carer in the clock-in response, because
     // they are the only person who knows what happened, and the visit's doses
     // stay recordable after clock-out.
-    const stale = existing.shiftId ? await dueDosesForShift(existing.shiftId) : [];
+    const stale = await dosesAnsweredFor(existing.shiftId, userId);
     const unanswered = stale.filter((d) => !d.status);
     await prisma.clockRecord.update({ where: { id: existing.id }, data: { clockOut: autoOut } });
     await logAudit(
@@ -358,7 +401,7 @@ export async function clockOut(req: AuthRequest, res: Response) {
   // But that left a blank, and a blank cannot tell a reader whether nobody
   // needed it or nobody asked. "Not Required" is an answer and takes one tap;
   // nothing is not an answer.
-  const doses = await dueDosesForShift(record.shiftId);
+  const doses = await dosesAnsweredFor(record.shiftId, req.user!.id);
   const pending = doses.filter((d) => !d.status);
   if (pending.length > 0) {
     return res.status(400).json({
@@ -675,6 +718,20 @@ export async function createOwnClockRecord(req: AuthRequest, res: Response) {
   // Sanity: the recorded times must sit around the visit's day, not weeks off.
   if (Math.abs(cin.getTime() - shift.date.getTime()) > 2 * 24 * 60 * 60 * 1000) {
     return res.status(400).json({ error: 'Those times don’t match this visit’s date' });
+  }
+
+  // Compulsory eMAR applies here too. This route writes a clock-in AND a
+  // clock-out in one go, so it was the one way to complete a visit without
+  // ever passing the medication gate — and it is precisely the route a carer
+  // uses when they forgot to clock in, which is when a dose is most likely to
+  // go unrecorded. Catching up on the visit means catching up on the chart.
+  const doses = await dosesAnsweredFor(shiftId, req.user!.id);
+  const pending = doses.filter((d) => !d.status);
+  if (pending.length > 0) {
+    return res.status(400).json({
+      error: 'Record medication before saving this visit',
+      pendingMeds: pending.map(pendingLabel),
+    });
   }
 
   const record = await prisma.clockRecord.create({

@@ -222,7 +222,11 @@ function RecordMissedVisit({ shiftId, shiftDate, scheduledStart, scheduledEnd, f
   const mut = useMutation({
     mutationFn: (body: { clockIn: string; clockOut: string }) => clockApi.recordMissed(shiftId, body),
     onSuccess: () => { setOpen(false); setErr(null); onSaved(); },
-    onError: (e: any) => setErr(e.response?.data?.error || 'Could not record this visit.'),
+    onError: (e: any) => {
+      const d = e.response?.data;
+      const pend: string[] = Array.isArray(d?.pendingMeds) ? d.pendingMeds : [];
+      setErr((d?.error || 'Could not record this visit.') + (pend.length ? `: ${pend.join(', ')}` : ''));
+    },
   });
 
   // Build an ISO timestamp on the visit's own date from an HH:mm time. An end
@@ -927,11 +931,6 @@ export default function CallDetail() {
   // record for it). A co-carer on a double-up who clocks in / records the visit
   // AFTER the log was saved can still sign — they just need their own record.
   const canSignLog = clockedIn || !!myAnyRecord;
-  // Doses can be recorded live (clocked in), on a completed visit within the
-  // 7-day window, OR on any still-unrecorded past visit (no call log yet) being
-  // caught up on — so a carer recording a late visit can enter the meds they
-  // gave, instead of them being stuck read-only as "Not recorded".
-  const medsEditable = clockedIn || (done && (withinLogEditWindow || !sharedLog));
   const assignedToMe = shift.userId === user?.id || (shift.coverCarers ?? []).some((c) => c.id === user?.id);
   const startOfTodayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
   const isPastDay = new Date(shift.date).getTime() < startOfTodayMs;
@@ -946,6 +945,14 @@ export default function CallDetail() {
   // A still-unrecorded past visit can be caught up on at any time (no window) —
   // the carer records the clock times they attended, then saves the log + meds.
   const canRecordMissed = assignedToMe && isPastDay && !myAnyRecord;
+  // Doses can be recorded live (clocked in), on a completed visit within the
+  // 7-day window, OR on a past visit being caught up on. The last case is why
+  // this sits below canRecordMissed: saving a catch-up visit now requires the
+  // medication to be recorded first (the server gates it the same as a
+  // clock-out), and until that was editable beforehand the carer had no way to
+  // satisfy the gate — they could not record a dose without a clock record, and
+  // could not save the clock record without the dose.
+  const medsEditable = clockedIn || canRecordMissed || (done && (withinLogEditWindow || !sharedLog));
   // On a double-up the other carer may already have clocked this visit. Their
   // times are a far better starting point than a blank form - the two were
   // there together. A completed record is preferred over one still open.
@@ -1365,10 +1372,10 @@ export default function CallDetail() {
 
         {/* Medication — interactive while on the call; read-only afterwards so
             the carer can check what was given. */}
-        {(clockedIn || (done && dueMeds.length > 0)) && (
+        {(clockedIn || ((done || canRecordMissed) && dueMeds.length > 0)) && (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-            <h2 className="font-semibold text-gray-800 mb-1">{done ? 'Medication record' : 'Medication Due'}</h2>
-            {done && dueMeds.length > 0 && <p className="text-xs text-gray-400 mb-2">{medsEditable ? 'Record what you gave on this visit.' : 'What was given on this visit.'}</p>}
+            <h2 className="font-semibold text-gray-800 mb-1">{done || canRecordMissed ? 'Medication record' : 'Medication Due'}</h2>
+            {(done || canRecordMissed) && dueMeds.length > 0 && <p className="text-xs text-gray-400 mb-2">{medsEditable ? 'Record what you gave on this visit.' : 'What was given on this visit.'}</p>}
             {dueMeds.length === 0 ? (
               <p className="text-sm text-gray-400">No medication due for this visit.</p>
             ) : (
