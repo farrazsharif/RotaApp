@@ -1079,13 +1079,16 @@ export default function ServiceUserDetail() {
   const renderRailSection = () => {
     switch (section) {
       case 'overview':
-        return <>{renderOverviewGrid(false)}{renderOfficeNotes()}{renderDelete()}</>;
+        // The file-complete checklist belongs here, not buried under Care
+        // Plans: it answers 'is this person's paperwork in order', which is
+        // the first thing anybody opening the record wants to know.
+        return <>{renderOverviewGrid(false)}{renderDocumentsChecklist()}{renderOfficeNotes()}{renderDelete()}</>;
       case 'tasks':
         return renderTasks();
       case 'care':
         // The care plan itself and the Supported Living plan. The six documents
         // that used to pile up underneath it have their own rail rows now.
-        return <>{renderDocumentsChecklist()}{renderCarePlan()}{renderSupportedLiving()}</>;
+        return <>{renderCarePlan()}{renderSupportedLiving()}</>;
       case 'doc-service-plan':
         return (
           <>
