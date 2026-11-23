@@ -355,7 +355,23 @@ export async function computeReadiness() {
   // Doses that fell due while the client was in hospital or away on respite
   // are not missed medication - the service was not giving them. See
   // lib/awayDoses.ts.
-  const missedMedClients = new Set((await dropAwayDoses(missedMedRows)).map((m) => m.serviceUserId));
+  // Keep the dates, not just the names. The chart a manager opens from here
+  // starts on the CURRENT month, and a 30-day window reaches back into the
+  // last one - so a name on its own sends them looking at a clean November for
+  // a dose that was missed in October, and the check reads as a false alarm.
+  const missedMedByClient = new Map<string, Date[]>();
+  for (const m of await dropAwayDoses(missedMedRows)) {
+    const list = missedMedByClient.get(m.serviceUserId) ?? [];
+    list.push(m.scheduledFor);
+    missedMedByClient.set(m.serviceUserId, list);
+  }
+  // scheduledFor is UK wall-clock encoded as UTC - read it back in UTC or the
+  // date shifts by the server's offset.
+  const doseDay = (d: Date) => `${d.getUTCDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()]}`;
+  const missedDates = (dates: Date[]): string => {
+    const days = [...new Set(dates.sort((a, b) => a.getTime() - b.getTime()).map(doseDay))];
+    return days.length <= 3 ? days.join(', ') : `${days.slice(0, 3).join(', ')} +${days.length - 3} more`;
+  };
 
   const safe: Check[] = [
     {
@@ -392,9 +408,15 @@ export async function computeReadiness() {
       (c) => (riskTypesBy.get(c.id)?.size ?? 0) === 0, true, (n) => n ? `${n} active client(s) have no risk assessment on record.` : 'Every active client has at least one risk assessment.'),
     {
       id: 'missed_meds', title: 'Medication administration', statement: 'Medicines optimisation · Reg 12',
-      status: missedMedClients.size ? 'red' : 'green', count: missedMedClients.size, total: clients.length,
-      detail: missedMedClients.size ? `Missed medications recorded for ${missedMedClients.size} client(s) in the last 30 days.` : 'No missed medications in the last 30 days.',
-      items: [...missedMedClients].slice(0, CAP).map((id) => { const c = clients.find((x) => x.id === id); return c ? clientLink(c) : { id, label: 'Client' }; }),
+      status: missedMedByClient.size ? 'red' : 'green', count: missedMedByClient.size, total: clients.length,
+      detail: missedMedByClient.size
+        ? `Missed medications recorded for ${missedMedByClient.size} client(s) in the last 30 days. The dates are listed below - open that month on the MAR chart, not the current one.`
+        : 'No missed medications in the last 30 days.',
+      items: [...missedMedByClient.entries()].slice(0, CAP).map(([id, dates]) => {
+        const c = clients.find((x) => x.id === id);
+        const link = c ? clientLink(c) : { id, label: 'Client' };
+        return { ...link, label: `${link.label} - ${missedDates(dates)}` };
+      }),
     },
     staffCheck('training_expired', 'Mandatory training current', 'Safe and effective staffing · Reg 18',
       (s) => expiredTrainingStaff.has(s.id), true, (n) => n ? `${n} staff member(s) have expired training.` : 'No expired training on record.'),
