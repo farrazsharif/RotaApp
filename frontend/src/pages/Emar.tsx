@@ -12,12 +12,12 @@ import RecordMedModal from '../components/RecordMedModal';
 
 const STATUS_LABEL: Record<MedStatus, string> = {
   GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-admin', CANCELLED: 'Cancelled',
-  NOT_AT_HOME: 'Not at home', FAMILY: 'Family administered',
+  NOT_AT_HOME: 'Not at home', FAMILY: 'Family administered', AWAITING_DELIVERY: 'Awaiting delivery',
   HOSPITAL: 'In hospital',
 };
 const STATUS_BADGE: Record<MedStatus, string> = {
   GIVEN: 'badge-green', REFUSED: 'badge-yellow', MISSED: 'badge-red', NOT_NEEDED: 'badge-gray', SELF_ADMIN: 'badge-blue', CANCELLED: 'badge-gray',
-  NOT_AT_HOME: 'badge-yellow', FAMILY: 'badge-blue',
+  NOT_AT_HOME: 'badge-yellow', FAMILY: 'badge-blue', AWAITING_DELIVERY: 'badge-red',
   HOSPITAL: 'badge-gray',
 };
 
@@ -119,6 +119,7 @@ export default function Emar() {
           <option value="NOT_AT_HOME">Not at home</option>
           <option value="HOSPITAL">In hospital</option>
           <option value="FAMILY">Family administered</option>
+          <option value="AWAITING_DELIVERY">Awaiting delivery</option>
           <option value="REFUSED">Refused</option>
           <option value="NOT_NEEDED">Not Required</option>
           <option value="GIVEN">Administered</option>

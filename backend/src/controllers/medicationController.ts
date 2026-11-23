@@ -12,7 +12,7 @@ import { awayWindows, awayTypeAt } from '../lib/awayDoses';
 
 // Human-readable status words for audit details (matches the portal labels).
 const STATUS_WORD: Record<string, string> = {
-  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled', HOSPITAL: 'In hospital', NOT_AT_HOME: 'Not at home', FAMILY: 'Family administered',
+  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled', HOSPITAL: 'In hospital', NOT_AT_HOME: 'Not at home', FAMILY: 'Family administered', AWAITING_DELIVERY: 'Awaiting delivery',
 };
 
 // "for <patient name>" suffix for a medication audit entry, or undefined.
@@ -430,7 +430,7 @@ export async function marExceptions(req: AuthRequest, res: Response) {
  * Each change is audited with the status it replaced, so the original reading
  * of the record is recoverable.
  */
-const RECLASSIFY_TO = ['NOT_AT_HOME', 'HOSPITAL', 'NOT_NEEDED'];
+const RECLASSIFY_TO = ['NOT_AT_HOME', 'HOSPITAL', 'NOT_NEEDED', 'AWAITING_DELIVERY'];
 
 export async function reclassifyDoses(req: AuthRequest, res: Response) {
   const { ids, to, note } = req.body as { ids?: unknown; to?: unknown; note?: unknown };

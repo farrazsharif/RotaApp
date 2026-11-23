@@ -293,6 +293,7 @@ const STATUS_OPTIONS: { value: MedAdminStatus; label: string; color: string }[] 
   { value: 'NOT_NEEDED', label: 'Not Required', color: 'bg-gray-400' },
   { value: 'SELF_ADMIN', label: 'Self-Administered', color: 'bg-blue-500' },
   { value: 'FAMILY', label: 'Family Gave It', color: 'bg-teal-600' },
+  { value: 'AWAITING_DELIVERY', label: 'Awaiting Delivery', color: 'bg-orange-600' },
   // The carer is the one who finds the door unanswered, so this choice has
   // to be here. Without it, Missed is the nearest thing to hand and the
   // service is marked down for a dose it turned up to give.

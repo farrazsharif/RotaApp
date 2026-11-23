@@ -19,13 +19,13 @@ interface Props {
 // Single-letter codes for anything other than "given" — given doses are
 // signed with the carer's initials, same convention as a paper MAR chart.
 const STATUS_CODE: Record<MedStatus, string> = {
-  GIVEN: '', REFUSED: 'R', MISSED: 'M', NOT_NEEDED: 'N', SELF_ADMIN: 'S', CANCELLED: 'C', HOSPITAL: 'H', NOT_AT_HOME: 'O', FAMILY: 'F',
+  GIVEN: '', REFUSED: 'R', MISSED: 'M', NOT_NEEDED: 'N', SELF_ADMIN: 'S', CANCELLED: 'C', HOSPITAL: 'H', NOT_AT_HOME: 'O', FAMILY: 'F', AWAITING_DELIVERY: 'D',
 };
 const STATUS_LABEL: Record<MedStatus, string> = {
-  GIVEN: 'Administered (carer initials)', REFUSED: 'Refused', MISSED: 'Missed - dose not given', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled visit', HOSPITAL: 'In hospital', NOT_AT_HOME: 'Not at home', FAMILY: 'Family administered',
+  GIVEN: 'Administered (carer initials)', REFUSED: 'Refused', MISSED: 'Missed - dose not given', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled visit', HOSPITAL: 'In hospital', NOT_AT_HOME: 'Not at home', FAMILY: 'Family administered', AWAITING_DELIVERY: 'Awaiting delivery - not supplied by the pharmacy',
 };
 const STATUS_COLOR: Record<MedStatus, string> = {
-  GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8', CANCELLED: '#6b7280', HOSPITAL: '#6b7280', NOT_AT_HOME: '#b45309', FAMILY: '#0f766e',
+  GIVEN: '#15803d', REFUSED: '#b45309', MISSED: '#b91c1c', NOT_NEEDED: '#6b7280', SELF_ADMIN: '#1d4ed8', CANCELLED: '#6b7280', HOSPITAL: '#6b7280', NOT_AT_HOME: '#b45309', FAMILY: '#0f766e', AWAITING_DELIVERY: '#c2410c',
 };
 
 // Dose slots are stored as UK wall-clock times encoded as if they were UTC
@@ -311,6 +311,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         <div><span>N</span> = Not required</div>
         <div><span>S</span> = Self-administered</div>
         <div><span>F</span> = Family administered</div>
+        <div><span>D</span> = Awaiting delivery</div>
         <div><span style="background:#f4f4f5;padding:0 6px">&nbsp;</span> = not due yet</div>
         <div><span>C</span> = Cancelled visit</div>
         <div><span>O</span> = Not at home</div>
@@ -470,6 +471,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
               <span><strong className="text-gray-600">N</strong> = Not required</span>
               <span><strong className="text-blue-700">S</strong> = Self-administered</span>
               <span><strong className="text-teal-700">F</strong> = Family administered</span>
+              <span><strong className="text-orange-700">D</strong> = Awaiting delivery</span>
               <span><span className="inline-block w-4 h-3 align-middle bg-gray-100 border border-gray-300" /> = not due yet</span>
               <span><strong className="text-gray-500">C</strong> = Cancelled visit</span>
               <span><strong className="text-amber-700">O</strong> = Not at home</span>

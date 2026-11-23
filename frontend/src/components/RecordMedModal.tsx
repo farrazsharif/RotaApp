@@ -12,6 +12,7 @@ const STATUSES: { v: MedStatus; label: string }[] = [
   { v: 'GIVEN', label: 'Administered' },
   { v: 'SELF_ADMIN', label: 'Self-administered' },
   { v: 'FAMILY', label: 'Family administered' },
+  { v: 'AWAITING_DELIVERY', label: 'Awaiting delivery' },
   { v: 'REFUSED', label: 'Refused' },
   { v: 'NOT_NEEDED', label: 'Not Required' },
   { v: 'NOT_AT_HOME', label: 'Not at home' },

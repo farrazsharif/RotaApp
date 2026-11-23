@@ -31,6 +31,13 @@ export const MedStatus = {
   // carer administered a dose a daughter handed over is wrong about who is
   // accountable for it.
   FAMILY: 'FAMILY',
+  // The medicine was not in the house: the pharmacy had not delivered it.
+  // The dose was still not taken, so this is a real gap in the person's
+  // treatment - but the carer could not have given what was not there, and
+  // the action it calls for is chasing a supplier, not retraining a carer.
+  // Kept out of MISSED for that reason, and surfaced on its own Reg 12
+  // check so it cannot be used to make a supply failure disappear.
+  AWAITING_DELIVERY: 'AWAITING_DELIVERY',
 } as const;
 export type MedStatus = (typeof MedStatus)[keyof typeof MedStatus];
 

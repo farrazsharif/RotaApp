@@ -15,10 +15,10 @@ import { Format, ResponseFormat, fmtDate, result } from '../shared.js';
  */
 
 const TO_LABEL: Record<string, string> = {
-  NOT_AT_HOME: 'Not at home', HOSPITAL: 'In hospital', NOT_NEEDED: 'Not Required',
+  NOT_AT_HOME: 'Not at home', HOSPITAL: 'In hospital', NOT_NEEDED: 'Not Required', AWAITING_DELIVERY: 'Awaiting delivery',
 };
 
-const EXCEPTION_STATUSES = ['MISSED', 'REFUSED', 'NOT_NEEDED', 'CANCELLED', 'NOT_AT_HOME', 'HOSPITAL'] as const;
+const EXCEPTION_STATUSES = ['MISSED', 'REFUSED', 'NOT_NEEDED', 'CANCELLED', 'NOT_AT_HOME', 'HOSPITAL', 'AWAITING_DELIVERY'] as const;
 
 interface Administration {
   id: string;
@@ -375,10 +375,10 @@ export function registerMedicationTools(server: McpServer) {
   server.registerTool(
     'caremid_reclassify_doses',
     {
-      title: 'Change a missed dose to in hospital or not at home',
+      title: 'Change a missed dose to in hospital, not at home or awaiting delivery',
       description:
-        'Changes doses recorded as MISSED to NOT_AT_HOME or HOSPITAL, by id. Only from missed, and only to ' +
-        'those two: it cannot turn a missed dose into a given one, which is a different claim and not this ' +
+        'Changes doses recorded as MISSED to NOT_AT_HOME, HOSPITAL, AWAITING_DELIVERY or NOT_NEEDED, by id. ' +
+        'Only from missed, and only to those: it cannot turn a missed dose into a given one, which is a different claim and not this ' +
         'tool\'s to make. Use caremid_mar_exceptions_with_notes first and read the call log - "she went to her ' +
         'appointment" is a reason to change one, an empty log is not. Every change is audited with the status ' +
         'it replaced, and the dose keeps a note saying it was changed, so the original reading is recoverable. ' +
@@ -387,8 +387,9 @@ export function registerMedicationTools(server: McpServer) {
       inputSchema: z.strictObject({
         ids: z.array(z.string().min(6).max(60)).min(1).max(500).describe('Dose record ids from the exceptions tool'),
         to: z
-          .enum(['NOT_AT_HOME', 'HOSPITAL', 'NOT_NEEDED'])
-          .describe('What the record should say instead. NOT_NEEDED only applies to as-required medicines.'),
+          .enum(['NOT_AT_HOME', 'HOSPITAL', 'NOT_NEEDED', 'AWAITING_DELIVERY'])
+          .describe('What the record should say instead. NOT_NEEDED only applies to as-required medicines. '
+            + 'AWAITING_DELIVERY is for a dose the pharmacy had not supplied - it still shows on its own Reg 12 check.'),
         note: z
           .string()
           .max(300)

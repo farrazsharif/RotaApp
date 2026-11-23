@@ -73,7 +73,7 @@ export async function computeReadiness() {
     prisma.supervision.findMany({ select: { userId: true, nextReviewDate: true } }),
     prisma.spotCheck.findMany({ select: { carerId: true, date: true } }),
     prisma.training.findMany({ select: { userId: true, course: true, date: true, expiresAt: true } }),
-    prisma.medAdministration.findMany({ where: { status: 'MISSED', scheduledFor: { gte: daysAgo(30) } }, select: { serviceUserId: true, scheduledFor: true } }),
+    prisma.medAdministration.findMany({ where: { status: { in: ['MISSED', 'AWAITING_DELIVERY'] }, scheduledFor: { gte: daysAgo(30) } }, select: { serviceUserId: true, scheduledFor: true, status: true } }),
     prisma.shift.count({ where: { userId: null, status: 'SCHEDULED', date: { gte: now(), lte: daysAhead(7) } } }),
     prisma.safeguardingConcern.findMany({
       where: { status: { not: 'CLOSED' } },
@@ -360,10 +360,12 @@ export async function computeReadiness() {
   // last one - so a name on its own sends them looking at a clean November for
   // a dose that was missed in October, and the check reads as a false alarm.
   const missedMedByClient = new Map<string, Date[]>();
+  const awaitingByClient = new Map<string, Date[]>();
   for (const m of await dropAwayDoses(missedMedRows)) {
-    const list = missedMedByClient.get(m.serviceUserId) ?? [];
+    const bucket = m.status === 'AWAITING_DELIVERY' ? awaitingByClient : missedMedByClient;
+    const list = bucket.get(m.serviceUserId) ?? [];
     list.push(m.scheduledFor);
-    missedMedByClient.set(m.serviceUserId, list);
+    bucket.set(m.serviceUserId, list);
   }
   // scheduledFor is UK wall-clock encoded as UTC - read it back in UTC or the
   // date shifts by the server's offset.
@@ -413,6 +415,18 @@ export async function computeReadiness() {
         ? `Missed medications recorded for ${missedMedByClient.size} client(s) in the last 30 days. The dates are listed below - open that month on the MAR chart, not the current one.`
         : 'No missed medications in the last 30 days.',
       items: [...missedMedByClient.entries()].slice(0, CAP).map(([id, dates]) => {
+        const c = clients.find((x) => x.id === id);
+        const link = c ? clientLink(c) : { id, label: 'Client' };
+        return { ...link, label: `${link.label} - ${missedDates(dates)}` };
+      }),
+    },
+    {
+      id: 'awaiting_delivery', title: 'Medicines supplied when needed', statement: 'Medicines optimisation · Reg 12',
+      status: awaitingByClient.size ? 'amber' : 'green', count: awaitingByClient.size, total: clients.length,
+      detail: awaitingByClient.size
+        ? `${awaitingByClient.size} client(s) had a dose that could not be given because the medicine had not been delivered, in the last 30 days. The carer could not give what was not there - this is one to take up with the pharmacy.`
+        : 'No doses were held up waiting on a delivery in the last 30 days.',
+      items: [...awaitingByClient.entries()].slice(0, CAP).map(([id, dates]) => {
         const c = clients.find((x) => x.id === id);
         const link = c ? clientLink(c) : { id, label: 'Client' };
         return { ...link, label: `${link.label} - ${missedDates(dates)}` };

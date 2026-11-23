@@ -36,13 +36,14 @@ const SLOTS = [
 
 const STATUS_LABEL: Record<string, string> = {
   GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-admin', CANCELLED: 'Cancelled',
-  HOSPITAL: 'In hospital', NOT_AT_HOME: 'Not at home', FAMILY: 'Family gave it',
+  HOSPITAL: 'In hospital', NOT_AT_HOME: 'Not at home', FAMILY: 'Family gave it', AWAITING_DELIVERY: 'Awaiting delivery',
 };
 const STATUS_COLOR: Record<string, string> = {
   GIVEN: 'text-green-700 bg-green-100', REFUSED: 'text-amber-700 bg-amber-100', MISSED: 'text-red-700 bg-red-100',
   NOT_NEEDED: 'text-gray-600 bg-gray-100', SELF_ADMIN: 'text-blue-700 bg-blue-100', CANCELLED: 'text-gray-600 bg-gray-100',
   HOSPITAL: 'text-gray-600 bg-gray-100', NOT_AT_HOME: 'text-amber-700 bg-amber-100',
   FAMILY: 'text-teal-700 bg-teal-100',
+  AWAITING_DELIVERY: 'text-orange-700 bg-orange-100',
 };
 
 function Field({ label, value, href }: { label: string; value?: string | null; href?: string | null }) {
