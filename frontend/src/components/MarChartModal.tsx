@@ -221,7 +221,12 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                 ${days.map((d) => {
                   if (d > daysInMonth || outsideActiveWindow(med, d)) return '<td class="invalid-day"></td>';
                   const rec = t ? recordFor(med.id, d, t) : undefined;
-                  if (!rec) return '<td></td>';
+                  // An as-required row's times come from the doses themselves,
+                  // so a day with no dose at that time had none DUE. Shaded,
+                  // not blank: a blank on a MAR reads as a dose nobody
+                  // accounted for, and this is the opposite — there was
+                  // nothing to account for.
+                  if (!rec) return '<td class="no-dose"></td>';
                   return `<td style="color:${STATUS_COLOR[rec.status]}">${esc(initialsFor(rec))}</td>`;
                 }).join('')}
               </tr>
@@ -268,6 +273,9 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         th, td { border: 1px solid #333; text-align: center; padding: 4px 2px; }
         .time-col { text-align: left; font-weight: bold; white-space: nowrap; padding-left: 6px; min-width: 70px; }
         .invalid-day { background: #eee; }
+        /* An as-required slot with no dose: nothing was due, so it must
+           not read as a gap in the record. */
+        .no-dose { background: #f4f4f5; }
         .dates-row { display: flex; justify-content: space-between; font-size: 11px; border: 1px solid #333; padding: 6px; margin-top: -1px; }
         .legend { display: flex; gap: 16px; font-size: 11px; margin-top: 16px; flex-wrap: wrap; }
         .legend span { font-weight: bold; }
@@ -289,6 +297,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         <div><span>N</span> = Not required</div>
         <div><span>S</span> = Self-administered</div>
         <div><span>F</span> = Family administered</div>
+        <div><span style="background:#f4f4f5;padding:0 6px">&nbsp;</span> = as required, none given</div>
         <div><span>C</span> = Cancelled visit</div>
         <div><span>O</span> = Not at home</div>
         <div><span>H</span> = In hospital</div>
@@ -367,12 +376,12 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                             return (
                               <td
                                 key={d}
-                                className={`border border-gray-300 text-center font-bold ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                className={`border border-gray-300 text-center font-bold ${!rec ? 'bg-gray-100' : ''} ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                                 style={rec ? { color: STATUS_COLOR[rec.status] } : undefined}
                                 title={
                                   rec
                                     ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${canEdit ? ' · click to edit' : ''}`
-                                    : canEdit ? 'Click to record this dose' : undefined
+                                    : `No dose given at this time${canEdit ? ' · click to record one' : ''}`
                                 }
                                 onClick={canEdit ? () => setCell({ med, time: t ?? '12:00', scheduledFor, existing: rec ?? null }) : undefined}
                               >
@@ -439,6 +448,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
               <span><strong className="text-gray-600">N</strong> = Not required</span>
               <span><strong className="text-blue-700">S</strong> = Self-administered</span>
               <span><strong className="text-teal-700">F</strong> = Family administered</span>
+              <span><span className="inline-block w-4 h-3 align-middle bg-gray-100 border border-gray-300" /> = as required, none given</span>
               <span><strong className="text-gray-500">C</strong> = Cancelled visit</span>
               <span><strong className="text-amber-700">O</strong> = Not at home</span>
               <span><strong className="text-gray-500">H</strong> = In hospital</span>
