@@ -16,6 +16,11 @@ import PrintBrandingHeader from '../components/PrintBrandingHeader';
 import { format, differenceInYears, addDays } from 'date-fns';
 import { planReviewDate } from '../lib/planReview';
 import { defaultTemplateSections } from '../lib/servicePlanSchema';
+import LikesDislikesHistory from '../components/LikesDislikesHistory';
+import ServicePlanHistory from '../components/ServicePlanHistory';
+import RiskAssessmentHistory from '../components/RiskAssessmentHistory';
+import { PROFILE_FORMS } from '../lib/riskAssessmentSchema';
+import { printRiskAssessment } from '../lib/riskAssessmentPrint';
 import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
 import { parseCategories } from '../lib/supportCategories';
@@ -1051,6 +1056,17 @@ export default function ServiceUserDetail() {
     { key: 'overview', label: 'Overview' },
     { key: 'tasks', label: 'Tasks' },
     { key: 'care', label: 'Care Plans' },
+    // Each document gets its own row rather than being one card among nine on
+    // a single long page. Opening one shows the current record AND every dated
+    // version before it, each viewable and printable - which is the thing
+    // somebody actually comes looking for, and which used to be buried behind
+    // a "Previous reviews" button inside the editing modal.
+    { key: 'doc-service-plan', label: 'Personal Service Plan' },
+    { key: 'doc-one-page', label: 'One Page Profile' },
+    { key: 'doc-contract', label: 'Contract of Care' },
+    { key: 'doc-likes', label: 'Likes & Dislikes' },
+    { key: 'doc-capacity', label: 'Mental Capacity' },
+    { key: 'doc-charts', label: 'Daily Charts' },
     { key: 'risk', label: 'Risk Assessments' },
     { key: 'meds', label: 'Medication' },
     { key: 'respite', label: 'Respite' },
@@ -1067,7 +1083,62 @@ export default function ServiceUserDetail() {
       case 'tasks':
         return renderTasks();
       case 'care':
-        return <>{renderDocumentsChecklist()}{renderCarePlan()}{renderLikesDislikes()}{renderServicePlan()}{renderSupportedLiving()}{renderOnePageProfile()}{renderContractOfCare()}<MentalCapacitySection serviceUserId={su.id} canEdit={canEditDocs} /><CareChartsSection serviceUserId={su.id} careCharts={su.careCharts} fluidTargetMl={su.fluidTargetMl} repositionHours={su.repositionHours} canEdit={canEditDocs} /></>;
+        // The care plan itself and the Supported Living plan. The six documents
+        // that used to pile up underneath it have their own rail rows now.
+        return <>{renderDocumentsChecklist()}{renderCarePlan()}{renderSupportedLiving()}</>;
+      case 'doc-service-plan':
+        return (
+          <>
+            {renderServicePlan()}
+            <Section title="Previous versions">
+              <ServicePlanHistory serviceUser={su} />
+            </Section>
+          </>
+        );
+      case 'doc-one-page':
+        return (
+          <>
+            {renderOnePageProfile()}
+            <Section title="Previous versions">
+              <RiskAssessmentHistory
+                serviceUserId={su.id}
+                type="ONE_PAGE_PROFILE"
+                onOpen={(data, autoPrint) =>
+                  printRiskAssessment(su, PROFILE_FORMS.ONE_PAGE_PROFILE, data, { autoPrint })}
+              />
+            </Section>
+          </>
+        );
+      case 'doc-contract':
+        return (
+          <>
+            {renderContractOfCare()}
+            <Section title="Previous versions">
+              {/* The contract's printout is built from the live rota and care
+                  plan inside its own modal, so a snapshot is opened there
+                  rather than rebuilt from a different set of numbers here. */}
+              <p className="text-sm text-gray-600">
+                Open the contract and choose <strong>Previous contracts</strong> to view or print an earlier version.
+              </p>
+              <button type="button" className="btn-secondary btn btn-sm mt-2" onClick={() => openContract('view')}>
+                Open contract
+              </button>
+            </Section>
+          </>
+        );
+      case 'doc-likes':
+        return (
+          <>
+            {renderLikesDislikes()}
+            <Section title="Previous versions">
+              <LikesDislikesHistory serviceUser={su} />
+            </Section>
+          </>
+        );
+      case 'doc-capacity':
+        return <MentalCapacitySection serviceUserId={su.id} canEdit={canEditDocs} />;
+      case 'doc-charts':
+        return <CareChartsSection serviceUserId={su.id} careCharts={su.careCharts} fluidTargetMl={su.fluidTargetMl} repositionHours={su.repositionHours} canEdit={canEditDocs} />;
       case 'risk':
         return renderRiskAssessments();
       case 'meds':
