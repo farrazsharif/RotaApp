@@ -354,12 +354,26 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                               return <td key={d} className="border border-gray-300 bg-gray-200" />;
                             }
                             const rec = t ? recordFor(med.id, d, t) : undefined;
+                            // An as-required dose is as correctable as any
+                            // other — it was read-only here only because the
+                            // row labels are derived rather than scheduled.
+                            // Where the medication has no recorded dose at all
+                            // the row has no time to anchor to, so a new entry
+                            // starts at midday and the modal's "time given"
+                            // carries the real one.
+                            const [hh, mm] = (t ?? '12:00').split(':').map(Number);
+                            const scheduledFor = new Date(Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), d, hh, mm, 0)).toISOString();
                             return (
                               <td
                                 key={d}
-                                className="border border-gray-300 text-center font-bold"
+                                className={`border border-gray-300 text-center font-bold ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                                 style={rec ? { color: STATUS_COLOR[rec.status] } : undefined}
-                                title={rec ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}` : undefined}
+                                title={
+                                  rec
+                                    ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${canEdit ? ' · click to edit' : ''}`
+                                    : canEdit ? 'Click to record this dose' : undefined
+                                }
+                                onClick={canEdit ? () => setCell({ med, time: t ?? '12:00', scheduledFor, existing: rec ?? null }) : undefined}
                               >
                                 {rec ? initialsFor(rec) : ''}
                               </td>
