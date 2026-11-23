@@ -196,6 +196,17 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
     .filter(medActiveInMonth)
     .map((med: Medication) => ({ med, times: parseTimes(med.times) }));
 
+  // A scheduled dose later today, or on a day still to come, has not been
+  // missed - it has not happened. On a printed chart an empty cell reads as a
+  // dose nobody accounted for, so the rest of the month must not look like
+  // three weeks of omissions. Compared against the slot's own time, so this
+  // evening's 21:00 is still "to come" at lunchtime.
+  const notYetDue = (day: number, time: string): boolean => {
+    if (day > daysInMonth) return false;
+    const [h, m] = time.split(':').map(Number);
+    return new Date(monthDate.getFullYear(), monthDate.getMonth(), day, h || 0, m || 0, 0) > new Date();
+  };
+
   // Is day `d` of this month one the med is due on? Covers both weekday and
   // "every N days" schedules. Computed in UTC to match how doses are matched.
   const dueOn = (med: Medication, d: number) =>
@@ -244,6 +255,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                     const was = rec ? ` (recorded as ${esc(STATUS_LABEL[rec.status])})` : '';
                     return `<td style="color:#6b7280;font-weight:bold;" title="${esc(AWAY_LABEL[away])}${was}">${AWAY_CODE[away]}</td>`;
                   }
+                  if (!rec && notYetDue(d, t)) return '<td class="no-dose" title="Not due yet"></td>';
                   if (!rec) return isCancelled(med.id, d, t) ? '<td style="color:#6b7280;font-weight:bold;" title="Visit cancelled">C</td>' : '<td></td>';
                   const code = esc(initialsFor(rec));
                   const color = STATUS_COLOR[rec.status];
@@ -297,7 +309,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
         <div><span>N</span> = Not required</div>
         <div><span>S</span> = Self-administered</div>
         <div><span>F</span> = Family administered</div>
-        <div><span style="background:#f4f4f5;padding:0 6px">&nbsp;</span> = as required, none given</div>
+        <div><span style="background:#f4f4f5;padding:0 6px">&nbsp;</span> = none given / not due yet</div>
         <div><span>C</span> = Cancelled visit</div>
         <div><span>O</span> = Not at home</div>
         <div><span>H</span> = In hospital</div>
@@ -405,12 +417,13 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                             // seeing, not hiding behind an H.
                             const away = (!rec || rec.status === 'MISSED') ? awayAt(d, t) : null;
                             const cancelled = !rec && !away && isCancelled(med.id, d, t);
+                            const toCome = !rec && !away && !cancelled && notYetDue(d, t);
                             const [hh, mm] = t.split(':').map(Number);
                             const scheduledFor = new Date(Date.UTC(monthDate.getFullYear(), monthDate.getMonth(), d, hh, mm, 0)).toISOString();
                             return (
                               <td
                                 key={d}
-                                className={`border border-gray-300 text-center font-bold ${cancelled || away ? 'bg-gray-50' : ''} ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                                className={`border border-gray-300 text-center font-bold ${cancelled || away ? 'bg-gray-50' : ''} ${toCome ? 'bg-gray-100' : ''} ${canEdit ? 'cursor-pointer hover:bg-blue-50' : ''}`}
                                 style={away ? { color: '#6b7280' } : rec ? { color: STATUS_COLOR[rec.status] } : cancelled ? { color: '#6b7280' } : undefined}
                                 title={
                                   away
@@ -419,7 +432,9 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
                                       ? `${STATUS_LABEL[rec.status]}${rec.user ? ` · ${rec.user.firstName} ${rec.user.lastName}` : ''}${canEdit ? ' · click to edit' : ''}`
                                       : cancelled
                                         ? `Visit cancelled${canEdit ? ' · click to record' : ''}`
-                                        : canEdit ? 'Click to record this dose' : undefined
+                                        : toCome
+                                          ? 'Not due yet'
+                                          : canEdit ? 'Click to record this dose' : undefined
                                 }
                                 onClick={canEdit ? () => setCell({ med, time: t, scheduledFor, existing: rec ?? null }) : undefined}
                               >
@@ -448,7 +463,7 @@ export default function MarChartModal({ serviceUser, onClose }: Props) {
               <span><strong className="text-gray-600">N</strong> = Not required</span>
               <span><strong className="text-blue-700">S</strong> = Self-administered</span>
               <span><strong className="text-teal-700">F</strong> = Family administered</span>
-              <span><span className="inline-block w-4 h-3 align-middle bg-gray-100 border border-gray-300" /> = as required, none given</span>
+              <span><span className="inline-block w-4 h-3 align-middle bg-gray-100 border border-gray-300" /> = none given / not due yet</span>
               <span><strong className="text-gray-500">C</strong> = Cancelled visit</span>
               <span><strong className="text-amber-700">O</strong> = Not at home</span>
               <span><strong className="text-gray-500">H</strong> = In hospital</span>
