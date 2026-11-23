@@ -55,7 +55,10 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
       select: { serviceUserId: true, reviewDate: true, serviceUser: suName },
       orderBy: { reviewDate: 'asc' },
     }),
-    prisma.user.findMany({ where: { active: true, role: { notIn: [Role.ADMIN, Role.FAMILY_MEMBER] }, ...staffScope }, select: { id: true, firstName: true, lastName: true } }),
+    prisma.user.findMany({
+      where: { active: true, role: { notIn: [Role.ADMIN, Role.FAMILY_MEMBER] }, ...staffScope },
+      select: { id: true, firstName: true, lastName: true, supervisionExempt: true, employmentStartDate: true },
+    }),
     prisma.spotCheck.findMany({ select: { id: true, carerId: true, date: true, observerName: true, answers: true, source: true }, orderBy: { date: 'desc' } }),
     prisma.supervision.findMany({ select: { userId: true, nextReviewDate: true, date: true }, orderBy: { date: 'desc' } }),
     // Assessments/plans stored in the generic blob (risk assessments, one-page
@@ -151,6 +154,81 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   for (const ld of likesDislikes) add(ld.serviceUserId, ld.serviceUser, 'Likes & Dislikes', paperReview(ld.paperMeta, false));
   renewals.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 
+  // --- The worklist: one flat list of everything outstanding ---------------
+  //
+  // Clients AND staff, because a supervisor's job is both and splitting them
+  // across tabs is what made this page unusable: the renewal list was here,
+  // the spot checks and supervisions were two clicks away, and nothing ever
+  // showed the whole of what was waiting.
+  //
+  // Banding is left to the client, which already has the dates and can
+  // re-filter without a round trip. `never` is its own flag because "no
+  // record at all" is not a late date - there is no date to be late.
+  type WorkItem = {
+    subjectId: string;
+    subjectName: string;
+    subjectType: 'CLIENT' | 'STAFF';
+    kind: string;
+    dueDate: Date | null;
+    overdue: boolean;
+    never: boolean;
+  };
+  const worklist: WorkItem[] = renewals.map((r) => ({
+    subjectId: r.serviceUserId,
+    subjectName: r.serviceUserName,
+    subjectType: 'CLIENT' as const,
+    kind: r.docType,
+    dueDate: r.dueDate,
+    overdue: r.overdue,
+    never: false,
+  }));
+
+  const staffName = new Map(carers.map((c) => [c.id, `${c.firstName} ${c.lastName}`]));
+  for (const row of spotRows) {
+    if (!row.due) continue;
+    worklist.push({
+      subjectId: row.carerId,
+      subjectName: row.carerName,
+      subjectType: 'STAFF',
+      kind: 'Spot check',
+      dueDate: row.nextDue,
+      overdue: !!row.nextDue && row.nextDue < now,
+      never: !row.lastCheck,
+    });
+  }
+
+  // Supervision carries the same two exclusions the Reg 18 check applies, or
+  // this page would put back every false positive that was taken out of it:
+  // the owner and the registered manager deliver no care, and a new starter
+  // is not overdue in their first three months.
+  const GRACE_MONTHS = 3;
+  const withinGrace = (start: Date | null): boolean =>
+    !!start && addMonths(start, GRACE_MONTHS) > now;
+  for (const c of carers) {
+    if (c.supervisionExempt) continue;
+    const next = latestSupByUser.get(c.id);
+    if (next === undefined || next === null) {
+      // Never supervised. Only outstanding once the grace period is up.
+      if (withinGrace(c.employmentStartDate)) continue;
+      worklist.push({
+        subjectId: c.id, subjectName: staffName.get(c.id) || '', subjectType: 'STAFF',
+        kind: 'Supervision', dueDate: null, overdue: true, never: true,
+      });
+      continue;
+    }
+    if (next > soon) continue;
+    worklist.push({
+      subjectId: c.id, subjectName: staffName.get(c.id) || '', subjectType: 'STAFF',
+      kind: 'Supervision', dueDate: next, overdue: next < now, never: false,
+    });
+  }
+
+  // Worst first: never-done, then longest overdue, then soonest due.
+  worklist.sort((a, b) => {
+    if (a.never !== b.never) return a.never ? -1 : 1;
+    return (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0);
+  });
+
   res.json({
     intervalMonths: INTERVAL_MONTHS,
     supervisions: { dueCount: supervisionsDueCount },
@@ -160,6 +238,7 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
       items: renewals,
     },
     spotChecks: { dueCount: spotRows.filter((r) => r.due).length, rows: spotRows },
+    worklist,
     reviews: {
       dueCount: reviews.length,
       items: reviews.map((r) => ({ id: r.id, serviceUserId: r.serviceUserId, serviceUserName: `${r.serviceUser.firstName} ${r.serviceUser.lastName}`, dueDate: r.nextReviewDate, overdue: !!r.nextReviewDate && r.nextReviewDate < now })),

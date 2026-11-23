@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { supervisionApi } from '../api/supervision';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,71 +7,21 @@ import SpotCheckModal from '../components/SpotCheckModal';
 import SpotCheckHistoryRows from '../components/SpotCheckHistoryRows';
 import Icon from '../components/Icon';
 import PaperSeedModal from '../components/PaperSeedModal';
+import SupervisionWorklist from '../components/SupervisionWorklist';
 import Reviews from './Reviews';
 import StaffSupervisions from './StaffSupervisions';
 
-const TABS = ['Overview', 'Service Review', 'Spot checks', 'Supervisions'] as const;
+const TABS = ['Worklist', 'Service Review', 'Spot checks', 'Supervisions'] as const;
 type Tab = typeof TABS[number];
-
-function Tile({ n, label, tone }: { n: number; label: string; tone: 'danger' | 'warning' | 'accent' }) {
-  const map = {
-    danger: 'bg-red-50 text-red-700',
-    warning: 'bg-amber-50 text-amber-700',
-    accent: 'bg-blue-50 text-blue-700',
-  } as const;
-  return (
-    <div className={`rounded-lg px-4 py-3 ${map[tone]}`}>
-      <div className="text-2xl font-bold">{n}</div>
-      <div className="text-xs mt-0.5">{label}</div>
-    </div>
-  );
-}
-
-function dueLabel(dateStr: string, overdue: boolean): { text: string; danger: boolean } {
-  const d = new Date(dateStr);
-  if (overdue) return { text: `Overdue ${Math.abs(differenceInCalendarDays(d, new Date()))}d`, danger: true };
-  const days = differenceInCalendarDays(d, new Date());
-  return { text: days <= 0 ? 'Due today' : `In ${days}d`, danger: days <= 3 };
-}
 
 function Loading() {
   return <div className="flex justify-center p-8"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" /></div>;
 }
 
-function Overview() {
+function Worklist() {
   const { data, isLoading } = useQuery({ queryKey: ['supervision-summary'], queryFn: supervisionApi.summary });
   if (isLoading || !data) return <Loading />;
-  const renewals = data.renewals?.items ?? [];
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Tile n={data.renewals?.overdueCount ?? 0} label="Renewals overdue" tone="danger" />
-        <Tile n={data.renewals?.dueSoonCount ?? 0} label="Renewals due soon" tone="warning" />
-        <Tile n={data.spotChecks.dueCount} label="Spot checks due" tone="accent" />
-      </div>
-
-      <div className="card space-y-3">
-        <h2 className="font-semibold text-gray-900">Documents due for renewal</h2>
-        <p className="text-xs text-gray-500 -mt-1">Care plans, service reviews and all assessments/plans (incl. those held on paper) coming due in the next 30 days, or overdue.</p>
-        {renewals.length === 0 ? (
-          <p className="text-sm text-gray-400">Nothing due in the next 30 days.</p>
-        ) : (
-          <div className="space-y-2">
-            {renewals.map((r, i) => {
-              const d = dueLabel(r.dueDate, r.overdue);
-              return (
-                <Link key={`${r.serviceUserId}-${r.docType}-${i}`} to={`/service-users/${r.serviceUserId}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-2.5 hover:bg-gray-50">
-                  <div><p className="text-sm font-medium text-gray-900">{r.serviceUserName}</p><p className="text-xs text-gray-500">{r.docType}</p></div>
-                  <span className={`text-xs px-2 py-1 rounded-full ${d.danger ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{d.text}</span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <SupervisionWorklist worklist={data.worklist ?? []} />;
 }
 
 function SpotChecks() {
@@ -274,7 +223,7 @@ function SpotChecks() {
 }
 
 export default function Supervision() {
-  const [tab, setTab] = useState<Tab>('Overview');
+  const [tab, setTab] = useState<Tab>('Worklist');
 
   return (
     <div className="space-y-6">
@@ -296,7 +245,7 @@ export default function Supervision() {
         </nav>
       </div>
 
-      {tab === 'Overview' && <Overview />}
+      {tab === 'Worklist' && <Worklist />}
       {tab === 'Service Review' && <Reviews embedded />}
       {tab === 'Spot checks' && <SpotChecks />}
       {tab === 'Supervisions' && <StaffSupervisions embedded />}
