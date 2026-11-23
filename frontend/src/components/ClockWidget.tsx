@@ -14,6 +14,7 @@ const MED_OPTS: { value: MedStatus | ''; label: string }[] = [
   { value: 'REFUSED', label: 'Refused' },
   { value: 'NOT_NEEDED', label: 'Not Required' },
   { value: 'SELF_ADMIN', label: 'Self-admin' },
+  { value: 'FAMILY', label: 'Family gave it' },
   { value: 'NOT_AT_HOME', label: 'Not at home' },
   { value: 'MISSED', label: 'Missed' },
 ];

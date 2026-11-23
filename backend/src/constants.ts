@@ -26,6 +26,11 @@ export const MedStatus = {
   // it, and it was not. MISSED is the only status counted as missed
   // medication, so everything that is not that needs somewhere else to go.
   HOSPITAL: 'HOSPITAL', NOT_AT_HOME: 'NOT_AT_HOME',
+  // A relative gave it. The dose WAS taken, so this is not a failure and
+  // not a gap - but it was not us who gave it, and a MAR that says our
+  // carer administered a dose a daughter handed over is wrong about who is
+  // accountable for it.
+  FAMILY: 'FAMILY',
 } as const;
 export type MedStatus = (typeof MedStatus)[keyof typeof MedStatus];
 

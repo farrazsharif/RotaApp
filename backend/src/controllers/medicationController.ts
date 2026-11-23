@@ -12,7 +12,7 @@ import { awayWindows, awayTypeAt } from '../lib/awayDoses';
 
 // Human-readable status words for audit details (matches the portal labels).
 const STATUS_WORD: Record<string, string> = {
-  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled', HOSPITAL: 'In hospital', NOT_AT_HOME: 'Not at home',
+  GIVEN: 'Administered', REFUSED: 'Refused', MISSED: 'Missed', NOT_NEEDED: 'Not Required', SELF_ADMIN: 'Self-administered', CANCELLED: 'Cancelled', HOSPITAL: 'In hospital', NOT_AT_HOME: 'Not at home', FAMILY: 'Family administered',
 };
 
 // "for <patient name>" suffix for a medication audit entry, or undefined.
