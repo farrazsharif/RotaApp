@@ -14,6 +14,8 @@ import { usePermissions } from '../hooks/usePermissions';
 import { parseSignature } from '../components/SignatureField';
 import PrintBrandingHeader from '../components/PrintBrandingHeader';
 import { format, differenceInYears, addDays } from 'date-fns';
+import { planReviewDate } from '../lib/planReview';
+import { defaultTemplateSections } from '../lib/servicePlanSchema';
 import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
 import { parseCategories } from '../lib/supportCategories';
@@ -97,6 +99,11 @@ function Section({ id, title, action, children, className }: { id?: string; titl
     </div>
   );
 }
+
+// Where the assessment date lives on a service plan. The built-in template is
+// enough to resolve it: a company that customises theirs keeps the same key,
+// because builder ids default to the positional one.
+const planSections = defaultTemplateSections();
 
 const STATUS_META: Record<ServiceUserStatus, { label: string; icon: string; className: string }> = {
   ACTIVE: { label: 'Active', icon: '🟢', className: 'bg-green-100 text-green-700' },
@@ -753,14 +760,19 @@ export default function ServiceUserDetail() {
       action={<DocActions exists={!!servicePlan} canEdit={canEditDocs} startLabel="Start Plan" onOpen={openServicePlan} />}
     >
       {(() => {
-        let paper: { onFile?: boolean; reviewDate?: string } | null = null;
-        if (servicePlan?.data) { try { const d = JSON.parse(servicePlan.data); if (d && typeof d.__paper === 'object') paper = d.__paper; } catch { /* ignore */ } }
-        const overdue = !!paper?.onFile && !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
+        let parsed: Record<string, unknown> | null = null;
+        if (servicePlan?.data) { try { parsed = JSON.parse(servicePlan.data) as Record<string, unknown>; } catch { /* ignore */ } }
+        const paper = (parsed?.__paper as { onFile?: boolean; reviewDate?: string } | undefined) ?? null;
+        // The review date the plan is REALLY on: a year from the assessment
+        // date once the form has been filled in, the seeded paper date only
+        // until then. See lib/planReview.ts.
+        const due = planReviewDate(parsed, planSections);
+        const overdue = !!due && due < new Date();
         if (paper?.onFile) {
           return (
             <p className={`text-sm ${overdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
               <span className="badge-gray badge mr-2">📄 On file</span>
-              Held on paper{paper.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(paper.reviewDate), 'dd MMM yyyy')}` : ''}
+              Held on paper{due ? ` · review ${overdue ? 'overdue' : 'due'} ${format(due, 'dd MMM yyyy')}` : ''}
             </p>
           );
         }

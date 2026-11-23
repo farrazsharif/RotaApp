@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { isScoped, relatedServiceUserScopeWhere, staffScopeOr } from '../lib/scope';
+import { assessmentDateKey, planReviewDate } from '../lib/planReview';
 
 // How often each active carer should be spot-checked. Constant for Phase 1;
 // can move to an org setting later.
@@ -44,7 +45,7 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   const staffScope = isScoped(req.user) ? { OR: staffScopeOr(req.user) } : {};
 
   const suName = { select: { firstName: true, lastName: true } };
-  const [reviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes] = await Promise.all([
+  const [reviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes, planTemplate] = await Promise.all([
     prisma.review.findMany({
       where: { nextReviewDate: { not: null, lte: soon }, ...suScope },
       select: { id: true, serviceUserId: true, nextReviewDate: true, serviceUser: suName },
@@ -67,6 +68,9 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
     prisma.riskAssessment.findMany({ where: { ...suScope }, select: { serviceUserId: true, type: true, data: true, serviceUser: suName } }),
     prisma.personalServicePlan.findMany({ where: { ...suScope }, select: { serviceUserId: true, data: true, serviceUser: suName } }),
     prisma.likesDislikes.findMany({ where: { ...suScope }, select: { serviceUserId: true, paperMeta: true, serviceUser: suName } }),
+    // The company's own plan template, so the assessment-date field is found
+    // by label even where somebody has reordered the questions.
+    prisma.servicePlanTemplate.findFirst({ select: { sections: true } }),
   ]);
 
   // A staff member's supervision is "due" once their latest one's next-review
@@ -150,7 +154,12 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
     if (ra.type === 'CONTRACT_OF_CARE') continue;
     add(ra.serviceUserId, ra.serviceUser, RA_LABEL[ra.type] || 'Assessment', paperReview(ra.data, true));
   }
-  for (const sp of servicePlans) add(sp.serviceUserId, sp.serviceUser, 'Personal Service Plan', paperReview(sp.data, true));
+  const psKey = assessmentDateKey(planTemplate?.sections ?? null);
+  for (const sp of servicePlans) {
+    let parsed: Record<string, unknown> | null = null;
+    try { parsed = sp.data ? (JSON.parse(sp.data) as Record<string, unknown>) : null; } catch { parsed = null; }
+    add(sp.serviceUserId, sp.serviceUser, 'Personal Service Plan', planReviewDate(parsed, psKey, paperReview(sp.data, true)));
+  }
   for (const ld of likesDislikes) add(ld.serviceUserId, ld.serviceUser, 'Likes & Dislikes', paperReview(ld.paperMeta, false));
   renewals.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 

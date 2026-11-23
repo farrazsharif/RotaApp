@@ -4,6 +4,7 @@ import { servicePlansApi } from '../api/servicePlans';
 import { servicePlanTemplateApi } from '../api/servicePlanTemplate';
 import { servicePlanVersionsApi } from '../api/servicePlanVersions';
 import ServicePlanHistory from './ServicePlanHistory';
+import { planReviewDate } from '../lib/planReview';
 import { usePermissions } from '../hooks/usePermissions';
 import { ServiceUser } from '../types';
 import { defaultTemplateSections, keyForItem, PspItem, PspSection } from '../lib/servicePlanSchema';
@@ -120,8 +121,11 @@ export default function PersonalServicePlanModal({ serviceUser, onClose, startEd
   const paper = (values.__paper as PaperMeta) || {};
   const setPaper = (patch: PaperMeta) => setValues((v) => ({ ...v, __paper: { ...((v.__paper as PaperMeta) || {}), ...patch } }));
 
-  // Overdue = the held-on-paper next-review date is set and in the past.
-  const isOverdue = !!paper.reviewDate && new Date(paper.reviewDate) < new Date();
+  // Overdue = the review this plan is really on has passed. Once the form
+  // carries an assessment date the cycle runs from that, not from the paper
+  // date typed when the record was first seeded — see lib/planReview.ts.
+  const reviewDue = planReviewDate(values as Record<string, unknown>, sections);
+  const isOverdue = !!reviewDue && reviewDue < new Date();
 
   const yn = (key: string): YnVal => (values[key] as YnVal) || { v: '', comment: '', action: '' };
   const chk = (key: string): CheckVal => (values[key] as CheckVal) || { checked: false, comment: '' };
