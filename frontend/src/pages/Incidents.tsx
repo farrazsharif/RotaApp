@@ -14,6 +14,7 @@ import {
 } from '../lib/incidentForm';
 import AutoGrowTextarea from '../components/AutoGrowTextarea';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAuth } from '../contexts/AuthContext';
 
 // Accidents, incidents and near misses.
 //
@@ -44,6 +45,10 @@ export default function Incidents() {
   const qc = useQueryClient();
   const { can } = usePermissions();
   const canManage = can('manage_service_users');
+  // Deleting is admin-only, matching requireRole(Role.ADMIN) on the route. An
+  // incident report is evidence: a manager investigates one, only an account
+  // holder removes one, and only because it should never have been filed.
+  const { isAdmin } = useAuth();
   const [filter, setFilter] = useState('OPEN');
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -103,6 +108,7 @@ export default function Incidents() {
         <IncidentDetail
           id={openId}
           canManage={canManage}
+          canDelete={isAdmin}
           onClose={() => setOpenId(null)}
           onChanged={() => qc.invalidateQueries({ queryKey: ['incidents'] })}
         />
@@ -143,11 +149,13 @@ function IncidentRow({ row, onOpen }: { row: IncidentSummary; onOpen: () => void
 function IncidentDetail({
   id,
   canManage,
+  canDelete,
   onClose,
   onChanged,
 }: {
   id: string;
   canManage: boolean;
+  canDelete: boolean;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -213,6 +221,23 @@ function IncidentDetail({
     status: inc?.status === 'REPORTED' ? 'INVESTIGATING' : undefined,
   });
 
+  // Deleting a report filed in error. Two steps on purpose: the button arms,
+  // then confirms, and the confirm names what goes. An autosave is in flight
+  // every 1.2 seconds on this form, so the record is closed out of the list
+  // the moment it is gone rather than left for the next invalidate to notice.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleted = useRef(false);
+  const remove = useMutation({
+    mutationFn: () => incidentsApi.remove(id),
+    onSuccess: () => {
+      deleted.current = true;
+      setDirty(false);
+      qc.removeQueries({ queryKey: ['incident', id] });
+      onChanged();
+      onClose();
+    },
+  });
+
   const autosave = useMutation({
     mutationFn: (patch: IncidentPatch) => incidentsApi.update(id, patch),
     onSuccess: () => {
@@ -249,6 +274,7 @@ function IncidentDetail({
   useEffect(
     () => () => {
       const u = unsaved.current;
+      if (deleted.current) return;
       if (u.dirty && u.editable) incidentsApi.update(id, u.patch).catch(() => { /* nothing left to tell */ });
     },
     [id],
@@ -523,6 +549,35 @@ function IncidentDetail({
               <span className="text-sm text-red-600 font-medium">
                 {(save.error as { response?: { data?: { error?: string } } })?.response?.data?.error
                   || 'That did not save. Please try again.'}
+              </span>
+            )}
+            {canDelete && (
+              confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-red-700">Delete this report for good?</span>
+                  <button
+                    className="btn-secondary btn text-red-700 border-red-300"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate()}
+                  >
+                    {remove.isPending ? 'Deleting…' : 'Yes, delete'}
+                  </button>
+                  <button className="btn-secondary btn" onClick={() => setConfirmDelete(false)}>Keep it</button>
+                </div>
+              ) : (
+                <button
+                  className="btn-secondary btn text-red-700"
+                  onClick={() => setConfirmDelete(true)}
+                  title="For a report filed in error. This cannot be undone."
+                >
+                  Delete report
+                </button>
+              )
+            )}
+            {remove.error != null && (
+              <span className="text-xs text-red-600">
+                {(remove.error as { response?: { data?: { error?: string } } })?.response?.data?.error
+                  || 'That did not delete. Please try again.'}
               </span>
             )}
             <div className="flex-1" />
