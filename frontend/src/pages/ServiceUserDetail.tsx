@@ -19,7 +19,7 @@ import { defaultTemplateSections } from '../lib/servicePlanSchema';
 import LikesDislikesHistory from '../components/LikesDislikesHistory';
 import ServicePlanHistory from '../components/ServicePlanHistory';
 import RiskAssessmentHistory from '../components/RiskAssessmentHistory';
-import { PROFILE_FORMS } from '../lib/riskAssessmentSchema';
+import { PROFILE_FORMS, RA_FORMS } from '../lib/riskAssessmentSchema';
 import { printRiskAssessment } from '../lib/riskAssessmentPrint';
 import HospitalIcon from '../components/HospitalIcon';
 import Avatar from '../components/Avatar';
@@ -164,6 +164,10 @@ export default function ServiceUserDetail() {
   const openLikesDislikes = (m: DocMode) => { setLikesDislikesMode(m); setLikesDislikesOpen(true); };
   const openServicePlan = (m: DocMode) => { setServicePlanMode(m); setServicePlanOpen(true); };
   const openRa = (type: string, m: DocMode) => { setRaMode(m); setRaType(type); };
+  // Which assessments have their previous versions showing. Each list is
+  // fetched only once its row is opened, so thirteen version queries are not
+  // fired on a page that usually shows none of them.
+  const [openRaHistory, setOpenRaHistory] = useState<Record<string, boolean>>({});
   const [emarOpen, setEmarOpen] = useState(false);
   const [marChartOpen, setMarChartOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -938,24 +942,64 @@ export default function ServiceUserDetail() {
         {RA_TYPES.map((t) => {
           const summary = riskAssessments.find((r) => r.type === t.type);
           const overdue = !!summary?.onFile && !!summary.reviewDate && new Date(summary.reviewDate) < new Date();
+          const open = !!openRaHistory[t.type];
+          const form = RA_FORMS[t.type];
           return (
-            <div key={t.type} className="flex items-center justify-between gap-3 border-b last:border-0 pb-2 last:pb-0">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-800">
-                  {t.title}
-                  {summary?.onFile && <span className="ml-2 badge-gray badge">📄 On file</span>}
-                </p>
-                <p className={`text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                  {!summary
-                    ? 'Not started yet.'
-                    : summary.onFile
-                      ? `Held on paper${summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}`
-                      : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
-                </p>
+            <div key={t.type} className="border-b last:border-0 pb-2 last:pb-0">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  {summary ? (
+                    // The title doubles as the disclosure, so a started
+                    // assessment can be opened on its earlier reviews without
+                    // going into the form that is trying not to be changed.
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 text-sm font-medium text-gray-800 hover:text-blue-700"
+                      aria-expanded={open}
+                      onClick={() => setOpenRaHistory((o) => ({ ...o, [t.type]: !o[t.type] }))}
+                      title="Show previous reviews"
+                    >
+                      <Icon
+                        name="chevron"
+                        size={14}
+                        className={`text-gray-400 shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+                      />
+                      {t.title}
+                      {summary.onFile && <span className="ml-1 badge-gray badge">📄 On file</span>}
+                    </button>
+                  ) : (
+                    // Indented to line up with the titles that do open.
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+                      <span className="w-[14px] shrink-0" />
+                      {t.title}
+                    </p>
+                  )}
+                  <p className={`text-xs pl-[22px] ${overdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                    {!summary
+                      ? 'Not started yet.'
+                      : summary.onFile
+                        ? `Held on paper${summary.reviewDate ? ` · review ${overdue ? 'overdue' : 'due'} ${format(new Date(summary.reviewDate), 'dd MMM yyyy')}` : ''}`
+                        : `Last updated ${format(new Date(summary.updatedAt), 'dd MMM yyyy, h:mm a')}`}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <DocActions exists={!!summary} canEdit={canEditDocs} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
+                </div>
               </div>
-              <div className="shrink-0">
-                <DocActions exists={!!summary} canEdit={canEditDocs} startLabel="Start" onOpen={(m) => openRa(t.type, m)} />
-              </div>
+              {open && (
+                <div className="mt-2 ml-[22px] rounded-lg bg-gray-50 border border-gray-200 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Previous reviews</p>
+                  {form ? (
+                    <RiskAssessmentHistory
+                      serviceUserId={su.id}
+                      type={t.type}
+                      onOpen={(data, autoPrint) => printRiskAssessment(su, form, data, { autoPrint })}
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-500">Open the assessment to view its earlier reviews.</p>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
