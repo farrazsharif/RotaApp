@@ -720,18 +720,29 @@ export async function createOwnClockRecord(req: AuthRequest, res: Response) {
     return res.status(400).json({ error: 'Those times don’t match this visit’s date' });
   }
 
-  // Compulsory eMAR applies here too. This route writes a clock-in AND a
-  // clock-out in one go, so it was the one way to complete a visit without
-  // ever passing the medication gate — and it is precisely the route a carer
-  // uses when they forgot to clock in, which is when a dose is most likely to
-  // go unrecorded. Catching up on the visit means catching up on the chart.
-  const doses = await dosesAnsweredFor(shiftId, req.user!.id);
-  const pending = doses.filter((d) => !d.status);
-  if (pending.length > 0) {
-    return res.status(400).json({
-      error: 'Record medication before saving this visit',
-      pendingMeds: pending.map(pendingLabel),
-    });
+  // Compulsory eMAR belongs here too: this route writes a clock-in AND a
+  // clock-out in one go, so it is the one way to complete a visit without ever
+  // passing the medication gate — and it is precisely the route a carer uses
+  // when they forgot to clock in, which is when a dose is most likely to have
+  // gone unrecorded.
+  //
+  // HELD until the carer app that can satisfy it is released. Before 1.0.5 the
+  // app will not let a dose be recorded on a visit with no clock record, so
+  // enforcing the gate now would leave every carer on 1.0.2 unable to record a
+  // forgotten visit at all: no dose without a record, no record without the
+  // dose. The deploy reaches phones days before the build does.
+  //
+  // Turn it on by setting CATCHUP_REQUIRES_MEDS=1 once 1.0.5 is live on both
+  // stores, then delete the flag and keep the check.
+  if (process.env.CATCHUP_REQUIRES_MEDS === '1') {
+    const doses = await dosesAnsweredFor(shiftId, req.user!.id);
+    const pending = doses.filter((d) => !d.status);
+    if (pending.length > 0) {
+      return res.status(400).json({
+        error: 'Record medication before saving this visit',
+        pendingMeds: pending.map(pendingLabel),
+      });
+    }
   }
 
   const record = await prisma.clockRecord.create({
