@@ -1,4 +1,4 @@
-// When a service plan's next review is actually due.
+// When a plan or an assessment's next review is actually due.
 //
 // A plan can be logged as "held on paper" before anybody fills the form in:
 // tick the box, record the date it was completed and the date it falls due,
@@ -97,4 +97,25 @@ export function planReviewDate(
   const assessed = data ? parsePlanDate(data[key]) : null;
   if (assessed) return addYears(assessed, REVIEW_YEARS);
   return paperReview;
+}
+
+/**
+ * The review date an assessment is really on, given when it was last actually
+ * reviewed in Caremid.
+ *
+ * Risk assessments have no assessment-date field to read, but they do have
+ * something better: completing a review archives a dated version, and a
+ * version row exists because somebody did the review on that day. So the cycle
+ * runs from the latest version, and the seeded paper date is only what stands
+ * until there is one.
+ *
+ * The LATER of the two always wins. That way a version created for some other
+ * reason can never make a document look less current than its paper date says,
+ * and a genuine review always makes it current. It can only move forward.
+ */
+export function reviewedReviewDate(paperReview: Date | null, lastReviewedAt: Date | null): Date | null {
+  const fromReview = lastReviewedAt ? addYears(lastReviewedAt, REVIEW_YEARS) : null;
+  if (!fromReview) return paperReview;
+  if (!paperReview) return fromReview;
+  return fromReview > paperReview ? fromReview : paperReview;
 }

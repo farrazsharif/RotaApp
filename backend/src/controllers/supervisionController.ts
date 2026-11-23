@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { Role } from '../constants';
 import { isScoped, relatedServiceUserScopeWhere, staffScopeOr } from '../lib/scope';
-import { assessmentDateKey, planReviewDate } from '../lib/planReview';
+import { assessmentDateKey, planReviewDate, reviewedReviewDate } from '../lib/planReview';
 
 // How often each active carer should be spot-checked. Constant for Phase 1;
 // can move to an org setting later.
@@ -45,7 +45,7 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   const staffScope = isScoped(req.user) ? { OR: staffScopeOr(req.user) } : {};
 
   const suName = { select: { firstName: true, lastName: true } };
-  const [reviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes, planTemplate] = await Promise.all([
+  const [reviews, carePlans, carers, checks, supervisions, riskAssessments, servicePlans, likesDislikes, planTemplate, raVersions] = await Promise.all([
     prisma.review.findMany({
       where: { nextReviewDate: { not: null, lte: soon }, ...suScope },
       select: { id: true, serviceUserId: true, nextReviewDate: true, serviceUser: suName },
@@ -71,6 +71,14 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
     // The company's own plan template, so the assessment-date field is found
     // by label even where somebody has reordered the questions.
     prisma.servicePlanTemplate.findFirst({ select: { sections: true } }),
+    // When each assessment was last actually reviewed. See planReview.ts: a
+    // version is archived at the moment a review is completed, so it is the
+    // one date here that cannot go stale.
+    prisma.riskAssessmentVersion.findMany({
+      where: { ...suScope },
+      select: { serviceUserId: true, type: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
 
   // A staff member's supervision is "due" once their latest one's next-review
@@ -150,9 +158,17 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   for (const r of reviews) add(r.serviceUserId, r.serviceUser, 'Service review', r.nextReviewDate);
   // Contract of Care is deliberately excluded — it isn't on a review cycle (it
   // changes only when the visits/times change, via a new contract).
+  const lastReviewed = new Map<string, Date>();
+  for (const v of raVersions) {
+    const k = `${v.serviceUserId}__${v.type}`;
+    if (!lastReviewed.has(k)) lastReviewed.set(k, v.createdAt);
+  }
   for (const ra of riskAssessments) {
     if (ra.type === 'CONTRACT_OF_CARE') continue;
-    add(ra.serviceUserId, ra.serviceUser, RA_LABEL[ra.type] || 'Assessment', paperReview(ra.data, true));
+    // The later of the seeded paper date and a year from the last completed
+    // review, so a reviewed assessment stops counting as overdue.
+    const due = reviewedReviewDate(paperReview(ra.data, true), lastReviewed.get(`${ra.serviceUserId}__${ra.type}`) ?? null);
+    add(ra.serviceUserId, ra.serviceUser, RA_LABEL[ra.type] || 'Assessment', due);
   }
   const psKey = assessmentDateKey(planTemplate?.sections ?? null);
   for (const sp of servicePlans) {

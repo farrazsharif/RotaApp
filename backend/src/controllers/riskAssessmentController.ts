@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import { relatedServiceUserScopeWhere } from '../lib/scope';
+import { reviewedReviewDate } from '../lib/planReview';
 import { logAudit } from '../lib/audit';
 
 // Index for a client's risk assessments: which types exist and when each was
@@ -14,13 +15,37 @@ export async function listRiskAssessments(req: AuthRequest, res: Response) {
     where,
     select: { serviceUserId: true, type: true, createdAt: true, updatedAt: true, data: true },
   });
+  // When each assessment was last actually reviewed. A version is archived at
+  // the moment somebody completes a review, so its date is the one fact here
+  // that cannot go stale — unlike the seeded __paper date, which nothing in
+  // the review flow ever moved, leaving reviewed assessments stuck on red.
+  const versions = await prisma.riskAssessmentVersion.findMany({
+    where: serviceUserId ? { serviceUserId: String(serviceUserId) } : {},
+    select: { serviceUserId: true, type: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  const lastReviewed = new Map<string, Date>();
+  for (const v of versions) {
+    const k = `${v.serviceUserId}__${v.type}`;
+    if (!lastReviewed.has(k)) lastReviewed.set(k, v.createdAt);
+  }
   // Surface the "held on paper" essentials (stored under the reserved __paper
   // key) so the list can show an on-file badge and the review-due date.
   const out = rows.map((r) => {
     let paper: { onFile?: boolean; completedDate?: string; reviewDate?: string } | null = null;
     try { const d = JSON.parse(r.data); if (d && typeof d.__paper === 'object') paper = d.__paper; } catch { /* ignore */ }
     const { data, ...rest } = r;
-    return { ...rest, onFile: !!paper?.onFile, completedDate: paper?.completedDate || null, reviewDate: paper?.reviewDate || null };
+    const paperDue = paper?.reviewDate ? new Date(paper.reviewDate) : null;
+    const due = reviewedReviewDate(
+      paperDue && !isNaN(paperDue.getTime()) ? paperDue : null,
+      lastReviewed.get(`${r.serviceUserId}__${r.type}`) ?? null,
+    );
+    return {
+      ...rest,
+      onFile: !!paper?.onFile,
+      completedDate: paper?.completedDate || null,
+      reviewDate: due ? due.toISOString() : null,
+    };
   });
   res.json(out);
 }
