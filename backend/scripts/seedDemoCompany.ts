@@ -28,6 +28,32 @@
  *      carer app is for carers, and an ADMIN account cannot work a visit.
  */
 
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+// Credentials come from backend/.env.demo, which the owner writes and nobody
+// else needs to read — not this file, not the chat, not the commit (.env.* is
+// gitignored). Shape, one per line:
+//
+//   DEMO_ADMIN_EMAIL=...
+//   DEMO_ADMIN_PASSWORD=...
+//   DEMO_CARER_EMAIL=...
+//   DEMO_CARER_PASSWORD=...
+//
+// Real environment variables still win, so CI can set them instead.
+const ENV_FILE = join(__dirname, '..', '.env.demo');
+if (existsSync(ENV_FILE)) {
+  for (const line of readFileSync(ENV_FILE, 'utf8').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq < 1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
+
 const API = process.env.DEMO_API || 'https://api.caremid.co.uk/api';
 const APPLY = process.argv.includes('--apply');
 
