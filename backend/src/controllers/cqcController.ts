@@ -598,7 +598,10 @@ export async function computeReadiness() {
       items: stalePolicies.slice(0, CAP).map(policyLink),
     },
     supervisedCheck('spot_check_overdue', 'Spot checks up to date', 'Governance · Reg 17',
-      (s) => { const d = latestSpot.get(s.id); return !d || d < daysAgo(180); }, false,
+      // Never checked only counts against the service once the new starter's
+      // first three months are up — the same grace supervision gets, and for
+      // the same reason.
+      (s) => { const d = latestSpot.get(s.id); return d ? d < daysAgo(180) : !withinFirstMonths(s.employmentStartDate); }, false,
       (n) => n ? `${n} care staff have had no spot check in the last 6 months.` : 'Every member of care staff has a recent spot check.',
       observable, scopeNote + observableNote),
     {

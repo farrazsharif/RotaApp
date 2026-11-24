@@ -128,8 +128,20 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   const spotRows = spotCheckStaff
     .map((c) => {
       const last = latestByCarer.get(c.id) ?? null;
-      const nextDue = last ? addMonths(last.date, INTERVAL_MONTHS) : null;
+      // The first check falls due three months after somebody starts, exactly
+      // as the next one falls due three months after the last. Nobody is
+      // overdue for an observation of their work on their first morning, and a
+      // new starter reading "No spot check yet" in red was the dashboard
+      // telling a manager off for the calendar.
+      //
+      // No start date recorded means no grace to apply: it stays due now,
+      // because the alternative is a missing date quietly excusing somebody
+      // indefinitely.
+      const nextDue = last
+        ? addMonths(last.date, INTERVAL_MONTHS)
+        : (c.employmentStartDate ? addMonths(c.employmentStartDate, INTERVAL_MONTHS) : null);
       const due = !nextDue || nextDue <= now;
+      const newStarter = !last && !due;
       return {
         carerId: c.id,
         carerName: `${c.firstName} ${c.lastName}`,
@@ -140,6 +152,7 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
         concerns: last?.concerns ?? null,
         nextDue,
         due,
+        newStarter,
       };
     })
     .sort((a, b) => {

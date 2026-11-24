@@ -11,6 +11,8 @@ export interface SpotCheckRow {
   concerns: number | null;
   nextDue: string | null;
   due: boolean;
+  /** Never checked, and still inside their first three months. */
+  newStarter?: boolean;
   lastSource?: string | null; // 'form' | 'paper'
 }
 

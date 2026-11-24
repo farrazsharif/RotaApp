@@ -52,9 +52,13 @@ function SpotChecks() {
   // Coverage across active carers: up to date (checked, not yet due), overdue
   // (checked but past due), or never spot-checked.
   const scActive = rows.length;
-  const scNever = rows.filter((r) => !r.lastCheck).length;
+  // A new starter is neither overdue nor a gap: their first check falls due
+  // three months after they start, so they are counted separately rather than
+  // sitting in amber as though something had been missed.
+  const scNewStarter = rows.filter((r) => r.newStarter).length;
+  const scNever = rows.filter((r) => !r.lastCheck && !r.newStarter).length;
   const scOverdue = rows.filter((r) => r.lastCheck && r.due).length;
-  const scUpToDate = rows.filter((r) => r.lastCheck && !r.due).length;
+  const scUpToDate = rows.filter((r) => (r.lastCheck && !r.due) || r.newStarter).length;
 
   // Search filters the table by carer name.
   const q = search.trim().toLowerCase();
@@ -64,7 +68,7 @@ function SpotChecks() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-500">
-          Carers are spot-checked every {data.intervalMonths} months.
+          Carers are spot-checked every {data.intervalMonths} months, the first {data.intervalMonths} months after they start.
           {!!data.spotChecks.outOfScope && (
             // Said out loud. A list that silently drops people invites the
             // question of who, every time somebody counts it against the staff
@@ -92,6 +96,12 @@ function SpotChecks() {
           <div className="text-2xl font-bold text-amber-600 tabular-nums">{scNever}</div>
           <div className="text-xs text-gray-500 mt-0.5">No spot check yet</div>
         </div>
+        {scNewStarter > 0 && (
+          <div className="card p-4">
+            <div className="text-2xl font-bold text-blue-600 tabular-nums">{scNewStarter}</div>
+            <div className="text-xs text-gray-500 mt-0.5">New starter, not yet due</div>
+          </div>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -150,7 +160,9 @@ function SpotChecks() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {!r.lastCheck
+                      {r.newStarter
+                        ? <span className="badge-blue badge">First check {r.nextDue ? format(new Date(r.nextDue), 'dd MMM yyyy') : 'not yet due'}</span>
+                        : !r.lastCheck
                         ? <span className="badge-yellow badge">No spot check yet</span>
                         : r.due
                           ? <span className="badge-red badge">Overdue{overdays && overdays > 0 ? ` ${overdays}d` : ''}</span>
