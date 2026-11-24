@@ -14,6 +14,8 @@ export interface PlatformCompany {
   staff: number;
   serviceUsers: number;
   createdAt: string;
+  /** Whoever signed the company up — the only contact details Caremid holds. */
+  owner: { name: string; email: string; phone: string | null } | null;
 }
 
 export interface PlatformData {

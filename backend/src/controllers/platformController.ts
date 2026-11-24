@@ -25,6 +25,24 @@ export async function listCompanies(req: AuthRequest, res: Response) {
   const staffBy = new Map(staffCounts.map((r) => [r.companyId, r._count._all]));
   const suBy = new Map(suCounts.map((r) => [r.companyId, r._count._all]));
 
+  // Who to contact. Signup records the person who created the company — their
+  // name and email are the only contact details Caremid ever collects — and
+  // this page had no way to reach them, so a new trial arrived with nobody to
+  // welcome. The FIRST admin is the signer-up: later admins are staff they
+  // added themselves.
+  const admins = await runWithoutScope(() =>
+    prisma.user.findMany({
+      where: { role: 'ADMIN', active: true },
+      select: { companyId: true, firstName: true, lastName: true, email: true, phone: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    }),
+  );
+  const ownerBy = new Map<string, { name: string; email: string; phone: string | null }>();
+  for (const a of admins) {
+    if (!a.companyId || ownerBy.has(a.companyId)) continue;
+    ownerBy.set(a.companyId, { name: `${a.firstName} ${a.lastName}`.trim(), email: a.email, phone: a.phone ?? null });
+  }
+
   let rows = companies.map((c) => {
     const access = hasAccess(c);
     // A "lapsed" company had a trial/sub that is no longer valid.
@@ -43,13 +61,21 @@ export async function listCompanies(req: AuthRequest, res: Response) {
       staff: staffBy.get(c.id) ?? 0,
       serviceUsers: suBy.get(c.id) ?? 0,
       createdAt: c.createdAt,
+      owner: ownerBy.get(c.id) ?? null,
     };
   });
 
   if (statusFilter === 'trialing') rows = rows.filter((r) => r.subscriptionStatus === 'TRIALING' && r.hasAccess);
   else if (statusFilter === 'active') rows = rows.filter((r) => r.subscriptionStatus === 'ACTIVE');
   else if (statusFilter === 'lapsed') rows = rows.filter((r) => r.lapsed);
-  if (q) rows = rows.filter((r) => r.name.toLowerCase().includes(q) || r.slug.includes(q));
+  // Search the contact too — chasing a trial usually starts from a name or an
+  // email in an inbox, not from the company's slug.
+  if (q) {
+    rows = rows.filter((r) => r.name.toLowerCase().includes(q)
+      || r.slug.includes(q)
+      || (r.owner?.name ?? '').toLowerCase().includes(q)
+      || (r.owner?.email ?? '').toLowerCase().includes(q));
+  }
 
   // Headline metrics computed over ALL companies (ignore filters).
   const all = companies.map((c) => ({ status: c.subscriptionStatus, access: hasAccess(c), active: c.active }));

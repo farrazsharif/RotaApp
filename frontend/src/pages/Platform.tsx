@@ -92,6 +92,7 @@ export default function Platform() {
           <thead>
             <tr className="text-left text-gray-500 border-b border-gray-100">
               <th className="px-4 py-3 font-medium">Company</th>
+              <th className="px-4 py-3 font-medium">Contact</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Trial / renews</th>
               <th className="px-4 py-3 font-medium">Plan</th>
@@ -103,10 +104,10 @@ export default function Platform() {
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
             )}
             {data?.companies.length === 0 && !isLoading && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No companies match.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">No companies match.</td></tr>
             )}
             {data?.companies.map((c) => {
               const dl = c.subscriptionStatus === 'TRIALING' ? daysLeft(c.trialEndsAt) : null;
@@ -116,6 +117,17 @@ export default function Platform() {
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900">{c.name}</div>
                     <div className="text-xs text-gray-400">{c.slug}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    {c.owner ? (
+                      <>
+                        <div className="text-gray-900">{c.owner.name}</div>
+                        <a className="text-xs text-blue-700 hover:underline" href={`mailto:${c.owner.email}`}>{c.owner.email}</a>
+                        {c.owner.phone && <div className="text-xs text-gray-500">{c.owner.phone}</div>}
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400">No admin on the account</span>
+                    )}
                   </td>
                   <td className="px-4 py-3"><StatusBadge c={c} /></td>
                   <td className="px-4 py-3 text-gray-600">
