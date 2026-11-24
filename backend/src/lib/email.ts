@@ -89,6 +89,34 @@ function emailHeader(): string {
   return `<div style="text-align:center;margin:8px 0 20px"><img src="${logo}" alt="Caremid" style="max-width:200px;height:auto" /></div>`;
 }
 
+/**
+ * Sent once, when somebody registers a company for a trial.
+ *
+ * Deliberately a short list of first steps rather than a feature tour. The
+ * thing that loses a trial is opening an empty rota and not knowing where to
+ * start, and the order below is the one the software actually needs: a client
+ * to visit, a carer to send, then a visit joining the two.
+ */
+export function welcomeEmail(name: string, companyName: string, trialEnds: string, portalUrl: string) {
+  return `
+    ${emailHeader()}
+    <h2>Welcome to Caremid</h2>
+    <p>Hi ${name},</p>
+    <p><strong>${companyName}</strong> is set up and ready to use. Your free trial runs until <strong>${trialEnds}</strong>, with everything included — no card needed to try it.</p>
+    <h3>Three things to do first</h3>
+    <ol>
+      <li><strong>Add a client.</strong> Service Users &rarr; Add. Name and date of birth are enough to begin.</li>
+      <li><strong>Add a carer.</strong> Staff &rarr; Add. Send them an invite and they set their own password.</li>
+      <li><strong>Put a visit on the rota.</strong> Schedule &rarr; pick a day, choose the client and the carer, and publish it. Your carer sees it on their phone straight away.</li>
+    </ol>
+    <p>From there the care plans, risk assessments, medication charts and the CQC checks all build on those three.</p>
+    <p><a href="${portalUrl}">Open Caremid</a></p>
+    <h3>If you get stuck</h3>
+    <p>Reply to this email and a person will answer. If something looks wrong, say what you expected to see — that is usually enough for us to find it.</p>
+    <p>The carer app is on the <a href="https://apps.apple.com/gb/app/id6822938462">App Store</a> and <a href="https://play.google.com/store/apps/details?id=uk.co.caremid.carer">Google Play</a>, and also works in a phone browser if your staff would rather not install anything.</p>
+  `;
+}
+
 export function shiftAssignedEmail(name: string, date: string, start: string, end: string) {
   return `
     <h2>New Shift Assigned</h2>

@@ -5,6 +5,8 @@ import { prisma } from '../lib/prisma';
 import { runWithoutScope } from '../lib/tenantContext';
 import { ensureDefaultRoles } from '../lib/defaultRoles';
 import { Role } from '../constants';
+import { sendEmail, welcomeEmail } from '../lib/email';
+import { portalUrlForRole } from './authController';
 
 const TRIAL_DAYS = 14;
 
@@ -82,6 +84,20 @@ export async function signup(req: Request, res: Response) {
       await ensureDefaultRoles(tx, company.id);
       return { user, company };
     }),
+  );
+
+  // Welcome them. Fire-and-forget on purpose: a mail outage must not fail a
+  // signup that has already created the company, and the person is about to
+  // be logged straight in anyway.
+  sendEmail(
+    user.email,
+    `Welcome to Caremid, ${companyName.trim()}`,
+    welcomeEmail(
+      user.firstName,
+      companyName.trim(),
+      trialEndsAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+      portalUrlForRole(Role.ADMIN),
+    ),
   );
 
   const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
