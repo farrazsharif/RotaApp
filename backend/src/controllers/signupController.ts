@@ -33,7 +33,7 @@ async function uniqueSlug(base: string): Promise<string> {
 // Public self-serve signup: creates a new company workspace + its first admin,
 // starts a free trial, and returns a login token — no existing account needed.
 export async function signup(req: Request, res: Response) {
-  const { companyName, firstName, lastName, email, password } = req.body as Record<string, string>;
+  const { companyName, firstName, lastName, email, password, phone } = req.body as Record<string, string>;
 
   if (!companyName || !firstName || !lastName || !email || !password) {
     return res.status(400).json({ error: 'All fields are required' });
@@ -73,6 +73,11 @@ export async function signup(req: Request, res: Response) {
           password: hashed,
           firstName: firstName.trim(),
           lastName: lastName.trim(),
+          // Optional, and kept as typed. A phone number is for a human to ring,
+          // not for the software to parse, so there is nothing to validate
+          // beyond a sane length — reformatting somebody's number or rejecting
+          // a perfectly good one is worse than storing it as they wrote it.
+          phone: typeof phone === 'string' && phone.trim() ? phone.trim().slice(0, 40) : null,
           role: Role.ADMIN,
           active: true,
         },
@@ -122,6 +127,7 @@ export async function signup(req: Request, res: Response) {
         slug: company.slug,
         contactName: `${user.firstName} ${user.lastName}`.trim(),
         contactEmail: user.email,
+        contactPhone: user.phone,
         trialEnds: trialEndsAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
         signedUpAt: new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' }),
         platformUrl: portalUrlForRole(Role.ADMIN),

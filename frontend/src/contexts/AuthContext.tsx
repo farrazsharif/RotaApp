@@ -28,6 +28,7 @@ export interface SignupData {
   lastName: string;
   email: string;
   password: string;
+  phone?: string;
 }
 
 // Where each role's app lives. Carers → carer app, family → family portal;

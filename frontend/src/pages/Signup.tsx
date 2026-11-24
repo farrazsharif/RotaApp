@@ -9,6 +9,7 @@ export default function Signup() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +22,7 @@ export default function Signup() {
     }
     setLoading(true);
     try {
-      await signup({ companyName, firstName, lastName, email, password });
+      await signup({ companyName, firstName, lastName, email, password, phone });
     } catch (err: unknown) {
       const e = err as { code?: string; response?: { data?: { error?: string } } };
       if (e.code === 'ECONNABORTED') {
@@ -98,6 +99,17 @@ export default function Signup() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="you@yourcompany.com"
+                className="input"
+              />
+            </div>
+
+            <div>
+              <label className="label">Phone number</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="So we can help you get set up"
                 className="input"
               />
             </div>

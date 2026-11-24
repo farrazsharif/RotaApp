@@ -127,6 +127,7 @@ export function newSignupEmail(fields: {
   slug: string;
   contactName: string;
   contactEmail: string;
+  contactPhone: string | null;
   trialEnds: string;
   signedUpAt: string;
   platformUrl: string;
@@ -138,6 +139,7 @@ export function newSignupEmail(fields: {
       <tr><td style="color:#555">Company</td><td><strong>${fields.companyName}</strong></td></tr>
       <tr><td style="color:#555">Contact</td><td>${fields.contactName}</td></tr>
       <tr><td style="color:#555">Email</td><td><a href="mailto:${fields.contactEmail}">${fields.contactEmail}</a></td></tr>
+      <tr><td style="color:#555">Phone</td><td>${fields.contactPhone ? `<a href="tel:${fields.contactPhone.replace(/\s+/g, '')}">${fields.contactPhone}</a>` : 'not given'}</td></tr>
       <tr><td style="color:#555">Signed up</td><td>${fields.signedUpAt}</td></tr>
       <tr><td style="color:#555">Trial ends</td><td><strong>${fields.trialEnds}</strong></td></tr>
       <tr><td style="color:#555">Workspace</td><td>${fields.slug}</td></tr>
