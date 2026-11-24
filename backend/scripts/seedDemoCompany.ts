@@ -119,17 +119,31 @@ async function main() {
   }
 
   // 1. The company. Signup returns a token for the new ADMIN, so nothing else
-  //    needs a separate login.
-  const signup = await call('POST', '/auth/signup', {
-    companyName: COMPANY,
-    email: ADMIN_EMAIL,
-    password: ADMIN_PASSWORD,
-    firstName: 'Demo',
-    lastName: 'Administrator',
-  });
-  token = signup.token;
-  console.log(`\nCompany created: ${signup.company?.name} (${signup.company?.slug})`);
-  console.log(`Trial ends ${signup.company?.trialEndsAt} — COMP THIS before review.`);
+  //    needs a separate login. If the company was already made by hand in the
+  //    portal, signup comes back 409 on the email — sign in instead and carry
+  //    on, so this can be re-run against a half-built demo without starting
+  //    over.
+  try {
+    const signup = await call('POST', '/auth/signup', {
+      companyName: COMPANY,
+      email: ADMIN_EMAIL,
+      password: ADMIN_PASSWORD,
+      firstName: 'Demo',
+      lastName: 'Administrator',
+    });
+    token = signup.token;
+    console.log(`\nCompany created: ${signup.company?.name} (${signup.company?.slug})`);
+    console.log(`Trial ends ${signup.company?.trialEndsAt} — COMP THIS before review.`);
+  } catch (e) {
+    if (!/\b409\b/.test((e as Error).message)) throw e;
+    const login = await call('POST', '/auth/login', { email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+    token = login.token;
+    console.log('\nThat account already exists — signed in to it instead.');
+    console.log(`Signed in as ${login.user?.firstName} ${login.user?.lastName} (${login.user?.role}).`);
+    if (login.user?.role !== 'ADMIN') {
+      throw new Error('That account is not an ADMIN of the demo company — the rest of this needs admin rights.');
+    }
+  }
 
   // 2. The carer. A password is set directly rather than emailing an invite,
   //    because the reviewer cannot pick up an invite email.
