@@ -63,7 +63,15 @@ function SpotChecks() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-500">Carers are spot-checked every {data.intervalMonths} months.</p>
+        <p className="text-sm text-gray-500">
+          Carers are spot-checked every {data.intervalMonths} months.
+          {!!data.spotChecks.outOfScope && (
+            // Said out loud. A list that silently drops people invites the
+            // question of who, every time somebody counts it against the staff
+            // list and gets a different number.
+            <> {data.spotChecks.outOfScope} staff member{data.spotChecks.outOfScope === 1 ? '' : 's'} deliver no care (office roles, the owner and the registered manager), so a spot check does not apply to them.</>
+          )}
+        </p>
         <button className="btn-primary btn" onClick={() => setNewFor('any')}>+ New spot check</button>
       </div>
 

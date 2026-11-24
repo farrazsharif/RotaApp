@@ -63,7 +63,7 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
     }),
     prisma.user.findMany({
       where: { active: true, role: { notIn: [Role.ADMIN, Role.FAMILY_MEMBER] }, ...staffScope },
-      select: { id: true, firstName: true, lastName: true, supervisionExempt: true, employmentStartDate: true },
+      select: { id: true, firstName: true, lastName: true, supervisionExempt: true, employmentStartDate: true, staffRole: true, serviceAccount: true },
     }),
     prisma.spotCheck.findMany({ select: { id: true, carerId: true, date: true, observerName: true, answers: true, source: true }, orderBy: { date: 'desc' } }),
     prisma.supervision.findMany({ select: { userId: true, nextReviewDate: true, date: true }, orderBy: { date: 'desc' } }),
@@ -111,8 +111,21 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
   for (const c of checks) {
     if (!latestByCarer.has(c.carerId)) latestByCarer.set(c.carerId, { id: c.id, date: c.date, observerName: c.observerName, concerns: countConcerns(c.answers), source: c.source });
   }
+  // A spot check is an OBSERVATION OF CARE BEING DELIVERED: a manager watches
+  // somebody work a visit. So it only applies to staff who deliver care.
+  // Office-only staff, service accounts and the two people already out of
+  // scope for supervision (the owner and the registered manager, neither of
+  // whom gives care) have nothing to observe, and listing them as overdue
+  // reports a governance failure that does not exist.
+  //
+  // staffRole is the field that says this: CARE delivers the regulated
+  // activity, OFFICE is admin only.
+  const deliversCare = (c: { staffRole?: string; serviceAccount?: boolean; supervisionExempt?: boolean }) =>
+    c.staffRole !== 'OFFICE' && !c.serviceAccount && !c.supervisionExempt;
+  const spotCheckStaff = carers.filter(deliversCare);
+
   // One row per active carer: their last check, auto next-due date, and status.
-  const spotRows = carers
+  const spotRows = spotCheckStaff
     .map((c) => {
       const last = latestByCarer.get(c.id) ?? null;
       const nextDue = last ? addMonths(last.date, INTERVAL_MONTHS) : null;
@@ -273,7 +286,13 @@ export async function supervisionSummary(req: AuthRequest, res: Response) {
       dueSoonCount: renewals.filter((r) => !r.overdue).length,
       items: renewals,
     },
-    spotChecks: { dueCount: spotRows.filter((r) => r.due).length, rows: spotRows },
+    spotChecks: {
+      dueCount: spotRows.filter((r) => r.due).length,
+      rows: spotRows,
+      // Stated, not hidden: a count that silently excludes people invites the
+      // question of who, every time somebody checks it against the staff list.
+      outOfScope: carers.length - spotCheckStaff.length,
+    },
     worklist,
     reviews: {
       dueCount: reviews.length,

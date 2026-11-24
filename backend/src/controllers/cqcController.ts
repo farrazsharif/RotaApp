@@ -58,7 +58,7 @@ export async function computeReadiness() {
   const staff = await prisma.user.findMany({
     where: { active: true, role: { not: 'FAMILY_MEMBER' }, platformAdmin: false, serviceAccount: false },
     // role is needed to work out which policies apply to whom.
-    select: { id: true, firstName: true, lastName: true, role: true, supervisionExempt: true, employmentStartDate: true },
+    select: { id: true, firstName: true, lastName: true, role: true, supervisionExempt: true, employmentStartDate: true, staffRole: true },
     orderBy: [{ lastName: 'asc' }],
   });
   const clientLink = (c: { id: string; firstName: string; lastName: string }): CheckItem => ({ id: c.id, label: `${c.firstName} ${c.lastName}`, link: `/service-users/${c.id}` });
@@ -330,16 +330,25 @@ export async function computeReadiness() {
   const newStarterNote = newStarters
     ? ` ${newStarters} in their first ${SUPERVISION_GRACE_MONTHS} months, so not yet due.`
     : '';
-  const supervisedCheck = (id: string, title: string, statement: string, fail: (s: typeof staff[number]) => boolean, redIfAny: boolean, detail: (n: number) => string): Check => {
-    const failing = inScope.filter(fail);
+  const supervisedCheck = (id: string, title: string, statement: string, fail: (s: typeof staff[number]) => boolean, redIfAny: boolean, detail: (n: number) => string, over = inScope, note = scopeNote): Check => {
+    const failing = over.filter(fail);
     const status: CheckStatus = failing.length === 0 ? 'green' : redIfAny ? 'red' : 'amber';
     return {
       id, title, statement, status,
-      count: failing.length, total: inScope.length,
-      detail: detail(failing.length) + scopeNote,
+      count: failing.length, total: over.length,
+      detail: detail(failing.length) + note,
       items: failing.slice(0, CAP).map(staffLink),
     };
   };
+
+  // A spot check observes care being delivered, so office-only staff are not in
+  // scope for it even though they ARE in scope for supervision. staffRole says
+  // which is which: CARE delivers the regulated activity, OFFICE is admin only.
+  const observable = inScope.filter((s) => s.staffRole !== 'OFFICE');
+  const notObservable = inScope.length - observable.length;
+  const observableNote = notObservable
+    ? ` ${notObservable} office-based staff member(s) deliver no care, so a spot check does not apply to them.`
+    : '';
 
   const slClients = clients.filter((c) => c.careType === 'SUPPORTED_LIVING');
 
@@ -590,7 +599,8 @@ export async function computeReadiness() {
     },
     supervisedCheck('spot_check_overdue', 'Spot checks up to date', 'Governance · Reg 17',
       (s) => { const d = latestSpot.get(s.id); return !d || d < daysAgo(180); }, false,
-      (n) => n ? `${n} staff member(s) have had no spot check in the last 6 months.` : 'All staff have a recent spot check.'),
+      (n) => n ? `${n} care staff have had no spot check in the last 6 months.` : 'Every member of care staff has a recent spot check.',
+      observable, scopeNote + observableNote),
     {
       id: 'incidents', title: 'Accidents & incidents register', statement: 'Learning culture · Reg 12 & 17',
       status: 'green', count: incidents.length, total: incidents.length,
