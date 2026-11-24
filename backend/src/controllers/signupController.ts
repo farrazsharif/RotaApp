@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma';
 import { runWithoutScope } from '../lib/tenantContext';
 import { ensureDefaultRoles } from '../lib/defaultRoles';
 import { Role } from '../constants';
-import { sendEmail, welcomeEmail } from '../lib/email';
+import { sendEmail, welcomeEmail, newSignupEmail } from '../lib/email';
 import { portalUrlForRole } from './authController';
 
 const TRIAL_DAYS = 14;
@@ -99,6 +99,39 @@ export async function signup(req: Request, res: Response) {
       portalUrlForRole(Role.ADMIN),
     ),
   );
+
+  // And tell whoever runs Caremid, so a trial does not sit unnoticed.
+  //
+  // Recipients are the platform admins by default, which needs no
+  // configuration and stays right as that list changes. SIGNUP_NOTIFY_EMAIL
+  // (comma-separated) overrides when the notification should go somewhere
+  // else, such as a shared sales inbox.
+  void (async () => {
+    try {
+      const override = (process.env.SIGNUP_NOTIFY_EMAIL || '')
+        .split(',').map((e) => e.trim()).filter(Boolean);
+      const to = override.length
+        ? override
+        : (await runWithoutScope(() => prisma.user.findMany({
+            where: { platformAdmin: true, active: true },
+            select: { email: true },
+          }))).map((u) => u.email);
+      if (!to.length) return;
+      const html = newSignupEmail({
+        companyName: company.name,
+        slug: company.slug,
+        contactName: `${user.firstName} ${user.lastName}`.trim(),
+        contactEmail: user.email,
+        trialEnds: trialEndsAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        signedUpAt: new Date().toLocaleString('en-GB', { timeZone: 'Europe/London' }),
+        platformUrl: portalUrlForRole(Role.ADMIN),
+      });
+      for (const address of to) await sendEmail(address, `New Caremid trial: ${company.name}`, html);
+    } catch (err) {
+      // Never let the notification break a signup that already succeeded.
+      console.error('New-signup notification failed:', err);
+    }
+  })();
 
   const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',

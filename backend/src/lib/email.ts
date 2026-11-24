@@ -117,6 +117,37 @@ export function welcomeEmail(name: string, companyName: string, trialEnds: strin
   `;
 }
 
+/**
+ * Sent to whoever runs Caremid when a company registers, so a trial does not
+ * sit unnoticed. Everything needed to follow up is in the mail itself —
+ * chasing a new sign-up should not start with logging in to look something up.
+ */
+export function newSignupEmail(fields: {
+  companyName: string;
+  slug: string;
+  contactName: string;
+  contactEmail: string;
+  trialEnds: string;
+  signedUpAt: string;
+  platformUrl: string;
+}) {
+  return `
+    ${emailHeader()}
+    <h2>New trial: ${fields.companyName}</h2>
+    <table cellpadding="6" style="border-collapse:collapse;font-size:15px">
+      <tr><td style="color:#555">Company</td><td><strong>${fields.companyName}</strong></td></tr>
+      <tr><td style="color:#555">Contact</td><td>${fields.contactName}</td></tr>
+      <tr><td style="color:#555">Email</td><td><a href="mailto:${fields.contactEmail}">${fields.contactEmail}</a></td></tr>
+      <tr><td style="color:#555">Signed up</td><td>${fields.signedUpAt}</td></tr>
+      <tr><td style="color:#555">Trial ends</td><td><strong>${fields.trialEnds}</strong></td></tr>
+      <tr><td style="color:#555">Workspace</td><td>${fields.slug}</td></tr>
+    </table>
+    <p>They have had the welcome email with the three first steps. What they have NOT had is a conversation, and a trial that never gets one usually lapses quietly.</p>
+    <p>Worth asking: how many people they look after, how many carers, whether they are moving off paper or off other software, and when their next CQC inspection is due.</p>
+    <p><a href="${fields.platformUrl}/platform">Open the platform list</a></p>
+  `;
+}
+
 export function shiftAssignedEmail(name: string, date: string, start: string, end: string) {
   return `
     <h2>New Shift Assigned</h2>
