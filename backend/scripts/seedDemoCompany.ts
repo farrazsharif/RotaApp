@@ -171,19 +171,60 @@ async function main() {
     }
   }
 
+  // SAFETY. Email is unique across ALL companies and deleting a user only
+  // deactivates it, so an address used for a demo account in a real tenant
+  // still belongs to that tenant. If this token turned out to be for Care 24,
+  // everything below would write invented clients and visits into a live care
+  // provider's records.
+  //
+  // Checked by SIZE rather than by name, because the name is the thing most
+  // likely to be typed wrong: a demo company holds a handful of people, a real
+  // one holds dozens. Anything populated, stop and say so.
+  const me = await call('GET', '/auth/me');
+  const [existingClients, existingStaff] = await Promise.all([
+    call('GET', '/service-users'),
+    call('GET', '/users'),
+  ]);
+  const clientCount = Array.isArray(existingClients) ? existingClients.length : 0;
+  const staffCount = Array.isArray(existingStaff) ? existingStaff.length : 0;
+  console.log(`Tenant ${me.companyId}: ${clientCount} client(s), ${staffCount} staff.`);
+  const LIMIT = 5;
+  if (clientCount > LIMIT || staffCount > LIMIT) {
+    throw new Error(
+      `This looks like a real company (${clientCount} clients, ${staffCount} staff), not a fresh demo one. `
+      + 'Refusing to write. Check DEMO_ADMIN_EMAIL is the admin of Caremid Demo and not an account in a live tenant.',
+    );
+  }
+
   // 2. The carer. A password is set directly rather than emailing an invite,
   //    because the reviewer cannot pick up an invite email.
-  const carer = await call('POST', '/users', {
-    email: CARER_EMAIL,
-    password: CARER_PASSWORD,
-    firstName: 'Demo',
-    lastName: 'Carer',
-    role: 'EMPLOYEE',
-    staffRole: 'CARE',
-    hourlyRate: 12,
-    sendInvite: false,
-  });
-  console.log(`Carer created: ${carer.firstName} ${carer.lastName}`);
+  let carer: any;
+  try {
+    carer = await call('POST', '/users', {
+      email: CARER_EMAIL,
+      password: CARER_PASSWORD,
+      firstName: 'Demo',
+      lastName: 'Carer',
+      role: 'EMPLOYEE',
+      staffRole: 'CARE',
+      hourlyRate: 12,
+      sendInvite: false,
+    });
+    console.log(`Carer created: ${carer.firstName} ${carer.lastName}`);
+  } catch (e) {
+    if (!/\b409\b/.test((e as Error).message)) throw e;
+    // Already made by hand in the portal. Use it rather than failing — but it
+    // has to be a carer, because an ADMIN cannot clock into a visit and the
+    // reviewer would get no further than the rota.
+    carer = (existingStaff as any[]).find(
+      (u) => String(u.email).toLowerCase() === CARER_EMAIL.toLowerCase(),
+    );
+    if (!carer) throw new Error(`${CARER_EMAIL} is taken but not in this company — it belongs to another tenant.`);
+    console.log(`Carer already existed: ${carer.firstName} ${carer.lastName} (${carer.role}).`);
+    if (carer.role !== 'EMPLOYEE') {
+      throw new Error(`${CARER_EMAIL} is ${carer.role}, not EMPLOYEE. Change the role to carer in Staff and re-run.`);
+    }
+  }
 
   // 3. Clients, their medication, and a visit each.
   const today = new Date();
