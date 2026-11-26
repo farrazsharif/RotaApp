@@ -17,25 +17,36 @@ export async function topUpPermanentSeries(prisma: any): Promise<void> {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
   const target = new Date(today.getFullYear(), today.getMonth() + WINDOW_MONTHS, today.getDate(), 12, 0, 0);
 
-  const rows = await prisma.shift.findMany({
-    where: { seriesPermanent: true, seriesId: { not: null }, status: { not: 'CANCELLED' } },
-    select: { seriesId: true, date: true },
-  });
-  if (rows.length === 0) return;
+  // Group by series → the weekdays it recurs on and the furthest date so far.
+  // Still one pass over the same rows, but READ IN PAGES: the whole point is
+  // that only the grouped result has to be held, which is one entry per series
+  // rather than one per shift. A permanent series is twelve months of visits,
+  // so loading every row of every series across every company at once meant
+  // tens of thousands of objects alive together — in a job that runs on a
+  // timer, unattended, with nobody watching the memory while it does.
+  const bySeries = new Map<string, SeriesShape>();
+  const PAGE = 2000;
+  for (let skip = 0; ; skip += PAGE) {
+    const page = await prisma.shift.findMany({
+      where: { seriesPermanent: true, seriesId: { not: null }, status: { not: 'CANCELLED' } },
+      select: { seriesId: true, date: true },
+      orderBy: { id: 'asc' },
+      take: PAGE,
+      skip,
+    });
+    if (page.length === 0) break;
+    for (const r of page) {
+      const g = bySeries.get(r.seriesId) ?? { weekdays: new Set<number>(), latest: new Date(0) };
+      const d = new Date(r.date);
+      g.weekdays.add(d.getDay());
+      if (d > g.latest) g.latest = d;
+      bySeries.set(r.seriesId, g);
+    }
+    if (page.length < PAGE) break;
+  }
+  if (bySeries.size === 0) return;
 
   const inRespite = await loadRespiteLookup(prisma, today);
-
-  // Group by series → the weekdays it recurs on and the furthest date so far.
-  // Read in one query here rather than per series, then handed to growSeries so
-  // it doesn't go back to the database for something already in memory.
-  const bySeries = new Map<string, SeriesShape>();
-  for (const r of rows) {
-    const g = bySeries.get(r.seriesId) ?? { weekdays: new Set<number>(), latest: new Date(0) };
-    const d = new Date(r.date);
-    g.weekdays.add(d.getDay());
-    if (d > g.latest) g.latest = d;
-    bySeries.set(r.seriesId, g);
-  }
 
   let created = 0;
   for (const [seriesId, shape] of bySeries) {

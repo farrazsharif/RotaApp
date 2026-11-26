@@ -158,11 +158,25 @@ app.get('/health', async (_req, res) => {
     storage: !!process.env.R2_ACCESS_KEY_ID,
     email: !!(process.env.BREVO_API_KEY || process.env.SMTP_HOST),
   };
+  // Memory and uptime, because the host only says "exceeded its memory limit"
+  // AFTER it has killed the process, by which point the evidence is gone. With
+  // these two, the shape is readable from outside: rss climbing steadily across
+  // polls is a leak or genuine load, a jump between two polls is one expensive
+  // request, and an uptime that keeps resetting is a restart loop. Numbers
+  // about this process only — nothing about the data it holds.
+  const mem = process.memoryUsage();
+  const memory = {
+    rssMb: Math.round(mem.rss / 1048576),
+    heapUsedMb: Math.round(mem.heapUsed / 1048576),
+    heapTotalMb: Math.round(mem.heapTotal / 1048576),
+    externalMb: Math.round(mem.external / 1048576),
+    uptimeMin: Math.round(process.uptime() / 60),
+  };
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ok', db: 'ok', commit: COMMIT, features, timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', db: 'ok', commit: COMMIT, features, memory, timestamp: new Date().toISOString() });
   } catch {
-    res.status(503).json({ status: 'error', db: 'down', commit: COMMIT, features, timestamp: new Date().toISOString() });
+    res.status(503).json({ status: 'error', db: 'down', commit: COMMIT, features, memory, timestamp: new Date().toISOString() });
   }
 });
 
