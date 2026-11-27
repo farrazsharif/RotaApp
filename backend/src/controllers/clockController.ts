@@ -8,6 +8,7 @@ import { relatedStaffScopeWhere } from '../lib/scope';
 import { logAudit } from '../lib/audit';
 import { clientTime } from '../lib/clientTime';
 import { ownerShiftIdForDose } from '../lib/doseOwnership';
+import { doseSpacing, spacingNote } from '../lib/doseSpacing';
 import { isMedDueOn } from '../lib/medSchedule';
 import { capabilitiesFor } from '../middleware/permissions';
 
@@ -125,7 +126,16 @@ async function dueDosesForShift(shiftId: string | null, residentId?: string | nu
   // Does this shift own dose time t? (See ownerShiftIdForDose for the rule.)
   const ownsDose = (t: string): boolean => ownerShiftIdForDose(candidates, t) === shift.id;
   const visitYmd = day.toISOString().slice(0, 10);
-  const out: Array<{ medicationId: string; name: string; dose: string | null; route: string | null; isBlisterPack: boolean; packContents: string | null; time: string; prn: boolean; scheduledFor: string; status: string | null; recordedAt: string | null }> = [];
+  const out: Array<{
+    medicationId: string; name: string; dose: string | null; route: string | null;
+    isBlisterPack: boolean; packContents: string | null; time: string; prn: boolean;
+    scheduledFor: string; status: string | null; recordedAt: string | null;
+    minGapHours?: number | null; maxPer24h?: number | null;
+    spacing?: {
+      lastGivenAt: string | null; nextAllowedAt: string | null; tooSoon: boolean;
+      givenInLast24h: number; capReached: boolean; note: string | null;
+    } | null;
+  }> = [];
   for (const med of meds) {
     // Respect a prescribed course window: a short-course med (e.g. a 10-day
     // antibiotic) only appears on visits within its start/end dates — it
@@ -153,11 +163,39 @@ async function dueDosesForShift(shiftId: string | null, residentId?: string | nu
       const admin = await prisma.medAdministration.findUnique({
         where: { medicationId_scheduledFor: { medicationId: med.id, scheduledFor } },
       });
+      // Where this medicine stands against its prescribed spacing right now.
+      // Worked out here rather than in the app so the carer's phone and the
+      // office cannot disagree about when the next dose is allowed — and so
+      // an old app build cannot simply not know. See lib/doseSpacing.ts.
+      const spacing = (med.minGapHours || med.maxPer24h)
+        ? doseSpacing(
+            { minGapHours: med.minGapHours, maxPer24h: med.maxPer24h },
+            (await prisma.medAdministration.findMany({
+              where: { medicationId: med.id, recordedAt: { gte: new Date(Date.now() - 48 * 3600_000) } },
+              select: { status: true, recordedAt: true, user: { select: { firstName: true, lastName: true } } },
+            })).map((a) => ({
+              status: a.status,
+              recordedAt: a.recordedAt,
+              carerName: a.user ? `${a.user.firstName} ${a.user.lastName}` : null,
+            })),
+          )
+        : null;
+
       out.push({
         medicationId: med.id, name: med.name, dose: med.dose, route: med.route,
         isBlisterPack: med.isBlisterPack, packContents: med.packContents,
         time: '', prn: true, scheduledFor: scheduledFor.toISOString(),
         status: admin?.status ?? null, recordedAt: admin?.recordedAt ? admin.recordedAt.toISOString() : null,
+        minGapHours: med.minGapHours ?? null,
+        maxPer24h: med.maxPer24h ?? null,
+        spacing: spacing && {
+          lastGivenAt: spacing.lastGivenAt ? spacing.lastGivenAt.toISOString() : null,
+          nextAllowedAt: spacing.nextAllowedAt ? spacing.nextAllowedAt.toISOString() : null,
+          tooSoon: spacing.tooSoon,
+          givenInLast24h: spacing.givenInLast24h,
+          capReached: spacing.capReached,
+          note: spacingNote(spacing, { minGapHours: med.minGapHours, maxPer24h: med.maxPer24h }),
+        },
       });
       continue;
     }

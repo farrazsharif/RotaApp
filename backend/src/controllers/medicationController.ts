@@ -63,8 +63,22 @@ export async function listMedications(req: AuthRequest, res: Response) {
   res.json(meds);
 }
 
+// Hours between doses / doses per day. Nonsense is dropped rather than
+// corrected: a prescription nobody typed properly should read as absent, not
+// as a limit the software invented.
+function clampGapHours(v: unknown): number | null {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0 || n > 72) return null;
+  return Math.round(n);
+}
+function clampMaxPer24h(v: unknown): number | null {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0 || n > 24) return null;
+  return Math.round(n);
+}
+
 export async function createMedication(req: AuthRequest, res: Response) {
-  const { serviceUserId, name, dose, route, instructions, times, daysOfWeek, intervalDays, startDate, endDate, applicationSites, isBlisterPack, packContents } = req.body;
+  const { serviceUserId, name, dose, route, instructions, times, daysOfWeek, intervalDays, startDate, endDate, applicationSites, isBlisterPack, packContents, minGapHours, maxPer24h } = req.body;
   if (!serviceUserId || !name) return res.status(400).json({ error: 'serviceUserId and name required' });
   const med = await prisma.medication.create({
     data: {
@@ -81,6 +95,8 @@ export async function createMedication(req: AuthRequest, res: Response) {
       applicationSites: parseApplicationSites(applicationSites),
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
+      minGapHours: clampGapHours(minGapHours),
+      maxPer24h: clampMaxPer24h(maxPer24h),
     },
   });
   await logAudit(req, 'MEDICATION_ADDED', name, await forPatient(serviceUserId));
@@ -112,7 +128,7 @@ export async function createMedicationByCarer(req: AuthRequest, res: Response) {
 }
 
 export async function updateMedication(req: AuthRequest, res: Response) {
-  const { name, dose, route, instructions, times, daysOfWeek, intervalDays, startDate, endDate, active, applicationSites, isBlisterPack, packContents } = req.body;
+  const { name, dose, route, instructions, times, daysOfWeek, intervalDays, startDate, endDate, active, applicationSites, isBlisterPack, packContents, minGapHours, maxPer24h } = req.body;
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
   if (dose !== undefined) data.dose = dose || null;
@@ -123,6 +139,8 @@ export async function updateMedication(req: AuthRequest, res: Response) {
   if (times !== undefined) data.times = parseTimes(times);
   if (daysOfWeek !== undefined) data.daysOfWeek = parseDays(daysOfWeek);
   if (intervalDays !== undefined) data.intervalDays = clampIntervalDays(intervalDays);
+  if (minGapHours !== undefined) data.minGapHours = clampGapHours(minGapHours);
+  if (maxPer24h !== undefined) data.maxPer24h = clampMaxPer24h(maxPer24h);
   if (applicationSites !== undefined) data.applicationSites = parseApplicationSites(applicationSites);
   if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
   if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;

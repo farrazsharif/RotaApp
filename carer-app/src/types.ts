@@ -250,4 +250,17 @@ export interface DueDose {
   scheduledFor: string;
   status: MedAdminStatus | null;
   recordedAt: string | null;
+  /** Prescribed spacing for an as-required medicine, e.g. every 4-6 hours. */
+  minGapHours?: number | null;
+  maxPer24h?: number | null;
+  /** Where this medicine stands against that spacing, worked out server-side
+   *  so the phone and the office cannot disagree. */
+  spacing?: {
+    lastGivenAt: string | null;
+    nextAllowedAt: string | null;
+    tooSoon: boolean;
+    givenInLast24h: number;
+    capReached: boolean;
+    note: string | null;
+  } | null;
 }

@@ -311,6 +311,9 @@ export interface Medication {
   applicationSites: string; // JSON array of BodyMapPoint
   startDate?: string;
   endDate?: string;
+  /** Prescribed spacing, as-required medicines only. See backend lib/doseSpacing.ts. */
+  minGapHours?: number | null;
+  maxPer24h?: number | null;
   active: boolean;
   createdAt: string;
 }

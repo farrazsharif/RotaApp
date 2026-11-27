@@ -828,6 +828,9 @@ export async function ensureServiceUserColumns(prisma: any): Promise<void> {
   await prisma.$executeRawUnsafe(`ALTER TABLE "RiskAssessment" ADD COLUMN IF NOT EXISTS "reviewDueAt" TIMESTAMP(3)`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "PersonalServicePlan" ADD COLUMN IF NOT EXISTS "reviewDueAt" TIMESTAMP(3)`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "LikesDislikes" ADD COLUMN IF NOT EXISTS "reviewDueAt" TIMESTAMP(3)`);
+  // Prescribed spacing for an as-required medicine. See lib/doseSpacing.ts.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Medication" ADD COLUMN IF NOT EXISTS "minGapHours" INTEGER`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Medication" ADD COLUMN IF NOT EXISTS "maxPer24h" INTEGER`);
 
   // Performance indexes for large Shift tables. Series-wide carer changes and
   // series deletes match a visit by (company, serviceUser, date); series ops

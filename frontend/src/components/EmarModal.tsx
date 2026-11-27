@@ -168,7 +168,7 @@ function ScheduleChooser({ daysOfWeek, intervalDays, onChange }: {
   );
 }
 
-const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '', isBlisterPack: false, packContents: '', startDate: '', endDate: '', daysOfWeek: [] as number[], intervalDays: 0 };
+const emptyMed = { name: '', dose: '', route: 'Oral', instructions: '', isBlisterPack: false, packContents: '', startDate: '', endDate: '', daysOfWeek: [] as number[], intervalDays: 0, minGapHours: '', maxPer24h: '' };
 
 // Default clock times offered for each visit type a service user can be
 // scheduled for (see ServiceUserForm's VISIT_TYPES). Anything without
@@ -273,6 +273,10 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
       applicationSites: isTopical(medForm.route) ? sites : undefined,
       startDate: medForm.startDate || undefined,
       endDate: medForm.endDate || undefined,
+      // Only meaningful without fixed dose times: a scheduled medicine is
+      // spaced by its own clock times.
+      minGapHours: Object.keys(visitTimes).length === 0 && medForm.minGapHours ? Number(medForm.minGapHours) : undefined,
+      maxPer24h: Object.keys(visitTimes).length === 0 && medForm.maxPer24h ? Number(medForm.maxPer24h) : undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['medications', serviceUser.id] });
@@ -460,6 +464,38 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                   <p className="text-xs text-gray-400 mt-1">No visit selected — leave empty for PRN / as-required medication.</p>
                 )}
               </div>
+              {/* Spacing only applies to an as-required medicine. A scheduled
+                  one is spaced by its own dose times, so asking for both would
+                  invite two answers that can contradict each other. */}
+              {Object.keys(visitTimes).length === 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm font-medium text-gray-800">How often can it be given?</p>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    From the prescription — e.g. &ldquo;every 4&ndash;6 hours, maximum 4 in 24 hours&rdquo;. The carer is shown
+                    when the last dose was given and when the next is due. Leave blank if there is no limit.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <div>
+                      <label className="label">Minimum gap <span className="text-gray-400 font-normal">(hours)</span></label>
+                      <input
+                        type="number" min={1} max={72}
+                        value={medForm.minGapHours}
+                        onChange={(e) => setMedForm({ ...medForm, minGapHours: e.target.value })}
+                        className="input" placeholder="e.g. 4"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Most in 24 hours</label>
+                      <input
+                        type="number" min={1} max={24}
+                        value={medForm.maxPer24h}
+                        onChange={(e) => setMedForm({ ...medForm, maxPer24h: e.target.value })}
+                        className="input" placeholder="e.g. 4"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="label">Instructions</label>
                 <input value={medForm.instructions} onChange={(e) => setMedForm({ ...medForm, instructions: e.target.value })} className="input" placeholder="e.g. With food" />
@@ -546,6 +582,16 @@ export default function EmarModal({ serviceUser, onClose, defaultShowAdd }: Prop
                         )}
                         {schedLabel !== 'Every day' && (
                           <p className="text-xs text-blue-600 font-medium mt-0.5">📆 {schedLabel}</p>
+                        )}
+                        {(med.minGapHours || med.maxPer24h) && (
+                          // The prescribed spacing, visible without opening the
+                          // form - the office needs to see it to answer a carer
+                          // ringing to ask whether a dose is due yet.
+                          <p className="text-xs text-amber-700 font-medium mt-0.5">
+                            ⏱ {med.minGapHours ? `At least ${med.minGapHours}h between doses` : ''}
+                            {med.minGapHours && med.maxPer24h ? ' · ' : ''}
+                            {med.maxPer24h ? `max ${med.maxPer24h} in 24h` : ''}
+                          </p>
                         )}
                         {med.isBlisterPack && med.packContents && (
                           <div className="mt-1.5 text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded p-2 whitespace-pre-wrap">

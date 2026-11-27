@@ -715,7 +715,9 @@ export default function CallDetail() {
 
   // Doses the carer has ticked but not yet saved, keyed by dose. Nothing is
   // recorded until they tap "Save".
-  const [picks, setPicks] = useState<Record<string, { medicationId: string; scheduledFor: string; status: MedAdminStatus }>>({});
+  // note carries the carer's reason when a dose is given earlier than its
+  // prescribed gap, or over the 24-hour cap. Saved with the dose.
+  const [picks, setPicks] = useState<Record<string, { medicationId: string; scheduledFor: string; status: MedAdminStatus; note?: string }>>({});
 
   const saveAllMut = useMutation({
     mutationFn: () =>
@@ -728,6 +730,10 @@ export default function CallDetail() {
             serviceUserId: subjectId,
             scheduledFor: p.scheduledFor,
             status: p.status,
+            // The reason, when the dose was given earlier than its prescribed
+            // gap. Kept with the dose rather than in a separate log, because
+            // the next carer reads the dose.
+            ...(p.note?.trim() ? { note: p.note.trim() } : {}),
           }),
         ),
       ),
@@ -750,6 +756,19 @@ export default function CallDetail() {
         <div className="mt-1.5 text-xs text-gray-600 bg-gray-50 rounded-lg p-2 whitespace-pre-wrap">
           <span className="font-medium text-gray-500">In this pack:</span>{'\n'}{dose.packContents}
         </div>
+      )}
+      {/* Where this medicine stands against its prescribed spacing. Shown
+          before the buttons, because it is what the carer needs in order to
+          decide - not a telling-off afterwards. Amber when it is too soon or
+          the daily cap is reached; plain when it is simply information. */}
+      {dose.spacing?.note && (
+        <p className={`mt-1.5 text-xs rounded-lg px-2 py-1.5 ${
+          dose.spacing.tooSoon || dose.spacing.capReached
+            ? 'bg-amber-50 text-amber-800 font-medium'
+            : 'bg-gray-50 text-gray-600'
+        }`}>
+          {dose.spacing.tooSoon || dose.spacing.capReached ? '\u26a0 ' : ''}{dose.spacing.note}
+        </p>
       )}
       {dose.status || pendingWork.medKeys.has(`${dose.medicationId}|${dose.scheduledFor}`) ? (
         <p className="text-sm font-semibold text-green-600 mt-2">
@@ -792,6 +811,31 @@ export default function CallDetail() {
                 </button>
               );
             })}
+            {/* Giving one early is allowed - a GP can say so, and a carer who
+                cannot record what they actually did will either give it and
+                not record it, or not give it. Both are worse than a recorded
+                override. So: say what the position is, make the tap
+                deliberate, and keep the reason. */}
+            {picked === 'GIVEN' && (dose.spacing?.tooSoon || dose.spacing?.capReached) && (
+              <div className="col-span-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5">
+                <p className="text-xs font-semibold text-amber-900">
+                  {dose.spacing.capReached
+                    ? `That is more than the ${dose.maxPer24h} doses allowed in 24 hours.`
+                    : 'This is earlier than the prescribed gap.'}
+                </p>
+                <p className="text-xs text-amber-800 mt-0.5">{dose.spacing.note}</p>
+                <input
+                  className="mt-2 w-full rounded-lg border border-amber-300 px-2 py-1.5 text-sm"
+                  placeholder="Why is it being given now?"
+                  value={picks[key]?.note ?? ''}
+                  onChange={(e) => setPicks((p) => ({
+                    ...p,
+                    [key]: { ...p[key], medicationId: dose.medicationId, scheduledFor: dose.scheduledFor, status: 'GIVEN', note: e.target.value },
+                  }))}
+                />
+                <p className="text-[11px] text-amber-700 mt-1">Saved on the record with the dose.</p>
+              </div>
+            )}
           </div>
         );
       })()}

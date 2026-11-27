@@ -15,6 +15,9 @@ export interface MedicationData {
   applicationSites?: BodyMapPoint[];
   startDate?: string;
   endDate?: string;
+  /** Prescribed spacing for an as-required medicine. See backend lib/doseSpacing.ts. */
+  minGapHours?: number;
+  maxPer24h?: number;
 }
 
 export const medicationsApi = {
